@@ -13,14 +13,34 @@
 <body>
   <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    const map = L.map('map').setView([50.2649, 19.0238], 6); // Polska środek
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const map = L.map('map').setView([50.2649, 19.0238], 6);
 
-    // Esri satelita
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Map data © <a href="https://www.esri.com/">Esri</a>'
-    }).addTo(map);
-  </script>
+  // Satelita
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Map data © <a href="https://www.esri.com/">Esri</a>'
+  }).addTo(map);
+
+  const warstwy = {};
+
+  function dodajPinezke(nazwaWarstwy, wsp, nazwa, opis) {
+    if (!warstwy[nazwaWarstwy]) {
+      warstwy[nazwaWarstwy] = L.layerGroup().addTo(map);
+    }
+    const marker = L.marker(wsp).bindPopup(`<b>${nazwa}</b><br>${opis}`);
+    warstwy[nazwaWarstwy].addLayer(marker);
+  }
+
+  // Pinezki wygenerowane z pliku KML (ExploRajdy.kml)
+  dodajPinezke("Zakończone", [49.73767, 20.06894], "RAJD 1: Browar", "Zwiedzony ✔");
+  dodajPinezke("Zakończone", [49.74829, 20.09314], "RAJD 2: Elektrociepłownia", "Zwiedzona ✔");
+  dodajPinezke("Planowane", [49.81123, 20.04657], "RAJD 3: Zamek", "W planach 🚧");
+  dodajPinezke("Planowane", [49.85271, 20.12345], "RAJD 4: Fabryka", "W planach 🚧");
+  dodajPinezke("Do weryfikacji", [49.83412, 20.03123], "RAJD ?: Schron", "Brak info ❓");
+
+  // Lista warstw do przełączania
+  L.control.layers(null, warstwy).addTo(map);
+</script>
 </body>
 </html>
