@@ -1,9 +1,9 @@
 const warstwy = {};
 
 function dodajPinezke(warstwa, wsp, nazwa, opis) {
-  if (!warstwy[warstwa]) warstwy[warstwa] = L.layerGroup().addTo(map);
-  const marker = L.marker(wsp).bindPopup(`<b>${nazwa}</b><br>${opis}`);
-  warstwy[warstwa].addLayer(marker);
+if (!warstwy[warstwa]) warstwy[warstwa] = L.layerGroup().addTo(map);
+const marker = L.marker(wsp).bindPopup(`<b>${nazwa}</b><br>${opis}`);
+warstwy[warstwa].addLayer(marker);
 }
 
 dodajPinezke("Urban Climbing", [52.2266111111111, 20.9762777777778], "komin treningowy", "od Szymona.");
@@ -2606,7 +2606,7 @@ dodajPinezke("Opuszczone Świat", [52.4306142, 14.3579071], "dojebany bunkier", 
 dodajPinezke("Opuszczone Świat", [49.5475833333333, 15.2353333333333], "schron sztos", "gdiześ w promieniu 30km <a href=\"https://www.facebook.com/permalink.php?story_fbid=161205886343205&id=100581129072348\" target=\"_blank\">https://www.facebook.com/permalink.php?story_fbid=161205886343205&id=100581129072348</a>");
 dodajPinezke("Opuszczone Świat", [52.48577, 13.79117], "REB Rüdersdorfer Elektroanlagenbau GmbH", "");
 dodajPinezke("Opuszczone Świat", [40.4444011, 31.2029726], "Burj Al Babas - 732 niedokonczone pałacyki", "<img src=\"<a href=\"https://mymaps.usercontent.google.com/hostedimage/m/*/3ADbDBKs5WZJkClQT-6t6dWprTiXslzcEGEIlTG1VNGHIjkFVLSRc6Ej2L-xxnhQkgH_rS9Bx7iuu3vTddaGyFxW4n12kdpXyUjYRdrRLRhnzzrn9znvMR-lM9FV_xOQ6fkjI8Et5AV4X09E2N5UDeNsc__qNpq138c-z6iHz6R12m4mhPXG7B27iOSEsiVvrPBm2OeAWR14w4rlsxY4?authuser=0&fife=s16383\"\" target=\"_blank\">https://mymaps.usercontent.google.com/hostedimage/m/*/3ADbDBKs5WZJkClQT-6t6dWprTiXslzcEGEIlTG1VNGHIjkFVLSRc6Ej2L-xxnhQkgH_rS9Bx7iuu3vTddaGyFxW4n12kdpXyUjYRdrRLRhnzzrn9znvMR-lM9FV_xOQ6fkjI8Et5AV4X09E2N5UDeNsc__qNpq138c-z6iHz6R12m4mhPXG7B27iOSEsiVvrPBm2OeAWR14w4rlsxY4?authuser=0&fife=s16383\"</a> height=\"200\" width=\"auto\" /><br><br>");
-dodajPinezke("Opuszczone Świat", [50.0620625, 14.8864375], "2 MASZTY 350M 
+dodajPinezke("Opuszczone Świat", [50.0620625, 14.8864375], "2 MASZTY 350M
 
 RKS Liblice 2, Tower North", "bnt tu był <br><br><a href=\"https://www.youtube.com/watch?v=sUu_benjk5s&ab_channel=BNT\" target=\"_blank\">https://www.youtube.com/watch?v=sUu_benjk5s&ab_channel=BNT</a>");
 dodajPinezke("Opuszczone Świat", [49.8201839, 18.2804445], "Huta żelaza w Ostrawie", "");
@@ -3472,5 +3472,3 @@ dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.790017, 21.734251],
 dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.515626, 19.909269], "Y", "Address : Studzianki 19d, 97-320, Poland<br>Contact Number : <br>Date : May 03, 2024 05:29:34 PM<br>Note :");
 dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.342961, 19.59799], "Jakieś spore budynki po lewo jadąc tam", "Address : Wygoda 2, 97-371, Poland<br>Contact Number : <br>Date : May 03, 2024 04:33:32 PM<br>Note :");
 dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [50.295756, 18.898563], "K", "Address : Drogowa Trasa Średnicowa, Świętochłowice, Poland<br>Contact Number : <br>Date : May 03, 2024 01:54:55 PM<br>Note :");
-
-L.control.layers(null, warstwy).addTo(map);
