@@ -2,7 +2,8 @@ const warstwy = {};
 
 function dodajPinezke(warstwa, wsp, nazwa, opis) {
   if (!warstwy[warstwa]) {
-    warstwy[warstwa] = L.layerGroup().addTo(map);
+    warstwy[warstwa] = L.markerClusterGroup();
+    map.addLayer(warstwy[warstwa]);
   }
   const marker = L.marker(wsp).bindPopup(`<b>${nazwa}</b><br>${opis}`);
   warstwy[warstwa].addLayer(marker);
