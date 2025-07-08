@@ -4,10 +4,13 @@ function dodajPinezke(warstwa, wsp, nazwa, opis) {
   if (!warstwy[warstwa]) {
     warstwy[warstwa] = { grupa: L.layerGroup().addTo(map), pinezki: [] };
   }
-  const [lat, lon] = wsp;
-  const link = `https://maps.google.com/?q=${lat},${lon}`;
-  const popup = `<b>${nazwa}</b><br>${opis}<br><br><b>GPS:</b> ${lat.toFixed(6)}, ${lon.toFixed(6)}<br><a href='${link}' target='_blank'>📍 Otwórz w Google Maps</a>`;
-  const marker = L.marker(wsp).bindPopup(popup);
+  let lat = wsp[0], lon = wsp[1];
+  if (isNaN(lat) || isNaN(lon)) return;
+  const latStr = lat.toFixed(6);
+  const lonStr = lon.toFixed(6);
+  const gmap = `https://maps.google.com/?q=${latStr},${lonStr}`;
+  const popup = `<b>${nazwa}</b><br>${opis}<br><br><b>GPS:</b> ${latStr}, ${lonStr}<br><a href='${gmap}' target='_blank'>📍 Otwórz w Google Maps</a>`;
+  const marker = L.marker([lat, lon]).bindPopup(popup);
   marker.addTo(warstwy[warstwa].grupa);
   warstwy[warstwa].pinezki.push({ marker, nazwa });
 }
