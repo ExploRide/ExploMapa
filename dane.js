@@ -1,11 +1,3 @@
-function dodajEmojiDoNazwy(nazwa) {
-  const lower = nazwa.toLowerCase();
-  if (lower.includes("dom") || lower.includes("chata")) {
-    return "🏚️ " + nazwa;
-  }
-  return nazwa;
-}
-
 const warstwy = {};
 
 function dodajPinezke(warstwa, wsp, nazwa, opis) {
