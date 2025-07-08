@@ -3463,24 +3463,47 @@ const sidebar = document.getElementById('sidebar');
 Object.entries(warstwy).forEach(([warstwa, data]) => {
   const div = document.createElement('div');
   div.className = 'warstwa';
+
   const h3 = document.createElement('h3');
+
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.checked = true;
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.textContent = 'zwiń';
+  toggleBtn.style.fontSize = '12px';
+  toggleBtn.onclick = () => {
+    if (lista.style.display === 'none') {
+      lista.style.display = 'block';
+      toggleBtn.textContent = 'zwiń';
+    } else {
+      lista.style.display = 'none';
+      toggleBtn.textContent = 'rozwiń';
+    }
+  };
+
   checkbox.onchange = () => {
     if (checkbox.checked) {
       map.addLayer(data.grupa);
-      lista.style.display = 'block';
     } else {
       map.removeLayer(data.grupa);
-      lista.style.display = 'none';
     }
   };
-  h3.appendChild(checkbox);
+
   const label = document.createElement('span');
   label.textContent = warstwa;
+
+  const headerContainer = document.createElement('div');
+  headerContainer.style.display = 'flex';
+  headerContainer.style.justifyContent = 'space-between';
+  headerContainer.style.alignItems = 'center';
+
+  h3.appendChild(checkbox);
   h3.appendChild(label);
+  h3.appendChild(toggleBtn);
   div.appendChild(h3);
+
   const lista = document.createElement('div');
   lista.className = 'pinezki-lista';
   data.pinezki.forEach(({ marker, nazwa }) => {
