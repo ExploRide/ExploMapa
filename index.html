@@ -111,8 +111,14 @@ roads.addTo(map);
   </script>
 
   <script src="dane.js"></script>
-  <script>
-  L.control.layers(null, warstwy).addTo(map);
+<script>
+  if (typeof warstwy !== "undefined") {
+    const warstwaGrupy = {};
+    warstwy.forEach(w => {
+      warstwaGrupy[w.nazwa] = w.layer;
+    });
+    L.control.layers(null, warstwaGrupy).addTo(map);
+  }
 </script>
 </body>
 </html>
