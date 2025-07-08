@@ -7,11 +7,12 @@ function pokazPopupView(p) {
   const latStr = p.lat.toFixed(6);
   const lonStr = p.lon.toFixed(6);
   const gmap = `https://maps.google.com/?q=${latStr},${lonStr}`;
-  let content = `<b>${escapeHtml(p.nazwa)}</b> <button onclick='pokazPopupEdit(${wszystkiePinezki.indexOf(p)})'>✏️</button><br>`;
+  let content = `<b>${escapeHtml(p.nazwa)}</b> <a href='#' onclick='pokazPopupEdit(${wszystkiePinezki.indexOf(p)}); return false;'>✏️</a><br>`;
   content += `${escapeHtml(p.opis)}<br><br>`;
   content += `<b>GPS:</b> ${latStr}, ${lonStr}<br>`;
   content += `<a href='${gmap}' target='_blank'>📍 Otwórz w Google Maps</a>`;
   p.marker.setPopupContent(content);
+  p.marker.openPopup();
 }
 function pokazPopupEdit(index) {
   const p = wszystkiePinezki[index];
@@ -27,9 +28,9 @@ function pokazPopupEdit(index) {
   content += `</select><br><br>`;
   content += `<b>GPS:</b> ${latStr}, ${lonStr}<br>`;
   content += `<a href='${gmap}' target='_blank'>📍 Otwórz w Google Maps</a><br><br>`;
-  content += `<button onclick='zapiszZmiany(${index})'>Zapisz</button> <button onclick='pokazPopupView(wszystkiePinezki[${index}]); wszystkiePinezki[${index}].marker.openPopup();'>Anuluj</button>`;
+  content += `<button onclick='zapiszZmiany(${index})'>Zapisz</button> <button onclick='pokazPopupView(wszystkiePinezki[${index}])'>Anuluj</button>`;
   p.marker.setPopupContent(content);
-  p.marker.openPopup();
+  setTimeout(() => p.marker.openPopup(), 10);
 }
 function zapiszZmiany(index) {
   const p = wszystkiePinezki[index];
@@ -47,7 +48,6 @@ function zapiszZmiany(index) {
     warstwy[nowaWarstwa].pinezki.push(p);
   }
   pokazPopupView(p);
-  p.marker.openPopup();
 }
 function dodajPinezke(warstwa, wsp, nazwa, opis) {
   if (!warstwy[warstwa]) {
@@ -60,7 +60,7 @@ function dodajPinezke(warstwa, wsp, nazwa, opis) {
   warstwy[warstwa].pinezki.push(pinezka);
   warstwy[warstwa].grupa.addLayer(marker);
   marker.bindPopup('');
-  marker.on('click', () => { pokazPopupView(pinezka); });
+  marker.on('click', () => pokazPopupView(pinezka));
   return pinezka;
 }
 const wszystkiePinezki = [];
@@ -3548,24 +3548,3 @@ Object.keys(warstwy).forEach(warstwa => {
   div.appendChild(lista);
   sidebar.appendChild(div);
 });
-
-map.on('popupopen', function(e) {
-  const popupEl = e.popup._container;
-  if (popupEl) {
-    popupEl.addEventListener('mousedown', function(evt) {
-      evt.stopPropagation();
-    });
-  }
-});
-
-
-// Uniemożliwia zamykanie popupu po kliknięciu w jego wnętrzu (globalnie)
-document.addEventListener('mousedown', function (e) {
-  const popups = document.getElementsByClassName('leaflet-popup-content');
-  for (let popup of popups) {
-    if (popup.contains(e.target)) {
-      e.stopPropagation();
-      break;
-    }
-  }
-}, true);
