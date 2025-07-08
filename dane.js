@@ -3544,6 +3544,8 @@ Object.keys(warstwy).forEach(warstwa => {
     el.addEventListener('click', () => {
       pokazPopupView(p);
       p.marker.openPopup();
+      pokazPopupView(p);
+      p.marker.openPopup();
     });
     lista.appendChild(el);
   });
