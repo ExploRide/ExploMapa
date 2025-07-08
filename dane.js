@@ -3557,3 +3557,15 @@ map.on('popupopen', function(e) {
     });
   }
 });
+
+
+// Uniemożliwia zamykanie popupu po kliknięciu w jego wnętrzu (globalnie)
+document.addEventListener('mousedown', function (e) {
+  const popups = document.getElementsByClassName('leaflet-popup-content');
+  for (let popup of popups) {
+    if (popup.contains(e.target)) {
+      e.stopPropagation();
+      break;
+    }
+  }
+}, true);
