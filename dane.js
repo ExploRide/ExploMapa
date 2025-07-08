@@ -4,7 +4,10 @@ function dodajPinezke(warstwa, wsp, nazwa, opis) {
   if (!warstwy[warstwa]) {
     warstwy[warstwa] = { grupa: L.layerGroup().addTo(map), pinezki: [] };
   }
-  const marker = L.marker(wsp).bindPopup(`<b>${nazwa}</b><br>${opis}`);
+  const [lat, lon] = wsp;
+  const link = `https://maps.google.com/?q=${lat},${lon}`;
+  const popup = `<b>${nazwa}</b><br>${opis}<br><br><b>GPS:</b> ${lat.toFixed(6)}, ${lon.toFixed(6)}<br><a href='${link}' target='_blank'>📍 Otwórz w Google Maps</a>`;
+  const marker = L.marker(wsp).bindPopup(popup);
   marker.addTo(warstwy[warstwa].grupa);
   warstwy[warstwa].pinezki.push({ marker, nazwa });
 }
@@ -3458,13 +3461,6 @@ dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.790017, 21.734251],
 dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.515626, 19.909269], "Y", "Address : Studzianki 19d, 97-320, Poland<br>Contact Number : <br>Date : May 03, 2024 05:29:34 PM<br>Note :");
 dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.342961, 19.59799], "Jakieś spore budynki po lewo jadąc tam", "Address : Wygoda 2, 97-371, Poland<br>Contact Number : <br>Date : May 03, 2024 04:33:32 PM<br>Note :");
 dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [50.295756, 18.898563], "K", "Address : Drogowa Trasa Średnicowa, Świętochłowice, Poland<br>Contact Number : <br>Date : May 03, 2024 01:54:55 PM<br>Note :");
-
-const sidebar = document.getElementById('sidebar');
-Object.entries(warstwy).forEach(([warstwa, data]) => {
-  const div = document.createElement('div');
-  div.className = 'warstwa';
-
-  const h3 = document.createElement('h3');
 
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
