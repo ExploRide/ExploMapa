@@ -1,12 +1,12 @@
 const warstwy = {};
-const markerReferencje = {};
 
 function dodajPinezke(warstwa, wsp, nazwa, opis) {
   if (!warstwy[warstwa]) {
-    warstwy[warstwa] = [];
+    warstwy[warstwa] = { grupa: L.layerGroup().addTo(map), pinezki: [] };
   }
-  const marker = L.marker(wsp).bindPopup(`<b>${nazwa}</b><br>${opis}`).addTo(map);
-  warstwy[warstwa].push({ marker, nazwa });
+  const marker = L.marker(wsp).bindPopup(`<b>${nazwa}</b><br>${opis}`);
+  marker.addTo(warstwy[warstwa].grupa);
+  warstwy[warstwa].pinezki.push({ marker, nazwa });
 }
 
 dodajPinezke("Urban Climbing", [52.2266111111111, 20.9762777777778], "komin treningowy", "od Szymona.");
@@ -3460,13 +3460,30 @@ dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.342961, 19.59799], 
 dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [50.295756, 18.898563], "K", "Address : Drogowa Trasa Średnicowa, Świętochłowice, Poland<br>Contact Number : <br>Date : May 03, 2024 01:54:55 PM<br>Note :");
 
 const sidebar = document.getElementById('sidebar');
-Object.entries(warstwy).forEach(([warstwa, punkty]) => {
+Object.entries(warstwy).forEach(([warstwa, data]) => {
   const div = document.createElement('div');
   div.className = 'warstwa';
   const h3 = document.createElement('h3');
-  h3.textContent = warstwa;
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = true;
+  checkbox.onchange = () => {
+    if (checkbox.checked) {
+      map.addLayer(data.grupa);
+      lista.style.display = 'block';
+    } else {
+      map.removeLayer(data.grupa);
+      lista.style.display = 'none';
+    }
+  };
+  h3.appendChild(checkbox);
+  const label = document.createElement('span');
+  label.textContent = warstwa;
+  h3.appendChild(label);
   div.appendChild(h3);
-  punkty.forEach(({ marker, nazwa }) => {
+  const lista = document.createElement('div');
+  lista.className = 'pinezki-lista';
+  data.pinezki.forEach(({ marker, nazwa }) => {
     const el = document.createElement('div');
     el.className = 'pinezka';
     el.textContent = nazwa;
@@ -3474,7 +3491,8 @@ Object.entries(warstwy).forEach(([warstwa, punkty]) => {
       map.setView(marker.getLatLng(), 16);
       marker.openPopup();
     };
-    div.appendChild(el);
+    lista.appendChild(el);
   });
+  div.appendChild(lista);
   sidebar.appendChild(div);
 });

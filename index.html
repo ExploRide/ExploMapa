@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8">
-  <title>ExploRide • Mapa z listą</title>
+  <title>ExploRide • Mapa z warstwami</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
@@ -25,12 +25,14 @@
     .warstwa h3 {
       margin: 5px 0;
       font-size: 16px;
-      border-bottom: 1px solid #ccc;
-      padding-bottom: 3px;
-      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pinezki-lista {
+      margin-left: 10px;
     }
     .pinezka {
-      padding-left: 10px;
       font-size: 14px;
       margin: 2px 0;
       cursor: pointer;
