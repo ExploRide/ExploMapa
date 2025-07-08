@@ -60,7 +60,7 @@ function dodajPinezke(warstwa, wsp, nazwa, opis) {
   warstwy[warstwa].pinezki.push(pinezka);
   warstwy[warstwa].grupa.addLayer(marker);
   marker.bindPopup('');
-  marker.on('click', () => { pokazPopupView(pinezka); marker.openPopup(); });
+  marker.on('click', () => { pokazPopupView(pinezka); });
   return pinezka;
 }
 const wszystkiePinezki = [];
@@ -3547,4 +3547,13 @@ Object.keys(warstwy).forEach(warstwa => {
   });
   div.appendChild(lista);
   sidebar.appendChild(div);
+});
+
+map.on('popupopen', function(e) {
+  const popupEl = e.popup._container;
+  if (popupEl) {
+    popupEl.addEventListener('mousedown', function(evt) {
+      evt.stopPropagation();
+    });
+  }
 });
