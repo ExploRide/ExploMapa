@@ -27,8 +27,9 @@ function pokazPopupEdit(index) {
   content += `</select><br><br>`;
   content += `<b>GPS:</b> ${latStr}, ${lonStr}<br>`;
   content += `<a href='${gmap}' target='_blank'>📍 Otwórz w Google Maps</a><br><br>`;
-  content += `<button onclick='zapiszZmiany(${index})'>Zapisz</button> <button onclick='pokazPopupView(wszystkiePinezki[${index}])'>Anuluj</button>`;
+  content += `<button onclick='zapiszZmiany(${index})'>Zapisz</button> <button onclick='pokazPopupView(wszystkiePinezki[${index}]); wszystkiePinezki[${index}].marker.openPopup();'>Anuluj</button>`;
   p.marker.setPopupContent(content);
+  p.marker.openPopup();
 }
 function zapiszZmiany(index) {
   const p = wszystkiePinezki[index];
@@ -46,6 +47,7 @@ function zapiszZmiany(index) {
     warstwy[nowaWarstwa].pinezki.push(p);
   }
   pokazPopupView(p);
+  p.marker.openPopup();
 }
 function dodajPinezke(warstwa, wsp, nazwa, opis) {
   if (!warstwy[warstwa]) {
@@ -57,6 +59,7 @@ function dodajPinezke(warstwa, wsp, nazwa, opis) {
   pinezka.marker = marker;
   warstwy[warstwa].pinezki.push(pinezka);
   warstwy[warstwa].grupa.addLayer(marker);
+  marker.bindPopup('');
   marker.on('click', () => { pokazPopupView(pinezka); marker.openPopup(); });
   return pinezka;
 }
