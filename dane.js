@@ -3,23 +3,17 @@ function escapeHtml(text) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return text.replace(/[&<>"']/g, m => map[m]);
 }
-function aktualizujPopup(marker, nazwa, opis, lat, lon) {
-  const latStr = lat.toFixed(6);
-  const lonStr = lon.toFixed(6);
-  const gmap = `https://maps.google.com/?q=${latStr},${lonStr}`;
-  const popup = `<b>${escapeHtml(nazwa)}</b><br>${escapeHtml(opis)}<br><br><b>GPS:</b> ${latStr}, ${lonStr}<br><a href='${gmap}' target='_blank'>📍 Otwórz w Google Maps</a>`;
-  marker.setPopupContent(popup);
-}
 function dodajPinezke(warstwa, wsp, nazwa, opis) {
   if (!warstwy[warstwa]) {
     warstwy[warstwa] = { grupa: L.layerGroup().addTo(map), pinezki: [] };
   }
   let lat = wsp[0], lon = wsp[1];
+  const pinezka = { nazwa, opis, lat, lon, warstwa };
   const marker = L.marker([lat, lon]);
-  aktualizujPopup(marker, nazwa, opis, lat, lon);
-  marker.addTo(warstwy[warstwa].grupa);
-  const pinezka = { marker, nazwa, opis, lat, lon, warstwa };
+  pinezka.marker = marker;
   warstwy[warstwa].pinezki.push(pinezka);
+  warstwy[warstwa].grupa.addLayer(marker);
+  marker.on('click', () => pokazPopup(pinezka));
   return pinezka;
 }
 const wszystkiePinezki = [];
@@ -3472,60 +3466,41 @@ wszystkiePinezki.push(dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [
 wszystkiePinezki.push(dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.515626, 19.909269], "Y", "Address : Studzianki 19d, 97-320, Poland\nContact Number : \nDate : May 03, 2024 05:29:34 PM\nNote :"));
 wszystkiePinezki.push(dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.342961, 19.59799], "Jakieś spore budynki po lewo jadąc tam", "Address : Wygoda 2, 97-371, Poland\nContact Number : \nDate : May 03, 2024 04:33:32 PM\nNote :"));
 wszystkiePinezki.push(dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [50.295756, 18.898563], "K", "Address : Drogowa Trasa Średnicowa, Świętochłowice, Poland\nContact Number : \nDate : May 03, 2024 01:54:55 PM\nNote :"));
-const sidebar = document.getElementById('sidebar');
-const edytor = document.createElement('div');
-edytor.id = 'edytor';
-edytor.style.marginTop = '20px';
-sidebar.appendChild(edytor);
-let aktywnaPinezka = null;
-function pokazEdycje(p) {
-  aktywnaPinezka = p;
-  edytor.innerHTML = '';
-  const tytul = document.createElement('h3');
-  tytul.textContent = '✏️ Edytuj pinezkę';
-  const inputNazwa = document.createElement('input');
-  inputNazwa.value = p.nazwa;
-  const textareaOpis = document.createElement('textarea');
-  textareaOpis.value = p.opis;
-  const selectWarstwa = document.createElement('select');
+function pokazPopup(p) {
+  const latStr = p.lat.toFixed(6);
+  const lonStr = p.lon.toFixed(6);
+  const gmap = `https://maps.google.com/?q=${latStr},${lonStr}`;
+  let content = '';
+  content += `<b>Nazwa:</b><br><input id='popup-nazwa' value='${escapeHtml(p.nazwa)}'><br>`;
+  content += `<b>Opis:</b><br><textarea id='popup-opis'>${escapeHtml(p.opis)}</textarea><br>`;
+  content += `<b>Warstwa:</b><br><select id='popup-warstwa'>`;
   Object.keys(warstwy).forEach(w => {
-    const opt = document.createElement('option');
-    opt.value = w;
-    opt.textContent = w;
-    if (w === p.warstwa) opt.selected = true;
-    selectWarstwa.appendChild(opt);
+    content += `<option value='${w}' ${w === p.warstwa ? 'selected' : ''}>${w}</option>`;
   });
-  const btnZapisz = document.createElement('button');
-  btnZapisz.textContent = 'Zapisz';
-  btnZapisz.onclick = () => {
-    const nowaNazwa = inputNazwa.value;
-    const nowyOpis = textareaOpis.value;
-    const nowaWarstwa = selectWarstwa.value;
-    aktualizujPopup(p.marker, nowaNazwa, nowyOpis, p.lat, p.lon);
-    if (nowaWarstwa !== p.warstwa) {
-      warstwy[p.warstwa].grupa.removeLayer(p.marker);
-      p.warstwa = nowaWarstwa;
-      warstwy[nowaWarstwa].grupa.addLayer(p.marker);
-    }
-    p.nazwa = nowaNazwa;
-    p.opis = nowyOpis;
-    edytor.innerHTML = '<i>Zapisano zmiany</i>';
-  };
-  edytor.appendChild(tytul);
-  edytor.appendChild(document.createTextNode('Nazwa:'));
-  edytor.appendChild(document.createElement('br'));
-  edytor.appendChild(inputNazwa);
-  edytor.appendChild(document.createElement('br'));
-  edytor.appendChild(document.createTextNode('Opis:'));
-  edytor.appendChild(document.createElement('br'));
-  edytor.appendChild(textareaOpis);
-  edytor.appendChild(document.createElement('br'));
-  edytor.appendChild(document.createTextNode('Warstwa:'));
-  edytor.appendChild(document.createElement('br'));
-  edytor.appendChild(selectWarstwa);
-  edytor.appendChild(document.createElement('br'));
-  edytor.appendChild(btnZapisz);
-};
+  content += `</select><br><br>`;
+  content += `<b>GPS:</b> ${latStr}, ${lonStr}<br>`;
+  content += `<a href='${gmap}' target='_blank'>📍 Otwórz w Google Maps</a><br><br>`;
+  content += `<button onclick='zapiszZmiany(${wszystkiePinezki.indexOf(p)})'>Zapisz</button> <button onclick='p.marker.closePopup()'>Anuluj</button>`;
+  p.marker.bindPopup(content).openPopup();
+}
+function zapiszZmiany(index) {
+  const p = wszystkiePinezki[index];
+  const nowaNazwa = document.getElementById('popup-nazwa').value;
+  const nowyOpis = document.getElementById('popup-opis').value;
+  const nowaWarstwa = document.getElementById('popup-warstwa').value;
+  p.nazwa = nowaNazwa;
+  p.opis = nowyOpis;
+  if (nowaWarstwa !== p.warstwa) {
+    warstwy[p.warstwa].grupa.removeLayer(p.marker);
+    warstwy[p.warstwa].pinezki = warstwy[p.warstwa].pinezki.filter(x => x !== p);
+    p.warstwa = nowaWarstwa;
+    if (!warstwy[nowaWarstwa]) { warstwy[nowaWarstwa] = { grupa: L.layerGroup().addTo(map), pinezki: [] }; }
+    warstwy[nowaWarstwa].grupa.addLayer(p.marker);
+    warstwy[nowaWarstwa].pinezki.push(p);
+  }
+  p.marker.closePopup();
+}
+const sidebar = document.getElementById('sidebar');
 Object.keys(warstwy).forEach(warstwa => {
   const div = document.createElement('div');
   div.className = 'warstwa';
@@ -3551,9 +3526,10 @@ Object.keys(warstwy).forEach(warstwa => {
   warstwy[warstwa].pinezki.forEach(p => {
     const el = document.createElement('div');
     el.className = 'pinezka';
-    el.innerHTML = escapeHtml(p.nazwa) + ' <button>✏️</button>';
-    el.querySelector('button').onclick = () => pokazEdycje(p);
-    el.addEventListener('click', (e) => { if (e.target.tagName !== 'BUTTON') p.marker.openPopup(); });
+    el.textContent = p.nazwa;
+    el.addEventListener('click', () => {
+      p.marker.openPopup();
+    });
     lista.appendChild(el);
   });
   div.appendChild(lista);
