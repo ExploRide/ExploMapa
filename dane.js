@@ -3526,4 +3526,3 @@ dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [50.295756, 18.898563],
   });
   div.appendChild(lista);
   sidebar.appendChild(div);
-});
