@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
-    #map { position: absolute; top: 0; left: 300px; right: 200px; bottom: 0; }
+    #map { position: absolute; top: 0; left: 300px; right: 250px; bottom: 0; }
     #sidebar {
       position: absolute;
       top: 0;
@@ -23,7 +23,7 @@
       position: absolute;
       top: 0;
       right: 0;
-      width: 200px;
+      width: 250px;
       height: 100%;
       background: #f8f8f8;
       border-left: 1px solid #ccc;
@@ -97,11 +97,13 @@
 
     document.querySelectorAll('input[name="basemap"]').forEach(radio => {
       radio.addEventListener('change', () => {
-    map.removeLayer(baseLayer);
+map.removeLayer(baseLayer);
 baseLayer = (radio.value === 'sat') ? sat : hill;
 baseLayer.addTo(map);
 
-// dodaj ponownie warstwy overlay, żeby były na wierzchu
+// Upewnij się, że te warstwy są na wierzchu
+map.removeLayer(labels);
+map.removeLayer(roads);
 labels.addTo(map);
 roads.addTo(map);
       });
