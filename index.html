@@ -97,9 +97,13 @@
 
     document.querySelectorAll('input[name="basemap"]').forEach(radio => {
       radio.addEventListener('change', () => {
-        map.removeLayer(baseLayer);
-        baseLayer = (radio.value === 'sat') ? sat : hill;
-        baseLayer.addTo(map);
+    map.removeLayer(baseLayer);
+baseLayer = (radio.value === 'sat') ? sat : hill;
+baseLayer.addTo(map);
+
+// dodaj ponownie warstwy overlay, żeby były na wierzchu
+labels.addTo(map);
+roads.addTo(map);
       });
     });
   </script>
