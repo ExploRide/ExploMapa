@@ -3,6 +3,50 @@ function escapeHtml(text) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return text.replace(/[&<>"']/g, m => map[m]);
 }
+function pokazPopupView(p) {
+  const latStr = p.lat.toFixed(6);
+  const lonStr = p.lon.toFixed(6);
+  const gmap = `https://maps.google.com/?q=${latStr},${lonStr}`;
+  let content = `<b>${escapeHtml(p.nazwa)}</b> <button onclick='pokazPopupEdit(${wszystkiePinezki.indexOf(p)})'>✏️</button><br>`;
+  content += `${escapeHtml(p.opis)}<br><br>`;
+  content += `<b>GPS:</b> ${latStr}, ${lonStr}<br>`;
+  content += `<a href='${gmap}' target='_blank'>📍 Otwórz w Google Maps</a>`;
+  p.marker.setPopupContent(content);
+}
+function pokazPopupEdit(index) {
+  const p = wszystkiePinezki[index];
+  const latStr = p.lat.toFixed(6);
+  const lonStr = p.lon.toFixed(6);
+  const gmap = `https://maps.google.com/?q=${latStr},${lonStr}`;
+  let content = `<b>Nazwa:</b><br><input id='popup-nazwa' value='${escapeHtml(p.nazwa)}'><br>`;
+  content += `<b>Opis:</b><br><textarea id='popup-opis'>${escapeHtml(p.opis)}</textarea><br>`;
+  content += `<b>Warstwa:</b><br><select id='popup-warstwa'>`;
+  Object.keys(warstwy).forEach(w => {
+    content += `<option value='${w}' ${w === p.warstwa ? 'selected' : ''}>${w}</option>`;
+  });
+  content += `</select><br><br>`;
+  content += `<b>GPS:</b> ${latStr}, ${lonStr}<br>`;
+  content += `<a href='${gmap}' target='_blank'>📍 Otwórz w Google Maps</a><br><br>`;
+  content += `<button onclick='zapiszZmiany(${index})'>Zapisz</button> <button onclick='pokazPopupView(wszystkiePinezki[${index}])'>Anuluj</button>`;
+  p.marker.setPopupContent(content);
+}
+function zapiszZmiany(index) {
+  const p = wszystkiePinezki[index];
+  const nowaNazwa = document.getElementById('popup-nazwa').value;
+  const nowyOpis = document.getElementById('popup-opis').value;
+  const nowaWarstwa = document.getElementById('popup-warstwa').value;
+  p.nazwa = nowaNazwa;
+  p.opis = nowyOpis;
+  if (nowaWarstwa !== p.warstwa) {
+    warstwy[p.warstwa].grupa.removeLayer(p.marker);
+    warstwy[p.warstwa].pinezki = warstwy[p.warstwa].pinezki.filter(x => x !== p);
+    p.warstwa = nowaWarstwa;
+    if (!warstwy[nowaWarstwa]) { warstwy[nowaWarstwa] = { grupa: L.layerGroup().addTo(map), pinezki: [] }; }
+    warstwy[nowaWarstwa].grupa.addLayer(p.marker);
+    warstwy[nowaWarstwa].pinezki.push(p);
+  }
+  pokazPopupView(p);
+}
 function dodajPinezke(warstwa, wsp, nazwa, opis) {
   if (!warstwy[warstwa]) {
     warstwy[warstwa] = { grupa: L.layerGroup().addTo(map), pinezki: [] };
@@ -13,7 +57,7 @@ function dodajPinezke(warstwa, wsp, nazwa, opis) {
   pinezka.marker = marker;
   warstwy[warstwa].pinezki.push(pinezka);
   warstwy[warstwa].grupa.addLayer(marker);
-  marker.on('click', () => pokazPopup(pinezka));
+  marker.on('click', () => { pokazPopupView(pinezka); marker.openPopup(); });
   return pinezka;
 }
 const wszystkiePinezki = [];
@@ -3466,40 +3510,6 @@ wszystkiePinezki.push(dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [
 wszystkiePinezki.push(dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.515626, 19.909269], "Y", "Address : Studzianki 19d, 97-320, Poland\nContact Number : \nDate : May 03, 2024 05:29:34 PM\nNote :"));
 wszystkiePinezki.push(dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.342961, 19.59799], "Jakieś spore budynki po lewo jadąc tam", "Address : Wygoda 2, 97-371, Poland\nContact Number : \nDate : May 03, 2024 04:33:32 PM\nNote :"));
 wszystkiePinezki.push(dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [50.295756, 18.898563], "K", "Address : Drogowa Trasa Średnicowa, Świętochłowice, Poland\nContact Number : \nDate : May 03, 2024 01:54:55 PM\nNote :"));
-function pokazPopup(p) {
-  const latStr = p.lat.toFixed(6);
-  const lonStr = p.lon.toFixed(6);
-  const gmap = `https://maps.google.com/?q=${latStr},${lonStr}`;
-  let content = '';
-  content += `<b>Nazwa:</b><br><input id='popup-nazwa' value='${escapeHtml(p.nazwa)}'><br>`;
-  content += `<b>Opis:</b><br><textarea id='popup-opis'>${escapeHtml(p.opis)}</textarea><br>`;
-  content += `<b>Warstwa:</b><br><select id='popup-warstwa'>`;
-  Object.keys(warstwy).forEach(w => {
-    content += `<option value='${w}' ${w === p.warstwa ? 'selected' : ''}>${w}</option>`;
-  });
-  content += `</select><br><br>`;
-  content += `<b>GPS:</b> ${latStr}, ${lonStr}<br>`;
-  content += `<a href='${gmap}' target='_blank'>📍 Otwórz w Google Maps</a><br><br>`;
-  content += `<button onclick='zapiszZmiany(${wszystkiePinezki.indexOf(p)})'>Zapisz</button> <button onclick='p.marker.closePopup()'>Anuluj</button>`;
-  p.marker.bindPopup(content).openPopup();
-}
-function zapiszZmiany(index) {
-  const p = wszystkiePinezki[index];
-  const nowaNazwa = document.getElementById('popup-nazwa').value;
-  const nowyOpis = document.getElementById('popup-opis').value;
-  const nowaWarstwa = document.getElementById('popup-warstwa').value;
-  p.nazwa = nowaNazwa;
-  p.opis = nowyOpis;
-  if (nowaWarstwa !== p.warstwa) {
-    warstwy[p.warstwa].grupa.removeLayer(p.marker);
-    warstwy[p.warstwa].pinezki = warstwy[p.warstwa].pinezki.filter(x => x !== p);
-    p.warstwa = nowaWarstwa;
-    if (!warstwy[nowaWarstwa]) { warstwy[nowaWarstwa] = { grupa: L.layerGroup().addTo(map), pinezki: [] }; }
-    warstwy[nowaWarstwa].grupa.addLayer(p.marker);
-    warstwy[nowaWarstwa].pinezki.push(p);
-  }
-  p.marker.closePopup();
-}
 const sidebar = document.getElementById('sidebar');
 Object.keys(warstwy).forEach(warstwa => {
   const div = document.createElement('div');
