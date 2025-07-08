@@ -2052,3 +2052,20 @@ wszystkiePinezki.push(dodajPinezke("Opuszczone Polska", [51.2842149, 22.209826],
 wszystkiePinezki.push(dodajPinezke("Opuszczone Polska", [52.3186329, 20.9099808], "coś?", "jakub pytal czy tam bylem"));
 wszystkiePinezki.push(dodajPinezke("Opuszczone Polska", [52.1435904, 21.7245063], "Do spr", ""));
 wszystkiePinezki.push(dodajPinezke("Opuszczone Polska", [52.3424808, 21.5679905], "Centralna Stacja Kontroli Emisji Radiowych w Boruczy", "do spr,. opinia i zdj na google ze opuszcxozne. jest wiezyczka albo 2 <br><br>https://bip.uke.gov.pl/zamowienia-publiczne/ogloszenie-o-zamowieniu-nr-ba-wzp-26-23-2024,765.html"));
+const sidebar = document.getElementById('sidebar');
+Object.keys(warstwy).forEach(warstwa => {
+  const div = document.createElement('div'); div.className = 'warstwa';
+  const naglowek = document.createElement('h3');
+  const toggle = document.createElement('input'); toggle.type = 'checkbox'; toggle.checked = true;
+  toggle.addEventListener('change', () => { if (toggle.checked) map.addLayer(warstwy[warstwa].grupa); else map.removeLayer(warstwy[warstwa].grupa); });
+  const expandIcon = document.createElement('span'); expandIcon.textContent = '▼'; expandIcon.style.cursor = 'pointer';
+  expandIcon.addEventListener('click', () => { lista.style.display = lista.style.display === 'none' ? 'block' : 'none'; expandIcon.textContent = lista.style.display === 'none' ? '►' : '▼'; });
+  naglowek.appendChild(expandIcon); naglowek.prepend(toggle); naglowek.insertBefore(document.createTextNode(' ' + warstwa + ' '), expandIcon); div.appendChild(naglowek);
+  const lista = document.createElement('div'); lista.className = 'pinezki-lista';
+  for (let i = 0; i < warstwy[warstwa].pinezki.length; i++) { let p = warstwy[warstwa].pinezki[i];
+    const el = document.createElement('div'); el.className = 'pinezka'; el.textContent = p.nazwa;
+    el.addEventListener('click', () => { pokazPopupView(p); p.marker.openPopup(); });
+    lista.appendChild(el);
+  }
+  div.appendChild(lista); sidebar.appendChild(div);
+});
