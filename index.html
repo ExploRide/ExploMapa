@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
-    #map { position: absolute; top: 0; left: 300px; right: 0; bottom: 0; }
+    #map { position: absolute; top: 0; left: 300px; right: 200px; bottom: 0; }
     #sidebar {
       position: absolute;
       top: 0;
@@ -19,6 +19,17 @@
       border-right: 1px solid #ccc;
       padding: 10px;
     }
+    #basemap-switcher {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 200px;
+      height: 100%;
+      background: #f8f8f8;
+      border-left: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+    }
     .warstwa {
       margin-bottom: 10px;
     }
@@ -28,7 +39,7 @@
       font-size: 16px;
       display: flex;
       align-items: center;
-      gap: 2px;
+      gap: 6px;
     }
     .pinezki-lista {
       margin-left: 10px;
@@ -42,33 +53,57 @@
     .pinezka:hover {
       text-decoration: underline;
     }
+    .leaflet-tile.hillshade-dark {
+      filter: grayscale(100%) brightness(60%);
+    }
   </style>
 </head>
 <body>
   <div id="sidebar"></div>
   <div id="map"></div>
+  <div id="basemap-switcher">
+    <h3>Rodzaj mapy</h3>
+    <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
+    <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const map = L.map('map').setView([52.1, 20.9], 7);
-// Warstwa satelitarna
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-  attribution: 'Zdjęcia: Esri World Imagery'
-}).addTo(map);
 
-// Overlay z nazwami i drogami
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-  attribution: 'Drogi: Esri',
-  opacity: 0.8
-}).addTo(map);
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Zdjęcia: Esri'
+    });
 
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-  attribution: 'Miejscowości: Esri',
-  opacity: 0.8
-}).addTo(map);
+    const hill = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Cieniowanie: Esri',
+      className: 'hillshade-dark'
+    });
+
+    const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Nazwy: Esri',
+      opacity: 0.8
+    });
+
+    const roads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Drogi: Esri',
+      opacity: 0.5
+    });
+
+    let baseLayer = sat;
+    baseLayer.addTo(map);
+    labels.addTo(map);
+    roads.addTo(map);
+
+    document.querySelectorAll('input[name="basemap"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        map.removeLayer(baseLayer);
+        baseLayer = (radio.value === 'sat') ? sat : hill;
+        baseLayer.addTo(map);
+      });
+    });
   </script>
 
-  <!-- KLUCZOWA ZMIANA: defer -->
-  <script src="dane.js" defer></script>
+  <script src="dane.js"></script>
 </body>
 </html>
