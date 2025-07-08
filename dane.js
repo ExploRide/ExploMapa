@@ -12,6 +12,7 @@ function pokazPopupView(p) {
   content += `<b>GPS:</b> ${latStr}, ${lonStr}<br>`;
   content += `<a href='${gmap}' target='_blank'>📍 Otwórz w Google Maps</a>`;
   p.marker.setPopupContent(content);
+      pokazPopupView(p);
   p.marker.openPopup();
 }
 function pokazPopupEdit(index) {
@@ -3541,6 +3542,7 @@ Object.keys(warstwy).forEach(warstwa => {
     el.className = 'pinezka';
     el.textContent = p.nazwa;
     el.addEventListener('click', () => {
+      pokazPopupView(p);
       p.marker.openPopup();
     });
     lista.appendChild(el);
