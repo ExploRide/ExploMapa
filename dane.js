@@ -3471,15 +3471,19 @@ Object.entries(warstwy).forEach(([warstwa, data]) => {
   checkbox.checked = true;
 
   const toggleBtn = document.createElement('button');
-  toggleBtn.textContent = 'zwiń';
-  toggleBtn.style.fontSize = '12px';
+  toggleBtn.textContent = "▼";
+  toggleBtn.style.fontSize = "14px";
+  toggleBtn.style.background = "none";
+  toggleBtn.style.border = "none";
+  toggleBtn.style.cursor = "pointer";
+  toggleBtn.style.padding = "0 4px";
   toggleBtn.onclick = () => {
     if (lista.style.display === 'none') {
       lista.style.display = 'block';
-      toggleBtn.textContent = 'zwiń';
+  toggleBtn.textContent = "▼";
     } else {
       lista.style.display = 'none';
-      toggleBtn.textContent = 'rozwiń';
+      toggleBtn.textContent = "►";
     }
   };
 
