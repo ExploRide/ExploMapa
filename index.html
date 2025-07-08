@@ -51,9 +51,21 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const map = L.map('map').setView([52.1, 20.9], 7);
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Map data © Esri'
-    }).addTo(map);
+// Warstwa satelitarna
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Zdjęcia: Esri World Imagery'
+}).addTo(map);
+
+// Overlay z nazwami i drogami
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Drogi: Esri',
+  opacity: 0.8
+}).addTo(map);
+
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Miejscowości: Esri',
+  opacity: 0.8
+}).addTo(map);
   </script>
 
   <!-- KLUCZOWA ZMIANA: defer -->
