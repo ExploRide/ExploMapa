@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>ExploRide – Wielka Mapa Urbexu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
+    #map { position: absolute; top: 0; left: 300px; right: 0; bottom: 0; }
+    #sidebar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 300px;
+      background: #f8f8f8;
+      overflow-y: auto;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+    }
+    .pinezka { margin: 5px 0; cursor: pointer; color: #007bff; }
+    .pinezka:hover { text-decoration: underline; }
+    .warstwa { margin-bottom: 10px; }
+    .warstwa h3 { margin: 5px 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .pinezki-lista { margin-left: 10px; }
+    #loginBtn { margin-bottom: 10px; width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <button id="loginBtn">Zaloguj się przez Google</button>
+    <div id="lista-warstw"></div>
+  </div>
+  <div id="map"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    let map = L.map('map').setView([52.1, 20.9], 7);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    const warstwy = {};
+    const markers = [];
+
+    document.getElementById("loginBtn").addEventListener("click", () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      firebase.auth().signInWithPopup(provider);
+    });
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (!user) return;
+      if (user.email !== "eksplorajder@gmail.com") {
+        alert("Brak dostępu. Zaloguj się jako eksplorajder@gmail.com");
+        return;
+      }
+      document.getElementById("loginBtn").style.display = "none";
+      zaladujPinezki();
+    });
+
+    function dodajEmoji(nazwa) {
+      const n = nazwa.toLowerCase();
+      if (n.includes("dom") || n.includes("chata")) return "🏚️ " + nazwa;
+      return nazwa;
+    }
+
+    function zaladujPinezki() {
+      db.collection("pinezki").get().then(snapshot => {
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const warstwa = data.warstwa || "Inne";
+          if (!warstwy[warstwa]) {
+            warstwy[warstwa] = { pinezki: [], layer: L.layerGroup().addTo(map) };
+          }
+
+          const marker = L.marker([data.lat, data.lng]).addTo(warstwy[warstwa].layer);
+          marker.bindPopup(stworzPopup(data, doc.id));
+          data.marker = marker;
+          warstwy[warstwa].pinezki.push(data);
+          markers.push(marker);
+        });
+        generujListe();
+      });
+    }
+
+    function stworzPopup(p, id) {
+      return `
+        <b>${p.nazwa}</b><br>
+        ${p.opis}<br>
+        <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
+        <button onclick="edytujPinezke('${id}')">✏️ Edytuj</button>
+      `;
+    }
+
+    function edytujPinezke(id) {
+      const docRef = db.collection("pinezki").doc(id);
+      docRef.get().then(doc => {
+        const p = doc.data();
+        const popupContent = document.createElement("div");
+        popupContent.innerHTML = `
+          <input id="enazwa" value="${p.nazwa}" style="width: 100%;"><br>
+          <textarea id="eopis" style="width: 100%;">${p.opis}</textarea><br>
+          <input id="ewarstwa" value="${p.warstwa}" style="width: 100%;"><br>
+          <button onclick="zapisz('${id}')">Zapisz</button>
+        `;
+        const marker = markers.find(m => m.getLatLng().lat === p.lat && m.getLatLng().lng === p.lng);
+        marker.bindPopup(popupContent).openPopup();
+      });
+    }
+
+    function zapisz(id) {
+      const docRef = db.collection("pinezki").doc(id);
+      const nowa = {
+        nazwa: document.getElementById("enazwa").value,
+        opis: document.getElementById("eopis").value,
+        warstwa: document.getElementById("ewarstwa").value
+      };
+      docRef.update(nowa).then(() => location.reload());
+    }
+
+    function generujListe() {
+      const lista = document.getElementById("lista-warstw");
+      lista.innerHTML = "";
+      for (const nazwa in warstwy) {
+        const div = document.createElement("div");
+        div.className = "warstwa";
+        const h3 = document.createElement("h3");
+        h3.innerText = `${nazwa} (${warstwy[nazwa].pinezki.length})`;
+        div.appendChild(h3);
+        const listaP = document.createElement("div");
+        listaP.className = "pinezki-lista";
+        warstwy[nazwa].pinezki.forEach(p => {
+          const el = document.createElement("div");
+          el.className = "pinezka";
+          el.textContent = dodajEmoji(p.nazwa);
+          el.onclick = () => {
+            map.setView([p.lat, p.lng], 16);
+            p.marker.openPopup();
+          };
+          listaP.appendChild(el);
+        });
+        div.appendChild(listaP);
+        lista.appendChild(div);
+      }
+    }
+  </script>
+</body>
+</html>
