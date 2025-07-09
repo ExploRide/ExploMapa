@@ -20,11 +20,13 @@
       border-right: 1px solid #ccc;
       padding: 10px;
     }
+    #wyszukiwarka { width: 100%; margin-bottom: 10px; padding: 5px; }
     .pinezka { margin: 5px 0; cursor: pointer; color: #007bff; }
     .pinezka:hover { text-decoration: underline; }
     .warstwa { margin-bottom: 10px; }
-    .warstwa h3 { margin: 5px 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
-    .pinezki-lista { margin-left: 10px; }
+    .warstwa h3 { margin: 5px 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .pinezki-lista { margin-left: 10px; display: block; }
+    .ukryta { display: none; }
     #ekran-logowania {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -46,7 +48,10 @@
 </head>
 <body>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
-  <div id="sidebar"><div id="lista-warstw"></div></div>
+  <div id="sidebar">
+    <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
+    <div id="lista-warstw"></div>
+  </div>
   <div id="map"></div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
@@ -86,6 +91,7 @@
 
     let map;
     const warstwy = {};
+    let wszystkiePinezki = [];
 
     function initMap() {
       map = L.map('map').setView([52.1, 20.9], 7);
@@ -108,22 +114,14 @@
           }
 
           const marker = L.marker([p.lat, p.lng]).addTo(warstwy[p.warstwa].layer);
-          marker.bindPopup(stworzPopup(p, id, marker));
+          marker.bindPopup(`<b>${p.nazwa}</b><br>${p.opis}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
           p.marker = marker;
+          p.id = id;
           warstwy[p.warstwa].lista.push(p);
+          wszystkiePinezki.push(p);
         });
         generujListeWarstw();
       });
-    }
-
-    function stworzPopup(p, id, marker) {
-      const div = document.createElement("div");
-      div.innerHTML = `
-        <b>${p.nazwa}</b><br>${p.opis}<br>
-        <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-        <button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>
-      `;
-      return div;
     }
 
     function edytuj(id, lat, lng) {
@@ -167,7 +165,11 @@
         const div = document.createElement("div");
         div.className = "warstwa";
         const h3 = document.createElement("h3");
-        h3.innerText = `${nazwa} (${warstwy[nazwa].lista.length})`;
+        const toggleBtn = document.createElement("span");
+        toggleBtn.textContent = "🔽";
+        toggleBtn.style.cursor = "pointer";
+        h3.innerHTML = `${nazwa} (${warstwy[nazwa].lista.length})`;
+        h3.appendChild(toggleBtn);
         div.appendChild(h3);
 
         const listaP = document.createElement("div");
@@ -184,9 +186,21 @@
           listaP.appendChild(el);
         });
 
+        toggleBtn.onclick = () => {
+          listaP.classList.toggle("ukryta");
+          toggleBtn.textContent = listaP.classList.contains("ukryta") ? "▶️" : "🔽";
+        };
+
         div.appendChild(listaP);
         lista.appendChild(div);
       }
+
+      document.getElementById("wyszukiwarka").addEventListener("input", e => {
+        const q = e.target.value.toLowerCase();
+        document.querySelectorAll(".pinezka").forEach(el => {
+          el.style.display = el.textContent.toLowerCase().includes(q) ? "block" : "none";
+        });
+      });
     }
   </script>
 </body>
