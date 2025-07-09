@@ -3456,7 +3456,7 @@ dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.515626, 19.909269],
 dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.342961, 19.59799], "Jakieś spore budynki po lewo jadąc tam", "Address : Wygoda 2, 97-371, Poland<br>Contact Number : <br>Date : May 03, 2024 04:33:32 PM<br>Note :");
 dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [50.295756, 18.898563], "K", "Address : Drogowa Trasa Średnicowa, Świętochłowice, Poland<br>Contact Number : <br>Date : May 03, 2024 01:54:55 PM<br>Note :");
 L.control.layers(null, warstwy).addTo(map);
-generujListeWarstw();
+
 
 function dodajEmojiDoNazwy(nazwa) {
   const lower = nazwa.toLowerCase();
