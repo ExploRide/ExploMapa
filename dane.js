@@ -3457,3 +3457,76 @@ dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [51.342961, 19.59799], 
 dodajPinezke("SaveLocation_KML_2024_07_01_10_33_26.kml", [50.295756, 18.898563], "K", "Address : Drogowa Trasa Średnicowa, Świętochłowice, Poland<br>Contact Number : <br>Date : May 03, 2024 01:54:55 PM<br>Note :");
 L.control.layers(null, warstwy).addTo(map);
 generujListeWarstw();
+
+function dodajEmojiDoNazwy(nazwa) {
+  const lower = nazwa.toLowerCase();
+  if (lower.includes("dom") || lower.includes("chata")) {
+    return "🏚️ " + nazwa;
+  }
+  return nazwa;
+}
+
+function generujListeWarstw() {
+  const sidebar = document.getElementById("sidebar");
+  sidebar.innerHTML = "";
+
+  warstwy.forEach((warstwa, i) => {
+    const warstwaDiv = document.createElement("div");
+    warstwaDiv.className = "warstwa";
+
+    const header = document.createElement("h3");
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = true;
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        map.addLayer(warstwa.layer);
+      } else {
+        map.removeLayer(warstwa.layer);
+      }
+    });
+
+    const title = document.createElement("span");
+    title.textContent = `${warstwa.nazwa} (${warstwa.pinezki.length})`;
+
+    const toggleBtn = document.createElement("span");
+    toggleBtn.textContent = "🔽";
+    toggleBtn.style.cursor = "pointer";
+    toggleBtn.addEventListener("click", () => {
+      const lista = document.getElementById("lista-" + i);
+      if (lista.style.display === "none") {
+        lista.style.display = "block";
+        toggleBtn.textContent = "🔽";
+      } else {
+        lista.style.display = "none";
+        toggleBtn.textContent = "▶️";
+      }
+    });
+
+    header.appendChild(checkbox);
+    header.appendChild(title);
+    header.appendChild(toggleBtn);
+    warstwaDiv.appendChild(header);
+
+    const listaPinezek = document.createElement("div");
+    listaPinezek.className = "pinezki-lista";
+    listaPinezek.id = "lista-" + i;
+
+    warstwa.pinezki.forEach((pinezka) => {
+      const p = document.createElement("div");
+      p.className = "pinezka";
+      p.textContent = dodajEmojiDoNazwy(pinezka.nazwa);
+      p.addEventListener("click", () => {
+        map.setView(pinezka.coords, 16);
+        pinezka.marker.openPopup();
+      });
+      listaPinezek.appendChild(p);
+    });
+
+    warstwaDiv.appendChild(listaPinezek);
+    sidebar.appendChild(warstwaDiv);
+  });
+}
+
+generujListeWarstw();
