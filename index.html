@@ -7,8 +7,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
-    #map, #sidebar { display: none; }
-    #map { position: absolute; top: 0; left: 300px; right: 0; bottom: 0; }
+    #map, #sidebar, #basemap-switcher { display: none; }
+    #map { position: absolute; top: 0; left: 300px; right: 250px; bottom: 0; }
     #sidebar {
       position: absolute;
       top: 0;
@@ -19,6 +19,17 @@
       overflow-y: auto;
       border-right: 1px solid #ccc;
       padding: 10px;
+    }
+    #basemap-switcher {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 250px;
+      height: 100%;
+      background: #f8f8f8;
+      border-left: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
     }
     #wyszukiwarka { width: 100%; margin-bottom: 10px; padding: 5px; }
     .pinezka { margin: 5px 0; cursor: pointer; color: #007bff; }
@@ -44,6 +55,7 @@
       border-radius: 5px;
       cursor: pointer;
     }
+    .hillshade-dark { filter: grayscale(100%) brightness(60%); }
   </style>
 </head>
 <body>
@@ -53,6 +65,11 @@
     <div id="lista-warstw"></div>
   </div>
   <div id="map"></div>
+  <div id="basemap-switcher">
+    <h3>Rodzaj mapy</h3>
+    <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
+    <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label>
+  </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -85,19 +102,42 @@
       document.getElementById("ekran-logowania").style.display = "none";
       document.getElementById("map").style.display = "block";
       document.getElementById("sidebar").style.display = "block";
+      document.getElementById("basemap-switcher").style.display = "block";
       initMap();
       zaladujPinezkiZFirestore();
     });
 
-    let map;
+    let map, baseLayer;
     const warstwy = {};
     let wszystkiePinezki = [];
 
     function initMap() {
       map = L.map('map').setView([52.1, 20.9], 7);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap'
-      }).addTo(map);
+
+      const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri'
+      });
+      const hill = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri',
+        className: 'hillshade-dark'
+      });
+      const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}');
+      const roads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}');
+
+      baseLayer = sat;
+      baseLayer.addTo(map);
+      labels.addTo(map);
+      roads.addTo(map);
+
+      document.querySelectorAll('input[name="basemap"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          map.removeLayer(baseLayer);
+          baseLayer = (radio.value === 'sat') ? sat : hill;
+          baseLayer.addTo(map);
+          map.removeLayer(labels); map.removeLayer(roads);
+          labels.addTo(map); roads.addTo(map);
+        });
+      });
     }
 
     function zaladujPinezkiZFirestore() {
@@ -105,14 +145,12 @@
         snapshot.forEach(doc => {
           const p = doc.data();
           const id = doc.id;
-
           if (!warstwy[p.warstwa]) {
             warstwy[p.warstwa] = {
               lista: [],
               layer: L.layerGroup().addTo(map)
             };
           }
-
           const marker = L.marker([p.lat, p.lng]).addTo(warstwy[p.warstwa].layer);
           marker.bindPopup(`<b>${p.nazwa}</b><br>${p.opis}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
           p.marker = marker;
