@@ -145,17 +145,18 @@
         snapshot.forEach(doc => {
           const p = doc.data();
           const id = doc.id;
-          if (!warstwy[p.warstwa]) {
-            warstwy[p.warstwa] = {
+          const warstwaNazwa = p.warstwa || "Inne";
+      if (!warstwy[warstwaNazwa]) {
+            warstwy[warstwaNazwa] = {
               lista: [],
               layer: L.layerGroup().addTo(map)
             };
           }
-          const marker = L.marker([p.lat, p.lng]).addTo(warstwy[p.warstwa].layer);
+          const marker = L.marker([p.lat, p.lng]).addTo(warstwy[warstwaNazwa].layer);
           marker.bindPopup(`<b>${p.nazwa}</b><br>${p.opis}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
           p.marker = marker;
           p.id = id;
-          warstwy[p.warstwa].lista.push(p);
+          warstwy[warstwaNazwa].lista.push(p);
           wszystkiePinezki.push(p);
         });
         generujListeWarstw();
