@@ -72574,3 +72574,10 @@ RKS Liblice 2, Tower North`,
 }
 
 setTimeout(() => generujListeWarstw(), 1000);
+document.getElementById("wyszukiwarka").addEventListener("input", function () {
+  const zapytanie = this.value.toLowerCase();
+  document.querySelectorAll(".pinezka").forEach(p => {
+    const nazwa = p.textContent.toLowerCase();
+    p.style.display = nazwa.includes(zapytanie) ? "block" : "none";
+  });
+});
