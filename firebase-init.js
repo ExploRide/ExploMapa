@@ -1,11 +1,11 @@
 // Konfiguracja Firebase
 const firebaseConfig = {
-  apiKey: "TWOJ_API_KEY",
+  apiKey: "AIzaSyBj8xPy81NaxFwHmBL3ni_UVjYKFZflyv0",
   authDomain: "exploridemap.firebaseapp.com",
   projectId: "exploridemap",
-  storageBucket: "exploridemap.appspot.com",
-  messagingSenderId: "TWOJ_SENDER_ID",
-  appId: "TWOJ_APP_ID"
+  storageBucket: "exploridemap.firebasestorage.app",
+  messagingSenderId: "1074659589759",
+  appId: "1:1074659589759:web:f8bdffc15d41d47ac8094a"
 };
 
 // Inicjalizacja Firebase
