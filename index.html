@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pl">
 <head>
@@ -8,8 +7,10 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
-    #map, #sidebar { display: none; }
-    #map { position: absolute; top: 0; left: 300px; right: 0; bottom: 0; }
+
+    #map, #sidebar, #basemap-switcher { display: none; }
+    #map { position: absolute; top: 0; left: 300px; right: 250px; bottom: 0; }
+
     #sidebar {
       position: absolute;
       top: 0;
@@ -21,11 +22,25 @@
       border-right: 1px solid #ccc;
       padding: 10px;
     }
+
+    #basemap-switcher {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 250px;
+      height: 100%;
+      background: #f8f8f8;
+      border-left: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+    }
+
     .pinezka { margin: 5px 0; cursor: pointer; color: #007bff; }
     .pinezka:hover { text-decoration: underline; }
     .warstwa { margin-bottom: 10px; }
     .warstwa h3 { margin: 5px 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
     .pinezki-lista { margin-left: 10px; }
+
     #ekran-logowania {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -40,6 +55,9 @@
       padding: 12px 24px;
       cursor: pointer;
     }
+    .leaflet-tile.hillshade-dark {
+      filter: grayscale(100%) brightness(60%);
+    }
   </style>
 </head>
 <body>
@@ -51,6 +69,11 @@
     <div id="lista-warstw"></div>
   </div>
   <div id="map"></div>
+  <div id="basemap-switcher">
+    <h3>Rodzaj mapy</h3>
+    <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
+    <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label>
+  </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -59,10 +82,44 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    let map = L.map('map').setView([52.1, 20.9], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
+    const map = L.map('map').setView([52.1, 20.9], 7);
+
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Zdjęcia: Esri'
+    });
+
+    const hill = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Cieniowanie: Esri',
+      className: 'hillshade-dark'
+    });
+
+    const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Nazwy: Esri',
+      opacity: 0.8
+    });
+
+    const roads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Drogi: Esri',
+      opacity: 0.5
+    });
+
+    let baseLayer = sat;
+    baseLayer.addTo(map);
+    labels.addTo(map);
+    roads.addTo(map);
+
+    document.querySelectorAll('input[name="basemap"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+        map.removeLayer(baseLayer);
+        baseLayer = (radio.value === 'sat') ? sat : hill;
+        baseLayer.addTo(map);
+
+        map.removeLayer(labels);
+        map.removeLayer(roads);
+        labels.addTo(map);
+        roads.addTo(map);
+      });
+    });
 
     const warstwy = {};
     const markers = [];
@@ -78,9 +135,11 @@
         alert("Brak dostępu. Zaloguj się jako eksplorajder@gmail.com");
         return;
       }
+
       document.getElementById("ekran-logowania").style.display = "none";
       document.getElementById("map").style.display = "block";
       document.getElementById("sidebar").style.display = "block";
+      document.getElementById("basemap-switcher").style.display = "block";
       zaladujPinezki();
     });
 
@@ -100,48 +159,13 @@
           }
 
           const marker = L.marker([data.lat, data.lng]).addTo(warstwy[warstwa].layer);
-          marker.bindPopup(stworzPopup(data, doc.id));
+          marker.bindPopup(`<b>${data.nazwa}</b><br>${data.opis}`);
           data.marker = marker;
           warstwy[warstwa].pinezki.push(data);
           markers.push(marker);
         });
         generujListe();
       });
-    }
-
-    function stworzPopup(p, id) {
-      return `
-        <b>${p.nazwa}</b><br>
-        ${p.opis}<br>
-        <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-        <button onclick="edytujPinezke('${id}')">✏️ Edytuj</button>
-      `;
-    }
-
-    function edytujPinezke(id) {
-      const docRef = db.collection("pinezki").doc(id);
-      docRef.get().then(doc => {
-        const p = doc.data();
-        const popupContent = document.createElement("div");
-        popupContent.innerHTML = `
-          <input id="enazwa" value="${p.nazwa}" style="width: 100%;"><br>
-          <textarea id="eopis" style="width: 100%;">${p.opis}</textarea><br>
-          <input id="ewarstwa" value="${p.warstwa}" style="width: 100%;"><br>
-          <button onclick="zapisz('${id}')">Zapisz</button>
-        `;
-        const marker = markers.find(m => m.getLatLng().lat === p.lat && m.getLatLng().lng === p.lng);
-        marker.bindPopup(popupContent).openPopup();
-      });
-    }
-
-    function zapisz(id) {
-      const docRef = db.collection("pinezki").doc(id);
-      const nowa = {
-        nazwa: document.getElementById("enazwa").value,
-        opis: document.getElementById("eopis").value,
-        warstwa: document.getElementById("ewarstwa").value
-      };
-      docRef.update(nowa).then(() => location.reload());
     }
 
     function generujListe() {
