@@ -69,7 +69,7 @@
 
     document.getElementById("loginBtn").addEventListener("click", () => {
       const provider = new firebase.auth.GoogleAuthProvider();
-      firebase.auth().signInWithPopup(provider);
+      firebase.auth().signInWithRedirect(provider);
     });
 
     firebase.auth().onAuthStateChanged(user => {
