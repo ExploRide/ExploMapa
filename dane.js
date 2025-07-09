@@ -71,8 +71,8 @@ function showEditPopup(p) {
 }
 
 function generujListeWarstw() {
-  const sidebar = document.getElementById('sidebar');
-  sidebar.innerHTML = '';
+ const listaContainer = document.getElementById("lista-warstw");
+listaContainer.innerHTML = "";
   Object.keys(warstwy).forEach(warstwa => {
     const div = document.createElement('div');
     div.className = 'warstwa';
