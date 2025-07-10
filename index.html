@@ -146,6 +146,10 @@
         .replace(/\n/g, '<br>');
     }
 
+    function formatCoords(lat, lng) {
+      return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+    }
+
     function createEmojiIcon(e) {
       const emoji = e || '📍';
       return L.divIcon({
@@ -210,7 +214,8 @@
             };
           }
           const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[warstwaNazwa].layer);
-          marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
+          const coords = formatCoords(p.lat, p.lng);
+          marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br>${coords}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
           p.marker = marker;
           p.id = id;
           warstwy[warstwaNazwa].lista.push(p);
@@ -257,7 +262,10 @@
       const warstwaOptions = Object.keys(warstwy)
         .map(n => `<option value="${n}">${n}</option>`).join('');
       const container = document.createElement('div');
+      const coordsDisplay = formatCoords(latlng.lat, latlng.lng);
       container.innerHTML = `
+        <div>${coordsDisplay}<br>
+        <a href="https://maps.google.com/?q=${latlng.lat},${latlng.lng}" target="_blank">📍 Google Maps</a></div><br>
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
         <textarea id="opisNew" placeholder="Opis" style="width: 100%"></textarea><br>
         <select id="warstwaNew" style="width: 100%">${warstwaOptions}</select><br>
