@@ -158,7 +158,7 @@
             };
           }
           const marker = L.marker([p.lat, p.lng]).addTo(warstwy[warstwaNazwa].layer);
-          marker.bindPopup(`<b>${p.nazwa}</b><br>${p.opis}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
+          marker.bindPopup(`<b>${p.nazwa}</b><br>${p.opis}<br>${parseFloat(p.lat).toFixed(5)}, ${parseFloat(p.lng).toFixed(5)}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
           p.marker = marker;
           p.id = id;
           warstwy[warstwaNazwa].lista.push(p);
