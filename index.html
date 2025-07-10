@@ -218,7 +218,29 @@
         });
       });
 
-      map.on('click', onMapClick);
+      let holdTimeout;
+      function startHold(e) {
+        holdTimeout = setTimeout(() => {
+          holdTimeout = null;
+          onMapClick(e);
+        }, 2000);
+      }
+      function cancelHold() {
+        if (holdTimeout) {
+          clearTimeout(holdTimeout);
+          holdTimeout = null;
+        }
+      }
+
+      map.on('mousedown', startHold);
+      map.on('mouseup', cancelHold);
+      map.on('mousemove', cancelHold);
+      map.on('mouseout', cancelHold);
+      map.on('touchstart', startHold);
+      map.on('touchend', cancelHold);
+      map.on('touchmove', cancelHold);
+      map.on('dragstart', cancelHold);
+      map.on('zoomstart', cancelHold);
     }
 
     function zaladujPinezkiZFirestore() {
