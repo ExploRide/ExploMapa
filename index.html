@@ -141,6 +141,8 @@
           labels.addTo(map); roads.addTo(map);
         });
       });
+
+      map.on('click', onMapClick);
     }
 
     function zaladujPinezkiZFirestore() {
@@ -193,6 +195,37 @@
         warstwa: document.getElementById("ewarstwa").value
       };
       db.collection("pinezki").doc(id).update(nowa).then(() => location.reload());
+    }
+
+    function onMapClick(e) {
+      const warstwaOptions = Object.keys(warstwy).map(n => `<option value="${n}">${n}</option>`).join('');
+      const container = document.createElement('div');
+      container.innerHTML = `
+        <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
+        <textarea id="opisNew" placeholder="Opis" style="width: 100%"></textarea><br>
+        <select id="warstwaNew" style="width: 100%">${warstwaOptions}</select><br>
+        <button id="saveNew">💾 Zapisz</button>
+        <button id="cancelNew">Anuluj</button>
+      `;
+      const popup = L.popup()
+        .setLatLng(e.latlng)
+        .setContent(container)
+        .openOn(map);
+
+      container.querySelector('#saveNew').addEventListener('click', () => {
+        const data = {
+          nazwa: container.querySelector('#nazwaNew').value,
+          opis: container.querySelector('#opisNew').value,
+          warstwa: container.querySelector('#warstwaNew').value,
+          lat: e.latlng.lat,
+          lng: e.latlng.lng
+        };
+        db.collection('pinezki').add(data).then(() => location.reload());
+      });
+
+      container.querySelector('#cancelNew').addEventListener('click', () => {
+        map.closePopup(popup);
+      });
     }
 
     function findMarkerByLatLng(lat, lng) {
