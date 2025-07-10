@@ -160,6 +160,10 @@
           wszystkiePinezki.push(p);
         });
         generujListeWarstw();
+      })
+      .catch(err => {
+        console.error("Błąd pobierania pinezek:", err);
+        generujListeWarstw();
       });
     }
 
