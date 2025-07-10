@@ -197,8 +197,11 @@
       db.collection("pinezki").doc(id).update(nowa).then(() => location.reload());
     }
 
-    function onMapClick(e) {
-      const warstwaOptions = Object.keys(warstwy).map(n => `<option value="${n}">${n}</option>`).join('');
+    let confirmOpen = false;
+
+    function openNewPinPopup(latlng) {
+      const warstwaOptions = Object.keys(warstwy)
+        .map(n => `<option value="${n}">${n}</option>`).join('');
       const container = document.createElement('div');
       container.innerHTML = `
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
@@ -208,7 +211,7 @@
         <button id="cancelNew">Anuluj</button>
       `;
       const popup = L.popup()
-        .setLatLng(e.latlng)
+        .setLatLng(latlng)
         .setContent(container)
         .openOn(map);
 
@@ -217,14 +220,37 @@
           nazwa: container.querySelector('#nazwaNew').value,
           opis: container.querySelector('#opisNew').value,
           warstwa: container.querySelector('#warstwaNew').value,
-          lat: e.latlng.lat,
-          lng: e.latlng.lng
+          lat: latlng.lat,
+          lng: latlng.lng
         };
         db.collection('pinezki').add(data).then(() => location.reload());
       });
 
       container.querySelector('#cancelNew').addEventListener('click', () => {
         map.closePopup(popup);
+      });
+    }
+
+    function onMapClick(e) {
+      if (confirmOpen) return;
+      confirmOpen = true;
+      const container = document.createElement('div');
+      container.innerHTML = `Dodać pinezkę?<br><button id="confirmAdd">TAK</button>`;
+      const popup = L.popup()
+        .setLatLng(e.latlng)
+        .setContent(container)
+        .openOn(map);
+
+      const closeHandler = () => {
+        confirmOpen = false;
+      };
+      map.once('popupclose', closeHandler);
+
+      container.querySelector('#confirmAdd').addEventListener('click', () => {
+        map.off('popupclose', closeHandler);
+        map.closePopup(popup);
+        confirmOpen = false;
+        openNewPinPopup(e.latlng);
       });
     }
 
