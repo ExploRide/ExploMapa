@@ -58,6 +58,12 @@
       cursor: pointer;
     }
     .hillshade-dark { filter: grayscale(100%) brightness(60%); }
+    .emoji-marker { background: none; border: none; }
+    .emoji-marker span {
+      font-family: 'Noto Color Emoji', sans-serif;
+      font-size: 28px;
+      line-height: 32px;
+    }
   </style>
 </head>
 <body>
@@ -72,11 +78,13 @@
     <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label>
   </div>
+  <datalist id="emojiListDatalist"></datalist>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="emoji-list.js"></script>
 
   <script>
     const firebaseConfig = {
@@ -105,6 +113,7 @@
       document.getElementById("map").style.display = "block";
       document.getElementById("sidebar").style.display = "block";
       document.getElementById("basemap-switcher").style.display = "block";
+      initEmojiDatalist();
       initMap();
       zaladujPinezkiZFirestore();
     });
@@ -113,6 +122,26 @@
     const warstwy = {};
     let wszystkiePinezki = [];
     let draggedLayer = null;
+
+    function createEmojiIcon(e) {
+      const emoji = e || '📍';
+      return L.divIcon({
+        className: 'emoji-marker',
+        html: `<span>${emoji}</span>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      });
+    }
+
+    function initEmojiDatalist() {
+      const dl = document.getElementById('emojiListDatalist');
+      if (!dl) return;
+      emojiList.forEach(em => {
+        const opt = document.createElement('option');
+        opt.value = em;
+        dl.appendChild(opt);
+      });
+    }
 
     function initMap() {
       map = L.map('map').setView([52.1, 20.9], 7);
@@ -157,8 +186,8 @@
               layer: L.layerGroup().addTo(map)
             };
           }
-          const marker = L.marker([p.lat, p.lng]).addTo(warstwy[warstwaNazwa].layer);
-          marker.bindPopup(`<b>${p.nazwa}</b><br>${p.opis}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
+          const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[warstwaNazwa].layer);
+          marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${p.opis}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
           p.marker = marker;
           p.id = id;
           warstwy[warstwaNazwa].lista.push(p);
@@ -180,6 +209,7 @@
           <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
           <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
           <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
+          <input id="eemoji" value="${p.emoji || ''}" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
           <button onclick="zapisz('${id}')">💾 Zapisz</button>
           <button onclick="location.reload()">Anuluj</button>
         `;
@@ -192,7 +222,8 @@
       const nowa = {
         nazwa: document.getElementById("enazwa").value,
         opis: document.getElementById("eopis").value,
-        warstwa: document.getElementById("ewarstwa").value
+        warstwa: document.getElementById("ewarstwa").value,
+        emoji: document.getElementById("eemoji").value
       };
       db.collection("pinezki").doc(id).update(nowa).then(() => location.reload());
     }
@@ -207,6 +238,7 @@
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
         <textarea id="opisNew" placeholder="Opis" style="width: 100%"></textarea><br>
         <select id="warstwaNew" style="width: 100%">${warstwaOptions}</select><br>
+        <input id="emojiNew" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>
       `;
@@ -220,6 +252,7 @@
           nazwa: container.querySelector('#nazwaNew').value,
           opis: container.querySelector('#opisNew').value,
           warstwa: container.querySelector('#warstwaNew').value,
+          emoji: container.querySelector('#emojiNew').value,
           lat: latlng.lat,
           lng: latlng.lng
         };
@@ -337,7 +370,7 @@
         warstwy[nazwa].lista.forEach(p => {
           const el = document.createElement("div");
           el.className = "pinezka";
-          el.textContent = p.nazwa;
+          el.textContent = (p.emoji ? p.emoji + ' ' : '') + p.nazwa;
           el.onclick = () => {
             map.setView([p.lat, p.lng], 16);
             p.marker.openPopup();
