@@ -34,7 +34,8 @@
     #wyszukiwarka { width: 100%; margin-bottom: 10px; padding: 5px; }
     .pinezka { margin: 5px 0; cursor: pointer; color: #007bff; }
     .pinezka:hover { text-decoration: underline; }
-    .warstwa { margin-bottom: 10px; }
+    .warstwa { margin-bottom: 10px; cursor: move; }
+    .dragging { opacity: 0.5; }
     .warstwa h3 { margin: 5px 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
     .warstwa input[type="checkbox"] { margin-right: 5px; }
     .pinezki-lista { margin-left: 10px; display: block; }
@@ -111,6 +112,7 @@
     let map, baseLayer;
     const warstwy = {};
     let wszystkiePinezki = [];
+    let draggedLayer = null;
 
     function initMap() {
       map = L.map('map').setView([52.1, 20.9], 7);
@@ -202,12 +204,51 @@
       return null;
     }
 
+    function loadLayerOrder() {
+      try {
+        return JSON.parse(localStorage.getItem('warstwaOrder')) || [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveLayerOrder() {
+      const order = Array.from(document.querySelectorAll('#lista-warstw .warstwa'))
+        .map(el => el.dataset.nazwa);
+      localStorage.setItem('warstwaOrder', JSON.stringify(order));
+    }
+
+    function setupDrag(div) {
+      div.draggable = true;
+      div.addEventListener('dragstart', () => {
+        draggedLayer = div;
+        div.classList.add('dragging');
+      });
+      div.addEventListener('dragend', () => {
+        div.classList.remove('dragging');
+        draggedLayer = null;
+      });
+      div.addEventListener('dragover', e => e.preventDefault());
+      div.addEventListener('drop', e => {
+        e.preventDefault();
+        if (draggedLayer && draggedLayer !== div) {
+          const lista = document.getElementById('lista-warstw');
+          lista.insertBefore(draggedLayer, div);
+          saveLayerOrder();
+        }
+      });
+    }
+
     function generujListeWarstw() {
       const lista = document.getElementById("lista-warstw");
       lista.innerHTML = "";
-      for (const nazwa in warstwy) {
+      const saved = loadLayerOrder();
+      const nazwy = [...saved.filter(n => warstwy[n]), ...Object.keys(warstwy).filter(n => !saved.includes(n))];
+      nazwy.forEach(nazwa => {
         const div = document.createElement("div");
         div.className = "warstwa";
+        div.dataset.nazwa = nazwa;
+        setupDrag(div);
         const h3 = document.createElement("h3");
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
@@ -252,7 +293,8 @@
 
         div.appendChild(listaP);
         lista.appendChild(div);
-      }
+      });
+      saveLayerOrder();
 
       document.getElementById("wyszukiwarka").addEventListener("input", e => {
         const q = e.target.value.toLowerCase();
