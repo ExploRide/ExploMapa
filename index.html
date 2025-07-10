@@ -74,6 +74,16 @@
       padding: 5px;
       z-index: 1000;
     }
+    .unsaved {
+      color: red;
+    }
+    #saveChanges {
+      position: fixed;
+      bottom: 20px;
+      right: 235px;
+      z-index: 1000;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -90,6 +100,7 @@
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label>
   </div>
   <datalist id="emojiListDatalist"></datalist>
+  <button id="saveChanges">Zapisz edycję mapy</button>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -135,6 +146,14 @@
     let wszystkiePinezki = [];
     let draggedLayer = null;
     let highlightedItem = null;
+    let zmianyDoZapisania = {};
+
+    window.addEventListener('beforeunload', e => {
+      if (Object.keys(zmianyDoZapisania).length > 0) {
+        e.preventDefault();
+        e.returnValue = 'Masz niezapisane zmiany. Czy na pewno chcesz wyjść?';
+      }
+    });
 
     function linkify(text) {
       if (!text) return '';
@@ -226,30 +245,52 @@
     }
 
     function edytuj(id, lat, lng) {
-      db.collection("pinezki").doc(id).get().then(doc => {
-        const p = doc.data();
-        const container = document.createElement("div");
-        container.innerHTML = `
-          <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
-          <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
-          <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
-          <input id="eemoji" value="${p.emoji || ''}" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
-          <button onclick="zapisz('${id}')">💾 Zapisz</button>
-          <button onclick="location.reload()">Anuluj</button>
-        `;
-        const marker = findMarkerByLatLng(lat, lng);
-        if (marker) marker.bindPopup(container).openPopup();
-      });
+      const p = wszystkiePinezki.find(pp => pp.id === id);
+      if (!p) return;
+      const container = document.createElement("div");
+      container.innerHTML = `
+        <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
+        <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
+        <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
+        <input id="eemoji" value="${p.emoji || ''}" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
+        <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
+        <button onclick="map.closePopup()">Anuluj</button>
+      `;
+      const marker = findMarkerByLatLng(lat, lng);
+      if (marker) marker.bindPopup(container).openPopup();
     }
 
-    function zapisz(id) {
+    function zapiszLokalnie(id) {
       const nowa = {
         nazwa: document.getElementById("enazwa").value,
         opis: document.getElementById("eopis").value,
         warstwa: document.getElementById("ewarstwa").value,
         emoji: document.getElementById("eemoji").value
       };
-      db.collection("pinezki").doc(id).update(nowa).then(() => location.reload());
+      zmianyDoZapisania[id] = nowa;
+      const p = wszystkiePinezki.find(pp => pp.id === id);
+      if (p) {
+        const staraWarstwa = p.warstwa || "Inne";
+        Object.assign(p, nowa);
+        p.unsaved = true;
+        if (staraWarstwa !== p.warstwa) {
+          const idx = warstwy[staraWarstwa].lista.indexOf(p);
+          if (idx > -1) warstwy[staraWarstwa].lista.splice(idx, 1);
+          if (!warstwy[p.warstwa]) {
+            warstwy[p.warstwa] = { lista: [], layer: L.layerGroup().addTo(map) };
+          }
+          warstwy[p.warstwa].lista.push(p);
+          if (p.marker) p.marker.remove();
+          p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[p.warstwa].layer);
+          p.marker.on('click', () => highlightListItem(p.el));
+        } else {
+          p.marker.setIcon(createEmojiIcon(p.emoji));
+        }
+        p.marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick=\"edytuj('${p.id}', ${p.lat}, ${p.lng})\">✏️ Edytuj</button>`);
+      }
+      generujListeWarstw();
+      document.getElementById('saveChanges').style.display = 'block';
+      map.closePopup();
     }
 
     let confirmOpen = false;
@@ -497,6 +538,7 @@
           const el = document.createElement("div");
           el.className = "pinezka";
           el.textContent = (p.emoji ? p.emoji + ' ' : '') + p.nazwa;
+          if (p.unsaved) el.classList.add('unsaved');
           el.onclick = () => {
             map.setView([p.lat, p.lng], 16);
             p.marker.openPopup();
@@ -526,6 +568,28 @@
         });
       });
     }
+
+    function zapiszZmiany() {
+      const batch = db.batch();
+      Object.entries(zmianyDoZapisania).forEach(([id, data]) => {
+        batch.update(db.collection('pinezki').doc(id), data);
+      });
+      batch.commit().then(() => {
+        Object.keys(zmianyDoZapisania).forEach(id => {
+          const p = wszystkiePinezki.find(pp => pp.id === id);
+          if (p) {
+            delete p.unsaved;
+          }
+        });
+        zmianyDoZapisania = {};
+        generujListeWarstw();
+        document.getElementById('saveChanges').style.display = 'none';
+      }).catch(err => {
+        alert('Błąd zapisu: ' + err.message);
+      });
+    }
+
+    document.getElementById('saveChanges').addEventListener('click', zapiszZmiany);
   </script>
 </body>
 </html>
