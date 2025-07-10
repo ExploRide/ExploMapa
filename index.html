@@ -125,6 +125,17 @@
     let draggedLayer = null;
     let highlightedItem = null;
 
+    function linkify(text) {
+      if (!text) return '';
+      const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+      return text
+        .replace(urlRegex, url => {
+          const href = url.startsWith('http') ? url : `https://${url}`;
+          return `<a href="${href}" target="_blank">${url}</a>`;
+        })
+        .replace(/\n/g, '<br>');
+    }
+
     function createEmojiIcon(e) {
       const emoji = e || '📍';
       return L.divIcon({
@@ -189,7 +200,7 @@
             };
           }
           const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[warstwaNazwa].layer);
-          marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${p.opis}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
+          marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
           p.marker = marker;
           p.id = id;
           warstwy[warstwaNazwa].lista.push(p);
