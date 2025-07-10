@@ -344,6 +344,27 @@
       }
     }
 
+    function renameLayer(oldName) {
+      const newName = prompt('Nowa nazwa warstwy:', oldName);
+      if (!newName || newName === oldName) return;
+      if (warstwy[newName]) {
+        alert('Warstwa o takiej nazwie już istnieje.');
+        return;
+      }
+      const layer = warstwy[oldName];
+      if (!layer) return;
+      Promise.all(layer.lista.map(p => {
+        p.warstwa = newName;
+        return db.collection('pinezki').doc(p.id).update({warstwa: newName});
+      })).then(() => {
+        warstwy[newName] = layer;
+        delete warstwy[oldName];
+        const order = loadLayerOrder().map(n => n === oldName ? newName : n);
+        localStorage.setItem('warstwaOrder', JSON.stringify(order));
+        location.reload();
+      });
+    }
+
     function generujListeWarstw() {
       const lista = document.getElementById("lista-warstw");
       lista.innerHTML = "";
@@ -373,8 +394,18 @@
         const toggleBtn = document.createElement("span");
         toggleBtn.textContent = "🔽";
         toggleBtn.style.cursor = "pointer";
+        const editBtn = document.createElement("span");
+        editBtn.textContent = "✏️";
+        editBtn.style.cursor = "pointer";
+        editBtn.style.marginRight = "5px";
+        editBtn.onclick = () => renameLayer(nazwa);
+        const controls = document.createElement("span");
+        controls.appendChild(editBtn);
+        controls.appendChild(toggleBtn);
+        controls.style.display = "flex";
+        controls.style.alignItems = "center";
         h3.appendChild(left);
-        h3.appendChild(toggleBtn);
+        h3.appendChild(controls);
         div.appendChild(h3);
 
         const listaP = document.createElement("div");
