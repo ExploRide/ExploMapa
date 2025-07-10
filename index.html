@@ -65,6 +65,14 @@
       font-size: 28px;
       line-height: 32px;
     }
+    #geosearch {
+      position: absolute;
+      top: 10px;
+      left: 310px;
+      right: 260px;
+      padding: 5px;
+      z-index: 1000;
+    }
   </style>
 </head>
 <body>
@@ -73,6 +81,7 @@
     <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
     <div id="lista-warstw"></div>
   </div>
+  <input type="text" id="geosearch" placeholder="Szukaj adresu lub współrzędnych...">
   <div id="map"></div>
   <div id="basemap-switcher">
     <h3>Rodzaj mapy</h3>
@@ -117,6 +126,7 @@
       initEmojiDatalist();
       initMap();
       zaladujPinezkiZFirestore();
+      initGeoSearch();
     });
 
     let map, baseLayer;
@@ -400,6 +410,40 @@
           input.blur();
         }
       };
+    }
+
+    function initGeoSearch() {
+      const input = document.getElementById('geosearch');
+      if (!input) return;
+      input.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        const q = input.value.trim();
+        if (!q) return;
+        const m = q.match(/^(-?\d+(?:\.\d+)?)[ ,]+(-?\d+(?:\.\d+)?)/);
+        if (m) {
+          const lat = parseFloat(m[1]);
+          const lng = parseFloat(m[2]);
+          map.setView([lat, lng], 16);
+          onMapClick({latlng: L.latLng(lat, lng)});
+          return;
+        }
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data && data[0]) {
+              const lat = parseFloat(data[0].lat);
+              const lng = parseFloat(data[0].lon);
+              map.setView([lat, lng], 16);
+              onMapClick({latlng: L.latLng(lat, lng)});
+            } else {
+              alert('Nie znaleziono adresu');
+            }
+          })
+          .catch(err => {
+            console.error('Geocoding error', err);
+            alert('Błąd geokodowania');
+          });
+      });
     }
 
     function generujListeWarstw() {
