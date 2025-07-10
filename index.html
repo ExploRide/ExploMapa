@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>ExploRide – Wielka Mapa Urbexu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+   <link rel="stylesheet" href="style.css" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
+    #map, #sidebar, #basemap-switcher { display: none; }
+    #map { position: absolute; top: 0; left: 300px; right: 225px; bottom: 0; }
+    #sidebar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 300px;
+      background: #f8f8f8;
+      overflow-y: auto;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+    }
+    #basemap-switcher {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 200px;
+      height: 100%;
+      background: #f8f8f8;
+      border-left: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+    }
+    #wyszukiwarka { width: 80%; margin-bottom: 10px; padding: 5px; }
+    .pinezka { margin: 5px 0; cursor: pointer; color: #000; }
+    #narzedzia { margin-bottom: 10px; }
+    .tool-btn { font-size: 24px; background: none; border: none; cursor: pointer; font-family: "Noto Color Emoji", sans-serif; }
+    .tool-btn.active { background: #ddd; }
+    .pinezka.active { color: #007bff; font-weight: bold; }
+    .pinezka:hover { text-decoration: underline; }
+    .warstwa { margin-bottom: 10px; cursor: move; }
+    .dragging { opacity: 0.5; }
+    .warstwa h3 { margin: 5px 0; font-size: 16px; display: flex; align-items: center; cursor: pointer; }
+    .warstwa input[type="checkbox"] { margin-right: 5px; }
+    .pinezki-lista { margin-left: 10px; display: block; }
+    .ukryta { display: none; }
+    #ekran-logowania {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #loginBtn {
+      font-size: 18px;
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .hillshade-dark { filter: grayscale(100%) brightness(60%); }
+    .emoji-marker { background: none; border: none; }
+    .emoji-marker span {
+      font-family: 'Noto Color Emoji', sans-serif;
+      font-size: 28px;
+      line-height: 32px;
+    }
+    #geosearch {
+      position: absolute;
+      top: 10px;
+      left: 310px;
+      right: 600px;
+      padding: 5px;
+      z-index: 1000;
+    }
+    .unsaved {
+      color: red;
+    }
+    #saveChanges {
+      position: fixed;
+      bottom: 20px;
+      right: 235px;
+      z-index: 1000;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
+  <div id="sidebar">
+    <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
+    <div id="narzedzia"><button id="handTool" class="tool-btn">✋</button> <button id="pinTool" class="tool-btn">📌</button></div>
+    <div id="lista-warstw"></div>
+  </div>
+  <input type="text" id="geosearch" placeholder="Szukaj adresu lub współrzędnych...">
+  <div id="map"></div>
+  <div id="basemap-switcher">
+    <h3>Rodzaj mapy</h3>
+    <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
+    <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label>
+  </div>
+  <datalist id="emojiListDatalist"></datalist>
+  <button id="saveChanges">Zapisz edycję mapy</button>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="emoji-list.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBj8xPy81NaxFwHmBL3ni_UVjYKFZflyv0",
+      authDomain: "exploridemap.firebaseapp.com",
+      projectId: "exploridemap",
+      storageBucket: "exploridemap.firebasestorage.app",
+      messagingSenderId: "1074659589759",
+      appId: "1:1074659589759:web:f8bdffc15d41d47ac8094a"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    document.getElementById("loginBtn").addEventListener("click", () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      firebase.auth().signInWithPopup(provider);
+    });
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (!user) return;
+      if (user.email !== "eksplorajder@gmail.com") {
+        alert("Brak dostępu.");
+        return;
+      }
+      document.getElementById("ekran-logowania").style.display = "none";
+      document.getElementById("map").style.display = "block";
+      document.getElementById("sidebar").style.display = "block";
+      document.getElementById("basemap-switcher").style.display = "block";
+      initEmojiDatalist();
+      initMap();
+      zaladujPinezkiZFirestore();
+      initGeoSearch();
+    });
+
+    let map, baseLayer;
+    const warstwy = {};
+    let wszystkiePinezki = [];
+    let draggedLayer = null;
+    let highlightedItem = null;
+    let zmianyDoZapisania = {};
+    let currentTool = "hand";
+    const handBtn = document.getElementById("handTool");
+    const pinBtn = document.getElementById("pinTool");
+    function selectTool(t) {
+      currentTool = t;
+      handBtn.classList.toggle("active", t === "hand");
+      pinBtn.classList.toggle("active", t === "pin");
+    }
+    handBtn.addEventListener("click", () => selectTool("hand"));
+    pinBtn.addEventListener("click", () => selectTool("pin"));
+    selectTool("hand");
+
+    window.addEventListener('beforeunload', e => {
+      if (Object.keys(zmianyDoZapisania).length > 0) {
+        e.preventDefault();
+        e.returnValue = 'Masz niezapisane zmiany. Czy na pewno chcesz wyjść?';
+      }
+    });
+
+    function linkify(text) {
+      if (!text) return '';
+      const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+      return text
+        .replace(urlRegex, url => {
+          const href = url.startsWith('http') ? url : `https://${url}`;
+          return `<a href="${href}" target="_blank">${url}</a>`;
+        })
+        .replace(/\n/g, '<br>');
+    }
+
+    function formatCoords(lat, lng) {
+      return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+    }
+
+    function createEmojiIcon(e) {
+      const emoji = e || '📍';
+      return L.divIcon({
+        className: 'emoji-marker',
+        html: `<span>${emoji}</span>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      });
+    }
+
+    function initEmojiDatalist() {
+      const dl = document.getElementById('emojiListDatalist');
+      if (!dl) return;
+      emojiList.forEach(em => {
+        const opt = document.createElement('option');
+        opt.value = em;
+        dl.appendChild(opt);
+      });
+    }
+
+    function initMap() {
+      map = L.map('map').setView([52.1, 20.9], 7);
+
+      const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri'
+      });
+      const hill = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri',
+        className: 'hillshade-dark'
+      });
+      const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}');
+      const roads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}');
+
+      baseLayer = sat;
+      baseLayer.addTo(map);
+      labels.addTo(map);
+      roads.addTo(map);
+
+      document.querySelectorAll('input[name="basemap"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          map.removeLayer(baseLayer);
+          baseLayer = (radio.value === 'sat') ? sat : hill;
+          baseLayer.addTo(map);
+          map.removeLayer(labels); map.removeLayer(roads);
+          labels.addTo(map); roads.addTo(map);
+        });
+      });
+      map.on("click", e => { if (currentTool === "pin") onMapClick(e); });
+
+    }
+
+    function zaladujPinezkiZFirestore() {
+      db.collection("pinezki").get().then(snapshot => {
+        snapshot.forEach(doc => {
+          const p = doc.data();
+          const id = doc.id;
+          const warstwaNazwa = p.warstwa || "Inne";
+      if (!warstwy[warstwaNazwa]) {
+            warstwy[warstwaNazwa] = {
+              lista: [],
+              layer: L.layerGroup().addTo(map)
+            };
+          }
+          const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[warstwaNazwa].layer);
+          const coords = formatCoords(p.lat, p.lng);
+          marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br>${coords}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
+          p.marker = marker;
+          p.id = id;
+          warstwy[warstwaNazwa].lista.push(p);
+          wszystkiePinezki.push(p);
+        });
+        generujListeWarstw();
+      })
+      .catch(err => {
+        console.error("Błąd pobierania pinezek:", err);
+        generujListeWarstw();
+      });
+    }
+
+    function edytuj(id, lat, lng) {
+      const p = wszystkiePinezki.find(pp => pp.id === id);
+      if (!p) return;
+      const container = document.createElement("div");
+      container.innerHTML = `
+        <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
+        <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
+        <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
+        <input id="eemoji" value="${p.emoji || ''}" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
+        <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
+        <button onclick="map.closePopup()">Anuluj</button>
+      `;
+      const marker = findMarkerByLatLng(lat, lng);
+      if (marker) marker.bindPopup(container).openPopup();
+    }
+
+    function zapiszLokalnie(id) {
+      const nowa = {
+        nazwa: document.getElementById("enazwa").value,
+        opis: document.getElementById("eopis").value,
+        warstwa: document.getElementById("ewarstwa").value,
+        emoji: document.getElementById("eemoji").value
+      };
+      zmianyDoZapisania[id] = nowa;
+      const p = wszystkiePinezki.find(pp => pp.id === id);
+      if (p) {
+        const staraWarstwa = p.warstwa || "Inne";
+        Object.assign(p, nowa);
+        p.unsaved = true;
+        if (staraWarstwa !== p.warstwa) {
+          const idx = warstwy[staraWarstwa].lista.indexOf(p);
+          if (idx > -1) warstwy[staraWarstwa].lista.splice(idx, 1);
+          if (!warstwy[p.warstwa]) {
+            warstwy[p.warstwa] = { lista: [], layer: L.layerGroup().addTo(map) };
+          }
+          warstwy[p.warstwa].lista.push(p);
+          if (p.marker) p.marker.remove();
+          p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[p.warstwa].layer);
+          p.marker.on('click', () => highlightListItem(p.el));
+        } else {
+          p.marker.setIcon(createEmojiIcon(p.emoji));
+        }
+        p.marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick=\"edytuj('${p.id}', ${p.lat}, ${p.lng})\">✏️ Edytuj</button>`);
+      }
+      generujListeWarstw();
+      document.getElementById('saveChanges').style.display = 'block';
+      map.closePopup();
+    }
+
+
+    function openNewPinPopup(latlng) {
+      const warstwaOptions = Object.keys(warstwy)
+          .map(n => `<option value="${n}">${n}</option>`).join("");
+      const marker = L.marker(latlng, {icon: createEmojiIcon("📍")}).addTo(map);
+      const container = document.createElement("div");
+      const coordsDisplay = formatCoords(latlng.lat, latlng.lng);
+      container.innerHTML = `
+        <div>${coordsDisplay}<br>
+        <a href="https://maps.google.com/?q=${latlng.lat},${latlng.lng}" target="_blank">📍 Google Maps</a></div><br>
+        <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
+        <textarea id="opisNew" placeholder="Opis" style="width: 100%"></textarea><br>
+        <select id="warstwaNew" style="width: 100%">${warstwaOptions}</select><br>
+        <input id="emojiNew" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
+        <button id="saveNew">💾 Zapisz</button>
+        <button id="cancelNew">Anuluj</button>`;
+      const popup = marker.bindPopup(container).openPopup();
+      container.querySelector("#saveNew").addEventListener("click", () => {
+        const data = {
+          nazwa: container.querySelector("#nazwaNew").value,
+          opis: container.querySelector("#opisNew").value,
+          warstwa: container.querySelector("#warstwaNew").value,
+          emoji: container.querySelector("#emojiNew").value,
+          lat: latlng.lat,
+          lng: latlng.lng
+        };
+        map.removeLayer(marker);
+        db.collection("pinezki").add(data).then(() => location.reload());
+      });
+      container.querySelector("#cancelNew").addEventListener("click", () => {
+        map.closePopup(popup);
+        map.removeLayer(marker);
+      });
+    }
+    function onMapClick(e) {
+      openNewPinPopup(e.latlng);
+    }
+
+    function findMarkerByLatLng(lat, lng) {
+      for (const layer of Object.values(map._layers)) {
+        if (layer.getLatLng && layer.getLatLng().lat === lat && layer.getLatLng().lng === lng) {
+          return layer;
+        }
+      }
+      return null;
+    }
+
+    function loadLayerOrder() {
+      try {
+        return JSON.parse(localStorage.getItem('warstwaOrder')) || [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveLayerOrder() {
+      const order = Array.from(document.querySelectorAll('#lista-warstw .warstwa'))
+        .map(el => el.dataset.nazwa);
+      localStorage.setItem('warstwaOrder', JSON.stringify(order));
+    }
+
+    function setupDrag(div) {
+      div.draggable = true;
+      div.addEventListener('dragstart', () => {
+        draggedLayer = div;
+        div.classList.add('dragging');
+      });
+      div.addEventListener('dragend', () => {
+        div.classList.remove('dragging');
+        draggedLayer = null;
+      });
+      div.addEventListener('dragover', e => e.preventDefault());
+      div.addEventListener('drop', e => {
+        e.preventDefault();
+        if (draggedLayer && draggedLayer !== div) {
+          const lista = document.getElementById('lista-warstw');
+          lista.insertBefore(draggedLayer, div);
+          saveLayerOrder();
+        }
+      });
+    }
+
+    function highlightListItem(el) {
+      if (highlightedItem) {
+        highlightedItem.classList.remove('active');
+      }
+      highlightedItem = el;
+      if (highlightedItem) {
+        highlightedItem.classList.add('active');
+        highlightedItem.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+      }
+    }
+
+    function renameLayer(oldName, labelEl) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = oldName;
+      labelEl.replaceWith(input);
+      input.focus();
+      input.select();
+
+      function finish() {
+        const newName = input.value.trim();
+        if (!newName || newName === oldName) {
+          input.replaceWith(labelEl);
+          return;
+        }
+        if (warstwy[newName]) {
+          alert('Warstwa o takiej nazwie już istnieje.');
+          input.replaceWith(labelEl);
+          return;
+        }
+        const layer = warstwy[oldName];
+        if (!layer) {
+          input.replaceWith(labelEl);
+          return;
+        }
+        Promise.all(layer.lista.map(p => {
+          p.warstwa = newName;
+          return db.collection('pinezki').doc(p.id).update({warstwa: newName});
+        })).then(() => {
+          warstwy[newName] = layer;
+          delete warstwy[oldName];
+          const order = loadLayerOrder().map(n => n === oldName ? newName : n);
+          localStorage.setItem('warstwaOrder', JSON.stringify(order));
+          location.reload();
+        });
+      }
+
+      input.onblur = finish;
+      input.onkeydown = e => {
+        if (e.key === 'Enter') {
+          input.blur();
+        } else if (e.key === 'Escape') {
+          input.value = oldName;
+          input.blur();
+        }
+      };
+    }
+
+    function initGeoSearch() {
+      const input = document.getElementById('geosearch');
+      if (!input) return;
+      input.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        const q = input.value.trim();
+        if (!q) return;
+        const m = q.match(/^(-?\d+(?:\.\d+)?)[ ,]+(-?\d+(?:\.\d+)?)/);
+        if (m) {
+          const lat = parseFloat(m[1]);
+          const lng = parseFloat(m[2]);
+          map.setView([lat, lng], 16);
+          openNewPinPopup(L.latLng(lat, lng));
+          return;
+        }
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data && data[0]) {
+              const lat = parseFloat(data[0].lat);
+              const lng = parseFloat(data[0].lon);
+              map.setView([lat, lng], 16);
+              openNewPinPopup(L.latLng(lat, lng));
+            } else {
+              alert('Nie znaleziono adresu');
+            }
+          })
+          .catch(err => {
+            console.error('Geocoding error', err);
+            alert('Błąd geokodowania');
+          });
+      });
+    }
+
+    function generujListeWarstw() {
+      const lista = document.getElementById("lista-warstw");
+      lista.innerHTML = "";
+      const saved = loadLayerOrder();
+      const nazwy = [...saved.filter(n => warstwy[n]), ...Object.keys(warstwy).filter(n => !saved.includes(n))];
+      nazwy.forEach(nazwa => {
+        const div = document.createElement("div");
+        div.className = "warstwa";
+        div.dataset.nazwa = nazwa;
+        setupDrag(div);
+        const h3 = document.createElement("h3");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = true;
+        checkbox.onchange = () => {
+          if (checkbox.checked) {
+            warstwy[nazwa].layer.addTo(map);
+          } else {
+            map.removeLayer(warstwy[nazwa].layer);
+          }
+        };
+        const label = document.createElement("span");
+        label.textContent = `${nazwa} (${warstwy[nazwa].lista.length})`;
+        const left = document.createElement("span");
+        left.appendChild(checkbox);
+        left.appendChild(label);
+        const toggleBtn = document.createElement("span");
+        toggleBtn.textContent = "🔽";
+        toggleBtn.style.cursor = "pointer";
+        const editBtn = document.createElement("span");
+        editBtn.textContent = "✏️";
+        editBtn.style.cursor = "pointer";
+        editBtn.style.marginRight = "5px";
+        editBtn.onclick = () => renameLayer(nazwa, label);
+        const controls = document.createElement("span");
+        controls.appendChild(editBtn);
+        controls.appendChild(toggleBtn);
+        controls.style.display = "flex";
+        controls.style.alignItems = "center";
+        h3.appendChild(left);
+        h3.appendChild(controls);
+        div.appendChild(h3);
+
+        const listaP = document.createElement("div");
+        listaP.className = "pinezki-lista";
+
+        warstwy[nazwa].lista.forEach(p => {
+          const el = document.createElement("div");
+          el.className = "pinezka";
+          el.textContent = (p.emoji ? p.emoji + ' ' : '') + p.nazwa;
+          if (p.unsaved) el.classList.add('unsaved');
+          el.onclick = () => {
+            map.setView([p.lat, p.lng], 16);
+            p.marker.openPopup();
+            highlightListItem(el);
+          };
+          if (p.marker) {
+            p.marker.on('click', () => highlightListItem(el));
+          }
+          p.el = el;
+          listaP.appendChild(el);
+        });
+
+        toggleBtn.onclick = () => {
+          listaP.classList.toggle("ukryta");
+          toggleBtn.textContent = listaP.classList.contains("ukryta") ? "▶️" : "🔽";
+        };
+
+        div.appendChild(listaP);
+        lista.appendChild(div);
+      });
+      saveLayerOrder();
+
+      document.getElementById("wyszukiwarka").addEventListener("input", e => {
+        const q = e.target.value.toLowerCase();
+        document.querySelectorAll(".pinezka").forEach(el => {
+          el.style.display = el.textContent.toLowerCase().includes(q) ? "block" : "none";
+        });
+      });
+    }
+
+    function zapiszZmiany() {
+      const batch = db.batch();
+      Object.entries(zmianyDoZapisania).forEach(([id, data]) => {
+        batch.update(db.collection('pinezki').doc(id), data);
+      });
+      batch.commit().then(() => {
+        Object.keys(zmianyDoZapisania).forEach(id => {
+          const p = wszystkiePinezki.find(pp => pp.id === id);
+          if (p) {
+            delete p.unsaved;
+          }
+        });
+        zmianyDoZapisania = {};
+        generujListeWarstw();
+        document.getElementById('saveChanges').style.display = 'none';
+      }).catch(err => {
+        alert('Błąd zapisu: ' + err.message);
+      });
+    }
+
+    document.getElementById('saveChanges').addEventListener('click', zapiszZmiany);
+  </script>
+</body>
+</html>
