@@ -32,7 +32,8 @@
       overflow-y: auto;
     }
     #wyszukiwarka { width: 100%; margin-bottom: 10px; padding: 5px; }
-    .pinezka { margin: 5px 0; cursor: pointer; color: #007bff; }
+    .pinezka { margin: 5px 0; cursor: pointer; color: #000; }
+    .pinezka.active { color: #007bff; font-weight: bold; }
     .pinezka:hover { text-decoration: underline; }
     .warstwa { margin-bottom: 10px; cursor: move; }
     .dragging { opacity: 0.5; }
@@ -122,6 +123,7 @@
     const warstwy = {};
     let wszystkiePinezki = [];
     let draggedLayer = null;
+    let highlightedItem = null;
 
     function createEmojiIcon(e) {
       const emoji = e || '📍';
@@ -331,6 +333,17 @@
       });
     }
 
+    function highlightListItem(el) {
+      if (highlightedItem) {
+        highlightedItem.classList.remove('active');
+      }
+      highlightedItem = el;
+      if (highlightedItem) {
+        highlightedItem.classList.add('active');
+        highlightedItem.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+      }
+    }
+
     function generujListeWarstw() {
       const lista = document.getElementById("lista-warstw");
       lista.innerHTML = "";
@@ -374,7 +387,12 @@
           el.onclick = () => {
             map.setView([p.lat, p.lng], 16);
             p.marker.openPopup();
+            highlightListItem(el);
           };
+          if (p.marker) {
+            p.marker.on('click', () => highlightListItem(el));
+          }
+          p.el = el;
           listaP.appendChild(el);
         });
 
