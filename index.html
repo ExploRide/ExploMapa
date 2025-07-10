@@ -34,6 +34,9 @@
     }
     #wyszukiwarka { width: 80%; margin-bottom: 10px; padding: 5px; }
     .pinezka { margin: 5px 0; cursor: pointer; color: #000; }
+    #narzedzia { margin-bottom: 10px; }
+    .tool-btn { font-size: 24px; background: none; border: none; cursor: pointer; font-family: "Noto Color Emoji", sans-serif; }
+    .tool-btn.active { background: #ddd; }
     .pinezka.active { color: #007bff; font-weight: bold; }
     .pinezka:hover { text-decoration: underline; }
     .warstwa { margin-bottom: 10px; cursor: move; }
@@ -90,6 +93,7 @@
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
   <div id="sidebar">
     <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
+    <div id="narzedzia"><button id="handTool" class="tool-btn">✋</button> <button id="pinTool" class="tool-btn">📌</button></div>
     <div id="lista-warstw"></div>
   </div>
   <input type="text" id="geosearch" placeholder="Szukaj adresu lub współrzędnych...">
@@ -147,6 +151,17 @@
     let draggedLayer = null;
     let highlightedItem = null;
     let zmianyDoZapisania = {};
+    let currentTool = "hand";
+    const handBtn = document.getElementById("handTool");
+    const pinBtn = document.getElementById("pinTool");
+    function selectTool(t) {
+      currentTool = t;
+      handBtn.classList.toggle("active", t === "hand");
+      pinBtn.classList.toggle("active", t === "pin");
+    }
+    handBtn.addEventListener("click", () => selectTool("hand"));
+    pinBtn.addEventListener("click", () => selectTool("pin"));
+    selectTool("hand");
 
     window.addEventListener('beforeunload', e => {
       if (Object.keys(zmianyDoZapisania).length > 0) {
@@ -217,30 +232,8 @@
           labels.addTo(map); roads.addTo(map);
         });
       });
+      map.on("click", e => { if (currentTool === "pin") onMapClick(e); });
 
-      let holdTimeout;
-      function startHold(e) {
-        holdTimeout = setTimeout(() => {
-          holdTimeout = null;
-          onMapClick(e);
-        }, 2000);
-      }
-      function cancelHold() {
-        if (holdTimeout) {
-          clearTimeout(holdTimeout);
-          holdTimeout = null;
-        }
-      }
-
-      map.on('mousedown', startHold);
-      map.on('mouseup', cancelHold);
-      map.on('mousemove', cancelHold);
-      map.on('mouseout', cancelHold);
-      map.on('touchstart', startHold);
-      map.on('touchend', cancelHold);
-      map.on('touchmove', cancelHold);
-      map.on('dragstart', cancelHold);
-      map.on('zoomstart', cancelHold);
     }
 
     function zaladujPinezkiZFirestore() {
@@ -320,12 +313,12 @@
       map.closePopup();
     }
 
-    let confirmOpen = false;
 
     function openNewPinPopup(latlng) {
       const warstwaOptions = Object.keys(warstwy)
-        .map(n => `<option value="${n}">${n}</option>`).join('');
-      const container = document.createElement('div');
+          .map(n => `<option value="${n}">${n}</option>`).join("");
+      const marker = L.marker(latlng, {icon: createEmojiIcon("📍")}).addTo(map);
+      const container = document.createElement("div");
       const coordsDisplay = formatCoords(latlng.lat, latlng.lng);
       container.innerHTML = `
         <div>${coordsDisplay}<br>
@@ -335,51 +328,27 @@
         <select id="warstwaNew" style="width: 100%">${warstwaOptions}</select><br>
         <input id="emojiNew" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
         <button id="saveNew">💾 Zapisz</button>
-        <button id="cancelNew">Anuluj</button>
-      `;
-      const popup = L.popup()
-        .setLatLng(latlng)
-        .setContent(container)
-        .openOn(map);
-
-      container.querySelector('#saveNew').addEventListener('click', () => {
+        <button id="cancelNew">Anuluj</button>`;
+      const popup = marker.bindPopup(container).openPopup();
+      container.querySelector("#saveNew").addEventListener("click", () => {
         const data = {
-          nazwa: container.querySelector('#nazwaNew').value,
-          opis: container.querySelector('#opisNew').value,
-          warstwa: container.querySelector('#warstwaNew').value,
-          emoji: container.querySelector('#emojiNew').value,
+          nazwa: container.querySelector("#nazwaNew").value,
+          opis: container.querySelector("#opisNew").value,
+          warstwa: container.querySelector("#warstwaNew").value,
+          emoji: container.querySelector("#emojiNew").value,
           lat: latlng.lat,
           lng: latlng.lng
         };
-        db.collection('pinezki').add(data).then(() => location.reload());
+        map.removeLayer(marker);
+        db.collection("pinezki").add(data).then(() => location.reload());
       });
-
-      container.querySelector('#cancelNew').addEventListener('click', () => {
+      container.querySelector("#cancelNew").addEventListener("click", () => {
         map.closePopup(popup);
+        map.removeLayer(marker);
       });
     }
-
     function onMapClick(e) {
-      if (confirmOpen) return;
-      confirmOpen = true;
-      const container = document.createElement('div');
-      container.innerHTML = `Dodać pinezkę?<br><button id="confirmAdd">TAK</button>`;
-      const popup = L.popup()
-        .setLatLng(e.latlng)
-        .setContent(container)
-        .openOn(map);
-
-      const closeHandler = () => {
-        confirmOpen = false;
-      };
-      map.once('popupclose', closeHandler);
-
-      container.querySelector('#confirmAdd').addEventListener('click', () => {
-        map.off('popupclose', closeHandler);
-        map.closePopup(popup);
-        confirmOpen = false;
-        openNewPinPopup(e.latlng);
-      });
+      openNewPinPopup(e.latlng);
     }
 
     function findMarkerByLatLng(lat, lng) {
@@ -496,7 +465,7 @@
           const lat = parseFloat(m[1]);
           const lng = parseFloat(m[2]);
           map.setView([lat, lng], 16);
-          onMapClick({latlng: L.latLng(lat, lng)});
+          openNewPinPopup(L.latLng(lat, lng));
           return;
         }
         fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`)
@@ -506,7 +475,7 @@
               const lat = parseFloat(data[0].lat);
               const lng = parseFloat(data[0].lon);
               map.setView([lat, lng], 16);
-              onMapClick({latlng: L.latLng(lat, lng)});
+              openNewPinPopup(L.latLng(lat, lng));
             } else {
               alert('Nie znaleziono adresu');
             }
