@@ -344,6 +344,53 @@
       }
     }
 
+    function renameLayer(oldName, labelEl) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = oldName;
+      labelEl.replaceWith(input);
+      input.focus();
+      input.select();
+
+      function finish() {
+        const newName = input.value.trim();
+        if (!newName || newName === oldName) {
+          input.replaceWith(labelEl);
+          return;
+        }
+        if (warstwy[newName]) {
+          alert('Warstwa o takiej nazwie już istnieje.');
+          input.replaceWith(labelEl);
+          return;
+        }
+        const layer = warstwy[oldName];
+        if (!layer) {
+          input.replaceWith(labelEl);
+          return;
+        }
+        Promise.all(layer.lista.map(p => {
+          p.warstwa = newName;
+          return db.collection('pinezki').doc(p.id).update({warstwa: newName});
+        })).then(() => {
+          warstwy[newName] = layer;
+          delete warstwy[oldName];
+          const order = loadLayerOrder().map(n => n === oldName ? newName : n);
+          localStorage.setItem('warstwaOrder', JSON.stringify(order));
+          location.reload();
+        });
+      }
+
+      input.onblur = finish;
+      input.onkeydown = e => {
+        if (e.key === 'Enter') {
+          input.blur();
+        } else if (e.key === 'Escape') {
+          input.value = oldName;
+          input.blur();
+        }
+      };
+    }
+
     function generujListeWarstw() {
       const lista = document.getElementById("lista-warstw");
       lista.innerHTML = "";
@@ -373,8 +420,18 @@
         const toggleBtn = document.createElement("span");
         toggleBtn.textContent = "🔽";
         toggleBtn.style.cursor = "pointer";
+        const editBtn = document.createElement("span");
+        editBtn.textContent = "✏️";
+        editBtn.style.cursor = "pointer";
+        editBtn.style.marginRight = "5px";
+        editBtn.onclick = () => renameLayer(nazwa, label);
+        const controls = document.createElement("span");
+        controls.appendChild(editBtn);
+        controls.appendChild(toggleBtn);
+        controls.style.display = "flex";
+        controls.style.alignItems = "center";
         h3.appendChild(left);
-        h3.appendChild(toggleBtn);
+        h3.appendChild(controls);
         div.appendChild(h3);
 
         const listaP = document.createElement("div");
