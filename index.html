@@ -36,6 +36,7 @@
     .pinezka:hover { text-decoration: underline; }
     .warstwa { margin-bottom: 10px; }
     .warstwa h3 { margin: 5px 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+    .warstwa input[type="checkbox"] { margin-right: 5px; }
     .pinezki-lista { margin-left: 10px; display: block; }
     .ukryta { display: none; }
     #ekran-logowania {
@@ -208,10 +209,25 @@
         const div = document.createElement("div");
         div.className = "warstwa";
         const h3 = document.createElement("h3");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = true;
+        checkbox.onchange = () => {
+          if (checkbox.checked) {
+            warstwy[nazwa].layer.addTo(map);
+          } else {
+            map.removeLayer(warstwy[nazwa].layer);
+          }
+        };
+        const label = document.createElement("span");
+        label.textContent = `${nazwa} (${warstwy[nazwa].lista.length})`;
+        const left = document.createElement("span");
+        left.appendChild(checkbox);
+        left.appendChild(label);
         const toggleBtn = document.createElement("span");
         toggleBtn.textContent = "🔽";
         toggleBtn.style.cursor = "pointer";
-        h3.innerHTML = `${nazwa} (${warstwy[nazwa].lista.length})`;
+        h3.appendChild(left);
         h3.appendChild(toggleBtn);
         div.appendChild(h3);
 
