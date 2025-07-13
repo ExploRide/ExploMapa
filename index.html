@@ -307,6 +307,7 @@
           warstwy[p.warstwa].lista.push(p);
           if (p.marker) p.marker.remove();
           p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[p.warstwa].layer);
+          p.marker.off('click');
           p.marker.on('click', () => highlightListItem(p.el));
         } else {
           p.marker.setIcon(createEmojiIcon(p.emoji));
@@ -549,6 +550,7 @@
             highlightListItem(el);
           };
           if (p.marker) {
+            p.marker.off('click');
             p.marker.on('click', () => highlightListItem(el));
           }
           p.el = el;
