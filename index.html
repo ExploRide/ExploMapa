@@ -10,31 +10,22 @@
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
     #map, #sidebar, #basemap-switcher { display: none; }
     #map { position: absolute; top: 0; left: 300px; right: 225px; bottom: 0; }
- #sidebar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 300px;
-  background: #f8f8f8;
-  border-right: 1px solid #ccc;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-    #sidebar-inner {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 10px;
-  box-sizing: border-box;
-}
-#lista-warstw {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-}
+    #sidebar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 300px;
+      background: #f8f8f8;
+      border-right: 1px solid #ccc;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+    }
+    #lista-warstw {
+      overflow-y: auto;
+      flex: 1;
+    }
     #basemap-switcher {
       position: absolute;
       top: 0;
@@ -46,12 +37,9 @@
       padding: 10px;
       overflow-y: auto;
     }
-#wyszukiwarka,
-#narzedzia {
-  flex-shrink: 0;
-  margin-bottom: 10px;
-}
-
+    #wyszukiwarka { width: 80%; margin-bottom: 10px; padding: 5px; }
+    .pinezka { margin: 5px 0; cursor: pointer; color: #000; }
+    #narzedzia { margin-bottom: 10px; }
     .tool-btn { font-size: 24px; background: none; border: none; cursor: pointer; font-family: "Noto Color Emoji", sans-serif; }
     .tool-btn.active { background: #ddd; }
     .pinezka.active { color: #007bff; font-weight: bold; }
@@ -108,16 +96,11 @@
 </head>
 <body>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
-<div id="sidebar">
-  <div id="sidebar-inner">
+  <div id="sidebar">
     <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
-    <div id="narzedzia">
-      <button id="handTool" class="tool-btn">✋</button>
-      <button id="pinTool" class="tool-btn">📌</button>
-    </div>
+    <div id="narzedzia"><button id="handTool" class="tool-btn">✋</button> <button id="pinTool" class="tool-btn">📌</button></div>
     <div id="lista-warstw"></div>
   </div>
-</div>
   <input type="text" id="geosearch" placeholder="Szukaj adresu lub współrzędnych...">
   <div id="map"></div>
   <div id="basemap-switcher">
@@ -258,27 +241,55 @@
 
     }
 
-    function zaladujPinezkiZFirestore() {
-      db.collection("pinezki").get().then(snapshot => {
-        snapshot.forEach(doc => {
-          const p = doc.data();
-          const id = doc.id;
-          const warstwaNazwa = p.warstwa || "Inne";
+    
+function zaladujPinezkiZFirestore() {
+  db.collection("pinezki").get().then(snapshot => {
+    snapshot.forEach(doc => {
+      const p = doc.data();
+      const id = doc.id;
+      const warstwaNazwa = p.warstwa || "Inne";
       if (!warstwy[warstwaNazwa]) {
-            warstwy[warstwaNazwa] = {
-              lista: [],
-              layer: L.layerGroup().addTo(map)
-            };
-          }
-          const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[warstwaNazwa].layer);
-          const coords = formatCoords(p.lat, p.lng);
-          marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br>${coords}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick="edytuj('${id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>`);
-          p.marker = marker;
-          p.id = id;
-          warstwy[warstwaNazwa].lista.push(p);
-          wszystkiePinezki.push(p);
-        });
-        generujListeWarstw();
+        warstwy[warstwaNazwa] = {
+          lista: [],
+          layer: L.layerGroup().addTo(map)
+        };
+      }
+
+      const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(p.emoji) }).addTo(warstwy[warstwaNazwa].layer);
+      const coords = formatCoords(p.lat, p.lng);
+
+      const popupDiv = document.createElement("div");
+      popupDiv.innerHTML = `
+        <b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>
+        ${linkify(p.opis)}<br>
+        ${coords}<br>
+        <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
+        <button id="editBtn-${id}">✏️ Edytuj</button>
+      `;
+      marker.bindPopup(popupDiv);
+      setTimeout(() => {
+        const btn = popupDiv.querySelector(`#editBtn-${id}`);
+        if (btn) {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation(); // ważne!
+            edytuj(id, p.lat, p.lng);
+          });
+        }
+      }, 0);
+
+      p.marker = marker;
+      p.id = id;
+      warstwy[warstwaNazwa].lista.push(p);
+      wszystkiePinezki.push(p);
+    });
+    generujListeWarstw();
+  })
+  .catch(err => {
+    console.error("Błąd pobierania pinezek:", err);
+    generujListeWarstw();
+  });
+}
+
       })
       .catch(err => {
         console.error("Błąd pobierania pinezek:", err);
@@ -286,48 +297,26 @@
       });
     }
 
-  function edytuj(id, lat, lng) {
-  const p = wszystkiePinezki.find(pp => pp.id === id);
-  if (!p) return;
-
-  const container = document.createElement("div");
-  container.innerHTML = `
-    <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
-    <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
-    <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
-    <input id="eemoji" value="${p.emoji || ''}" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
-    <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
-    <button onclick="anulujEdycje('${id}', ${p.lat}, ${p.lng})">Anuluj</button>
-  `;
-
-  const marker = findMarkerByLatLng(lat, lng);
-  if (!marker) return;
-
-  marker.openPopup(); // Otwieramy najpierw...
-  marker.once("popupopen", () => {
-    marker.setPopupContent(container); // ...a dopiero potem wstrzykujemy treść
-  });
-}
-
-    function anulujEdycje(id, lat, lng) {
-  const p = wszystkiePinezki.find(pp => pp.id === id);
-  if (!p) return;
-  const coords = formatCoords(p.lat, p.lng);
-  const content = `
-    <b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>
-    ${linkify(p.opis)}<br>
-    ${coords}<br>
-    <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-    <button onclick="edytuj('${p.id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>
-  `;
-  const marker = findMarkerByLatLng(lat, lng);
-  if (marker) {
-    marker.openPopup();
-    marker.once("popupopen", () => {
-      marker.setPopupContent(content);
-    });
-  }
-}
+    function edytuj(id, lat, lng) {
+      const p = wszystkiePinezki.find(pp => pp.id === id);
+      if (!p) return;
+      const container = document.createElement("div");
+      container.innerHTML = `
+        <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
+        <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
+        <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
+        <input id="eemoji" value="${p.emoji || ''}" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
+        <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
+      `;
+      const marker = findMarkerByLatLng(lat, lng);
+      if (marker) {
+        marker.bindPopup(container).openPopup();
+        marker.once('popupclose', () => {
+          const coords = formatCoords(p.lat, p.lng);
+          marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br>${coords}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick=\"edytuj('${p.id}', ${p.lat}, ${p.lng})\">✏️ Edytuj</button>`);
+        });
+      }
+    }
 
     function zapiszLokalnie(id) {
       const nowa = {
@@ -355,7 +344,27 @@
         } else {
           p.marker.setIcon(createEmojiIcon(p.emoji));
         }
-        p.marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick=\"edytuj('${p.id}', ${p.lat}, ${p.lng})\">✏️ Edytuj</button>`);
+        
+const coords = formatCoords(p.lat, p.lng);
+const popupDiv = document.createElement("div");
+popupDiv.innerHTML = `
+  <b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>
+  ${linkify(p.opis)}<br>
+  ${coords}<br>
+  <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
+  <button id="editBtn-${p.id}">✏️ Edytuj</button>
+`;
+p.marker.bindPopup(popupDiv);
+setTimeout(() => {
+  const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
+  if (btn) {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      edytuj(p.id, p.lat, p.lng);
+    });
+  }
+}, 0);
+
       }
       generujListeWarstw();
       document.getElementById('saveChanges').style.display = 'block';
@@ -456,16 +465,13 @@
     }
 
     function attachHighlight(marker, el) {
-  if (!marker) return;
-  if (marker._highlightHandler) {
-    marker.off('click', marker._highlightHandler);
-  }
-  marker._highlightHandler = () => {
-    marker.openPopup(); // 👈 DODAJ TO!
-    highlightListItem(el);
-  };
-  marker.on('click', marker._highlightHandler);
-}
+      if (!marker) return;
+      if (marker._highlightHandler) {
+        marker.off('click', marker._highlightHandler);
+      }
+      marker._highlightHandler = () => highlightListItem(el);
+      marker.on('click', marker._highlightHandler);
+    }
 
     function renameLayer(oldName, labelEl) {
       const input = document.createElement('input');
