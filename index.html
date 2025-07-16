@@ -307,8 +307,7 @@
           warstwy[p.warstwa].lista.push(p);
           if (p.marker) p.marker.remove();
           p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[p.warstwa].layer);
-          p.marker.off('click');
-          p.marker.on('click', () => highlightListItem(p.el));
+          attachHighlight(p.marker, p.el);
         } else {
           p.marker.setIcon(createEmojiIcon(p.emoji));
         }
@@ -410,6 +409,15 @@
         highlightedItem.classList.add('active');
         highlightedItem.scrollIntoView({behavior: 'smooth', block: 'nearest'});
       }
+    }
+
+    function attachHighlight(marker, el) {
+      if (!marker) return;
+      if (marker._highlightHandler) {
+        marker.off('click', marker._highlightHandler);
+      }
+      marker._highlightHandler = () => highlightListItem(el);
+      marker.on('click', marker._highlightHandler);
     }
 
     function renameLayer(oldName, labelEl) {
@@ -550,8 +558,7 @@
             highlightListItem(el);
           };
           if (p.marker) {
-            p.marker.off('click');
-            p.marker.on('click', () => highlightListItem(el));
+            attachHighlight(p.marker, el);
           }
           p.el = el;
           listaP.appendChild(el);
