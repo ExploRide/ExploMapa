@@ -417,13 +417,16 @@
     }
 
     function attachHighlight(marker, el) {
-      if (!marker) return;
-      if (marker._highlightHandler) {
-        marker.off('click', marker._highlightHandler);
-      }
-      marker._highlightHandler = () => highlightListItem(el);
-      marker.on('click', marker._highlightHandler);
-    }
+  if (!marker) return;
+  if (marker._highlightHandler) {
+    marker.off('click', marker._highlightHandler);
+  }
+  marker._highlightHandler = () => {
+    marker.openPopup(); // 👈 DODAJ TO!
+    highlightListItem(el);
+  };
+  marker.on('click', marker._highlightHandler);
+}
 
     function renameLayer(oldName, labelEl) {
       const input = document.createElement('input');
