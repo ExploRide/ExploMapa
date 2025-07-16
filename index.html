@@ -290,13 +290,6 @@ function zaladujPinezkiZFirestore() {
   });
 }
 
-      })
-      .catch(err => {
-        console.error("Błąd pobierania pinezek:", err);
-        generujListeWarstw();
-      });
-    }
-
     function edytuj(id, lat, lng) {
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (!p) return;
