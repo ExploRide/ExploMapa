@@ -10,7 +10,7 @@
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
     #map, #sidebar, #basemap-switcher { display: none; }
     #map { position: absolute; top: 0; left: 300px; right: 225px; bottom: 0; }
-   #sidebar {
+ #sidebar {
   position: absolute;
   top: 0;
   left: 0;
@@ -18,12 +18,19 @@
   width: 300px;
   background: #f8f8f8;
   border-right: 1px solid #ccc;
-  padding: 10px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-   #lista-warstw {
+    #sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+}
+#lista-warstw {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
@@ -39,17 +46,12 @@
       padding: 10px;
       overflow-y: auto;
     }
-  #wyszukiwarka {
-  width: 100%;
-  margin-bottom: 10px;
-  padding: 5px;
+#wyszukiwarka,
+#narzedzia {
   flex-shrink: 0;
-}
-    .pinezka { margin: 5px 0; cursor: pointer; color: #000; }
-    #narzedzia {
   margin-bottom: 10px;
-  flex-shrink: 0;
 }
+
     .tool-btn { font-size: 24px; background: none; border: none; cursor: pointer; font-family: "Noto Color Emoji", sans-serif; }
     .tool-btn.active { background: #ddd; }
     .pinezka.active { color: #007bff; font-weight: bold; }
@@ -106,11 +108,16 @@
 </head>
 <body>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
-  <div id="sidebar">
+<div id="sidebar">
+  <div id="sidebar-inner">
     <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
-    <div id="narzedzia"><button id="handTool" class="tool-btn">✋</button> <button id="pinTool" class="tool-btn">📌</button></div>
+    <div id="narzedzia">
+      <button id="handTool" class="tool-btn">✋</button>
+      <button id="pinTool" class="tool-btn">📌</button>
+    </div>
     <div id="lista-warstw"></div>
   </div>
+</div>
   <input type="text" id="geosearch" placeholder="Szukaj adresu lub współrzędnych...">
   <div id="map"></div>
   <div id="basemap-switcher">
