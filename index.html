@@ -286,26 +286,28 @@
       });
     }
 
-    function edytuj(id, lat, lng) {
-      const p = wszystkiePinezki.find(pp => pp.id === id);
-      if (!p) return;
-      const container = document.createElement("div");
-      container.innerHTML = `
-        <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
-        <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
-        <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
-        <input id="eemoji" value="${p.emoji || ''}" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
-        <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
-      `;
-      const marker = findMarkerByLatLng(lat, lng);
-      if (marker) {
-        marker.bindPopup(container).openPopup();
-        marker.once('popupclose', () => {
-          const coords = formatCoords(p.lat, p.lng);
-          marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br>${coords}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick=\"edytuj('${p.id}', ${p.lat}, ${p.lng})\">✏️ Edytuj</button>`);
-        });
-      }
-    }
+  function edytuj(id, lat, lng) {
+  const p = wszystkiePinezki.find(pp => pp.id === id);
+  if (!p) return;
+
+  const container = document.createElement("div");
+  container.innerHTML = `
+    <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
+    <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
+    <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
+    <input id="eemoji" value="${p.emoji || ''}" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
+    <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
+    <button onclick="anulujEdycje('${id}', ${p.lat}, ${p.lng})">Anuluj</button>
+  `;
+
+  const marker = findMarkerByLatLng(lat, lng);
+  if (!marker) return;
+
+  marker.openPopup(); // Otwieramy najpierw...
+  marker.once("popupopen", () => {
+    marker.setPopupContent(container); // ...a dopiero potem wstrzykujemy treść
+  });
+}
 
     function zapiszLokalnie(id) {
       const nowa = {
