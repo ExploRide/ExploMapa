@@ -309,6 +309,26 @@
   });
 }
 
+    function anulujEdycje(id, lat, lng) {
+  const p = wszystkiePinezki.find(pp => pp.id === id);
+  if (!p) return;
+  const coords = formatCoords(p.lat, p.lng);
+  const content = `
+    <b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>
+    ${linkify(p.opis)}<br>
+    ${coords}<br>
+    <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
+    <button onclick="edytuj('${p.id}', ${p.lat}, ${p.lng})">✏️ Edytuj</button>
+  `;
+  const marker = findMarkerByLatLng(lat, lng);
+  if (marker) {
+    marker.openPopup();
+    marker.once("popupopen", () => {
+      marker.setPopupContent(content);
+    });
+  }
+}
+
     function zapiszLokalnie(id) {
       const nowa = {
         nazwa: document.getElementById("enazwa").value,
