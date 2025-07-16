@@ -19,8 +19,11 @@
       background: #f8f8f8;
       border-right: 1px solid #ccc;
       padding: 10px;
+    }
+    #sidebar-inner {
       display: flex;
       flex-direction: column;
+      height: 100%;
     }
     #lista-warstw {
       overflow-y: auto;
@@ -37,9 +40,9 @@
       padding: 10px;
       overflow-y: auto;
     }
-    #wyszukiwarka { width: 80%; margin-bottom: 10px; padding: 5px; }
+    #wyszukiwarka { width: 80%; margin-bottom: 10px; padding: 5px; flex-shrink: 0; }
     .pinezka { margin: 5px 0; cursor: pointer; color: #000; }
-    #narzedzia { margin-bottom: 10px; }
+    #narzedzia { margin-bottom: 10px; flex-shrink: 0; }
     .tool-btn { font-size: 24px; background: none; border: none; cursor: pointer; font-family: "Noto Color Emoji", sans-serif; }
     .tool-btn.active { background: #ddd; }
     .pinezka.active { color: #007bff; font-weight: bold; }
@@ -97,9 +100,11 @@
 <body>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
   <div id="sidebar">
-    <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
-    <div id="narzedzia"><button id="handTool" class="tool-btn">✋</button> <button id="pinTool" class="tool-btn">📌</button></div>
-    <div id="lista-warstw"></div>
+    <div id="sidebar-inner">
+      <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
+      <div id="narzedzia"><button id="handTool" class="tool-btn">✋</button> <button id="pinTool" class="tool-btn">📌</button></div>
+      <div id="lista-warstw"></div>
+    </div>
   </div>
   <input type="text" id="geosearch" placeholder="Szukaj adresu lub współrzędnych...">
   <div id="map"></div>
@@ -306,7 +311,24 @@ function zaladujPinezkiZFirestore() {
         marker.bindPopup(container).openPopup();
         marker.once('popupclose', () => {
           const coords = formatCoords(p.lat, p.lng);
-          marker.bindPopup(`<b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>${linkify(p.opis)}<br>${coords}<br><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br><button onclick=\"edytuj('${p.id}', ${p.lat}, ${p.lng})\">✏️ Edytuj</button>`);
+          const popupDiv = document.createElement('div');
+          popupDiv.innerHTML = `
+            <b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>
+            ${linkify(p.opis)}<br>
+            ${coords}<br>
+            <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
+            <button id="editBtn-${p.id}">✏️ Edytuj</button>
+          `;
+          marker.bindPopup(popupDiv);
+          setTimeout(() => {
+            const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
+            if (btn) {
+              btn.addEventListener('click', e => {
+                e.stopPropagation();
+                edytuj(p.id, p.lat, p.lng);
+              });
+            }
+          }, 0);
         });
       }
     }
@@ -462,7 +484,10 @@ setTimeout(() => {
       if (marker._highlightHandler) {
         marker.off('click', marker._highlightHandler);
       }
-      marker._highlightHandler = () => highlightListItem(el);
+      marker._highlightHandler = () => {
+        highlightListItem(el);
+        marker.openPopup();
+      };
       marker.on('click', marker._highlightHandler);
     }
 
