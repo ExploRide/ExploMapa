@@ -217,7 +217,7 @@
     }
 
     function initMap() {
- map = L.map('map', {closePopupOnClick: false}).setView([52.1, 20.9], 7);
+ map = L.map('map').setView([52.1, 20.9], 7);
 
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri'
@@ -272,10 +272,7 @@ function zaladujPinezkiZFirestore() {
         <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
         <button id="editBtn-${id}">✏️ Edytuj</button>
       `;
-      marker.bindPopup(popupDiv, {
-  autoClose: false,
-  closeOnClick: false
-});
+      marker.bindPopup(popupDiv);
       setTimeout(() => {
         const btn = popupDiv.querySelector(`#editBtn-${id}`);
         if (btn) {
