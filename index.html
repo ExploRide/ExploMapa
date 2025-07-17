@@ -171,6 +171,7 @@
     let draggedLayer = null;
     let highlightedItem = null;
     let zmianyDoZapisania = {};
+    let nowePinezki = [];
     let currentTool = "hand";
     const handBtn = document.getElementById("handTool");
     const pinBtn = document.getElementById("pinTool");
@@ -192,7 +193,7 @@
     selectTool("hand");
 
     window.addEventListener('beforeunload', e => {
-      if (Object.keys(zmianyDoZapisania).length > 0) {
+      if (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0) {
         e.preventDefault();
         e.returnValue = 'Masz niezapisane zmiany. Czy na pewno chcesz wyjść?';
       }
@@ -305,10 +306,12 @@ function zaladujPinezkiZFirestore() {
       warstwy[warstwaNazwa].lista.push(p);
       wszystkiePinezki.push(p);
     });
+    loadNewPinsFromLocal();
     generujListeWarstw();
   })
   .catch(err => {
     console.error("Błąd pobierania pinezek:", err);
+    loadNewPinsFromLocal();
     generujListeWarstw();
   });
 }
@@ -438,11 +441,34 @@ setTimeout(() => {
           warstwa: container.querySelector("#warstwaNew").value,
           emoji: container.querySelector("#emojiNew").value,
           lat: latlng.lat,
-          lng: latlng.lng
+          lng: latlng.lng,
+          unsaved: true
         };
         saved = true;
-        map.removeLayer(marker);
-        db.collection("pinezki").add(data).then(() => location.reload());
+
+        const warstwaN = data.warstwa || "Inne";
+        if (!warstwy[warstwaN]) {
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map) };
+        }
+        data.marker = marker;
+        marker.setIcon(createEmojiIcon(data.emoji));
+        const coords = formatCoords(data.lat, data.lng);
+        const popupDiv = document.createElement('div');
+        popupDiv.innerHTML = `
+          <b>${data.emoji ? data.emoji + ' ' : ''}${data.nazwa}</b><br>
+          ${linkify(data.opis)}<br>
+          ${coords}<br>
+          <a href="https://maps.google.com/?q=${data.lat},${data.lng}" target="_blank">📍 Google Maps</a><br><br>
+        `;
+        marker.bindPopup(popupDiv);
+
+        nowePinezki.push(data);
+        localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki));
+        warstwy[warstwaN].lista.push(data);
+        wszystkiePinezki.push(data);
+        generujListeWarstw();
+        document.getElementById('saveChanges').style.display = 'block';
+        map.closePopup();
       });
 
       container.querySelector("#cancelNew").addEventListener("click", () => {
@@ -474,6 +500,37 @@ setTimeout(() => {
       const order = Array.from(document.querySelectorAll('#lista-warstw .warstwa'))
         .map(el => el.dataset.nazwa);
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
+    }
+
+    function loadNewPinsFromLocal() {
+      try {
+        nowePinezki = JSON.parse(localStorage.getItem('nowePinezki')) || [];
+      } catch (e) {
+        nowePinezki = [];
+      }
+      nowePinezki.forEach(p => {
+        p.unsaved = true;
+        const warstwaN = p.warstwa || 'Inne';
+        if (!warstwy[warstwaN]) {
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map) };
+        }
+        const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[warstwaN].layer);
+        const coords = formatCoords(p.lat, p.lng);
+        const popupDiv = document.createElement('div');
+        popupDiv.innerHTML = `
+          <b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>
+          ${linkify(p.opis)}<br>
+          ${coords}<br>
+          <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
+        `;
+        marker.bindPopup(popupDiv);
+        p.marker = marker;
+        warstwy[warstwaN].lista.push(p);
+        wszystkiePinezki.push(p);
+      });
+      if (nowePinezki.length > 0) {
+        document.getElementById('saveChanges').style.display = 'block';
+      }
     }
 
     function setupDrag(div) {
@@ -687,7 +744,17 @@ setTimeout(() => {
       Object.entries(zmianyDoZapisania).forEach(([id, data]) => {
         batch.update(db.collection('pinezki').doc(id), data);
       });
-      batch.commit().then(() => {
+      const addPromises = nowePinezki.map(p =>
+        db.collection('pinezki').add({
+          nazwa: p.nazwa,
+          opis: p.opis,
+          warstwa: p.warstwa,
+          emoji: p.emoji,
+          lat: p.lat,
+          lng: p.lng
+        })
+      );
+      Promise.all([batch.commit(), ...addPromises]).then(() => {
         Object.keys(zmianyDoZapisania).forEach(id => {
           const p = wszystkiePinezki.find(pp => pp.id === id);
           if (p) {
@@ -695,8 +762,9 @@ setTimeout(() => {
           }
         });
         zmianyDoZapisania = {};
-        generujListeWarstw();
-        document.getElementById('saveChanges').style.display = 'none';
+        nowePinezki = [];
+        localStorage.removeItem('nowePinezki');
+        location.reload();
       }).catch(err => {
         alert('Błąd zapisu: ' + err.message);
       });
