@@ -176,6 +176,12 @@
     const handBtn = document.getElementById("handTool");
     const pinBtn = document.getElementById("pinTool");
     const mapEl = document.getElementById("map");
+
+    function updateSaveButton() {
+      const btn = document.getElementById('saveChanges');
+      if (!btn) return;
+      btn.style.display = (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0) ? 'block' : 'none';
+    }
     function selectTool(t) {
       currentTool = t;
       handBtn.classList.toggle("active", t === "hand");
@@ -403,7 +409,7 @@ setTimeout(() => {
 
       }
       generujListeWarstw();
-      document.getElementById('saveChanges').style.display = 'block';
+      updateSaveButton();
       map.closePopup();
     }
 
@@ -467,7 +473,7 @@ setTimeout(() => {
         warstwy[warstwaN].lista.push(data);
         wszystkiePinezki.push(data);
         generujListeWarstw();
-        document.getElementById('saveChanges').style.display = 'block';
+        updateSaveButton();
         map.closePopup();
       });
 
@@ -528,9 +534,7 @@ setTimeout(() => {
         warstwy[warstwaN].lista.push(p);
         wszystkiePinezki.push(p);
       });
-      if (nowePinezki.length > 0) {
-        document.getElementById('saveChanges').style.display = 'block';
-      }
+      updateSaveButton();
     }
 
     function setupDrag(div) {
