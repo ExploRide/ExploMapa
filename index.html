@@ -421,6 +421,16 @@ setTimeout(() => {
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
       const popup = marker.bindPopup(container).openPopup();
+
+      let saved = false;
+      const removeOnClose = () => {
+        if (!saved && map.hasLayer(marker)) {
+          map.removeLayer(marker);
+        }
+        marker.off('popupclose', removeOnClose);
+      };
+      marker.on('popupclose', removeOnClose);
+
       container.querySelector("#saveNew").addEventListener("click", () => {
         const data = {
           nazwa: container.querySelector("#nazwaNew").value,
@@ -430,12 +440,13 @@ setTimeout(() => {
           lat: latlng.lat,
           lng: latlng.lng
         };
+        saved = true;
         map.removeLayer(marker);
         db.collection("pinezki").add(data).then(() => location.reload());
       });
+
       container.querySelector("#cancelNew").addEventListener("click", () => {
-        map.closePopup(popup);
-        map.removeLayer(marker);
+        map.closePopup();
       });
     }
     function onMapClick(e) {
