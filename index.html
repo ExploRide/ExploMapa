@@ -440,7 +440,8 @@ setTimeout(() => {
       };
       marker.on('popupclose', removeOnClose);
 
-      container.querySelector("#saveNew").addEventListener("click", () => {
+      container.querySelector("#saveNew").addEventListener("click", (e) => {
+        e.stopPropagation();
         const data = {
           nazwa: container.querySelector("#nazwaNew").value,
           opis: container.querySelector("#opisNew").value,
@@ -477,7 +478,8 @@ setTimeout(() => {
         map.closePopup();
       });
 
-      container.querySelector("#cancelNew").addEventListener("click", () => {
+      container.querySelector("#cancelNew").addEventListener("click", (e) => {
+        e.stopPropagation();
         map.closePopup();
       });
     }
