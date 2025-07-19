@@ -335,7 +335,7 @@ function zaladujPinezkiZFirestore() {
       `;
       const marker = findMarkerByLatLng(lat, lng);
       if (marker) {
-        marker.bindPopup(container).openPopup();
+        marker.bindPopup(container, {maxWidth: 600}).openPopup();
         marker.once('popupclose', () => {
           const coords = formatCoords(p.lat, p.lng);
           const popupDiv = document.createElement('div');
