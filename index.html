@@ -298,6 +298,19 @@ body, #sidebar, #basemap-switcher {
       });
     }
 
+    function setupEmojiInput(input) {
+      if (!input) return;
+      input.addEventListener('focus', function() {
+        this.dataset.prevValue = this.value;
+        this.value = '';
+      });
+      input.addEventListener('blur', function() {
+        if (this.value === '') {
+          this.value = this.dataset.prevValue || '';
+        }
+      });
+    }
+
     function initMap() {
  map = L.map('map').setView([52.1, 20.9], 7);
 
@@ -391,6 +404,7 @@ function zaladujPinezkiZFirestore() {
         <input id="eemoji" value="${p.emoji || ''}" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
       `;
+      setupEmojiInput(container.querySelector('#eemoji'));
       const marker = findMarkerByLatLng(lat, lng);
       if (marker) {
         marker.bindPopup(container, {maxWidth: 600}).openPopup();
@@ -489,6 +503,7 @@ setTimeout(() => {
         <input id="emojiNew" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
+      setupEmojiInput(container.querySelector('#emojiNew'));
       const popup = marker.bindPopup(container).openPopup();
 
       let saved = false;
