@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
    <link rel="stylesheet" href="style.css" />
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
+    html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background-color: #1e1e1e; color: #f0f0f0;}
     #map, #sidebar, #basemap-switcher { display: none; }
     #map { position: absolute; top: 0; left: 300px; right: 225px; bottom: 0; }
     #sidebar {
@@ -36,7 +36,9 @@
       right: 0;
       width: 200px;
       height: 100%;
-      background: #f8f8f8;
+      background-color: #2b2b2b;
+      border-color: #444;
+      color: #f0f0f0;
       border-left: 1px solid #ccc;
       padding: 10px;
       overflow-y: auto;
@@ -90,6 +92,7 @@
       color: red;
     }
     #saveChanges {
+      background-color: red;
       position: fixed;
       bottom: 30px;
       right: 45px;
