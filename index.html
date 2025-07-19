@@ -135,6 +135,28 @@ body, #sidebar, #basemap-switcher {
   scrollbar-width: thin;
   scrollbar-color: #555 #2a2a2a;
 }
+    #lista-warstw {
+  scrollbar-width: thin;
+  scrollbar-color: #555 #1e1e1e;
+}
+
+/* Dla Chrome, Edge, Safari */
+#lista-warstw::-webkit-scrollbar {
+  width: 8px;
+}
+
+#lista-warstw::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+#lista-warstw::-webkit-scrollbar-thumb {
+  background-color: #555;
+  border-radius: 4px;
+}
+
+#lista-warstw::-webkit-scrollbar-thumb:hover {
+  background-color: #777;
+}
   </style>
 </head>
 <body>
