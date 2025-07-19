@@ -31,7 +31,8 @@
     #lista-warstw {
       overflow-y: auto;
       flex: 1;
-      border-top: 1px solid #ccc;
+      border-top: 1px solid #444;
+        padding-top: 8px; /* lub ile tam chcesz odstępu */
     }
     #basemap-switcher {
       position: absolute;
@@ -47,7 +48,12 @@
       overflow-y: auto;
     }
     #wyszukiwarka { width: 80%; margin-bottom: 10px; padding: 5px; flex-shrink: 0; }
-    .pinezka { margin: 7px 0; cursor: pointer; color: #f0f0f0; font-size: 12px; }
+    .pinezka { 
+      margin: 7px 0; cursor: pointer; color: #f0f0f0; font-size: 12px; 
+      padding-bottom: 6px;
+      border-bottom: 1px solid #444;
+      margin-bottom: 6px;
+             }
     #narzedzia { margin-bottom: 10px; flex-shrink: 0; }
     .tool-btn { font-size: 24px; background: none; border: none; cursor: pointer; font-family: "Noto Color Emoji", sans-serif; }
     .tool-btn.active { background: #ddd; }
