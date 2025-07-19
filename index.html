@@ -753,11 +753,15 @@ setTimeout(() => {
         left.appendChild(label);
         const toggleBtn = document.createElement("span");
         toggleBtn.textContent = "🔽";
-        toggleBtn.style.cursor = "pointer";
+       toggleBtn.style.cursor = "pointer";
+toggleBtn.style.display = "inline-block";
+toggleBtn.style.verticalAlign = "top";
         const editBtn = document.createElement("span");
         editBtn.textContent = "✏️";
-        editBtn.style.cursor = "pointer";
-        editBtn.style.marginRight = "5px";
+   editBtn.style.cursor = "pointer";
+editBtn.style.marginRight = "5px";
+editBtn.style.display = "inline-block";
+editBtn.style.verticalAlign = "top";
         editBtn.onclick = () => renameLayer(nazwa, label);
         const controls = document.createElement("span");
         controls.appendChild(editBtn);
