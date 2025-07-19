@@ -668,16 +668,19 @@ setTimeout(() => {
           input.replaceWith(labelEl);
           return;
         }
-        Promise.all(layer.lista.map(p => {
+        layer.lista.forEach(p => {
+          const cur = zmianyDoZapisania[p.id] || {};
+          cur.warstwa = newName;
+          zmianyDoZapisania[p.id] = cur;
           p.warstwa = newName;
-          return db.collection('pinezki').doc(p.id).update({warstwa: newName});
-        })).then(() => {
-          warstwy[newName] = layer;
-          delete warstwy[oldName];
-          const order = loadLayerOrder().map(n => n === oldName ? newName : n);
-          localStorage.setItem('warstwaOrder', JSON.stringify(order));
-          location.reload();
+          p.unsaved = true;
         });
+        warstwy[newName] = layer;
+        delete warstwy[oldName];
+        const order = loadLayerOrder().map(n => n === oldName ? newName : n);
+        localStorage.setItem('warstwaOrder', JSON.stringify(order));
+        generujListeWarstw();
+        updateSaveButton();
       }
 
       input.onblur = finish;
