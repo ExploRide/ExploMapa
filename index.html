@@ -54,7 +54,14 @@
       border-bottom: 1px solid #444;
       margin-bottom: 6px;
              }
-    #narzedzia { margin-bottom: 10px; flex-shrink: 0; }
+    #narzedzia {
+      margin-bottom: 10px;
+    flex-shrink: 0;
+    position: fixed !important;
+    top: 50px;
+    left: 315px;
+    z-index: 1000; 
+    }
     .tool-btn { font-size: 24px; background: none; border: none; cursor: pointer; font-family: "Noto Color Emoji", sans-serif; }
     .tool-btn.active { background: #ddd; }
     .pinezka.active { color: #007bff; font-weight: bold; }
@@ -163,12 +170,20 @@ body, #sidebar, #basemap-switcher {
 #lista-warstw::-webkit-scrollbar-thumb:hover {
   background-color: #777;
 }
+    #logoNaglowek {
+  text-align: center;
+  font-weight: bold;
+  font-size: 20px;
+  margin: 0 0 10px 0;
+  color: #f0f0f0;
+}
   </style>
 </head>
 <body>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
   <div id="sidebar">
     <div id="sidebar-inner">
+      <h2 id="logoNaglowek">ExploMapy</h2>
       <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
       <div id="narzedzia"><button id="handTool" class="tool-btn">✋</button> <button id="pinTool" class="tool-btn">📌</button></div>
       <div id="lista-warstw"></div>
