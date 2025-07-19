@@ -415,6 +415,8 @@ setTimeout(() => {
 
 
     function openNewPinPopup(latlng) {
+      const saveBtnTmp = document.getElementById('saveChanges');
+      if (saveBtnTmp) saveBtnTmp.style.display = 'block';
       const warstwaOptions = Object.keys(warstwy)
           .map(n => `<option value="${n}">${n}</option>`).join("");
       const marker = L.marker(latlng, {icon: createEmojiIcon("📍")}).addTo(map);
@@ -437,6 +439,7 @@ setTimeout(() => {
           map.removeLayer(marker);
         }
         marker.off('popupclose', removeOnClose);
+        if (!saved) updateSaveButton();
       };
       marker.on('popupclose', removeOnClose);
 
