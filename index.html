@@ -214,6 +214,12 @@ body, #sidebar, #basemap-switcher {
       <h2 id="logoNaglowek">ExploMapy</h2>
       <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
       <div id="narzedzia"><button id="handTool" class="tool-btn">✋</button> <button id="pinTool" class="tool-btn">📌</button></div>
+      <select id="sortowanie">
+        <option value="dateDesc">Od najnowszego</option>
+        <option value="dateAsc">Od najstarszego</option>
+        <option value="nameAsc">Od A do Z</option>
+        <option value="nameDesc">Od Z do A</option>
+      </select>
       <div id="lista-warstw"></div>
     </div>
   </div>
@@ -273,10 +279,16 @@ body, #sidebar, #basemap-switcher {
     let highlightedItem = null;
     let zmianyDoZapisania = {};
     let nowePinezki = [];
+    let sortMode = 'dateDesc';
     let currentTool = "hand";
     const handBtn = document.getElementById("handTool");
     const pinBtn = document.getElementById("pinTool");
     const mapEl = document.getElementById("map");
+    const sortSelect = document.getElementById('sortowanie');
+    sortSelect.addEventListener('change', () => {
+      sortMode = sortSelect.value;
+      generujListeWarstw();
+    });
 
     function updateSaveButton() {
       const btn = document.getElementById('saveChanges');
@@ -400,6 +412,11 @@ function zaladujPinezkiZFirestore() {
   db.collection("pinezki").get().then(snapshot => {
     snapshot.forEach(doc => {
       const p = doc.data();
+      if (p.dataDodania && p.dataDodania.seconds !== undefined) {
+        p.dataDodania = p.dataDodania.seconds * 1000;
+      } else if (typeof p.dataDodania === 'string' || p.dataDodania instanceof Date) {
+        p.dataDodania = new Date(p.dataDodania).getTime();
+      }
       const id = doc.id;
       const warstwaNazwa = p.warstwa || "Inne";
       if (!warstwy[warstwaNazwa]) {
@@ -578,6 +595,7 @@ setTimeout(() => {
           emoji: container.querySelector("#emojiNew").value,
           lat: latlng.lat,
           lng: latlng.lng,
+          dataDodania: Date.now(),
           unsaved: true
         };
         saved = true;
@@ -647,6 +665,7 @@ setTimeout(() => {
       }
       nowePinezki.forEach(p => {
         p.unsaved = true;
+        if (!p.dataDodania) p.dataDodania = Date.now();
         const warstwaN = p.warstwa || 'Inne';
         if (!warstwy[warstwaN]) {
           warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map) };
@@ -846,8 +865,28 @@ editBtn.style.verticalAlign = "top";
         const listaP = document.createElement("div");
         listaP.className = "pinezki-lista";
 
-        warstwy[nazwa].lista.forEach(p => {
-          const el = document.createElement("div");
+        const sorted = warstwy[nazwa].lista.slice().sort((a, b) => {
+          const ad = a.dataDodania !== undefined ? new Date(a.dataDodania).getTime() : null;
+          const bd = b.dataDodania !== undefined ? new Date(b.dataDodania).getTime() : null;
+          if (sortMode === "dateDesc") {
+            if (ad === null && bd === null) return 0;
+            if (ad === null) return 1;
+            if (bd === null) return -1;
+            return bd - ad;
+          }
+          if (sortMode === "dateAsc") {
+            if (ad === null && bd === null) return 0;
+            if (ad === null) return 1;
+            if (bd === null) return -1;
+            return ad - bd;
+          }
+          if (sortMode === "nameDesc") {
+            return (b.nazwa || "").localeCompare(a.nazwa || "");
+          }
+          return (a.nazwa || "").localeCompare(b.nazwa || "");
+        });
+        sorted.forEach(p => {
+            const el = document.createElement("div");
           el.className = "pinezka";
           el.textContent = (p.emoji ? p.emoji + ' ' : '') + p.nazwa;
           if (p.unsaved) el.classList.add('unsaved');
@@ -893,7 +932,8 @@ editBtn.style.verticalAlign = "top";
           warstwa: p.warstwa,
           emoji: p.emoji,
           lat: p.lat,
-          lng: p.lng
+          lng: p.lng,
+          dataDodania: firebase.firestore.FieldValue.serverTimestamp()
         })
       );
       Promise.all([batch.commit(), ...addPromises]).then(() => {
