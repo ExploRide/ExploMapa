@@ -215,8 +215,10 @@ body, #sidebar, #basemap-switcher {
       <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
       <div id="narzedzia"><button id="handTool" class="tool-btn">✋</button> <button id="pinTool" class="tool-btn">📌</button></div>
       <select id="sortowanie">
-        <option value="name">Sortuj wg nazwy</option>
-        <option value="date">Sortuj wg daty</option>
+        <option value="dateDesc">Sortuj wg daty – od najnowszych</option>
+        <option value="dateAsc">Sortuj wg daty – od najstarszych</option>
+        <option value="nameAsc">Sortuj alfabetycznie A→Z</option>
+        <option value="nameDesc">Sortuj alfabetycznie Z→A</option>
       </select>
       <div id="lista-warstw"></div>
     </div>
@@ -277,7 +279,7 @@ body, #sidebar, #basemap-switcher {
     let highlightedItem = null;
     let zmianyDoZapisania = {};
     let nowePinezki = [];
-    let sortMode = 'name';
+    let sortMode = 'dateDesc';
     let currentTool = "hand";
     const handBtn = document.getElementById("handTool");
     const pinBtn = document.getElementById("pinTool");
@@ -864,12 +866,21 @@ editBtn.style.verticalAlign = "top";
         listaP.className = "pinezki-lista";
 
         const sorted = warstwy[nazwa].lista.slice().sort((a, b) => {
-          if (sortMode === 'date') {
-            const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
-            const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
-            return bd - ad;
+          const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
+          const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
+          const an = a.nazwa || '';
+          const bn = b.nazwa || '';
+          switch (sortMode) {
+            case 'dateAsc':
+              return ad - bd;
+            case 'dateDesc':
+              return bd - ad;
+            case 'nameDesc':
+              return bn.localeCompare(an);
+            case 'nameAsc':
+            default:
+              return an.localeCompare(bn);
           }
-          return (a.nazwa || '').localeCompare(b.nazwa || '');
         });
         sorted.forEach(p => {
           const el = document.createElement("div");
