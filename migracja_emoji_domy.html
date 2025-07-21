@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Migracja Emoji – Domy 🏚️</title>
+</head>
+<body>
+  <h2>Ustaw emoji 🏚️ dla pinezek z "dom", "chata", "chatka"</h2>
+  <button id="migracjaBtn">Uruchom migrację</button>
+  <pre id="log"></pre>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBj8xPy81NaxFwHmBL3ni_UVjYKFZflyv0",
+      authDomain: "exploridemap.firebaseapp.com",
+      projectId: "exploridemap",
+      storageBucket: "exploridemap.firebasestorage.app",
+      messagingSenderId: "1074659589759",
+      appId: "1:1074659589759:web:f8bdffc15d41d47ac8094a",
+      measurementId: "G-2JHQZ6HXTM"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) {
+        log(`✅ Zalogowano jako: ${user.email}`);
+      } else {
+        firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
+      }
+    });
+
+    function log(msg) {
+      document.getElementById("log").textContent += msg + "\n";
+    }
+
+    async function przypiszEmojiDomy() {
+      log("⏳ Rozpoczynam przypisywanie emoji 🏚️...");
+
+      try {
+        const snapshot = await db.collection("pinezki").get();
+        const batch = db.batch();
+        let licznik = 0;
+
+        snapshot.forEach(docSnap => {
+          const dane = docSnap.data();
+          const ref = db.collection("pinezki").doc(docSnap.id);
+          const nazwa = dane.nazwa?.toLowerCase() || "";
+
+          const czyMaSlowo =
+            nazwa.includes("dom") ||
+            nazwa.includes("chata") ||
+            nazwa.includes("chatka");
+
+          if (czyMaSlowo && (!dane.emoji || dane.emoji === "")) {
+            batch.update(ref, { emoji: "🏚️" });
+            licznik++;
+          }
+        });
+
+        if (licznik > 0) {
+          await batch.commit();
+          log(`✅ Ustawiono emoji 🏚️ dla ${licznik} pinezek`);
+        } else {
+          log("✅ Brak pinezek do aktualizacji");
+        }
+
+      } catch (err) {
+        log("❌ Błąd: " + err.message);
+        console.error(err);
+      }
+    }
+
+    document.getElementById("migracjaBtn").addEventListener("click", przypiszEmojiDomy);
+  </script>
+</body>
+</html>
