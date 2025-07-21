@@ -256,6 +256,14 @@ body, #sidebar, #basemap-switcher {
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
+    function slugify(str) {
+  return str
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9_-]/gi, "_")
+    .toLowerCase();
+}
+
     document.getElementById("loginBtn").addEventListener("click", () => {
       const provider = new firebase.auth.GoogleAuthProvider();
       firebase.auth().signInWithPopup(provider);
@@ -453,11 +461,11 @@ function zaladujPinezkiZFirestore() {
         Warstwa: ${warstwaNazwa}<br>
         Data dodania: ${formatDate(p.dataDodania)}<br>
         <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-        <button id="editBtn-${id}">✏️ Edytuj</button>
+        <button id="editBtn-${slugify(id)}">✏️ Edytuj</button>
       `;
       marker.bindPopup(popupDiv);
       setTimeout(() => {
-        const btn = popupDiv.querySelector(`#editBtn-${id}`);
+        const btn = popupDiv.querySelector(`#editBtn-${slugify(id)}`);
         if (btn) {
           btn.addEventListener("click", (e) => {
             e.stopPropagation(); // ważne!
@@ -506,11 +514,11 @@ function zaladujPinezkiZFirestore() {
             Warstwa: ${p.warstwa || 'Inne'}<br>
             Data dodania: ${formatDate(p.dataDodania)}<br>
             <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-            <button id="editBtn-${p.id}">✏️ Edytuj</button>
+            <button id="editBtn-${slugify(p.id)}">✏️ Edytuj</button>
           `;
           marker.bindPopup(popupDiv);
           setTimeout(() => {
-            const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
+            const btn = popupDiv.querySelector(`#editBtn-${slugify(p.id)}`);
             if (btn) {
               btn.addEventListener('click', e => {
                 e.stopPropagation();
