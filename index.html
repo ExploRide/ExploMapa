@@ -118,7 +118,7 @@
   line-height: 32px;
 }
 
-.emoji-marker span:not(.emoji-sztosy) {
+    .emoji-marker span:not(.emoji-sztosy) {
   text-shadow:
     /*
     -1px -1px 0 #000,
@@ -127,6 +127,12 @@
      1px  1px 0 #000;
   */
 }
+    .emoji-inline {
+      width: 20px;
+      height: 20px;
+      vertical-align: middle;
+    }
+    .hidden-text { display: none; }
 
     #geosearch {
       position: absolute;
@@ -379,6 +385,14 @@ function createEmojiIcon(emojiOrUrl, warstwa = "") {
   });
 }
 
+function emojiHtml(str) {
+  if (!str) return '';
+  if (str.startsWith('http')) {
+    return `<span class="hidden-text">${str} </span><img src="${str}" class="emoji-inline">`;
+  }
+  return str;
+}
+
   
 
     function initEmojiDatalist() {
@@ -459,7 +473,7 @@ function zaladujPinezkiZFirestore() {
 
       const popupDiv = document.createElement("div");
       popupDiv.innerHTML = `
-        <b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>
+        <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b><br>
         ${linkify(p.opis)}<br>
         ${coords}<br>
         Warstwa: ${warstwaNazwa}<br>
@@ -512,7 +526,7 @@ function zaladujPinezkiZFirestore() {
           const coords = formatCoords(p.lat, p.lng);
           const popupDiv = document.createElement('div');
           popupDiv.innerHTML = `
-            <b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>
+            <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b><br>
             ${linkify(p.opis)}<br>
             ${coords}<br>
             Warstwa: ${p.warstwa || 'Inne'}<br>
@@ -564,7 +578,7 @@ function zaladujPinezkiZFirestore() {
 const coords = formatCoords(p.lat, p.lng);
 const popupDiv = document.createElement("div");
 popupDiv.innerHTML = `
-  <b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>
+  <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b><br>
   ${linkify(p.opis)}<br>
   ${coords}<br>
   Warstwa: ${p.warstwa || 'Inne'}<br>
@@ -643,7 +657,7 @@ setTimeout(() => {
         const coords = formatCoords(data.lat, data.lng);
         const popupDiv = document.createElement('div');
         popupDiv.innerHTML = `
-          <b>${data.emoji ? data.emoji + ' ' : ''}${data.nazwa}</b><br>
+          <b>${data.emoji ? emojiHtml(data.emoji) + ' ' : ''}${data.nazwa}</b><br>
           ${linkify(data.opis)}<br>
           ${coords}<br>
           Warstwa: ${data.warstwa || 'Inne'}<br>
@@ -710,7 +724,7 @@ setTimeout(() => {
         const coords = formatCoords(p.lat, p.lng);
         const popupDiv = document.createElement('div');
         popupDiv.innerHTML = `
-          <b>${p.emoji ? p.emoji + ' ' : ''}${p.nazwa}</b><br>
+          <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b><br>
           ${linkify(p.opis)}<br>
           ${coords}<br>
           Warstwa: ${warstwaN}<br>
@@ -923,7 +937,7 @@ editBtn.style.verticalAlign = "top";
         sorted.forEach(p => {
           const el = document.createElement("div");
           el.className = "pinezka";
-          el.textContent = (p.emoji ? p.emoji + ' ' : '') + p.nazwa;
+          el.innerHTML = (p.emoji ? emojiHtml(p.emoji) + ' ' : '') + p.nazwa;
           if (p.unsaved) el.classList.add('unsaved');
           el.onclick = () => {
             map.setView([p.lat, p.lng], 16);
