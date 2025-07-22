@@ -222,7 +222,7 @@ body, #sidebar, #basemap-switcher {
   color: #f0f0f0;
 }
 .emoji-obrys {
-  filter: drop-shadow(0 0 1px black)
+  filter: drop-shadow(0 0 0.1px black)
           drop-shadow(1px 1px 1px black)
           drop-shadow(-1px -1px 1px black);
   vertical-align: middle;
@@ -231,7 +231,7 @@ body, #sidebar, #basemap-switcher {
 }
 
 .emoji-obrys-sztosy {
-  filter: drop-shadow(0 0 1px gold)
+  filter: drop-shadow(0 0 0.1px gold)
           drop-shadow(1px 1px 1px orange)
           drop-shadow(-1px -1px 1px gold);
   drop-shadow(0 0 2px black)
@@ -506,7 +506,7 @@ function zaladujPinezkiZFirestore() {
         Warstwa: ${warstwaNazwa}<br>
         Data dodania: ${formatDate(p.dataDodania)}<br>
         <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-        <button id="editBtn-${slugify(id)}">✏️ Edytuj</button>
+        <button id="editBtn-${slugify(id)}">✏️</button>
       `;
       marker.bindPopup(popupDiv);
       setTimeout(() => {
@@ -559,7 +559,7 @@ function zaladujPinezkiZFirestore() {
             Warstwa: ${p.warstwa || 'Inne'}<br>
             Data dodania: ${formatDate(p.dataDodania)}<br>
             <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-            <button id="editBtn-${slugify(p.id)}">✏️ Edytuj</button>
+            <button id="editBtn-${slugify(p.id)}">✏️</button>
           `;
           marker.bindPopup(popupDiv);
           setTimeout(() => {
@@ -611,7 +611,7 @@ popupDiv.innerHTML = `
   Warstwa: ${p.warstwa || 'Inne'}<br>
   Data dodania: ${formatDate(p.dataDodania)}<br>
   <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-  <button id="editBtn-${p.id}">✏️ Edytuj</button>
+  <button id="editBtn-${p.id}">✏️</button>
 `;
 p.marker.bindPopup(popupDiv);
 setTimeout(() => {
