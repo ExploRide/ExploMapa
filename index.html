@@ -134,9 +134,9 @@
           drop-shadow(0 0 1px black);
 }
     .emoji-inline {
-      width: 20px;
-      height: 20px;
-      vertical-align: middle;
+width: 15px;
+    height: 15px;
+    vertical-align: TOP;
     }
     .hidden-text { display: none; }
 
@@ -221,7 +221,26 @@ body, #sidebar, #basemap-switcher {
   margin: 0 0 10px 0;
   color: #f0f0f0;
 }
+.emoji-obrys {
+  filter: drop-shadow(0 0 1px black)
+          drop-shadow(1px 1px 1px black)
+          drop-shadow(-1px -1px 1px black);
+  vertical-align: middle;
+  margin-right: 5px;
+  border-radius: 2px;
+}
 
+.emoji-obrys-sztosy {
+  filter: drop-shadow(0 0 1px gold)
+          drop-shadow(1px 1px 1px orange)
+          drop-shadow(-1px -1px 1px gold);
+  drop-shadow(0 0 2px black)
+          drop-shadow(2px 2px 2px black)
+          drop-shadow(-2px -2px 2px black);
+  vertical-align: middle;
+  margin-right: 5px;
+  border-radius: 2px;
+}
   </style>
 </head>
 <body>
@@ -373,9 +392,10 @@ function createEmojiIcon(emojiOrUrl, warstwa = "") {
   const isUrl = emojiOrUrl && emojiOrUrl.startsWith("http");
 
   if (isUrl) {
+    const cls = warstwa === "Sztosy" ? "emoji-obrys-sztosy" : "emoji-obrys";
     return L.divIcon({
       className: 'emoji-marker',
-      html: `<img src="${emojiOrUrl}" width="28" height="28" style="vertical-align: middle;">`,
+      html: `<img src="${emojiOrUrl}" class="${cls}" width="28" height="28">`,
       iconSize: [32, 32],
       iconAnchor: [16, 32]
     });
@@ -390,6 +410,7 @@ function createEmojiIcon(emojiOrUrl, warstwa = "") {
     iconAnchor: [16, 32]
   });
 }
+
 
 function emojiHtml(str) {
   if (!str) return '';
