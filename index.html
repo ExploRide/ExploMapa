@@ -520,17 +520,6 @@ function createEmojiIcon(emojiOrUrl, warstwa = "") {
   });
 }
 
-  const cls = warstwa === "Sztosy" ? "emoji-sztosy" : "";
-
-  return L.divIcon({
-    className: 'emoji-marker',
-    html: `<span class="${cls}">${emojiOrUrl}</span>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32]
-  });
-}
-
-
 function emojiHtml(str) {
   if (!str) return '';
   if (str.startsWith('http')) {
