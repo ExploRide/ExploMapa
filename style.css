@@ -4,3 +4,14 @@
   left: 300px;
   z-index: 1000;
 }
+
+.emoji-dropdown {
+  position: absolute;
+  background: #2b2b2b;
+  border: 1px solid #444;
+  padding: 4px;
+  z-index: 2000;
+  display: none;
+  flex-wrap: wrap;
+  max-width: 200px;
+}

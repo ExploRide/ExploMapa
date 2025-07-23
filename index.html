@@ -341,7 +341,6 @@ body, #sidebar, #basemap-switcher {
     <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label>
   </div>
-  <datalist id="emojiListDatalist"></datalist>
   <button id="saveChanges">Zapisz edycję mapy</button>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
@@ -387,7 +386,6 @@ body, #sidebar, #basemap-switcher {
       document.getElementById("map").style.display = "block";
       document.getElementById("sidebar").style.display = "block";
       document.getElementById("basemap-switcher").style.display = "block";
-      initEmojiDatalist();
       initMap();
       zaladujPinezkiZFirestore();
       initGeoSearch();
@@ -629,26 +627,37 @@ function emojiHtml(str) {
 
   
 
-    function initEmojiDatalist() {
-      const dl = document.getElementById('emojiListDatalist');
-      if (!dl) return;
-      emojiList.forEach(em => {
-        const opt = document.createElement('option');
-        opt.value = em;
-        dl.appendChild(opt);
-      });
-    }
-
     function setupEmojiInput(input) {
       if (!input) return;
-      input.addEventListener('focus', function() {
-        this.dataset.prevValue = this.value;
-        this.value = '';
+      const list = document.createElement('div');
+      list.className = 'emoji-dropdown';
+      emojiList.forEach(url => {
+        const img = document.createElement('img');
+        img.src = url;
+        img.width = 24;
+        img.height = 24;
+        img.style.cursor = 'pointer';
+        img.style.margin = '2px';
+        img.addEventListener('mousedown', e => {
+          e.preventDefault();
+          input.value = url;
+          list.style.display = 'none';
+        });
+        list.appendChild(img);
       });
-      input.addEventListener('blur', function() {
-        if (this.value === '') {
-          this.value = this.dataset.prevValue || '';
-        }
+      document.body.appendChild(list);
+
+      function show() {
+        const r = input.getBoundingClientRect();
+        list.style.left = r.left + window.scrollX + 'px';
+        list.style.top = r.bottom + window.scrollY + 'px';
+        list.style.display = 'flex';
+      }
+
+      input.addEventListener('focus', show);
+      input.addEventListener('click', show);
+      input.addEventListener('blur', () => {
+        setTimeout(() => { list.style.display = 'none'; }, 100);
       });
     }
 
@@ -749,7 +758,7 @@ function zaladujPinezkiZFirestore() {
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
         <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
         <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
-        <input id="eemoji" value="${p.emoji || ''}" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
+        <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 100%"><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
       `;
       setupEmojiInput(container.querySelector('#eemoji'));
@@ -847,7 +856,7 @@ setTimeout(() => {
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
         <textarea id="opisNew" placeholder="Opis" style="width: 100%"></textarea><br>
         <select id="warstwaNew" style="width: 100%">${warstwaOptions}</select><br>
-        <input id="emojiNew" list="emojiListDatalist" placeholder="Emoji" style="width: 100%"><br>
+        <input id="emojiNew" placeholder="Emoji" style="width: 100%"><br>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
       setupEmojiInput(container.querySelector('#emojiNew'));
