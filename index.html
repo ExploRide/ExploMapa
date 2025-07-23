@@ -296,6 +296,15 @@ body, #sidebar, #basemap-switcher {
   cursor: pointer;
   z-index: 2101;
 }
+#photoModalDelete {
+  position: absolute;
+  top: 20px;
+  right: 80px;
+  color: #fff;
+  font-size: 32px;
+  cursor: pointer;
+  z-index: 2101;
+}
   </style>
 </head>
 <body>
@@ -327,6 +336,7 @@ body, #sidebar, #basemap-switcher {
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="emoji-list.js"></script>
 
@@ -341,6 +351,7 @@ body, #sidebar, #basemap-switcher {
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const storage = firebase.storage();
 
     function slugify(str) {
   return str
@@ -393,6 +404,12 @@ body, #sidebar, #basemap-switcher {
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
       btn.style.display = (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0) ? 'block' : 'none';
+    }
+
+    function markPinUnsaved(slug) {
+      const p = wszystkiePinezki.find(pp => pp.slug === slug);
+      if (p) p.unsaved = true;
+      updateSaveButton();
     }
     function selectTool(t) {
       currentTool = t;
@@ -478,7 +495,8 @@ function emojiHtml(str) {
 
     function getStoredPhotos(slug) {
       try {
-        return JSON.parse(localStorage.getItem('photos_' + slug)) || [];
+        const arr = JSON.parse(localStorage.getItem('photos_' + slug)) || [];
+        return arr.map(p => typeof p === 'string' ? {url: p} : p);
       } catch (e) {
         return [];
       }
@@ -494,9 +512,10 @@ function emojiHtml(str) {
       const photos = getStoredPhotos(slug);
       gallery.innerHTML = '';
       if (photos.length === 0) return;
-      photos.forEach(src => {
+      photos.forEach((ph, idx) => {
         const img = document.createElement('img');
-        img.src = src;
+        img.src = ph.url;
+        img.dataset.index = idx;
         img.className = 'popup-photo';
         gallery.appendChild(img);
       });
@@ -522,7 +541,7 @@ function emojiHtml(str) {
       renderGallery(gallery);
       gallery.addEventListener('click', e => {
         if (e.target.tagName === 'IMG') {
-          openPhotoModal(e.target.src);
+          openPhotoModal(gallery.dataset.slug, parseInt(e.target.dataset.index));
         }
       });
     }
@@ -537,15 +556,23 @@ function emojiHtml(str) {
           if (gallery) {
             renderGallery(gallery);
           }
+          markPinUnsaved(slug);
+          return;
+        }
+        const file = files[idx];
+        if (file.size > 1024 * 1024) {
+          alert('Plik jest większy niż 1 MB i nie zostanie dodany.');
+          idx++;
+          next();
           return;
         }
         const reader = new FileReader();
         reader.onload = e => {
-          existing.push(e.target.result);
+          existing.push({url: e.target.result});
           idx++;
           next();
         };
-        reader.readAsDataURL(files[idx]);
+        reader.readAsDataURL(file);
       }
       next();
     }
@@ -566,7 +593,7 @@ function emojiHtml(str) {
     }
 
     function createPopupHtml(p) {
-      const slug = slugify(p.nazwa || '');
+      const slug = p.slug || slugify(p.nazwa || '');
       return `
         <div class="photo-gallery" data-slug="${slug}"></div>
         <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
@@ -651,6 +678,10 @@ function zaladujPinezkiZFirestore() {
         p.dataDodania = new Date(p.dataDodania).getTime();
       }
       const id = doc.id;
+      p.slug = slugify(p.nazwa);
+      if (!localStorage.getItem('photos_' + p.slug)) {
+        storePhotos(p.slug, (p.photos || []));
+      }
       const warstwaNazwa = p.warstwa || "Inne";
       if (!warstwy[warstwaNazwa]) {
         warstwy[warstwaNazwa] = {
@@ -666,7 +697,7 @@ function zaladujPinezkiZFirestore() {
       marker.bindPopup(popupDiv);
       setTimeout(() => {
         setupGallery(popupDiv.querySelector('.photo-gallery'));
-        setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), slugify(p.nazwa), popupDiv.querySelector('.photo-gallery'));
+        setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), p.slug, popupDiv.querySelector('.photo-gallery'));
         const btn = popupDiv.querySelector(`#editBtn-${slugify(id)}`);
         if (btn) {
           btn.addEventListener("click", (e) => {
@@ -713,7 +744,7 @@ function zaladujPinezkiZFirestore() {
           marker.bindPopup(popupDiv);
           setTimeout(() => {
             setupGallery(popupDiv.querySelector('.photo-gallery'));
-            setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), slugify(p.nazwa), popupDiv.querySelector('.photo-gallery'));
+            setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), p.slug, popupDiv.querySelector('.photo-gallery'));
             const btn = popupDiv.querySelector(`#editBtn-${slugify(p.id)}`);
             if (btn) {
               btn.addEventListener('click', e => {
@@ -737,7 +768,14 @@ function zaladujPinezkiZFirestore() {
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (p) {
         const staraWarstwa = p.warstwa || "Inne";
+        const oldSlug = p.slug;
         Object.assign(p, nowa);
+        p.slug = slugify(p.nazwa);
+        if (oldSlug !== p.slug) {
+          const photos = getStoredPhotos(oldSlug);
+          localStorage.removeItem('photos_' + oldSlug);
+          storePhotos(p.slug, photos);
+        }
         p.unsaved = true;
         if (staraWarstwa !== p.warstwa) {
           const idx = warstwy[staraWarstwa].lista.indexOf(p);
@@ -759,7 +797,7 @@ popupDiv.innerHTML = createPopupHtml(p);
 p.marker.bindPopup(popupDiv);
 setTimeout(() => {
   setupGallery(popupDiv.querySelector('.photo-gallery'));
-  setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), slugify(p.nazwa), popupDiv.querySelector('.photo-gallery'));
+  setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), p.slug, popupDiv.querySelector('.photo-gallery'));
   const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
   if (btn) {
     btn.addEventListener("click", (e) => {
@@ -826,13 +864,17 @@ setTimeout(() => {
         }
         data.marker = marker;
         marker.setIcon(createEmojiIcon(data.emoji));
+        data.slug = slugify(data.nazwa);
+        if (!localStorage.getItem('photos_' + data.slug)) {
+          storePhotos(data.slug, []);
+        }
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(data);
         marker.bindPopup(popupDiv);
         setTimeout(() => {
           setupGallery(popupDiv.querySelector('.photo-gallery'));
-          setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), slugify(data.nazwa), popupDiv.querySelector('.photo-gallery'));
+          setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), data.slug, popupDiv.querySelector('.photo-gallery'));
         }, 0);
 
         nowePinezki.push(data);
@@ -884,6 +926,7 @@ setTimeout(() => {
       }
       nowePinezki.forEach(p => {
         p.unsaved = true;
+        if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
         const warstwaN = p.warstwa || 'Inne';
         if (!warstwy[warstwaN]) {
@@ -896,7 +939,7 @@ setTimeout(() => {
         marker.bindPopup(popupDiv);
         setTimeout(() => {
           setupGallery(popupDiv.querySelector('.photo-gallery'));
-          setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), slugify(p.nazwa), popupDiv.querySelector('.photo-gallery'));
+          setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), p.slug, popupDiv.querySelector('.photo-gallery'));
         }, 0);
         p.marker = marker;
         warstwy[warstwaN].lista.push(p);
@@ -1135,36 +1178,38 @@ editBtn.style.verticalAlign = "top";
       });
     }
 
-    function zapiszZmiany() {
-      const batch = db.batch();
-      Object.entries(zmianyDoZapisania).forEach(([id, data]) => {
-        batch.update(db.collection('pinezki').doc(id), data);
-      });
-      const addPromises = nowePinezki.map(p =>
-        db.collection('pinezki').add({
-          nazwa: p.nazwa,
-          opis: p.opis,
-          warstwa: p.warstwa,
-          emoji: p.emoji,
-          lat: p.lat,
-          lng: p.lng,
-          dataDodania: firebase.firestore.FieldValue.serverTimestamp()
-        })
-      );
-      Promise.all([batch.commit(), ...addPromises]).then(() => {
-        Object.keys(zmianyDoZapisania).forEach(id => {
+    async function zapiszZmiany() {
+      try {
+        const updatePromises = Object.entries(zmianyDoZapisania).map(async ([id, data]) => {
+          await db.collection('pinezki').doc(id).update(data);
           const p = wszystkiePinezki.find(pp => pp.id === id);
           if (p) {
+            await savePhotosForPin(id, p.slug, getStoredPhotos(p.slug), p.photos || []);
             delete p.unsaved;
           }
         });
+
+        const addPromises = nowePinezki.map(async p => {
+          const docRef = await db.collection('pinezki').add({
+            nazwa: p.nazwa,
+            opis: p.opis,
+            warstwa: p.warstwa,
+            emoji: p.emoji,
+            lat: p.lat,
+            lng: p.lng,
+            dataDodania: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          await savePhotosForPin(docRef.id, p.slug, getStoredPhotos(p.slug), []);
+        });
+
+        await Promise.all([...updatePromises, ...addPromises]);
         zmianyDoZapisania = {};
         nowePinezki = [];
         localStorage.removeItem('nowePinezki');
         location.reload();
-      }).catch(err => {
+      } catch (err) {
         alert('Błąd zapisu: ' + err.message);
-      });
+      }
     }
 
     document.getElementById('saveChanges').addEventListener('click', zapiszZmiany);
@@ -1185,16 +1230,63 @@ editBtn.style.verticalAlign = "top";
 
   });
 
-  function openPhotoModal(url) {
+  let modalSlug = null;
+  let modalIndex = null;
+  function openPhotoModal(slug, idx) {
+    modalSlug = slug;
+    modalIndex = idx;
+    const photos = getStoredPhotos(slug);
+    const ph = photos[idx];
+    if (!ph) return;
     const img = document.getElementById('photoModalImg');
-    if (img) img.src = url;
+    if (img) img.src = ph.url;
     const modal = document.getElementById('photoModal');
     if (modal) modal.style.display = 'flex';
+  }
+
+  function deleteCurrentPhoto() {
+    if (modalSlug === null) return;
+    const photos = getStoredPhotos(modalSlug);
+    const removed = photos.splice(modalIndex, 1)[0];
+    storePhotos(modalSlug, photos);
+    const gallery = document.querySelector(`.photo-gallery[data-slug="${modalSlug}"]`);
+    if (gallery) renderGallery(gallery);
+    markPinUnsaved(modalSlug);
+    modalSlug = null; modalIndex = null;
+    const modal = document.getElementById('photoModal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async function savePhotosForPin(id, slug, localPhotos, remotePhotos) {
+    const uploads = [];
+    const finalPhotos = [];
+    const remoteMap = {};
+    (remotePhotos || []).forEach(ph => { if (ph.path) remoteMap[ph.path] = ph; });
+    for (const ph of localPhotos) {
+      if (ph.path) {
+        finalPhotos.push(ph);
+        delete remoteMap[ph.path];
+      } else {
+        const ref = storage.ref().child(`pinezki/${id}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
+        uploads.push(
+          ref.putString(ph.url, 'data_url').then(() => ref.getDownloadURL()).then(url => {
+            finalPhotos.push({url, path: ref.fullPath});
+          })
+        );
+      }
+    }
+    Object.keys(remoteMap).forEach(path => {
+      uploads.push(storage.ref().child(path).delete().catch(() => {}));
+    });
+    await Promise.all(uploads);
+    await db.collection('pinezki').doc(id).update({photos: finalPhotos});
+    storePhotos(slug, finalPhotos);
   }
 
   </script>
   <div id="photoModal">
     <span id="photoModalClose">&#10005;</span>
+    <span id="photoModalDelete" onclick="deleteCurrentPhoto()">🗑️</span>
     <img id="photoModalImg" src="">
   </div>
 </body>
