@@ -250,12 +250,36 @@ body, #sidebar, #basemap-switcher {
   bottom: 0;
   right: 0;
 }
+.popup-add-photo {
+  position: absolute;
+  bottom: 0;
+  right: 30px;
+}
 .popup-photo {
   width: 100%;
   max-height: 150px;
   object-fit: cover;
   cursor: pointer;
   margin-bottom: 4px;
+}
+.photo-gallery {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.gallery-images {
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+}
+.gallery-images img {
+  width: 33.33%;
+}
+.gallery-prev, .gallery-next {
+  cursor: pointer;
+  user-select: none;
+  padding: 0 4px;
+  font-size: 20px;
 }
 #photoModal {
   display: none;
@@ -461,6 +485,130 @@ function emojiHtml(str) {
   return str;
 }
 
+
+    function getStoredPhotos(slug) {
+      try {
+        return JSON.parse(localStorage.getItem('photos_' + slug)) || [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function storePhotos(slug, arr) {
+      localStorage.setItem('photos_' + slug, JSON.stringify(arr));
+    }
+
+    function renderGallery(gallery) {
+      if (!gallery) return;
+      const slug = gallery.dataset.slug;
+      let start = parseInt(gallery.dataset.start || '0');
+      const photos = getStoredPhotos(slug);
+      if (photos.length <= 0) { gallery.innerHTML = ''; return; }
+      start = Math.max(0, Math.min(start, Math.max(0, photos.length - 3)));
+      gallery.dataset.start = start;
+      gallery.innerHTML = '';
+      if (start > 0) {
+        const prev = document.createElement('span');
+        prev.className = 'gallery-prev';
+        prev.textContent = '◀️';
+        gallery.appendChild(prev);
+      }
+      const wrap = document.createElement('div');
+      wrap.className = 'gallery-images';
+      photos.slice(start, start + 3).forEach(src => {
+        const img = document.createElement('img');
+        img.src = src;
+        img.className = 'popup-photo';
+        wrap.appendChild(img);
+      });
+      gallery.appendChild(wrap);
+      if (start + 3 < photos.length) {
+        const next = document.createElement('span');
+        next.className = 'gallery-next';
+        next.textContent = '▶️';
+        gallery.appendChild(next);
+      }
+    }
+
+    function setupGallery(gallery) {
+      if (!gallery) return;
+      renderGallery(gallery);
+      gallery.addEventListener('click', e => {
+        const slug = gallery.dataset.slug;
+        let start = parseInt(gallery.dataset.start || '0');
+        const photos = getStoredPhotos(slug);
+        if (e.target.classList.contains('gallery-prev')) {
+          start = Math.max(0, start - 3);
+          gallery.dataset.start = start;
+          renderGallery(gallery);
+        } else if (e.target.classList.contains('gallery-next')) {
+          start = Math.min(start + 3, Math.max(0, photos.length - 3));
+          gallery.dataset.start = start;
+          renderGallery(gallery);
+        } else if (e.target.tagName === 'IMG') {
+          openPhotoModal(e.target.src);
+        }
+      });
+    }
+
+    function addPhotosToSlug(slug, files, gallery) {
+      if (!files || files.length === 0) return;
+      const existing = getStoredPhotos(slug);
+      let idx = 0;
+      function next() {
+        if (idx >= files.length) {
+          storePhotos(slug, existing);
+          if (gallery) {
+            gallery.dataset.start = Math.max(0, existing.length - 3);
+            renderGallery(gallery);
+          }
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = e => {
+          existing.push(e.target.result);
+          idx++;
+          next();
+        };
+        reader.readAsDataURL(files[idx]);
+      }
+      next();
+    }
+
+    function setupAddPhotoButton(btn, slug, gallery) {
+      if (!btn) return;
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.multiple = true;
+        input.addEventListener('change', () => {
+          addPhotosToSlug(slug, Array.from(input.files || []), gallery);
+        });
+        input.click();
+      });
+    }
+
+    function createPopupHtml(p) {
+      const slug = slugify(p.nazwa || '');
+      return `
+        <div class="photo-gallery" data-slug="${slug}" data-start="0"></div>
+        <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
+        <div style="border-top:1px solid #444;"></div>
+        <div style="height:4px;"></div>
+        <div>${linkify(p.opis)}</div>
+        <div style="height:4px;"></div>
+        <div style="border-top:1px solid #444;"></div>
+        <div>Warstwa: ${p.warstwa || 'Inne'}</div>
+        <div>Data dodania: ${formatDate(p.dataDodania)}</div>
+        <div>${formatCoords(p.lat, p.lng)}</div>
+        <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
+        <button class="popup-add-photo" data-slug="${slug}">📷</button>
+        <button class="popup-edit-btn" id="editBtn-${slugify(p.id || slug)}">✏️</button>
+      `;
+    }
+
   
 
     function initEmojiDatalist() {
@@ -537,33 +685,13 @@ function zaladujPinezkiZFirestore() {
       }
 
       const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(p.emoji, warstwaNazwa) }).addTo(warstwy[warstwaNazwa].layer);
-      const coords = formatCoords(p.lat, p.lng);
-
       const popupDiv = document.createElement("div");
       popupDiv.className = "popup-container";
-      popupDiv.innerHTML = `
-        ${p.photo ? `<img src="${p.photo}" class="popup-photo">` : ''}
-        <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
-        <div style="border-top:1px solid #444;"></div>
-        <div style="height:4px;"></div>
-        <div>${linkify(p.opis)}</div>
-        <div style="height:4px;"></div>
-        <div style="border-top:1px solid #444;"></div>
-        <div>Warstwa: ${warstwaNazwa}</div>
-        <div>Data dodania: ${formatDate(p.dataDodania)}</div>
-        <div>${coords}</div>
-        <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
-        <button class="popup-edit-btn" id="editBtn-${slugify(id)}">✏️</button>
-      `;
+      popupDiv.innerHTML = createPopupHtml(Object.assign({lat:p.lat,lng:p.lng}, p));
       marker.bindPopup(popupDiv);
       setTimeout(() => {
-        const imgEl = popupDiv.querySelector('.popup-photo');
-        if (imgEl) {
-          imgEl.addEventListener('click', e => {
-            e.stopPropagation();
-            openPhotoModal(imgEl.src);
-          });
-        }
+        setupGallery(popupDiv.querySelector('.photo-gallery'));
+        setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), slugify(p.nazwa), popupDiv.querySelector('.photo-gallery'));
         const btn = popupDiv.querySelector(`#editBtn-${slugify(id)}`);
         if (btn) {
           btn.addEventListener("click", (e) => {
@@ -604,32 +732,13 @@ function zaladujPinezkiZFirestore() {
       if (marker) {
         marker.bindPopup(container, {maxWidth: 600}).openPopup();
         marker.once('popupclose', () => {
-          const coords = formatCoords(p.lat, p.lng);
           const popupDiv = document.createElement('div');
           popupDiv.className = 'popup-container';
-          popupDiv.innerHTML = `
-            ${p.photo ? `<img src="${p.photo}" class="popup-photo">` : ''}
-            <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
-            <div style="border-top:1px solid #444;"></div>
-            <div style="height:4px;"></div>
-            <div>${linkify(p.opis)}</div>
-            <div style="height:4px;"></div>
-            <div style="border-top:1px solid #444;"></div>
-            <div>Warstwa: ${p.warstwa || 'Inne'}</div>
-            <div>Data dodania: ${formatDate(p.dataDodania)}</div>
-            <div>${coords}</div>
-            <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
-            <button class="popup-edit-btn" id="editBtn-${slugify(p.id)}">✏️</button>
-          `;
+          popupDiv.innerHTML = createPopupHtml(p);
           marker.bindPopup(popupDiv);
           setTimeout(() => {
-            const imgEl = popupDiv.querySelector('.popup-photo');
-            if (imgEl) {
-              imgEl.addEventListener('click', e => {
-                e.stopPropagation();
-                openPhotoModal(imgEl.src);
-              });
-            }
+            setupGallery(popupDiv.querySelector('.photo-gallery'));
+            setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), slugify(p.nazwa), popupDiv.querySelector('.photo-gallery'));
             const btn = popupDiv.querySelector(`#editBtn-${slugify(p.id)}`);
             if (btn) {
               btn.addEventListener('click', e => {
@@ -669,32 +778,13 @@ function zaladujPinezkiZFirestore() {
           p.marker.setIcon(createEmojiIcon(p.emoji));
         }
         
-const coords = formatCoords(p.lat, p.lng);
 const popupDiv = document.createElement("div");
 popupDiv.className = "popup-container";
-popupDiv.innerHTML = `
-  ${p.photo ? `<img src="${p.photo}" class="popup-photo">` : ''}
-  <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
-  <div style="border-top:1px solid #444;"></div>
-  <div style="height:4px;"></div>
-  <div>${linkify(p.opis)}</div>
-  <div style="height:4px;"></div>
-  <div style="border-top:1px solid #444;"></div>
-  <div>Warstwa: ${p.warstwa || 'Inne'}</div>
-  <div>Data dodania: ${formatDate(p.dataDodania)}</div>
-  <div>${coords}</div>
-  <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
-  <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
-`;
+popupDiv.innerHTML = createPopupHtml(p);
 p.marker.bindPopup(popupDiv);
 setTimeout(() => {
-  const imgEl = popupDiv.querySelector('.popup-photo');
-  if (imgEl) {
-    imgEl.addEventListener('click', e => {
-      e.stopPropagation();
-      openPhotoModal(imgEl.src);
-    });
-  }
+  setupGallery(popupDiv.querySelector('.photo-gallery'));
+  setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), slugify(p.nazwa), popupDiv.querySelector('.photo-gallery'));
   const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
   if (btn) {
     btn.addEventListener("click", (e) => {
@@ -761,31 +851,13 @@ setTimeout(() => {
         }
         data.marker = marker;
         marker.setIcon(createEmojiIcon(data.emoji));
-        const coords = formatCoords(data.lat, data.lng);
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
-        popupDiv.innerHTML = `
-          ${data.photo ? `<img src="${data.photo}" class="popup-photo">` : ''}
-          <b>${data.emoji ? emojiHtml(data.emoji) + ' ' : ''}${data.nazwa}</b>
-          <div style="border-top:1px solid #444;"></div>
-          <div style="height:4px;"></div>
-          <div>${linkify(data.opis)}</div>
-          <div style="height:4px;"></div>
-          <div style="border-top:1px solid #444;"></div>
-          <div>Warstwa: ${data.warstwa || 'Inne'}</div>
-          <div>Data dodania: ${formatDate(data.dataDodania)}</div>
-          <div>${coords}</div>
-          <div><a href="https://maps.google.com/?q=${data.lat},${data.lng}" target="_blank">📍 Google Maps</a></div>
-        `;
+        popupDiv.innerHTML = createPopupHtml(data);
         marker.bindPopup(popupDiv);
         setTimeout(() => {
-          const imgEl = popupDiv.querySelector('.popup-photo');
-          if (imgEl) {
-            imgEl.addEventListener('click', e => {
-              e.stopPropagation();
-              openPhotoModal(imgEl.src);
-            });
-          }
+          setupGallery(popupDiv.querySelector('.photo-gallery'));
+          setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), slugify(data.nazwa), popupDiv.querySelector('.photo-gallery'));
         }, 0);
 
         nowePinezki.push(data);
@@ -843,31 +915,13 @@ setTimeout(() => {
           warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map) };
         }
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[warstwaN].layer);
-        const coords = formatCoords(p.lat, p.lng);
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
-        popupDiv.innerHTML = `
-          ${p.photo ? `<img src="${p.photo}" class="popup-photo">` : ''}
-          <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
-          <div style="border-top:1px solid #444;"></div>
-          <div style="height:4px;"></div>
-          <div>${linkify(p.opis)}</div>
-          <div style="height:4px;"></div>
-          <div style="border-top:1px solid #444;"></div>
-          <div>Warstwa: ${warstwaN}</div>
-          <div>Data dodania: ${formatDate(p.dataDodania)}</div>
-          <div>${coords}</div>
-          <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
-        `;
+        popupDiv.innerHTML = createPopupHtml(p);
         marker.bindPopup(popupDiv);
         setTimeout(() => {
-          const imgEl = popupDiv.querySelector('.popup-photo');
-          if (imgEl) {
-            imgEl.addEventListener('click', e => {
-              e.stopPropagation();
-              openPhotoModal(imgEl.src);
-            });
-          }
+          setupGallery(popupDiv.querySelector('.photo-gallery'));
+          setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), slugify(p.nazwa), popupDiv.querySelector('.photo-gallery'));
         }, 0);
         p.marker = marker;
         warstwy[warstwaN].lista.push(p);
