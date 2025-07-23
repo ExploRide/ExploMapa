@@ -280,6 +280,7 @@ body, #sidebar, #basemap-switcher {
   color: #fff;
   font-size: 32px;
   cursor: pointer;
+  z-index: 2101;
 }
   </style>
 </head>
@@ -1150,6 +1151,13 @@ editBtn.style.verticalAlign = "top";
         document.getElementById('photoModal').style.display = 'none';
       });
     }
+    const modal = document.getElementById('photoModal');
+    if (modal) {
+      modal.addEventListener('click', e => {
+        if (e.target === modal) modal.style.display = 'none';
+      });
+    }
+
   });
 
   function openPhotoModal(url) {
