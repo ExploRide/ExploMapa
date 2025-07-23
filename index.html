@@ -490,6 +490,14 @@ body, #sidebar, #basemap-switcher {
     }
 
 function createEmojiIcon(emojiOrUrl, warstwa = "") {
+  if (!emojiOrUrl || String(emojiOrUrl).trim() === "" || emojiOrUrl === "undefined") {
+    return L.icon({
+      iconUrl: 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png',
+      iconSize: [27, 43],
+      iconAnchor: [13, 42]
+    });
+  }
+
   const isUrl = emojiOrUrl && emojiOrUrl.startsWith("http");
 
   if (isUrl) {
