@@ -305,6 +305,15 @@ body, #sidebar, #basemap-switcher {
   cursor: pointer;
   z-index: 2101;
 }
+
+.leaflet-popup-content {
+  max-width: 800px;
+}
+
+.popup-description.scrollable {
+  max-height: 150px;
+  overflow-y: auto;
+}
   </style>
 </head>
 <body>
@@ -599,7 +608,7 @@ function emojiHtml(str) {
         <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
         <div style="border-top:1px solid #444;"></div>
         <div style="height:4px;"></div>
-        <div>${linkify(p.opis)}</div>
+        <div class="popup-description${p.opis && p.opis.length > 100 ? ' scrollable' : ''}">${linkify(p.opis)}</div>
         <div style="height:4px;"></div>
         <div style="border-top:1px solid #444;"></div>
         <div>Warstwa: ${p.warstwa || 'Inne'}</div>
@@ -637,6 +646,7 @@ function emojiHtml(str) {
     }
 
     function initMap() {
+      L.Popup.prototype.options.maxWidth = 800;
  map = L.map('map').setView([52.1, 20.9], 7);
 
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -736,7 +746,7 @@ function zaladujPinezkiZFirestore() {
       setupEmojiInput(container.querySelector('#eemoji'));
       const marker = findMarkerByLatLng(lat, lng);
       if (marker) {
-        marker.bindPopup(container, {maxWidth: 600}).openPopup();
+        marker.bindPopup(container, {maxWidth: 800}).openPopup();
         marker.once('popupclose', () => {
           const popupDiv = document.createElement('div');
           popupDiv.className = 'popup-container';
