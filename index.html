@@ -316,21 +316,7 @@ body, #sidebar, #basemap-switcher {
   max-height: 150px;
   overflow-y: auto;
 }
-  
-.sztosy-gwiazda {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  font-size: 14px;
-  background: gold;
-  border-radius: 50%;
-  padding: 1px;
-  line-height: 1;
-  box-shadow: 0 0 2px #000;
-  z-index: 10;
-}
-
-</style>
+  </style>
 </head>
 <body>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
@@ -489,39 +475,18 @@ body, #sidebar, #basemap-switcher {
       }
     }
 
-
 function createEmojiIcon(emojiOrUrl, warstwa = "") {
   const isUrl = emojiOrUrl && emojiOrUrl.startsWith("http");
 
   if (isUrl) {
-    const isSztosy = warstwa === "Sztosy";
-    const cls = isSztosy ? "emoji-obrys-sztosy" : "emoji-obrys";
-    const overlay = isSztosy
-      ? `<span class="sztosy-gwiazda">⭐</span>`
-      : '';
-
+    const cls = warstwa === "Sztosy" ? "emoji-obrys-sztosy" : "emoji-obrys";
     return L.divIcon({
       className: 'emoji-marker',
-      html: `
-        <div style="position: relative; display: inline-block;">
-          <img src="${emojiOrUrl}" class="${cls}" width="28" height="28">
-          ${overlay}
-        </div>`,
+      html: `<img src="${emojiOrUrl}" class="${cls}" width="28" height="28">`,
       iconSize: [32, 32],
       iconAnchor: [16, 32]
     });
   }
-
-  const cls = warstwa === "Sztosy" ? "emoji-sztosy" : "";
-
-  return L.divIcon({
-    className: 'emoji-marker',
-    html: `<span class="${cls}">${emojiOrUrl}</span>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32]
-  });
-}
-
 
   const cls = warstwa === "Sztosy" ? "emoji-sztosy" : "";
 
