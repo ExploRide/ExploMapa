@@ -451,7 +451,13 @@ body, #sidebar, #basemap-switcher {
       return text
         .replace(urlRegex, url => {
           const href = url.startsWith('http') ? url : `https://${url}`;
-          return `<a href="${href}" target="_blank">${url}</a>`;
+          let display;
+          try {
+            display = new URL(href).hostname.replace(/^www\./, '');
+          } catch (e) {
+            display = url;
+          }
+          return `<a href="${href}" target="_blank">${display}</a>`;
         })
         .replace(/\n/g, '<br>');
     }
