@@ -250,6 +250,38 @@ body, #sidebar, #basemap-switcher {
   bottom: 0;
   right: 0;
 }
+.popup-photo {
+  width: 100%;
+  max-height: 150px;
+  object-fit: cover;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+#photoModal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+#photoModal img {
+  max-width: 90%;
+  max-height: 90%;
+}
+#photoModalClose {
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  color: #fff;
+  font-size: 32px;
+  cursor: pointer;
+  z-index: 2101;
+}
   </style>
 </head>
 <body>
@@ -510,6 +542,7 @@ function zaladujPinezkiZFirestore() {
       const popupDiv = document.createElement("div");
       popupDiv.className = "popup-container";
       popupDiv.innerHTML = `
+        ${p.photo ? `<img src="${p.photo}" class="popup-photo">` : ''}
         <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
         <div style="border-top:1px solid #444;"></div>
         <div style="height:4px;"></div>
@@ -524,6 +557,13 @@ function zaladujPinezkiZFirestore() {
       `;
       marker.bindPopup(popupDiv);
       setTimeout(() => {
+        const imgEl = popupDiv.querySelector('.popup-photo');
+        if (imgEl) {
+          imgEl.addEventListener('click', e => {
+            e.stopPropagation();
+            openPhotoModal(imgEl.src);
+          });
+        }
         const btn = popupDiv.querySelector(`#editBtn-${slugify(id)}`);
         if (btn) {
           btn.addEventListener("click", (e) => {
@@ -568,6 +608,7 @@ function zaladujPinezkiZFirestore() {
           const popupDiv = document.createElement('div');
           popupDiv.className = 'popup-container';
           popupDiv.innerHTML = `
+            ${p.photo ? `<img src="${p.photo}" class="popup-photo">` : ''}
             <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
             <div style="border-top:1px solid #444;"></div>
             <div style="height:4px;"></div>
@@ -582,6 +623,13 @@ function zaladujPinezkiZFirestore() {
           `;
           marker.bindPopup(popupDiv);
           setTimeout(() => {
+            const imgEl = popupDiv.querySelector('.popup-photo');
+            if (imgEl) {
+              imgEl.addEventListener('click', e => {
+                e.stopPropagation();
+                openPhotoModal(imgEl.src);
+              });
+            }
             const btn = popupDiv.querySelector(`#editBtn-${slugify(p.id)}`);
             if (btn) {
               btn.addEventListener('click', e => {
@@ -625,6 +673,7 @@ const coords = formatCoords(p.lat, p.lng);
 const popupDiv = document.createElement("div");
 popupDiv.className = "popup-container";
 popupDiv.innerHTML = `
+  ${p.photo ? `<img src="${p.photo}" class="popup-photo">` : ''}
   <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
   <div style="border-top:1px solid #444;"></div>
   <div style="height:4px;"></div>
@@ -639,6 +688,13 @@ popupDiv.innerHTML = `
 `;
 p.marker.bindPopup(popupDiv);
 setTimeout(() => {
+  const imgEl = popupDiv.querySelector('.popup-photo');
+  if (imgEl) {
+    imgEl.addEventListener('click', e => {
+      e.stopPropagation();
+      openPhotoModal(imgEl.src);
+    });
+  }
   const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
   if (btn) {
     btn.addEventListener("click", (e) => {
@@ -709,6 +765,7 @@ setTimeout(() => {
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = `
+          ${data.photo ? `<img src="${data.photo}" class="popup-photo">` : ''}
           <b>${data.emoji ? emojiHtml(data.emoji) + ' ' : ''}${data.nazwa}</b>
           <div style="border-top:1px solid #444;"></div>
           <div style="height:4px;"></div>
@@ -721,6 +778,15 @@ setTimeout(() => {
           <div><a href="https://maps.google.com/?q=${data.lat},${data.lng}" target="_blank">📍 Google Maps</a></div>
         `;
         marker.bindPopup(popupDiv);
+        setTimeout(() => {
+          const imgEl = popupDiv.querySelector('.popup-photo');
+          if (imgEl) {
+            imgEl.addEventListener('click', e => {
+              e.stopPropagation();
+              openPhotoModal(imgEl.src);
+            });
+          }
+        }, 0);
 
         nowePinezki.push(data);
         localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki));
@@ -781,6 +847,7 @@ setTimeout(() => {
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = `
+          ${p.photo ? `<img src="${p.photo}" class="popup-photo">` : ''}
           <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
           <div style="border-top:1px solid #444;"></div>
           <div style="height:4px;"></div>
@@ -793,6 +860,15 @@ setTimeout(() => {
           <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
         `;
         marker.bindPopup(popupDiv);
+        setTimeout(() => {
+          const imgEl = popupDiv.querySelector('.popup-photo');
+          if (imgEl) {
+            imgEl.addEventListener('click', e => {
+              e.stopPropagation();
+              openPhotoModal(imgEl.src);
+            });
+          }
+        }, 0);
         p.marker = marker;
         warstwy[warstwaN].lista.push(p);
         wszystkiePinezki.push(p);
@@ -1064,13 +1140,36 @@ editBtn.style.verticalAlign = "top";
 
     document.getElementById('saveChanges').addEventListener('click', zapiszZmiany);
 
-     document.addEventListener("DOMContentLoaded", () => {
+  document.addEventListener("DOMContentLoaded", () => {
     twemoji.parse(document.body, {
       folder: "svg",
       ext: ".svg"
     });
+    const closeBtn = document.getElementById('photoModalClose');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        document.getElementById('photoModal').style.display = 'none';
+      });
+    }
+    const modal = document.getElementById('photoModal');
+    if (modal) {
+      modal.addEventListener('click', e => {
+        if (e.target === modal) modal.style.display = 'none';
+      });
+    }
   });
-    
+
+  function openPhotoModal(url) {
+    const img = document.getElementById('photoModalImg');
+    if (img) img.src = url;
+    const modal = document.getElementById('photoModal');
+    if (modal) modal.style.display = 'flex';
+  }
+
   </script>
+  <div id="photoModal">
+    <span id="photoModalClose">&#10005;</span>
+    <img id="photoModalImg" src="">
+  </div>
 </body>
 </html>
