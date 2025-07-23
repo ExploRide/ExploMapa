@@ -241,6 +241,15 @@ body, #sidebar, #basemap-switcher {
   margin-right: 5px;
   border-radius: 2px;
 }
+.popup-container {
+  position: relative;
+  padding-bottom: 24px;
+}
+.popup-edit-btn {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+}
   </style>
 </head>
 <body>
@@ -499,14 +508,19 @@ function zaladujPinezkiZFirestore() {
       const coords = formatCoords(p.lat, p.lng);
 
       const popupDiv = document.createElement("div");
+      popupDiv.className = "popup-container";
       popupDiv.innerHTML = `
-        <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b><br>
-        ${linkify(p.opis)}<br>
-        ${coords}<br>
-        Warstwa: ${warstwaNazwa}<br>
-        Data dodania: ${formatDate(p.dataDodania)}<br>
-        <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-        <button id="editBtn-${slugify(id)}">✏️</button>
+        <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
+        <div style="border-top:1px solid #444;"></div>
+        <div style="height:4px;"></div>
+        <div>${linkify(p.opis)}</div>
+        <div style="height:4px;"></div>
+        <div style="border-top:1px solid #444;"></div>
+        <div>Warstwa: ${warstwaNazwa}</div>
+        <div>Data dodania: ${formatDate(p.dataDodania)}</div>
+        <div>${coords}</div>
+        <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
+        <button class="popup-edit-btn" id="editBtn-${slugify(id)}">✏️</button>
       `;
       marker.bindPopup(popupDiv);
       setTimeout(() => {
@@ -552,14 +566,19 @@ function zaladujPinezkiZFirestore() {
         marker.once('popupclose', () => {
           const coords = formatCoords(p.lat, p.lng);
           const popupDiv = document.createElement('div');
+          popupDiv.className = 'popup-container';
           popupDiv.innerHTML = `
-            <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b><br>
-            ${linkify(p.opis)}<br>
-            ${coords}<br>
-            Warstwa: ${p.warstwa || 'Inne'}<br>
-            Data dodania: ${formatDate(p.dataDodania)}<br>
-            <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-            <button id="editBtn-${slugify(p.id)}">✏️</button>
+            <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
+            <div style="border-top:1px solid #444;"></div>
+            <div style="height:4px;"></div>
+            <div>${linkify(p.opis)}</div>
+            <div style="height:4px;"></div>
+            <div style="border-top:1px solid #444;"></div>
+            <div>Warstwa: ${p.warstwa || 'Inne'}</div>
+            <div>Data dodania: ${formatDate(p.dataDodania)}</div>
+            <div>${coords}</div>
+            <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
+            <button class="popup-edit-btn" id="editBtn-${slugify(p.id)}">✏️</button>
           `;
           marker.bindPopup(popupDiv);
           setTimeout(() => {
@@ -604,14 +623,19 @@ function zaladujPinezkiZFirestore() {
         
 const coords = formatCoords(p.lat, p.lng);
 const popupDiv = document.createElement("div");
+popupDiv.className = "popup-container";
 popupDiv.innerHTML = `
-  <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b><br>
-  ${linkify(p.opis)}<br>
-  ${coords}<br>
-  Warstwa: ${p.warstwa || 'Inne'}<br>
-  Data dodania: ${formatDate(p.dataDodania)}<br>
-  <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
-  <button id="editBtn-${p.id}">✏️</button>
+  <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
+  <div style="border-top:1px solid #444;"></div>
+  <div style="height:4px;"></div>
+  <div>${linkify(p.opis)}</div>
+  <div style="height:4px;"></div>
+  <div style="border-top:1px solid #444;"></div>
+  <div>Warstwa: ${p.warstwa || 'Inne'}</div>
+  <div>Data dodania: ${formatDate(p.dataDodania)}</div>
+  <div>${coords}</div>
+  <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
+  <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
 `;
 p.marker.bindPopup(popupDiv);
 setTimeout(() => {
@@ -683,13 +707,18 @@ setTimeout(() => {
         marker.setIcon(createEmojiIcon(data.emoji));
         const coords = formatCoords(data.lat, data.lng);
         const popupDiv = document.createElement('div');
+        popupDiv.className = 'popup-container';
         popupDiv.innerHTML = `
-          <b>${data.emoji ? emojiHtml(data.emoji) + ' ' : ''}${data.nazwa}</b><br>
-          ${linkify(data.opis)}<br>
-          ${coords}<br>
-          Warstwa: ${data.warstwa || 'Inne'}<br>
-          Data dodania: ${formatDate(data.dataDodania)}<br>
-          <a href="https://maps.google.com/?q=${data.lat},${data.lng}" target="_blank">📍 Google Maps</a><br><br>
+          <b>${data.emoji ? emojiHtml(data.emoji) + ' ' : ''}${data.nazwa}</b>
+          <div style="border-top:1px solid #444;"></div>
+          <div style="height:4px;"></div>
+          <div>${linkify(data.opis)}</div>
+          <div style="height:4px;"></div>
+          <div style="border-top:1px solid #444;"></div>
+          <div>Warstwa: ${data.warstwa || 'Inne'}</div>
+          <div>Data dodania: ${formatDate(data.dataDodania)}</div>
+          <div>${coords}</div>
+          <div><a href="https://maps.google.com/?q=${data.lat},${data.lng}" target="_blank">📍 Google Maps</a></div>
         `;
         marker.bindPopup(popupDiv);
 
@@ -750,13 +779,18 @@ setTimeout(() => {
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[warstwaN].layer);
         const coords = formatCoords(p.lat, p.lng);
         const popupDiv = document.createElement('div');
+        popupDiv.className = 'popup-container';
         popupDiv.innerHTML = `
-          <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b><br>
-          ${linkify(p.opis)}<br>
-          ${coords}<br>
-          Warstwa: ${warstwaN}<br>
-          Data dodania: ${formatDate(p.dataDodania)}<br>
-          <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a><br><br>
+          <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
+          <div style="border-top:1px solid #444;"></div>
+          <div style="height:4px;"></div>
+          <div>${linkify(p.opis)}</div>
+          <div style="height:4px;"></div>
+          <div style="border-top:1px solid #444;"></div>
+          <div>Warstwa: ${warstwaN}</div>
+          <div>Data dodania: ${formatDate(p.dataDodania)}</div>
+          <div>${coords}</div>
+          <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
         `;
         marker.bindPopup(popupDiv);
         p.marker = marker;
