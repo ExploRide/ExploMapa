@@ -245,12 +245,14 @@ body, #sidebar, #basemap-switcher {
   position: relative;
   padding-bottom: 24px;
 }
+.edit-popup {
+  min-width: 400px;
+}
 .popup-edit-btn {
   position: absolute;
   bottom: 0;
   right: 0;
 }
-.popup-add-photo {
   position: absolute;
   bottom: 0;
   right: 30px;
@@ -615,7 +617,6 @@ function emojiHtml(str) {
         <div>Data dodania: ${formatDate(p.dataDodania)}</div>
         <div>${formatCoords(p.lat, p.lng)}</div>
         <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
-        <button class="popup-add-photo" data-slug="${slug}">📷</button>
         <button class="popup-edit-btn" id="editBtn-${slugify(p.id || slug)}">✏️</button>
       `;
     }
@@ -707,7 +708,6 @@ function zaladujPinezkiZFirestore() {
       marker.bindPopup(popupDiv);
       setTimeout(() => {
         setupGallery(popupDiv.querySelector('.photo-gallery'));
-        setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), p.slug, popupDiv.querySelector('.photo-gallery'));
         const btn = popupDiv.querySelector(`#editBtn-${slugify(id)}`);
         if (btn) {
           btn.addEventListener("click", (e) => {
@@ -736,7 +736,10 @@ function zaladujPinezkiZFirestore() {
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (!p) return;
       const container = document.createElement("div");
+      container.className = "popup-container edit-popup";
       container.innerHTML = `
+        <div class="photo-gallery" data-slug="${p.slug}"></div>
+        <button class="popup-add-photo" data-slug="${p.slug}">📷</button>
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
         <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
         <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
@@ -744,9 +747,11 @@ function zaladujPinezkiZFirestore() {
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
       `;
       setupEmojiInput(container.querySelector('#eemoji'));
+      setupGallery(container.querySelector('.photo-gallery'));
+      setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'));
       const marker = findMarkerByLatLng(lat, lng);
       if (marker) {
-        marker.bindPopup(container, {maxWidth: 400}).openPopup();
+        marker.bindPopup(container, {maxWidth: 400, minWidth: 400}).openPopup();
         marker.once('popupclose', () => {
           const popupDiv = document.createElement('div');
           popupDiv.className = 'popup-container';
@@ -754,7 +759,6 @@ function zaladujPinezkiZFirestore() {
           marker.bindPopup(popupDiv);
           setTimeout(() => {
             setupGallery(popupDiv.querySelector('.photo-gallery'));
-            setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), p.slug, popupDiv.querySelector('.photo-gallery'));
             const btn = popupDiv.querySelector(`#editBtn-${slugify(p.id)}`);
             if (btn) {
               btn.addEventListener('click', e => {
@@ -807,7 +811,6 @@ popupDiv.innerHTML = createPopupHtml(p);
 p.marker.bindPopup(popupDiv);
 setTimeout(() => {
   setupGallery(popupDiv.querySelector('.photo-gallery'));
-  setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), p.slug, popupDiv.querySelector('.photo-gallery'));
   const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
   if (btn) {
     btn.addEventListener("click", (e) => {
@@ -884,7 +887,6 @@ setTimeout(() => {
         marker.bindPopup(popupDiv);
         setTimeout(() => {
           setupGallery(popupDiv.querySelector('.photo-gallery'));
-          setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), data.slug, popupDiv.querySelector('.photo-gallery'));
         }, 0);
 
         nowePinezki.push(data);
@@ -949,7 +951,6 @@ setTimeout(() => {
         marker.bindPopup(popupDiv);
         setTimeout(() => {
           setupGallery(popupDiv.querySelector('.photo-gallery'));
-          setupAddPhotoButton(popupDiv.querySelector('.popup-add-photo'), p.slug, popupDiv.querySelector('.photo-gallery'));
         }, 0);
         p.marker = marker;
         warstwy[warstwaN].lista.push(p);
