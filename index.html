@@ -307,7 +307,7 @@ body, #sidebar, #basemap-switcher {
 }
 
 .leaflet-popup-content {
-  max-width: 800px;
+  max-width: 400px;
 }
 
 .popup-description.scrollable {
@@ -746,7 +746,7 @@ function zaladujPinezkiZFirestore() {
       setupEmojiInput(container.querySelector('#eemoji'));
       const marker = findMarkerByLatLng(lat, lng);
       if (marker) {
-        marker.bindPopup(container, {maxWidth: 800}).openPopup();
+        marker.bindPopup(container, {maxWidth: 400}).openPopup();
         marker.once('popupclose', () => {
           const popupDiv = document.createElement('div');
           popupDiv.className = 'popup-container';
