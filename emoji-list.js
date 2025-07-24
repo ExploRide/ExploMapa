@@ -33,7 +33,7 @@ const emojiList = [
   /* 🎬 Klaps filmowy */            "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg",
   /* 🚫 Zakaz wstępu */             "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f6ab.svg",
   /* 🔐 Zamek z kluczem */          "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f510.svg",
-  /* 🪩 Kula dyskotekowa */         "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1faa9.svg"
+  /* 🪩 Kula dyskotekowa */         "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1faa9.svg",
 
   /* ☠️ skull and crossbones */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2620.svg",
   /* 👻 ghost */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f47b.svg"
