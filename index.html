@@ -866,7 +866,7 @@ popupDiv.innerHTML = createPopupHtml(p);
 p.marker.bindPopup(popupDiv);
 setTimeout(() => {
   setupGallery(popupDiv.querySelector('.photo-gallery'));
-  const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
+  const btn = popupDiv.querySelector(`#editBtn-${slugify(p.id)}`);
   if (btn) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -942,6 +942,13 @@ setTimeout(() => {
         marker.bindPopup(popupDiv);
         setTimeout(() => {
           setupGallery(popupDiv.querySelector('.photo-gallery'));
+          const btn = popupDiv.querySelector(`#editBtn-${slugify(data.id || data.slug)}`);
+          if (btn) {
+            btn.addEventListener('click', e => {
+              e.stopPropagation();
+              edytuj(data.id, data.lat, data.lng);
+            });
+          }
         }, 0);
 
         nowePinezki.push(data);
@@ -1006,6 +1013,13 @@ setTimeout(() => {
         marker.bindPopup(popupDiv);
         setTimeout(() => {
           setupGallery(popupDiv.querySelector('.photo-gallery'));
+          const btn = popupDiv.querySelector(`#editBtn-${slugify(p.id || p.slug)}`);
+          if (btn) {
+            btn.addEventListener('click', e => {
+              e.stopPropagation();
+              edytuj(p.id, p.lat, p.lng);
+            });
+          }
         }, 0);
         p.marker = marker;
         warstwy[warstwaN].lista.push(p);
