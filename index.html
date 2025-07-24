@@ -804,8 +804,9 @@ function zaladujPinezkiZFirestore() {
       setupEmojiInput(container.querySelector('#eemoji'));
       setupGallery(container.querySelector('.photo-gallery'));
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'));
-      const marker = findMarkerByLatLng(lat, lng);
+      const marker = p.marker || findMarkerByLatLng(lat, lng);
       if (marker) {
+        p.marker = marker;
         marker.bindPopup(container, {maxWidth: 400, minWidth: 400}).openPopup();
         marker.once('popupclose', () => {
           const popupDiv = document.createElement('div');
