@@ -661,7 +661,7 @@ function emojiHtml(str) {
         <div>Data dodania: ${formatDate(p.dataDodania)}</div>
         <div>${formatCoords(p.lat, p.lng)}</div>
         <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
-        <button class="popup-edit-btn" id="editBtn-${slugify(p.id || slug)}">✏️</button>
+        <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
       `;
     }
 
@@ -915,8 +915,9 @@ setTimeout(() => {
 
       container.querySelector("#saveNew").addEventListener("click", (e) => {
         e.stopPropagation();
-        const data = {
-          id: 'new_' + Date.now() + '_' + Math.random().toString(36).slice(2),
+      const nowId = 'new_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+const data = {
+  id: nowId,
           nazwa: container.querySelector("#nazwaNew").value,
           opis: container.querySelector("#opisNew").value,
           warstwa: container.querySelector("#warstwaNew").value,
@@ -944,7 +945,7 @@ setTimeout(() => {
         marker.bindPopup(popupDiv);
         setTimeout(() => {
           setupGallery(popupDiv.querySelector('.photo-gallery'));
-          const btn = popupDiv.querySelector(`#editBtn-${slugify(data.id || data.slug)}`);
+          const btn = popupDiv.querySelector(`#editBtn-${data.id}`);
           if (btn) {
             btn.addEventListener('click', e => {
               e.stopPropagation();
