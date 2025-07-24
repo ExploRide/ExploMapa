@@ -915,6 +915,7 @@ setTimeout(() => {
       container.querySelector("#saveNew").addEventListener("click", (e) => {
         e.stopPropagation();
         const data = {
+          id: 'new_' + Date.now() + '_' + Math.random().toString(36).slice(2),
           nazwa: container.querySelector("#nazwaNew").value,
           opis: container.querySelector("#opisNew").value,
           warstwa: container.querySelector("#warstwaNew").value,
@@ -998,7 +999,9 @@ setTimeout(() => {
       } catch (e) {
         nowePinezki = [];
       }
+      let changed = false;
       nowePinezki.forEach(p => {
+        if (!p.id) { p.id = 'new_' + Date.now() + '_' + Math.random().toString(36).slice(2); changed = true; }
         p.unsaved = true;
         if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
@@ -1025,6 +1028,7 @@ setTimeout(() => {
         warstwy[warstwaN].lista.push(p);
         wszystkiePinezki.push(p);
       });
+      if (changed) localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki));
       updateSaveButton();
     }
 
