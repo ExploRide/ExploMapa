@@ -329,6 +329,10 @@ body, #sidebar, #basemap-switcher {
           drop-shadow(0 0 1px red)
           drop-shadow(0 0 1px red);
 }
+.checkmark-obrys {
+  filter: drop-shadow(0 0 0.5px black) drop-shadow(1px 1px 0 black) drop-shadow(-1px -1px 0 black);
+  border-radius: 2px;
+}
 
   </style>
 </head>
@@ -489,14 +493,14 @@ body, #sidebar, #basemap-switcher {
       }
     }
 
-function createEmojiIcon(emojiOrUrl, warstwa = "") {
-  if (warstwa && warstwa.toLowerCase() === 'zwiedzone i niedostępne') {
-    return L.icon({
-      iconUrl: 'https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg',
-      iconSize: [32, 32],
-      iconAnchor: [16, 32]
-    });
-  }
+if (warstwa && warstwa.toLowerCase() === 'zwiedzone i niedostępne') {
+  return L.divIcon({
+    className: 'emoji-marker',
+    html: `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="28" height="28" class="checkmark-obrys">`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32]
+  });
+}
 
   if (!emojiOrUrl || String(emojiOrUrl).trim() === "" || emojiOrUrl === "undefined") {
     return L.icon({
