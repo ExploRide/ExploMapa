@@ -763,7 +763,7 @@ function zaladujPinezkiZFirestore() {
       marker.bindPopup(popupDiv);
       setTimeout(() => {
         setupGallery(popupDiv.querySelector('.photo-gallery'));
-        const btn = popupDiv.querySelector(`#editBtn-${slugify(id)}`);
+        const btn = popupDiv.querySelector(`#editBtn-${id}`);
         if (btn) {
           btn.addEventListener("click", (e) => {
             e.stopPropagation(); // ważne!
@@ -815,7 +815,7 @@ function zaladujPinezkiZFirestore() {
           marker.bindPopup(popupDiv);
           setTimeout(() => {
             setupGallery(popupDiv.querySelector('.photo-gallery'));
-            const btn = popupDiv.querySelector(`#editBtn-${slugify(p.id)}`);
+            const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
             if (btn) {
               btn.addEventListener('click', e => {
                 e.stopPropagation();
@@ -867,7 +867,7 @@ popupDiv.innerHTML = createPopupHtml(p);
 p.marker.bindPopup(popupDiv);
 setTimeout(() => {
   setupGallery(popupDiv.querySelector('.photo-gallery'));
-  const btn = popupDiv.querySelector(`#editBtn-${slugify(p.id)}`);
+  const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
   if (btn) {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1018,7 +1018,7 @@ const data = {
         marker.bindPopup(popupDiv);
         setTimeout(() => {
           setupGallery(popupDiv.querySelector('.photo-gallery'));
-          const btn = popupDiv.querySelector(`#editBtn-${slugify(p.id || p.slug)}`);
+          const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
           if (btn) {
             btn.addEventListener('click', e => {
               e.stopPropagation();
