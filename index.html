@@ -765,6 +765,10 @@ function zaladujPinezkiZFirestore() {
         p.dataDodania = new Date(p.dataDodania).getTime();
       }
       const id = doc.id;
+      if (!p.id || p.id !== id) {
+        db.collection('pinezki').doc(id).update({ id }).catch(() => {});
+      }
+      p.id = id;
       p.slug = slugify(p.nazwa);
       if (!localStorage.getItem('photos_' + p.slug)) {
         storePhotos(p.slug, (p.photos || []));
@@ -780,9 +784,9 @@ function zaladujPinezkiZFirestore() {
       const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(p.emoji, warstwaNazwa) }).addTo(warstwy[warstwaNazwa].layer);
       const popupDiv = document.createElement("div");
       popupDiv.className = "popup-container";
-      popupDiv.innerHTML = createPopupHtml(Object.assign({lat:p.lat,lng:p.lng}, p));
+      popupDiv.innerHTML = createPopupHtml(p);
       marker.bindPopup(popupDiv);
-      attachPopupHandlers(marker, Object.assign({id}, p));
+      attachPopupHandlers(marker, p);
 
       p.marker = marker;
       p.id = id;
@@ -1257,7 +1261,9 @@ editBtn.style.verticalAlign = "top";
         });
 
         const addPromises = nowePinezki.map(async p => {
-          const docRef = await db.collection('pinezki').add({
+          const docRef = db.collection('pinezki').doc();
+          await docRef.set({
+            id: docRef.id,
             nazwa: p.nazwa,
             opis: p.opis,
             warstwa: p.warstwa,
