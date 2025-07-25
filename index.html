@@ -446,8 +446,8 @@ body, #sidebar, #basemap-switcher {
         }
       }
     }
-    handBtn.addEventListener("click", () => selectTool("hand"));
-    pinBtn.addEventListener("click", () => selectTool("pin"));
+    if (handBtn) handBtn.addEventListener("click", () => selectTool("hand"));
+if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     selectTool("hand");
 
     window.addEventListener('beforeunload', e => {
@@ -974,7 +974,11 @@ const data = {
 
     function findMarkerByLatLng(lat, lng) {
       for (const layer of Object.values(map._layers)) {
-        if (layer.getLatLng && layer.getLatLng().lat === lat && layer.getLatLng().lng === lng) {
+        if (
+  layer.getLatLng &&
+  Math.abs(layer.getLatLng().lat - lat) < 1e-6 &&
+  Math.abs(layer.getLatLng().lng - lng) < 1e-6
+) {
           return layer;
         }
       }
