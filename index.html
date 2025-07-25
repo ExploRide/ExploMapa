@@ -159,6 +159,13 @@ width: 15px;
       z-index: 1000;
       display: none;
     }
+    #exportKML {
+      background-color: #007bff;
+      position: fixed;
+      bottom: 70px;
+      right: 45px;
+      z-index: 1000;
+    }
     #map.pin-cursor {
       cursor: url('https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png') 12 32, auto !important;
     }
@@ -380,6 +387,7 @@ body, #sidebar, #basemap-switcher {
     <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label>
   </div>
+  <button id="exportKML">Zapisz do .KML</button>
   <button id="saveChanges">Zapisz edycję mapy</button>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
@@ -1315,6 +1323,48 @@ editBtn.style.verticalAlign = "top";
     }
 
     document.getElementById('saveChanges').addEventListener('click', zapiszZmiany);
+
+    function escapeXml(str) {
+      return String(str || '').replace(/[<>&'"]/g, c => {
+        switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '"': return '&quot;';
+          case "'": return '&apos;';
+          default: return c;
+        }
+      });
+    }
+
+    function buildKml(pins) {
+      const placemarks = pins.map(p => {
+        const name = escapeXml(p.nazwa);
+        const desc = escapeXml(p.opis);
+        return `<Placemark><name>${name}</name><description>${desc}</description><Point><coordinates>${p.lng},${p.lat},0</coordinates></Point></Placemark>`;
+      }).join('');
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document>${placemarks}</Document></kml>`;
+    }
+
+    async function exportPinsToKML() {
+      try {
+        const snapshot = await db.collection('pinezki').get();
+        const pins = [];
+        snapshot.forEach(doc => pins.push(doc.data()));
+        const kml = buildKml(pins);
+        const blob = new Blob([kml], {type: 'application/vnd.google-earth.kml+xml'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'pinezki.kml';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+      } catch (err) {
+        alert('Błąd eksportu: ' + err.message);
+      }
+    }
+
+    document.getElementById('exportKML').addEventListener('click', exportPinsToKML);
 
   document.addEventListener("DOMContentLoaded", () => {
     twemoji.parse(document.body, {
