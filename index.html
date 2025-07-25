@@ -304,6 +304,31 @@ body, #sidebar, #basemap-switcher {
   z-index: 2101;
 }
 
+#deleteModal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  color: #fff;
+}
+
+#deleteModalContent {
+  background: #2b2b2b;
+  border: 1px solid #444;
+  padding: 20px;
+  text-align: center;
+}
+
+#deleteModal button {
+  margin: 5px;
+}
+
 .leaflet-popup-content {
   max-width: 300px;
 }
@@ -813,10 +838,18 @@ function zaladujPinezkiZFirestore() {
         <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
         <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 100%"><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
+        <button id="deleteBtn-${id}">🗑️</button>
       `;
       setupEmojiInput(container.querySelector('#eemoji'));
       setupGallery(container.querySelector('.photo-gallery'));
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'));
+      const delBtn = container.querySelector('#deleteBtn-' + id);
+      if (delBtn) {
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          openDeleteModal(id);
+        });
+      }
       const marker = p.marker || findMarkerByLatLng(lat, lng);
       if (marker) {
         p.marker = marker;
@@ -1297,6 +1330,15 @@ editBtn.style.verticalAlign = "top";
       });
     }
 
+    const delModal = document.getElementById('deleteModal');
+    if (delModal) {
+      document.getElementById('deleteConfirmYes').addEventListener('click', deletePinFromFirestore);
+      document.getElementById('deleteConfirmNo').addEventListener('click', closeDeleteModal);
+      delModal.addEventListener('click', e => {
+        if (e.target === delModal) closeDeleteModal();
+      });
+    }
+
   });
 
   let modalSlug = null;
@@ -1353,7 +1395,38 @@ editBtn.style.verticalAlign = "top";
     return finalPhotos;
   }
 
+  let deletePinId = null;
+  function openDeleteModal(id) {
+    deletePinId = id;
+    const modal = document.getElementById('deleteModal');
+    if (modal) modal.style.display = 'flex';
+  }
+
+  function closeDeleteModal() {
+    deletePinId = null;
+    const modal = document.getElementById('deleteModal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  function deletePinFromFirestore() {
+    if (!deletePinId) return;
+    db.collection('pinezki').doc(deletePinId).delete().then(() => {
+      closeDeleteModal();
+      location.reload();
+    }).catch(err => {
+      alert('B\u0142\u0105d usuwania: ' + err.message);
+      closeDeleteModal();
+    });
+  }
+
   </script>
+  <div id="deleteModal">
+    <div id="deleteModalContent">
+      <div>Czy na pewno chcesz usunąć pinezkę?</div>
+      <button id="deleteConfirmYes">TAK</button>
+      <button id="deleteConfirmNo">NIE</button>
+    </div>
+  </div>
   <div id="photoModal">
     <span id="photoModalClose">&#10005;</span>
     <span id="photoModalDelete" onclick="deleteCurrentPhoto()">🗑️</span>
