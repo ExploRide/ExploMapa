@@ -666,7 +666,7 @@ function emojiHtml(str) {
     }
 
     function attachPopupHandlers(marker, p) {
-      console.log('Wywołano attachPopupHandlers dla pinezki:', p); // <-- dodane
+    /*  console.log('Wywołano attachPopupHandlers dla pinezki:', p); // <-- dodane */
       const handler = e => {
         const container = e.popup.getElement();
         if (!container) return;
@@ -804,7 +804,7 @@ function zaladujPinezkiZFirestore() {
 }
 
     function edytuj(id, lat, lng) {
-      console.log('Wywołano edytuj dla id:', id, 'lat:', lat, 'lng:', lng); // <-- dodane
+     /* console.log('Wywołano edytuj dla id:', id, 'lat:', lat, 'lng:', lng); // <-- dodane */
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (!p) return;
       const container = document.createElement("div");
