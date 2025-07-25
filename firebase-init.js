@@ -3,7 +3,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBj8xPy81NaxFwHmBL3ni_UVjYKFZflyv0",
   authDomain: "exploridemap.firebaseapp.com",
   projectId: "exploridemap",
-  storageBucket: "exploridemap.firebasestorage.app",
+  storageBucket: "exploridemap.appspot.com",
   messagingSenderId: "1074659589759",
   appId: "1:1074659589759:web:f8bdffc15d41d47ac8094a"
 };
