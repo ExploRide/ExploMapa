@@ -665,6 +665,26 @@ function emojiHtml(str) {
       `;
     }
 
+    function attachPopupHandlers(marker, p) {
+      const handler = e => {
+        const container = e.popup.getElement();
+        if (!container) return;
+        setupGallery(container.querySelector('.photo-gallery'));
+        const btn = container.querySelector(`#editBtn-${p.id}`);
+        if (btn) {
+          btn.addEventListener('click', ev => {
+            ev.stopPropagation();
+            edytuj(p.id, p.lat, p.lng);
+          });
+        }
+      };
+      if (marker._editHandler) {
+        marker.off('popupopen', marker._editHandler);
+      }
+      marker._editHandler = handler;
+      marker.on('popupopen', handler);
+    }
+
   
 
     function setupEmojiInput(input) {
@@ -761,16 +781,7 @@ function zaladujPinezkiZFirestore() {
       popupDiv.className = "popup-container";
       popupDiv.innerHTML = createPopupHtml(Object.assign({lat:p.lat,lng:p.lng}, p));
       marker.bindPopup(popupDiv);
-      setTimeout(() => {
-        setupGallery(popupDiv.querySelector('.photo-gallery'));
-        const btn = popupDiv.querySelector(`#editBtn-${id}`);
-        if (btn) {
-          btn.addEventListener("click", (e) => {
-            e.stopPropagation(); // ważne!
-            edytuj(id, p.lat, p.lng);
-          });
-        }
-      }, 0);
+      attachPopupHandlers(marker, Object.assign({id}, p));
 
       p.marker = marker;
       p.id = id;
@@ -813,16 +824,7 @@ function zaladujPinezkiZFirestore() {
           popupDiv.className = 'popup-container';
           popupDiv.innerHTML = createPopupHtml(p);
           marker.bindPopup(popupDiv);
-          setTimeout(() => {
-            setupGallery(popupDiv.querySelector('.photo-gallery'));
-            const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
-            if (btn) {
-              btn.addEventListener('click', e => {
-                e.stopPropagation();
-                edytuj(p.id, p.lat, p.lng);
-              });
-            }
-          }, 0);
+          attachPopupHandlers(marker, p);
         });
       }
     }
@@ -865,16 +867,7 @@ const popupDiv = document.createElement("div");
 popupDiv.className = "popup-container";
 popupDiv.innerHTML = createPopupHtml(p);
 p.marker.bindPopup(popupDiv);
-setTimeout(() => {
-  setupGallery(popupDiv.querySelector('.photo-gallery'));
-  const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
-  if (btn) {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      edytuj(p.id, p.lat, p.lng);
-    });
-  }
-}, 0);
+attachPopupHandlers(p.marker, p);
 
       }
       generujListeWarstw();
@@ -943,16 +936,7 @@ const data = {
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(data);
         marker.bindPopup(popupDiv);
-        setTimeout(() => {
-          setupGallery(popupDiv.querySelector('.photo-gallery'));
-          const btn = popupDiv.querySelector(`#editBtn-${data.id}`);
-          if (btn) {
-            btn.addEventListener('click', e => {
-              e.stopPropagation();
-              edytuj(data.id, data.lat, data.lng);
-            });
-          }
-        }, 0);
+        attachPopupHandlers(marker, data);
 
         nowePinezki.push(data);
         localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki));
@@ -1020,16 +1004,7 @@ const data = {
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
         marker.bindPopup(popupDiv);
-        setTimeout(() => {
-          setupGallery(popupDiv.querySelector('.photo-gallery'));
-          const btn = popupDiv.querySelector(`#editBtn-${p.id}`);
-          if (btn) {
-            btn.addEventListener('click', e => {
-              e.stopPropagation();
-              edytuj(p.id, p.lat, p.lng);
-            });
-          }
-        }, 0);
+        attachPopupHandlers(marker, p);
         p.marker = marker;
         warstwy[warstwaN].lista.push(p);
         wszystkiePinezki.push(p);
