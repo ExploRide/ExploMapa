@@ -412,6 +412,7 @@ body, #sidebar, #basemap-switcher {
     let highlightedItem = null;
     let zmianyDoZapisania = {};
     let nowePinezki = [];
+    const photosMap = {};
     let sortMode = 'dateDesc';
     let currentTool = "hand";
     const handBtn = document.getElementById("handTool");
@@ -549,16 +550,11 @@ function emojiHtml(str) {
 
 
     function getStoredPhotos(slug) {
-      try {
-        const arr = JSON.parse(localStorage.getItem('photos_' + slug)) || [];
-        return arr.map(p => typeof p === 'string' ? {url: p} : p);
-      } catch (e) {
-        return [];
-      }
+      return (photosMap[slug] || []).slice();
     }
 
     function storePhotos(slug, arr) {
-      localStorage.setItem('photos_' + slug, JSON.stringify(arr));
+      photosMap[slug] = arr;
     }
 
     function renderGallery(gallery) {
@@ -770,7 +766,7 @@ function zaladujPinezkiZFirestore() {
       }
       p.id = id;
       p.slug = slugify(p.nazwa);
-      if (!localStorage.getItem('photos_' + p.slug)) {
+      if (!photosMap[p.slug]) {
         storePhotos(p.slug, (p.photos || []));
       }
       const warstwaNazwa = p.warstwa || "Inne";
@@ -851,7 +847,7 @@ function zaladujPinezkiZFirestore() {
         p.slug = slugify(p.nazwa);
         if (oldSlug !== p.slug) {
           const photos = getStoredPhotos(oldSlug);
-          localStorage.removeItem('photos_' + oldSlug);
+          delete photosMap[oldSlug];
           storePhotos(p.slug, photos);
         }
         p.unsaved = true;
@@ -935,7 +931,7 @@ const data = {
         data.marker = marker;
         marker.setIcon(createEmojiIcon(data.emoji));
         data.slug = slugify(data.nazwa);
-        if (!localStorage.getItem('photos_' + data.slug)) {
+        if (!photosMap[data.slug]) {
           storePhotos(data.slug, []);
         }
         const popupDiv = document.createElement('div');
@@ -1255,7 +1251,7 @@ editBtn.style.verticalAlign = "top";
           await db.collection('pinezki').doc(id).update(data);
           const p = wszystkiePinezki.find(pp => pp.id === id);
           if (p) {
-            await savePhotosForPin(id, p.slug, getStoredPhotos(p.slug), p.photos || []);
+            p.photos = await savePhotosForPin(id, p.slug, getStoredPhotos(p.slug), p.photos || []);
             delete p.unsaved;
           }
         });
@@ -1272,7 +1268,7 @@ editBtn.style.verticalAlign = "top";
             lng: p.lng,
             dataDodania: firebase.firestore.FieldValue.serverTimestamp()
           });
-          await savePhotosForPin(docRef.id, p.slug, getStoredPhotos(p.slug), []);
+          p.photos = await savePhotosForPin(docRef.id, p.slug, getStoredPhotos(p.slug), []);
         });
 
         await Promise.all([...updatePromises, ...addPromises]);
@@ -1354,6 +1350,7 @@ editBtn.style.verticalAlign = "top";
     await Promise.all(uploads);
     await db.collection('pinezki').doc(id).update({photos: finalPhotos});
     storePhotos(slug, finalPhotos);
+    return finalPhotos;
   }
 
   </script>
