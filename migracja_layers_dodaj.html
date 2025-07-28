@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Migracja Warstw – Dodaj Brakujące</title>
+</head>
+<body>
+  <h2>Dodaj brakujące warstwy do kolekcji <code>layers</code> 🗺️</h2>
+  <button id="migracjaBtn">Uruchom migrację</button>
+  <pre id="log"></pre>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBj8xPy81NaxFwHmBL3ni_UVjYKFZflyv0",
+      authDomain: "exploridemap.firebaseapp.com",
+      projectId: "exploridemap",
+      storageBucket: "exploridemap.appspot.com",
+      messagingSenderId: "1074659589759",
+      appId: "1:1074659589759:web:f8bdffc15d41d47ac8094a",
+      measurementId: "G-2JHQZ6HXTM"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) {
+        log(`✅ Zalogowano jako: ${user.email}`);
+      } else {
+        firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
+      }
+    });
+
+    function log(msg) {
+      document.getElementById("log").textContent += msg + "\n";
+    }
+
+    async function dodajBrakujaceWarstwy() {
+      log("⏳ Sprawdzam brakujące warstwy...");
+      try {
+        const pinsSnap = await db.collection("pinezki").get();
+        const warstwy = new Set();
+        pinsSnap.forEach(doc => {
+          const p = doc.data();
+          const name = p.warstwa || "Inne";
+          warstwy.add(name);
+        });
+
+        const layerSnap = await db.collection("layers").get();
+        const existing = new Set();
+        let maxOrder = -1;
+        layerSnap.forEach(doc => {
+          const data = doc.data();
+          existing.add(data.name);
+          if (typeof data.order === "number" && data.order > maxOrder) {
+            maxOrder = data.order;
+          }
+        });
+
+        const missing = [...warstwy].filter(n => !existing.has(n));
+        if (missing.length === 0) {
+          log("✅ Wszystkie warstwy już istnieją");
+          return;
+        }
+
+        for (const name of missing) {
+          maxOrder++;
+          await db.collection("layers").add({ name, order: maxOrder });
+          log(`➕ Dodano warstwę: ${name}`);
+        }
+
+        log(`✅ Dodano ${missing.length} nowych warstw`);
+      } catch (err) {
+        log("❌ Błąd migracji: " + err.message);
+        console.error(err);
+      }
+    }
+
+    document.getElementById("migracjaBtn").addEventListener("click", dodajBrakujaceWarstwy);
+  </script>
+</body>
+</html>
