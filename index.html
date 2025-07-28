@@ -424,6 +424,7 @@ body, #sidebar, #basemap-switcher {
       </details>
       <button id="addLayerBtn">➕ Nowa warstwa</button>
       <input type="text" id="newLayerInput" style="display:none;width:90%;margin-top:5px;" placeholder="Nazwa warstwy">
+      <button id="collapseAllLayers">Zwiń wszystkie warstwy</button>
       <div id="lista-warstw"></div>
     </div>
   </div>
@@ -537,6 +538,7 @@ body, #sidebar, #basemap-switcher {
     }
     const addLayerBtn = document.getElementById('addLayerBtn');
     const newLayerInput = document.getElementById('newLayerInput');
+    const collapseAllBtn = document.getElementById('collapseAllLayers');
     if (addLayerBtn && newLayerInput) {
       addLayerBtn.addEventListener('click', () => {
         newLayerInput.style.display = 'block';
@@ -551,6 +553,12 @@ body, #sidebar, #basemap-switcher {
           e.target.value = '';
           e.target.style.display = 'none';
         }
+      });
+    }
+    if (collapseAllBtn) {
+      collapseAllBtn.addEventListener('click', () => {
+        Object.keys(warstwy).forEach(n => { warstwy[n].collapsed = true; });
+        generujListeWarstw();
       });
     }
 
@@ -910,7 +918,7 @@ function emojiHtml(str) {
           if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: L.layerGroup().addTo(map) };
+            warstwy[data.name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
           }
         });
         if (order.length > 0) {
@@ -953,7 +961,8 @@ function zaladujPinezkiZFirestore() {
       if (!warstwy[warstwaNazwa]) {
         warstwy[warstwaNazwa] = {
           lista: [],
-          layer: L.layerGroup().addTo(map)
+          layer: L.layerGroup().addTo(map),
+          collapsed: false
         };
       }
 
@@ -1050,7 +1059,7 @@ function zaladujPinezkiZFirestore() {
           const idx = warstwy[staraWarstwa].lista.indexOf(p);
           if (idx > -1) warstwy[staraWarstwa].lista.splice(idx, 1);
           if (!warstwy[p.warstwa]) {
-            warstwy[p.warstwa] = { lista: [], layer: L.layerGroup().addTo(map) };
+            warstwy[p.warstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
           }
           warstwy[p.warstwa].lista.push(p);
           if (p.marker) p.marker.remove();
@@ -1124,7 +1133,7 @@ const data = {
         const warstwaN = data.warstwa || "Inne";
         data.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map) };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
         }
         data.marker = marker;
         marker.setIcon(createEmojiIcon(data.emoji, data.warstwaId));
@@ -1213,7 +1222,7 @@ const data = {
         const warstwaN = p.warstwa || 'Inne';
         p.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map) };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
         }
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji, p.warstwaId)}).addTo(warstwy[warstwaN].layer);
         const popupDiv = document.createElement('div');
@@ -1304,7 +1313,7 @@ const data = {
 
     function addLayer(name) {
       if (!name || warstwy[name]) return;
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map) };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
       layersToAdd.push(name);
       const order = loadLayerOrder();
       order.unshift(name);
@@ -1560,7 +1569,7 @@ const data = {
         left.appendChild(numberSpan);
         left.appendChild(label);
         const toggleBtn = document.createElement("span");
-        toggleBtn.textContent = "🔽";
+        toggleBtn.textContent = warstwy[nazwa].collapsed ? "▶️" : "🔽";
        toggleBtn.style.cursor = "pointer";
 toggleBtn.style.display = "inline-block";
 toggleBtn.style.verticalAlign = "top";
@@ -1619,7 +1628,9 @@ toggleBtn.style.verticalAlign = "top";
           listaP.appendChild(el);
         });
 
+        if (warstwy[nazwa].collapsed) listaP.classList.add("ukryta");
         toggleBtn.onclick = () => {
+          warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
           listaP.classList.toggle("ukryta");
           toggleBtn.textContent = listaP.classList.contains("ukryta") ? "▶️" : "🔽";
         };
@@ -1888,7 +1899,7 @@ toggleBtn.style.verticalAlign = "top";
     layerDocs[name] = movingLayerId;
     layerNamesById[movingLayerId] = name;
     if (!warstwy[name]) {
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map) };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
     }
     generujListeWarstw();
   }
