@@ -387,6 +387,8 @@ body, #sidebar, #basemap-switcher {
         <summary>Filtruj kategorie</summary>
         <div id="kategorie-lista"></div>
       </details>
+      <button id="addLayerBtn">➕ Nowa warstwa</button>
+      <input type="text" id="newLayerInput" style="display:none;width:90%;margin-top:5px;" placeholder="Nazwa warstwy">
       <div id="lista-warstw"></div>
     </div>
   </div>
@@ -444,8 +446,10 @@ body, #sidebar, #basemap-switcher {
       document.getElementById("sidebar").style.display = "block";
       document.getElementById("basemap-switcher").style.display = "block";
       initMap();
-      zaladujPinezkiZFirestore();
-      initGeoSearch();
+      loadLayersFromFirestore().then(() => {
+        zaladujPinezkiZFirestore();
+        initGeoSearch();
+      });
     });
 
     let map, baseLayer;
@@ -459,6 +463,10 @@ body, #sidebar, #basemap-switcher {
     let sortMode = 'dateDesc';
     const categories = new Set();
     let selectedCategories = new Set();
+    const layerDocs = {};
+    let layersToAdd = [];
+    let layersToDelete = [];
+    let pinsToDelete = [];
     let currentTool = "hand";
     const handBtn = document.getElementById("handTool");
     const pinBtn = document.getElementById("pinTool");
@@ -469,10 +477,30 @@ body, #sidebar, #basemap-switcher {
       generujListeWarstw();
     });
 
+    const addLayerBtn = document.getElementById('addLayerBtn');
+    const newLayerInput = document.getElementById('newLayerInput');
+    if (addLayerBtn && newLayerInput) {
+      addLayerBtn.addEventListener('click', () => {
+        newLayerInput.style.display = 'block';
+        newLayerInput.focus();
+      });
+      newLayerInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          addLayer(e.target.value.trim());
+          e.target.value = '';
+          e.target.style.display = 'none';
+        } else if (e.key === 'Escape') {
+          e.target.value = '';
+          e.target.style.display = 'none';
+        }
+      });
+    }
+
     function updateSaveButton() {
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
-      btn.style.display = (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0) ? 'block' : 'none';
+      const layerChanges = layersToAdd.length > 0 || layersToDelete.length > 0;
+      btn.style.display = (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0 || layerChanges) ? 'block' : 'none';
     }
 
     function markPinUnsaved(slug) {
@@ -790,8 +818,28 @@ function emojiHtml(str) {
           labels.addTo(map); roads.addTo(map);
         });
       });
-      map.on("click", e => { if (currentTool === "pin") onMapClick(e); });
+    map.on("click", e => { if (currentTool === "pin") onMapClick(e); });
 
+    }
+
+    async function loadLayersFromFirestore() {
+      try {
+        const snap = await db.collection('layers').orderBy('order').get();
+        const order = [];
+        snap.forEach(doc => {
+          const data = doc.data();
+          layerDocs[data.name] = doc.id;
+          order.push(data.name);
+          if (!warstwy[data.name]) {
+            warstwy[data.name] = { lista: [], layer: L.layerGroup().addTo(map) };
+          }
+        });
+        if (order.length > 0) {
+          localStorage.setItem('warstwaOrder', JSON.stringify(order));
+        }
+      } catch (e) {
+        console.error('Błąd wczytywania warstw', e);
+      }
     }
 
     
@@ -1045,7 +1093,9 @@ const data = {
     function saveLayerOrder() {
       const order = Array.from(document.querySelectorAll('#lista-warstw .warstwa'))
         .map(el => el.dataset.nazwa);
+      const prev = loadLayerOrder();
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      if (JSON.stringify(prev) !== JSON.stringify(order)) updateSaveButton();
     }
 
     function loadNewPinsFromLocal() {
@@ -1157,6 +1207,8 @@ const data = {
         });
         warstwy[newName] = layer;
         delete warstwy[oldName];
+        if (!layersToAdd.includes(newName) && !layerDocs[newName]) layersToAdd.push(newName);
+        if (!layersToDelete.includes(oldName) && (layerDocs[oldName] || layersToAdd.includes(oldName))) layersToDelete.push(oldName);
         const order = loadLayerOrder().map(n => n === oldName ? newName : n);
         localStorage.setItem('warstwaOrder', JSON.stringify(order));
         generujListeWarstw();
@@ -1172,6 +1224,42 @@ const data = {
           input.blur();
         }
       };
+    }
+
+    function addLayer(name) {
+      if (!name || warstwy[name]) return;
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map) };
+      layersToAdd.push(name);
+      const order = loadLayerOrder();
+      order.push(name);
+      localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      generujListeWarstw();
+      updateSaveButton();
+    }
+
+    function deleteLayer(name) {
+      if (!warstwy[name]) return;
+      warstwy[name].lista.forEach(p => {
+        if (p.id && !p.id.startsWith('new_')) pinsToDelete.push(p.id);
+        const idxN = nowePinezki.indexOf(p);
+        if (idxN > -1) nowePinezki.splice(idxN, 1);
+        delete zmianyDoZapisania[p.id];
+        if (p.marker) map.removeLayer(p.marker);
+      });
+      wszystkiePinezki = wszystkiePinezki.filter(pp => pp.warstwa !== name);
+      map.removeLayer(warstwy[name].layer);
+      delete warstwy[name];
+      layersToDelete.push(name);
+      const order = loadLayerOrder().filter(n => n !== name);
+      localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      generujListeWarstw();
+      updateSaveButton();
+    }
+
+    function confirmDeleteLayer(name) {
+      if (confirm('Czy na pewno chcesz usunąć warstwę i wszystkie pinezki?')) {
+        deleteLayer(name);
+      }
     }
 
     function initGeoSearch() {
@@ -1297,8 +1385,14 @@ editBtn.style.marginRight = "5px";
 editBtn.style.display = "inline-block";
 editBtn.style.verticalAlign = "top";
         editBtn.onclick = () => renameLayer(nazwa, label);
+        const deleteBtn = document.createElement("span");
+        deleteBtn.textContent = "🗑️";
+        deleteBtn.style.cursor = "pointer";
+        deleteBtn.style.marginLeft = "5px";
+        deleteBtn.onclick = () => confirmDeleteLayer(nazwa);
         const controls = document.createElement("span");
         controls.appendChild(editBtn);
+        controls.appendChild(deleteBtn);
         controls.appendChild(toggleBtn);
         controls.style.display = "flex";
         controls.style.alignItems = "center";
@@ -1390,9 +1484,32 @@ editBtn.style.verticalAlign = "top";
           p.photos = await savePhotosForPin(docRef.id, p.slug, getStoredPhotos(p.slug), []);
         });
 
-        await Promise.all([...updatePromises, ...addPromises]);
+        const deletePinPromises = pinsToDelete.map(id => db.collection('pinezki').doc(id).delete().catch(()=>{}));
+
+        const orderList = loadLayerOrder();
+        const layerUpdates = Object.keys(warstwy).map(name => {
+          const order = orderList.indexOf(name);
+          const docId = layerDocs[name];
+          if (docId) {
+            return db.collection('layers').doc(docId).set({name, order});
+          } else if (layersToAdd.includes(name)) {
+            return db.collection('layers').add({name, order});
+          }
+          return Promise.resolve();
+        });
+
+        const layerDeletes = layersToDelete.map(name => {
+          const id = layerDocs[name];
+          if (id) return db.collection('layers').doc(id).delete().catch(()=>{});
+          return Promise.resolve();
+        });
+
+        await Promise.all([...updatePromises, ...addPromises, ...deletePinPromises, ...layerUpdates, ...layerDeletes]);
         zmianyDoZapisania = {};
         nowePinezki = [];
+        layersToAdd = [];
+        layersToDelete = [];
+        pinsToDelete = [];
         localStorage.removeItem('nowePinezki');
         location.reload();
       } catch (err) {
