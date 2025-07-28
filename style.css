@@ -28,6 +28,11 @@
 }
 #collapseAllLayers {
   margin: 5px 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
 }
 #savePinBtn {
   position: fixed;
