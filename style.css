@@ -19,6 +19,10 @@
 #filterKategorie {
   margin-top: 5px;
 }
-#kategorie-lista {
-  margin-left: 10px;
+  #kategorie-lista {
+    margin-left: 10px;
+  }
+
+#addLayerBtn {
+  margin: 10px 0;
 }
