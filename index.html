@@ -539,6 +539,7 @@ body, #sidebar, #basemap-switcher {
     const addLayerBtn = document.getElementById('addLayerBtn');
     const newLayerInput = document.getElementById('newLayerInput');
     const collapseAllBtn = document.getElementById('collapseAllLayers');
+    let allLayersCollapsed = false;
     if (addLayerBtn && newLayerInput) {
       addLayerBtn.addEventListener('click', () => {
         newLayerInput.style.display = 'block';
@@ -557,7 +558,9 @@ body, #sidebar, #basemap-switcher {
     }
     if (collapseAllBtn) {
       collapseAllBtn.addEventListener('click', () => {
-        Object.keys(warstwy).forEach(n => { warstwy[n].collapsed = true; });
+        allLayersCollapsed = !allLayersCollapsed;
+        Object.keys(warstwy).forEach(n => { warstwy[n].collapsed = allLayersCollapsed; });
+        collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń wszystkie warstwy' : 'Zwiń wszystkie warstwy';
         generujListeWarstw();
       });
     }
