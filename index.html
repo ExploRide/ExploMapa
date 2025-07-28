@@ -438,9 +438,9 @@ body, #sidebar, #basemap-switcher {
   <div id="layer-editor">
     <h3>Edycja warstwy</h3>
     <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
-    <input type="number" id="layerEditOrder" min="1" style="width:70px;"> <button id="layerEditSave">Zastosuj</button><br>
+    <input type="number" id="layerEditOrder" min="1" style="width:70px;"> <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button><br>
     <button id="layerEditDelete">🗑️ Usuń warstwę</button>
-    <button id="layerEditClose">Zamknij</button>
+    <button id="layerEditClose" onclick="closeLayerEditor()">Zamknij</button>
   </div>
   <button id="exportKML">Zapisz do .KML</button>
   <button id="saveChanges">Zapisz edycję mapy</button>
@@ -1343,6 +1343,24 @@ const data = {
       panel.style.display = 'block';
     }
 
+    function closeLayerEditor() {
+      const panel = document.getElementById('layer-editor');
+      if (panel) panel.style.display = 'none';
+    }
+
+    function applyLayerEdits() {
+      const newName = document.getElementById('layerEditName').value.trim();
+      const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
+      if (newName && newName !== editedLayer) {
+        applyRenameLayer(editedLayer, newName);
+        editedLayer = newName;
+      }
+      reorderLayer(editedLayer, newOrder);
+      generujListeWarstw();
+      updateSaveButton();
+      closeLayerEditor();
+    }
+
     function applyRenameLayer(oldName, newName) {
       if (!newName || newName === oldName) return;
       if (warstwy[newName]) {
@@ -1385,21 +1403,12 @@ const data = {
       closeBtn.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
-        panel.style.display = 'none';
+        closeLayerEditor();
       });
       saveBtn.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
-        const newName = document.getElementById('layerEditName').value.trim();
-        const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
-        if (newName && newName !== editedLayer) {
-          applyRenameLayer(editedLayer, newName);
-          editedLayer = newName;
-        }
-        reorderLayer(editedLayer, newOrder);
-        generujListeWarstw();
-        updateSaveButton();
-        panel.style.display = 'none';
+        applyLayerEdits();
       });
       delBtn.addEventListener('click', e => {
         e.preventDefault();
