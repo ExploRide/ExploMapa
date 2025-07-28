@@ -396,8 +396,9 @@ body, #sidebar, #basemap-switcher {
   #sidebar { position: fixed; transform: translateX(-100%); transition: transform 0.3s ease; width: 260px; z-index: 1500; }
   #sidebar.show { transform: translateX(0); }
   #basemap-switcher { display: none; }
-  #narzedzia { left: 10px; top: 60px; }
-  #geosearch { left: 10px; right: 10px; top: 100px; }
+  #narzedzia { left: 10px; top: 50px; }
+  #geosearch { left: 10px; right: 10px; top: 10px; }
+  #exportKML { display: none; }
   .leaflet-control-zoom { left: 10px; }
   #toggleLayers { position: fixed; top: 10px; left: 10px; z-index: 1600; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block; }
 }
@@ -515,6 +516,7 @@ body, #sidebar, #basemap-switcher {
     let layersToDelete = [];
     let pinsToDelete = [];
     let currentTool = "hand";
+    let initialLayerVisibilitySet = false;
     const handBtn = document.getElementById("handTool");
     const pinBtn = document.getElementById("pinTool");
     const mapEl = document.getElementById("map");
@@ -880,6 +882,16 @@ function emojiHtml(str) {
         });
       });
     map.on("click", e => { if (currentTool === "pin") onMapClick(e); });
+
+    if (window.innerWidth <= 700) {
+      let pressTimer = null;
+      map.on('touchstart', e => {
+        pressTimer = setTimeout(() => openNewPinPopup(e.latlng), 2000);
+      });
+      map.on('touchend touchmove', () => {
+        if (pressTimer) clearTimeout(pressTimer);
+      });
+    }
 
     }
 
@@ -1498,8 +1510,16 @@ const data = {
         const h3 = document.createElement("h3");
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
-        checkbox.checked = true;
+        if (warstwy[nazwa].visible === undefined) {
+          warstwy[nazwa].visible = map.hasLayer(warstwy[nazwa].layer);
+        }
+        if (window.innerWidth <= 700 && !initialLayerVisibilitySet) {
+          warstwy[nazwa].visible = false;
+          map.removeLayer(warstwy[nazwa].layer);
+        }
+        checkbox.checked = warstwy[nazwa].visible;
         checkbox.onchange = () => {
+          warstwy[nazwa].visible = checkbox.checked;
           if (checkbox.checked) {
             warstwy[nazwa].layer.addTo(map);
           } else {
@@ -1585,6 +1605,10 @@ toggleBtn.style.verticalAlign = "top";
       });
       saveLayerOrder();
       updateLayerNumbers();
+
+      if (window.innerWidth <= 700) {
+        initialLayerVisibilitySet = true;
+      }
 
       document.getElementById("wyszukiwarka").addEventListener("input", e => {
         const q = e.target.value.toLowerCase();
@@ -1808,17 +1832,19 @@ toggleBtn.style.verticalAlign = "top";
 
   let currentLocation = null;
   let currentMarker = null;
+  const gpsIcon = L.divIcon({className:'gps-marker'});
 
   function initGeolocation() {
     if (!navigator.geolocation) return;
     navigator.geolocation.watchPosition(pos => {
       currentLocation = [pos.coords.latitude, pos.coords.longitude];
       if (!currentMarker) {
-        currentMarker = L.marker(currentLocation).addTo(map);
+        currentMarker = L.marker(currentLocation, {icon: gpsIcon}).addTo(map);
         map.setView(currentLocation, 16);
       } else {
         currentMarker.setLatLng(currentLocation);
       }
+      map.setView(currentLocation, map.getZoom());
     }, err => console.error('geo error', err), { enableHighAccuracy: true });
   }
 
