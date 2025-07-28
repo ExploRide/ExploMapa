@@ -1530,7 +1530,26 @@ const data = {
       });
     }
 
+    function updateMarkerVisibility() {
+      Object.values(warstwy).forEach(w => {
+        w.lista.forEach(p => {
+          if (!p.marker) return;
+          const visible = selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '');
+          if (visible) {
+            if (!w.layer.hasLayer(p.marker)) {
+              w.layer.addLayer(p.marker);
+            }
+          } else {
+            if (w.layer.hasLayer(p.marker)) {
+              w.layer.removeLayer(p.marker);
+            }
+          }
+        });
+      });
+    }
+
     function generujListeWarstw() {
+      updateMarkerVisibility();
       const lista = document.getElementById("lista-warstw");
       lista.innerHTML = "";
       const saved = loadLayerOrder();
