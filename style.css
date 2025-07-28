@@ -26,6 +26,9 @@
 #addLayerBtn {
   margin: 10px 0;
 }
+#collapseAllLayers {
+  margin: 5px 0;
+}
 #savePinBtn {
   position: fixed;
   bottom: 20px;
