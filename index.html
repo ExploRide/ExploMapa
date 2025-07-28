@@ -1363,6 +1363,40 @@ const data = {
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
     }
 
+    function initLayerEditor() {
+      const panel = document.getElementById('layer-editor');
+      if (!panel) return;
+      const closeBtn = document.getElementById('layerEditClose');
+      const saveBtn = document.getElementById('layerEditSave');
+      const delBtn = document.getElementById('layerEditDelete');
+
+      closeBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        panel.style.display = 'none';
+      });
+      saveBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const newName = document.getElementById('layerEditName').value.trim();
+        const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
+        if (newName && newName !== editedLayer) {
+          applyRenameLayer(editedLayer, newName);
+          editedLayer = newName;
+        }
+        reorderLayer(editedLayer, newOrder);
+        generujListeWarstw();
+        updateSaveButton();
+        panel.style.display = 'none';
+      });
+      delBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        panel.style.display = 'none';
+        confirmDeleteLayer(editedLayer);
+      });
+    }
+
     function initGeoSearch() {
       const input = document.getElementById('geosearch');
       if (!input) return;
@@ -1688,34 +1722,7 @@ toggleBtn.style.verticalAlign = "top";
       });
     }
 
-    const panel = document.getElementById('layer-editor');
-    if (panel) {
-      document.getElementById('layerEditClose').addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        panel.style.display = 'none';
-      });
-      document.getElementById('layerEditSave').addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        const newName = document.getElementById('layerEditName').value.trim();
-        const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
-        if (newName && newName !== editedLayer) {
-          applyRenameLayer(editedLayer, newName);
-          editedLayer = newName;
-        }
-        reorderLayer(editedLayer, newOrder);
-        generujListeWarstw();
-        updateSaveButton();
-        panel.style.display = 'none';
-      });
-      document.getElementById('layerEditDelete').addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        panel.style.display = 'none';
-        confirmDeleteLayer(editedLayer);
-      });
-    }
+    initLayerEditor();
 
     setupMobile();
 
