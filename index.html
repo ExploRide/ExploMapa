@@ -356,6 +356,28 @@ body, #sidebar, #basemap-switcher {
 #deleteModal button {
   margin: 5px;
 }
+#layerDeleteModal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  color: #fff;
+}
+#layerDeleteModalContent {
+  background: #2b2b2b;
+  border: 1px solid #444;
+  padding: 20px;
+  text-align: center;
+}
+#layerDeleteModal button {
+  margin: 5px;
+}
 
 .leaflet-popup-content {
   max-width: 300px;
@@ -1345,11 +1367,8 @@ const data = {
     }
 
     function confirmDeleteLayer(name) {
-      if (confirm('Czy na pewno chcesz usunąć warstwę i wszystkie pinezki?')) {
-        deleteLayer(name);
-      }
+      openLayerDeleteModal(name);
     }
-
     let editedLayer = null;
     function showLayerEditor(name) {
       const panel = document.getElementById('layer-editor');
@@ -1806,6 +1825,14 @@ toggleBtn.style.verticalAlign = "top";
       });
     }
 
+    const layerDelModal = document.getElementById("layerDeleteModal");
+    if (layerDelModal) {
+      document.getElementById("layerDeleteConfirmYes").addEventListener("click", confirmLayerDelete);
+      document.getElementById("layerDeleteConfirmNo").addEventListener("click", closeLayerDeleteModal);
+      layerDelModal.addEventListener("click", e => {
+        if (e.target === layerDelModal) closeLayerDeleteModal();
+      });
+    }
     initLayerEditor();
 
     setupMobile();
@@ -1889,6 +1916,23 @@ toggleBtn.style.verticalAlign = "top";
       closeDeleteModal();
     });
   }
+
+let layerDeleteName = null;
+function openLayerDeleteModal(name) {
+  layerDeleteName = name;
+  const modal = document.getElementById("layerDeleteModal");
+  if (modal) modal.style.display = "flex";
+}
+function closeLayerDeleteModal() {
+  layerDeleteName = null;
+  const modal = document.getElementById("layerDeleteModal");
+  if (modal) modal.style.display = "none";
+}
+function confirmLayerDelete() {
+  if (!layerDeleteName) return;
+  deleteLayer(layerDeleteName);
+  closeLayerDeleteModal();
+}
 
   let currentLocation = null;
   let currentMarker = null;
@@ -2008,6 +2052,13 @@ toggleBtn.style.verticalAlign = "top";
       <button id="deleteConfirmNo">NIE</button>
     </div>
   </div>
+    <div id="layerDeleteModal">
+      <div id="layerDeleteModalContent">
+        <div>Czy na pewno chcesz usunąć warstwę i wszystkie jej pinezki?</div>
+        <button id="layerDeleteConfirmYes">TAK</button>
+        <button id="layerDeleteConfirmNo">NIE</button>
+      </div>
+    </div>
   <div id="photoModal">
     <span id="photoModalClose">&#10005;</span>
     <span id="photoModalDelete" onclick="deleteCurrentPhoto()">🗑️</span>
