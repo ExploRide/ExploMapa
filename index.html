@@ -463,6 +463,7 @@ body, #sidebar, #basemap-switcher {
       loadLayersFromFirestore().then(() => {
         zaladujPinezkiZFirestore();
         initGeoSearch();
+        setupMobile();
       });
     });
 
@@ -587,6 +588,13 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     function createEmojiIcon(emojiOrUrl, warstwa) {
       const isVisited = warstwa && warstwa.toLowerCase() === 'zwiedzone i niedostępne';
       const isSztosy = warstwa === "Sztosy";
+      if (warstwa && warstwa.toLowerCase() === 'tryb w ruchu') {
+        return L.icon({
+          iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png',
+          iconSize: [32, 32],
+          iconAnchor: [16, 32]
+        });
+      }
 
       if (!emojiOrUrl || String(emojiOrUrl).trim() === "" || emojiOrUrl === "undefined") {
         return L.icon({
@@ -1605,6 +1613,8 @@ editBtn.style.verticalAlign = "top";
       });
     }
 
+    setupMobile();
+
   });
 
   let modalSlug = null;
@@ -1685,6 +1695,107 @@ editBtn.style.verticalAlign = "top";
     });
   }
 
+  let currentLocation = null;
+  let currentMarker = null;
+
+  function initGeolocation() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.watchPosition(pos => {
+      currentLocation = [pos.coords.latitude, pos.coords.longitude];
+      if (!currentMarker) {
+        currentMarker = L.marker(currentLocation).addTo(map);
+        map.setView(currentLocation, 16);
+      } else {
+        currentMarker.setLatLng(currentLocation);
+      }
+    }, err => console.error('geo error', err), { enableHighAccuracy: true });
+  }
+
+  async function ensureMovingLayer() {
+    if (warstwy['Tryb w ruchu']) return;
+    warstwy['Tryb w ruchu'] = { lista: [], layer: L.layerGroup().addTo(map) };
+    const snap = await db.collection('layers').where('name','==','Tryb w ruchu').get();
+    if (!snap.empty) {
+      layerDocs['Tryb w ruchu'] = snap.docs[0].id;
+    } else {
+      const doc = await db.collection('layers').add({name:'Tryb w ruchu', order:Object.keys(warstwy).length});
+      layerDocs['Tryb w ruchu'] = doc.id;
+    }
+    generujListeWarstw();
+  }
+
+  async function saveMovingPin(name) {
+    if (!currentLocation) {
+      alert('Brak aktualnej lokalizacji');
+      return;
+    }
+    await ensureMovingLayer();
+    const docRef = await db.collection('pinezki').add({
+      nazwa: name,
+      opis: '',
+      warstwa: 'Tryb w ruchu',
+      kategoria: '',
+      emoji: '',
+      lat: currentLocation[0],
+      lng: currentLocation[1],
+      dataDodania: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await docRef.update({id: docRef.id});
+    const data = {
+      id: docRef.id,
+      nazwa: name,
+      opis: '',
+      warstwa: 'Tryb w ruchu',
+      kategoria: '',
+      emoji: '',
+      lat: currentLocation[0],
+      lng: currentLocation[1],
+      dataDodania: Date.now(),
+      slug: slugify(name)
+    };
+    const marker = L.marker(currentLocation, {icon: createEmojiIcon('', 'Tryb w ruchu')}).addTo(warstwy['Tryb w ruchu'].layer);
+    const popupDiv = document.createElement('div');
+    popupDiv.className = 'popup-container';
+    popupDiv.innerHTML = createPopupHtml(data);
+    marker.bindPopup(popupDiv);
+    attachPopupHandlers(marker, data);
+    data.marker = marker;
+    warstwy['Tryb w ruchu'].lista.push(data);
+    wszystkiePinezki.push(data);
+    generujListeWarstw();
+  }
+
+  function setupMobile() {
+    const btn = document.getElementById('savePinBtn');
+    const modal = document.getElementById('mobilePinModal');
+    const ok = document.getElementById('mobilePinOk');
+    const cancel = document.getElementById('mobilePinCancel');
+    if (!btn || !modal || !ok || !cancel) return;
+    if (window.innerWidth <= 800) {
+      btn.style.display = 'block';
+      if (typeof map !== 'undefined' && map) {
+        initGeolocation();
+      } else {
+        const iv = setInterval(() => {
+          if (typeof map !== 'undefined' && map) {
+            initGeolocation();
+            clearInterval(iv);
+          }
+        }, 500);
+      }
+    }
+    btn.addEventListener('click', () => {
+      document.getElementById('mobilePinName').value = '';
+      modal.style.display = 'flex';
+    });
+    cancel.addEventListener('click', () => { modal.style.display = 'none'; });
+    ok.addEventListener('click', () => {
+      const name = document.getElementById('mobilePinName').value.trim();
+      if (name) saveMovingPin(name);
+      modal.style.display = 'none';
+    });
+  }
+
   </script>
   <div id="deleteModal">
     <div id="deleteModalContent">
@@ -1697,6 +1808,16 @@ editBtn.style.verticalAlign = "top";
     <span id="photoModalClose">&#10005;</span>
     <span id="photoModalDelete" onclick="deleteCurrentPhoto()">🗑️</span>
     <img id="photoModalImg" src="">
+  </div>
+  <button id="savePinBtn">ZAPISZ PIN</button>
+  <div id="mobilePinModal" class="mobile-modal">
+    <div class="mobile-modal-content">
+      <input type="text" id="mobilePinName" placeholder="Nazwa pinezki">
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button id="mobilePinOk">Zapisz</button>
+        <button id="mobilePinCancel">Anuluj</button>
+      </div>
+    </div>
   </div>
 </body>
 </html>
