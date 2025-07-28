@@ -515,6 +515,8 @@ body, #sidebar, #basemap-switcher {
     let layersToAdd = [];
     let layersToDelete = [];
     let pinsToDelete = [];
+    let initialLayerOrder = [];
+    let layerOrderChanged = false;
     let currentTool = "hand";
     let initialLayerVisibilitySet = false;
     const handBtn = document.getElementById("handTool");
@@ -555,7 +557,7 @@ body, #sidebar, #basemap-switcher {
     function updateSaveButton() {
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
-      const layerChanges = layersToAdd.length > 0 || layersToDelete.length > 0;
+      const layerChanges = layersToAdd.length > 0 || layersToDelete.length > 0 || layerOrderChanged;
       btn.style.display = (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0 || layerChanges) ? 'block' : 'none';
     }
 
@@ -913,6 +915,8 @@ function emojiHtml(str) {
         });
         if (order.length > 0) {
           localStorage.setItem('warstwaOrder', JSON.stringify(order));
+          initialLayerOrder = [...order];
+          layerOrderChanged = false;
         }
       } catch (e) {
         console.error('Błąd wczytywania warstw', e);
@@ -1180,7 +1184,10 @@ const data = {
         .map(el => el.dataset.nazwa);
       const prev = loadLayerOrder();
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
-      if (JSON.stringify(prev) !== JSON.stringify(order)) updateSaveButton();
+      if (JSON.stringify(prev) !== JSON.stringify(order)) {
+        layerOrderChanged = JSON.stringify(order) !== JSON.stringify(initialLayerOrder);
+        updateSaveButton();
+      }
     }
 
     function updateLayerNumbers() {
@@ -1391,6 +1398,7 @@ const data = {
       newPos = Math.max(1, Math.min(newPos, order.length + 1));
       order.splice(newPos - 1, 0, name);
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      layerOrderChanged = JSON.stringify(order) !== JSON.stringify(initialLayerOrder);
       updateSaveButton();
     }
 
