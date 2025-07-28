@@ -506,6 +506,10 @@ body, #sidebar, #basemap-switcher {
     const categories = new Set();
     let selectedCategories = new Set();
     const layerDocs = {};
+    const layerNamesById = {};
+    let sztosyId = null;
+    let visitedId = null;
+    let movingLayerId = null;
     let layersToAdd = [];
     let layersToDelete = [];
     let pinsToDelete = [];
@@ -612,10 +616,10 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       }
     }
 
-    function createEmojiIcon(emojiOrUrl, warstwa) {
-      const isVisited = warstwa && warstwa.toLowerCase() === 'zwiedzone i niedostępne';
-      const isSztosy = warstwa === "Sztosy";
-      if (warstwa && warstwa.toLowerCase() === 'tryb w ruchu') {
+    function createEmojiIcon(emojiOrUrl, warstwaId) {
+      const isVisited = warstwaId && warstwaId === visitedId;
+      const isSztosy = warstwaId && warstwaId === sztosyId;
+      if (warstwaId && warstwaId === movingLayerId) {
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png',
           iconSize: [32, 32],
@@ -885,6 +889,10 @@ function emojiHtml(str) {
         snap.forEach(doc => {
           const data = doc.data();
           layerDocs[data.name] = doc.id;
+          layerNamesById[doc.id] = data.name;
+          if (data.name === 'Sztosy') sztosyId = doc.id;
+          if (data.name && data.name.toLowerCase() === 'zwiedzone i niedostępne') visitedId = doc.id;
+          if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
             warstwy[data.name] = { lista: [], layer: L.layerGroup().addTo(map) };
@@ -918,7 +926,13 @@ function zaladujPinezkiZFirestore() {
         storePhotos(p.slug, (p.photos || []));
       }
       categories.add(p.kategoria || '');
-      const warstwaNazwa = p.warstwa || "Inne";
+      let warstwaNazwa = p.warstwa || "Inne";
+      let warstwaId = layerDocs[warstwaNazwa];
+      if (!warstwaId && layerNamesById[p.warstwa]) {
+        warstwaId = p.warstwa;
+        warstwaNazwa = layerNamesById[p.warstwa];
+      }
+      p.warstwaId = warstwaId || null;
       if (!warstwy[warstwaNazwa]) {
         warstwy[warstwaNazwa] = {
           lista: [],
@@ -926,7 +940,7 @@ function zaladujPinezkiZFirestore() {
         };
       }
 
-      const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(p.emoji, warstwaNazwa) }).addTo(warstwy[warstwaNazwa].layer);
+      const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(p.emoji, p.warstwaId) }).addTo(warstwy[warstwaNazwa].layer);
       const popupDiv = document.createElement("div");
       popupDiv.className = "popup-container";
       popupDiv.innerHTML = createPopupHtml(p);
@@ -996,6 +1010,7 @@ function zaladujPinezkiZFirestore() {
         nazwa: document.getElementById("enazwa").value,
         opis: document.getElementById("eopis").value,
         warstwa: document.getElementById("ewarstwa").value,
+        warstwaId: layerDocs[document.getElementById("ewarstwa").value] || null,
         kategoria: document.getElementById("ekategoria").value,
         emoji: document.getElementById("eemoji").value
       };
@@ -1022,10 +1037,10 @@ function zaladujPinezkiZFirestore() {
           }
           warstwy[p.warstwa].lista.push(p);
           if (p.marker) p.marker.remove();
-          p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[p.warstwa].layer);
+          p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji, p.warstwaId)}).addTo(warstwy[p.warstwa].layer);
           attachHighlight(p.marker, p.el);
         } else {
-          p.marker.setIcon(createEmojiIcon(p.emoji));
+          p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId));
         }
         
 const popupDiv = document.createElement("div");
@@ -1090,11 +1105,12 @@ const data = {
         saved = true;
 
         const warstwaN = data.warstwa || "Inne";
+        data.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
           warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map) };
         }
         data.marker = marker;
-        marker.setIcon(createEmojiIcon(data.emoji));
+        marker.setIcon(createEmojiIcon(data.emoji, data.warstwaId));
         data.slug = slugify(data.nazwa);
         if (!photosMap[data.slug]) {
           storePhotos(data.slug, []);
@@ -1175,10 +1191,11 @@ const data = {
         if (!p.dataDodania) p.dataDodania = Date.now();
         categories.add(p.kategoria || '');
         const warstwaN = p.warstwa || 'Inne';
+        p.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
           warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map) };
         }
-        const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji)}).addTo(warstwy[warstwaN].layer);
+        const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji, p.warstwaId)}).addTo(warstwy[warstwaN].layer);
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
@@ -1324,8 +1341,10 @@ const data = {
       layer.lista.forEach(p => {
         const cur = zmianyDoZapisania[p.id] || {};
         cur.warstwa = newName;
+        cur.warstwaId = layerDocs[newName] || p.warstwaId || null;
         zmianyDoZapisania[p.id] = cur;
         p.warstwa = newName;
+        p.warstwaId = cur.warstwaId;
         p.unsaved = true;
       });
       warstwy[newName] = layer;
@@ -1558,6 +1577,7 @@ toggleBtn.style.verticalAlign = "top";
             nazwa: p.nazwa,
             opis: p.opis,
             warstwa: p.warstwa,
+            warstwaId: p.warstwaId || null,
             kategoria: p.kategoria,
             emoji: p.emoji,
             lat: p.lat,
@@ -1787,14 +1807,19 @@ toggleBtn.style.verticalAlign = "top";
   }
 
   async function ensureMovingLayer() {
-    if (warstwy['Tryb w ruchu']) return;
-    warstwy['Tryb w ruchu'] = { lista: [], layer: L.layerGroup().addTo(map) };
+    if (movingLayerId) return;
     const snap = await db.collection('layers').where('name','==','Tryb w ruchu').get();
     if (!snap.empty) {
-      layerDocs['Tryb w ruchu'] = snap.docs[0].id;
+      movingLayerId = snap.docs[0].id;
     } else {
       const doc = await db.collection('layers').add({name:'Tryb w ruchu', order:Object.keys(warstwy).length});
-      layerDocs['Tryb w ruchu'] = doc.id;
+      movingLayerId = doc.id;
+    }
+    const name = 'Tryb w ruchu';
+    layerDocs[name] = movingLayerId;
+    layerNamesById[movingLayerId] = name;
+    if (!warstwy[name]) {
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map) };
     }
     generujListeWarstw();
   }
@@ -1809,6 +1834,7 @@ toggleBtn.style.verticalAlign = "top";
       nazwa: name,
       opis: '',
       warstwa: 'Tryb w ruchu',
+      warstwaId: movingLayerId,
       kategoria: '',
       emoji: '',
       lat: currentLocation[0],
@@ -1821,6 +1847,7 @@ toggleBtn.style.verticalAlign = "top";
       nazwa: name,
       opis: '',
       warstwa: 'Tryb w ruchu',
+      warstwaId: movingLayerId,
       kategoria: '',
       emoji: '',
       lat: currentLocation[0],
@@ -1828,7 +1855,7 @@ toggleBtn.style.verticalAlign = "top";
       dataDodania: Date.now(),
       slug: slugify(name)
     };
-    const marker = L.marker(currentLocation, {icon: createEmojiIcon('', 'Tryb w ruchu')}).addTo(warstwy['Tryb w ruchu'].layer);
+    const marker = L.marker(currentLocation, {icon: createEmojiIcon('', movingLayerId)}).addTo(warstwy['Tryb w ruchu'].layer);
     const popupDiv = document.createElement('div');
     popupDiv.className = 'popup-container';
     popupDiv.innerHTML = createPopupHtml(data);
