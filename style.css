@@ -15,3 +15,10 @@
   flex-wrap: wrap;
   max-width: 200px;
 }
+
+#filterKategorie {
+  margin-top: 5px;
+}
+#kategorie-lista {
+  margin-left: 10px;
+}
