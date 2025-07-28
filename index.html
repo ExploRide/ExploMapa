@@ -9,7 +9,7 @@
   <script src="https://twemoji.maxcdn.com/v/latest/twemoji.min.js" crossorigin="anonymous"></script>
   <style>
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background-color: #1e1e1e; color: #f0f0f0;}
-    #map, #sidebar, #basemap-switcher { display: none; }
+    #map, #sidebar, #basemap-switcher, #layer-editor { display: none; }
     #map { position: absolute; top: 0; left: 300px; right: 225px; bottom: 0; }
     #sidebar {
       position: absolute;
@@ -47,6 +47,23 @@
       border-left: 1px solid #ccc;
       padding: 10px;
       overflow-y: auto;
+    }
+    #layer-editor {
+      position: absolute;
+      top: 0;
+      left: 300px;
+      width: 200px;
+      height: 100%;
+      background-color: #2b2b2b;
+      border-color: #444;
+      color: #f0f0f0;
+      border-left: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+    }
+    .layer-separator {
+      border-bottom: 1px solid #555;
+      margin: 5px 0;
     }
     #wyszukiwarka { width: 80%; margin-bottom: 10px; padding: 5px; flex-shrink: 0; }
     .pinezka { 
@@ -414,6 +431,13 @@ body, #sidebar, #basemap-switcher {
     <h3>Rodzaj mapy</h3>
     <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label>
+  </div>
+  <div id="layer-editor">
+    <h3>Edycja warstwy</h3>
+    <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
+    <input type="number" id="layerEditOrder" min="1" style="width:70px;"> <button id="layerEditSave">Zastosuj</button><br>
+    <button id="layerEditDelete">🗑️ Usuń warstwę</button>
+    <button id="layerEditClose">Zamknij</button>
   </div>
   <button id="exportKML">Zapisz do .KML</button>
   <button id="saveChanges">Zapisz edycję mapy</button>
@@ -1223,35 +1247,10 @@ const data = {
 
       function finish() {
         const newName = input.value.trim();
-        if (!newName || newName === oldName) {
-          input.replaceWith(labelEl);
-          return;
-        }
-        if (warstwy[newName]) {
-          alert('Warstwa o takiej nazwie już istnieje.');
-          input.replaceWith(labelEl);
-          return;
-        }
-        const layer = warstwy[oldName];
-        if (!layer) {
-          input.replaceWith(labelEl);
-          return;
-        }
-        layer.lista.forEach(p => {
-          const cur = zmianyDoZapisania[p.id] || {};
-          cur.warstwa = newName;
-          zmianyDoZapisania[p.id] = cur;
-          p.warstwa = newName;
-          p.unsaved = true;
-        });
-        warstwy[newName] = layer;
-        delete warstwy[oldName];
-        if (!layersToAdd.includes(newName) && !layerDocs[newName]) layersToAdd.push(newName);
-        if (!layersToDelete.includes(oldName) && (layerDocs[oldName] || layersToAdd.includes(oldName))) layersToDelete.push(oldName);
-        const order = loadLayerOrder().map(n => n === oldName ? newName : n);
-        localStorage.setItem('warstwaOrder', JSON.stringify(order));
+        applyRenameLayer(oldName, newName);
         generujListeWarstw();
         updateSaveButton();
+        input.replaceWith(labelEl);
       }
 
       input.onblur = finish;
@@ -1299,6 +1298,48 @@ const data = {
       if (confirm('Czy na pewno chcesz usunąć warstwę i wszystkie pinezki?')) {
         deleteLayer(name);
       }
+    }
+
+    let editedLayer = null;
+    function showLayerEditor(name) {
+      const panel = document.getElementById('layer-editor');
+      if (!panel) return;
+      editedLayer = name;
+      document.getElementById('layerEditName').value = name;
+      const order = loadLayerOrder();
+      const idx = order.indexOf(name);
+      document.getElementById('layerEditOrder').value = idx >= 0 ? idx + 1 : (order.length + 1);
+      panel.style.display = 'block';
+    }
+
+    function applyRenameLayer(oldName, newName) {
+      if (!newName || newName === oldName) return;
+      if (warstwy[newName]) {
+        alert('Warstwa o takiej nazwie już istnieje.');
+        return;
+      }
+      const layer = warstwy[oldName];
+      if (!layer) return;
+      layer.lista.forEach(p => {
+        const cur = zmianyDoZapisania[p.id] || {};
+        cur.warstwa = newName;
+        zmianyDoZapisania[p.id] = cur;
+        p.warstwa = newName;
+        p.unsaved = true;
+      });
+      warstwy[newName] = layer;
+      delete warstwy[oldName];
+      if (!layersToAdd.includes(newName) && !layerDocs[newName]) layersToAdd.push(newName);
+      if (!layersToDelete.includes(oldName) && (layerDocs[oldName] || layersToAdd.includes(oldName))) layersToDelete.push(oldName);
+      const order = loadLayerOrder().map(n => n === oldName ? newName : n);
+      localStorage.setItem('warstwaOrder', JSON.stringify(order));
+    }
+
+    function reorderLayer(name, newPos) {
+      let order = loadLayerOrder().filter(n => n !== name);
+      newPos = Math.max(1, Math.min(newPos, order.length + 1));
+      order.splice(newPos - 1, 0, name);
+      localStorage.setItem('warstwaOrder', JSON.stringify(order));
     }
 
     function initGeoSearch() {
@@ -1423,19 +1464,13 @@ toggleBtn.style.display = "inline-block";
 toggleBtn.style.verticalAlign = "top";
         const editBtn = document.createElement("span");
         editBtn.textContent = "✏️";
-   editBtn.style.cursor = "pointer";
-editBtn.style.marginRight = "5px";
-editBtn.style.display = "inline-block";
-editBtn.style.verticalAlign = "top";
-        editBtn.onclick = () => renameLayer(nazwa, label);
-        const deleteBtn = document.createElement("span");
-        deleteBtn.textContent = "🗑️";
-        deleteBtn.style.cursor = "pointer";
-        deleteBtn.style.marginLeft = "5px";
-        deleteBtn.onclick = () => confirmDeleteLayer(nazwa);
+        editBtn.style.cursor = "pointer";
+        editBtn.style.marginRight = "5px";
+        editBtn.style.display = "inline-block";
+        editBtn.style.verticalAlign = "top";
+        editBtn.onclick = () => showLayerEditor(nazwa);
         const controls = document.createElement("span");
         controls.appendChild(editBtn);
-        controls.appendChild(deleteBtn);
         controls.appendChild(toggleBtn);
         controls.style.display = "flex";
         controls.style.alignItems = "center";
@@ -1489,6 +1524,9 @@ editBtn.style.verticalAlign = "top";
 
         div.appendChild(listaP);
         lista.appendChild(div);
+        const sep = document.createElement('hr');
+        sep.className = 'layer-separator';
+        lista.appendChild(sep);
       });
       saveLayerOrder();
       updateLayerNumbers();
@@ -1625,6 +1663,27 @@ editBtn.style.verticalAlign = "top";
       document.getElementById('deleteConfirmNo').addEventListener('click', closeDeleteModal);
       delModal.addEventListener('click', e => {
         if (e.target === delModal) closeDeleteModal();
+      });
+    }
+
+    const panel = document.getElementById('layer-editor');
+    if (panel) {
+      document.getElementById('layerEditClose').addEventListener('click', () => panel.style.display = 'none');
+      document.getElementById('layerEditSave').addEventListener('click', () => {
+        const newName = document.getElementById('layerEditName').value.trim();
+        const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
+        if (newName && newName !== editedLayer) {
+          applyRenameLayer(editedLayer, newName);
+          editedLayer = newName;
+        }
+        reorderLayer(editedLayer, newOrder);
+        generujListeWarstw();
+        updateSaveButton();
+        panel.style.display = 'none';
+      });
+      document.getElementById('layerEditDelete').addEventListener('click', () => {
+        panel.style.display = 'none';
+        confirmDeleteLayer(editedLayer);
       });
     }
 
