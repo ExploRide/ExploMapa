@@ -1391,6 +1391,7 @@ const data = {
       newPos = Math.max(1, Math.min(newPos, order.length + 1));
       order.splice(newPos - 1, 0, name);
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      updateSaveButton();
     }
 
     function initLayerEditor() {
@@ -1399,6 +1400,7 @@ const data = {
       const closeBtn = document.getElementById('layerEditClose');
       const saveBtn = document.getElementById('layerEditSave');
       const delBtn = document.getElementById('layerEditDelete');
+      const orderInput = document.getElementById('layerEditOrder');
 
       closeBtn.addEventListener('click', e => {
         e.preventDefault();
@@ -1409,6 +1411,14 @@ const data = {
         e.preventDefault();
         e.stopPropagation();
         applyLayerEdits();
+      });
+      orderInput.addEventListener('change', e => {
+        const val = parseInt(orderInput.value, 10);
+        if (!isNaN(val) && editedLayer) {
+          reorderLayer(editedLayer, val);
+          generujListeWarstw();
+          orderInput.value = val;
+        }
       });
       delBtn.addEventListener('click', e => {
         e.preventDefault();
