@@ -383,6 +383,10 @@ body, #sidebar, #basemap-switcher {
         <option value="nameAsc">Sortuj alfabetycznie A→Z</option>
         <option value="nameDesc">Sortuj alfabetycznie Z→A</option>
       </select>
+      <details id="filterKategorie">
+        <summary>Filtruj kategorie</summary>
+        <div id="kategorie-lista"></div>
+      </details>
       <div id="lista-warstw"></div>
     </div>
   </div>
@@ -453,6 +457,8 @@ body, #sidebar, #basemap-switcher {
     let nowePinezki = [];
     const photosMap = {};
     let sortMode = 'dateDesc';
+    const categories = new Set();
+    let selectedCategories = new Set();
     let currentTool = "hand";
     const handBtn = document.getElementById("handTool");
     const pinBtn = document.getElementById("pinTool");
@@ -691,6 +697,7 @@ function emojiHtml(str) {
         <div style="height:4px;"></div>
         <div style="border-top:1px solid #444;"></div>
         <div>Warstwa: ${p.warstwa || 'Inne'}</div>
+        ${p.kategoria ? `<div>Kategoria: ${p.kategoria}</div>` : ''}
         <div>Data dodania: ${formatDate(p.dataDodania)}</div>
         <div>${formatCoords(p.lat, p.lng)}</div>
         <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
@@ -806,6 +813,7 @@ function zaladujPinezkiZFirestore() {
       if (!photosMap[p.slug]) {
         storePhotos(p.slug, (p.photos || []));
       }
+      categories.add(p.kategoria || '');
       const warstwaNazwa = p.warstwa || "Inne";
       if (!warstwy[warstwaNazwa]) {
         warstwy[warstwaNazwa] = {
@@ -827,11 +835,13 @@ function zaladujPinezkiZFirestore() {
       wszystkiePinezki.push(p);
     });
     loadNewPinsFromLocal();
+    updateCategoryFilter();
     generujListeWarstw();
   })
   .catch(err => {
     console.error("Błąd pobierania pinezek:", err);
     loadNewPinsFromLocal();
+    updateCategoryFilter();
     generujListeWarstw();
   });
 }
@@ -848,6 +858,7 @@ function zaladujPinezkiZFirestore() {
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
         <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
         <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
+        <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 100%"><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
@@ -881,6 +892,7 @@ function zaladujPinezkiZFirestore() {
         nazwa: document.getElementById("enazwa").value,
         opis: document.getElementById("eopis").value,
         warstwa: document.getElementById("ewarstwa").value,
+        kategoria: document.getElementById("ekategoria").value,
         emoji: document.getElementById("eemoji").value
       };
       zmianyDoZapisania[id] = nowa;
@@ -889,6 +901,8 @@ function zaladujPinezkiZFirestore() {
         const staraWarstwa = p.warstwa || "Inne";
         const oldSlug = p.slug;
         Object.assign(p, nowa);
+        categories.add(p.kategoria || '');
+        updateCategoryFilter();
         p.slug = slugify(p.nazwa);
         if (oldSlug !== p.slug) {
           const photos = getStoredPhotos(oldSlug);
@@ -937,6 +951,7 @@ attachPopupHandlers(p.marker, p);
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
         <textarea id="opisNew" placeholder="Opis" style="width: 100%"></textarea><br>
         <select id="warstwaNew" style="width: 100%">${warstwaOptions}</select><br>
+        <input id="kategoriaNew" placeholder="Kategoria" style="width: 100%"><br>
         <input id="emojiNew" placeholder="Emoji" style="width: 100%"><br>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
@@ -961,6 +976,7 @@ const data = {
           nazwa: container.querySelector("#nazwaNew").value,
           opis: container.querySelector("#opisNew").value,
           warstwa: container.querySelector("#warstwaNew").value,
+          kategoria: container.querySelector("#kategoriaNew").value,
           emoji: container.querySelector("#emojiNew").value,
           lat: latlng.lat,
           lng: latlng.lng,
@@ -979,6 +995,8 @@ const data = {
         if (!photosMap[data.slug]) {
           storePhotos(data.slug, []);
         }
+        categories.add(data.kategoria || '');
+        updateCategoryFilter();
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(data);
@@ -1042,6 +1060,7 @@ const data = {
         p.unsaved = true;
         if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
+        categories.add(p.kategoria || '');
         const warstwaN = p.warstwa || 'Inne';
         if (!warstwy[warstwaN]) {
           warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map) };
@@ -1058,6 +1077,7 @@ const data = {
       });
       if (changed) localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki));
       updateSaveButton();
+      updateCategoryFilter();
     }
 
     function setupDrag(div) {
@@ -1188,6 +1208,57 @@ const data = {
       });
     }
 
+    function updateCategoryFilter() {
+      const container = document.getElementById('kategorie-lista');
+      if (!container) return;
+      container.innerHTML = '';
+      const cats = Array.from(categories).sort();
+      if (selectedCategories.size === 0) {
+        selectedCategories = new Set(cats);
+      }
+      const allDiv = document.createElement('div');
+      const allChk = document.createElement('input');
+      allChk.type = 'checkbox';
+      allChk.id = 'kategorie-all';
+      allChk.checked = selectedCategories.size === 0 || selectedCategories.size === categories.size;
+      const allLbl = document.createElement('label');
+      allLbl.textContent = 'Zaznacz wszystkie';
+      allDiv.appendChild(allChk);
+      allDiv.appendChild(allLbl);
+      container.appendChild(allDiv);
+      allChk.addEventListener('change', () => {
+        if (allChk.checked) {
+          selectedCategories = new Set(categories);
+          container.querySelectorAll('.kat-item input').forEach(ch => ch.checked = true);
+        } else {
+          selectedCategories.clear();
+          container.querySelectorAll('.kat-item input').forEach(ch => ch.checked = false);
+        }
+        generujListeWarstw();
+      });
+      cats.forEach(cat => {
+        const div = document.createElement('div');
+        div.className = 'kat-item';
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.value = cat;
+        chk.checked = selectedCategories.size === 0 || selectedCategories.has(cat);
+        const lbl = document.createElement('label');
+        lbl.textContent = cat || 'Bez kategorii';
+        div.appendChild(chk);
+        div.appendChild(lbl);
+        container.appendChild(div);
+        chk.addEventListener('change', () => {
+          selectedCategories = new Set(
+            Array.from(container.querySelectorAll('.kat-item input')).filter(c => c.checked).map(c => c.value)
+          );
+          const all = document.getElementById('kategorie-all');
+          if (all) all.checked = selectedCategories.size === categories.size;
+          generujListeWarstw();
+        });
+      });
+    }
+
     function generujListeWarstw() {
       const lista = document.getElementById("lista-warstw");
       lista.innerHTML = "";
@@ -1238,7 +1309,9 @@ editBtn.style.verticalAlign = "top";
         const listaP = document.createElement("div");
         listaP.className = "pinezki-lista";
 
-        const sorted = warstwy[nazwa].lista.slice().sort((a, b) => {
+        const sorted = warstwy[nazwa].lista.slice().filter(p => {
+          return selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '');
+        }).sort((a, b) => {
           const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
           const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
           const an = a.nazwa || '';
@@ -1308,6 +1381,7 @@ editBtn.style.verticalAlign = "top";
             nazwa: p.nazwa,
             opis: p.opis,
             warstwa: p.warstwa,
+            kategoria: p.kategoria,
             emoji: p.emoji,
             lat: p.lat,
             lng: p.lng,
