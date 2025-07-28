@@ -61,6 +61,7 @@
       padding: 10px;
       overflow-y: auto;
       z-index: 1550;
+      pointer-events: auto;
     }
     .layer-separator {
       border-bottom: 1px solid #555;
@@ -1689,8 +1690,14 @@ toggleBtn.style.verticalAlign = "top";
 
     const panel = document.getElementById('layer-editor');
     if (panel) {
-      document.getElementById('layerEditClose').addEventListener('click', () => panel.style.display = 'none');
-      document.getElementById('layerEditSave').addEventListener('click', () => {
+      document.getElementById('layerEditClose').addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        panel.style.display = 'none';
+      });
+      document.getElementById('layerEditSave').addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
         const newName = document.getElementById('layerEditName').value.trim();
         const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
         if (newName && newName !== editedLayer) {
@@ -1702,7 +1709,9 @@ toggleBtn.style.verticalAlign = "top";
         updateSaveButton();
         panel.style.display = 'none';
       });
-      document.getElementById('layerEditDelete').addEventListener('click', () => {
+      document.getElementById('layerEditDelete').addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
         panel.style.display = 'none';
         confirmDeleteLayer(editedLayer);
       });
