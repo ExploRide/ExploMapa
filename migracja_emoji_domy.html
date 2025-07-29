@@ -43,13 +43,13 @@
       log("⏳ Rozpoczynam przypisywanie emoji 🏚️...");
 
       try {
-        const snapshot = await db.collection("pinezki").get();
+        const snapshot = await db.collection("pinezki2").get();
         const batch = db.batch();
         let licznik = 0;
 
         snapshot.forEach(docSnap => {
           const dane = docSnap.data();
-          const ref = db.collection("pinezki").doc(docSnap.id);
+          const ref = db.collection("pinezki2").doc(docSnap.id);
           const nazwa = dane.nazwa?.toLowerCase() || "";
 
           const czyMaSlowo =
