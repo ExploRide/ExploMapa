@@ -460,7 +460,14 @@ body, #sidebar, #basemap-switcher {
     <div id="sidebar-inner">
       <h2 id="logoNaglowek">ExploMapy</h2>
       <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
-      <div id="narzedzia"><button id="handTool" class="tool-btn">✋</button> <button id="pinTool" class="tool-btn">📌</button></div>
+   <div id="narzedzia">
+  <button id="handTool" class="tool-btn">
+    <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f44b.svg" width="24" height="24" alt="hand">
+  </button>
+  <button id="pinTool" class="tool-btn">
+    <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4cd.svg" width="24" height="24" alt="pin">
+  </button>
+</div>
       <select id="sortowanie">
         <option value="dateDesc">Sortuj wg daty – od najnowszych</option>
         <option value="dateAsc">Sortuj wg daty – od najstarszych</option>
@@ -471,7 +478,7 @@ body, #sidebar, #basemap-switcher {
         <summary>Filtruj kategorie</summary>
         <div id="kategorie-lista"></div>
       </details>
-      <button id="addLayerBtn">➕ Nowa warstwa</button>
+      <button id="addLayerBtn">+ Nowa warstwa</button>
       <input type="text" id="newLayerInput" style="display:none;width:90%;margin-top:5px;" placeholder="Nazwa warstwy">
       <button id="collapseAllLayers">Zwiń wszystkie warstwy</button>
       <div id="lista-warstw"></div>
@@ -490,7 +497,7 @@ body, #sidebar, #basemap-switcher {
     <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
     <input type="number" id="layerEditOrder" min="1" style="width:70px;"> <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button><br>
     <input id="layerEditEmoji" placeholder="Emoji warstwy" style="width:100%"><br>
-    <button id="layerEditDelete">🗑️ Usuń warstwę</button>
+    <button id="layerEditDelete">Usuń warstwę</button>
     <button id="layerEditClose" onclick="closeLayerEditor()">Zamknij</button>
   </div>
   <button id="exportKML">Zapisz do .KML</button>
