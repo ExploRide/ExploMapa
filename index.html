@@ -474,7 +474,6 @@ body, #sidebar, #basemap-switcher {
     <h3>Edycja warstwy</h3>
     <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
     <input type="number" id="layerEditOrder" min="1" style="width:70px;"> <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button><br>
-    <input type="text" id="layerEditEmoji" placeholder="Emoji"><br>
     <button id="layerEditDelete">🗑️ Usuń warstwę</button>
     <button id="layerEditClose" onclick="closeLayerEditor()">Zamknij</button>
   </div>
@@ -554,7 +553,6 @@ body, #sidebar, #basemap-switcher {
     let pinsToDelete = [];
     let initialLayerOrder = [];
     let layerOrderChanged = false;
-    let layerEmojiChanged = false;
     let currentTool = "hand";
     let initialLayerVisibilitySet = false;
     const handBtn = document.getElementById("handTool");
@@ -605,7 +603,7 @@ body, #sidebar, #basemap-switcher {
     function updateSaveButton() {
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
-      const layerChanges = layersToAdd.length > 0 || layersToDelete.length > 0 || layerOrderChanged || layerEmojiChanged;
+      const layerChanges = layersToAdd.length > 0 || layersToDelete.length > 0 || layerOrderChanged;
       btn.style.display = (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0 || layerChanges) ? 'block' : 'none';
     }
 
@@ -672,13 +670,6 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     function createEmojiIcon(emojiOrUrl, warstwaId) {
       const isVisited = warstwaId && warstwaId === visitedId;
       const isSztosy = warstwaId && warstwaId === sztosyId;
-      if (warstwaId === 'Pwgv6ssxu9sTvrjTaB43') {
-        return L.icon({
-          iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png',
-          iconSize: [32, 32],
-          iconAnchor: [16, 32]
-        });
-      }
       if (warstwaId && warstwaId === movingLayerId) {
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png',
@@ -905,7 +896,6 @@ function emojiHtml(str) {
 
       input.addEventListener('focus', show);
       input.addEventListener('click', show);
-      input.addEventListener('pointerdown', show);
       input.addEventListener('blur', () => {
         setTimeout(() => { list.style.display = 'none'; }, 100);
       });
@@ -989,9 +979,7 @@ function emojiHtml(str) {
           if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: data.emoji || '' };
-          } else {
-            warstwy[data.name].emoji = data.emoji || '';
+            warstwy[data.name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
           }
         });
         if (order.length > 0) {
@@ -1389,7 +1377,7 @@ const data = {
 
     function addLayer(name) {
       if (!name || warstwy[name]) return;
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
       layersToAdd.push(name);
       const order = loadLayerOrder();
       order.unshift(name);
@@ -1429,12 +1417,6 @@ const data = {
       const order = loadLayerOrder();
       const idx = order.indexOf(name);
       document.getElementById('layerEditOrder').value = idx >= 0 ? idx + 1 : (order.length + 1);
-      const emojiInput = document.getElementById('layerEditEmoji');
-      emojiInput.value = warstwy[name].emoji || '';
-      if (!emojiInput.dataset.setup) {
-        setupEmojiInput(emojiInput);
-        emojiInput.dataset.setup = '1';
-      }
       panel.style.display = 'block';
     }
 
@@ -1446,23 +1428,9 @@ const data = {
     function applyLayerEdits() {
       const newName = document.getElementById('layerEditName').value.trim();
       const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
-      const newEmoji = document.getElementById('layerEditEmoji').value.trim();
       if (newName && newName !== editedLayer) {
         applyRenameLayer(editedLayer, newName);
         editedLayer = newName;
-      }
-      if (warstwy[editedLayer] && warstwy[editedLayer].emoji !== newEmoji) {
-        layerEmojiChanged = true;
-        warstwy[editedLayer].emoji = newEmoji;
-        warstwy[editedLayer].lista.forEach(p => {
-          const cur = zmianyDoZapisania[p.id] || {};
-          cur.emoji = newEmoji;
-          zmianyDoZapisania[p.id] = cur;
-          p.emoji = newEmoji;
-          p.unsaved = true;
-          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId));
-          if (p.el) p.el.innerHTML = (p.emoji ? emojiHtml(p.emoji) + ' ' : '') + p.nazwa;
-        });
       }
       reorderLayer(editedLayer, newOrder);
       generujListeWarstw();
@@ -1511,8 +1479,7 @@ const data = {
       const saveBtn = document.getElementById('layerEditSave');
       const delBtn = document.getElementById('layerEditDelete');
       const orderInput = document.getElementById('layerEditOrder');
-      const emojiInput = document.getElementById('layerEditEmoji');
-      
+
       closeBtn.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
@@ -1676,7 +1643,7 @@ const data = {
           }
         };
         const label = document.createElement("span");
-        label.innerHTML = (warstwy[nazwa].emoji ? emojiHtml(warstwy[nazwa].emoji) + ' ' : '') + `${nazwa} (${warstwy[nazwa].lista.length})`;
+        label.textContent = `${nazwa} (${warstwy[nazwa].lista.length})`;
         const left = document.createElement("span");
         left.appendChild(checkbox);
         left.appendChild(numberSpan);
@@ -1803,11 +1770,10 @@ toggleBtn.style.verticalAlign = "top";
         const layerUpdates = Object.keys(warstwy).map(name => {
           const order = orderList.indexOf(name);
           const docId = layerDocs[name];
-          const data = {name, order, emoji: warstwy[name].emoji || ''};
           if (docId) {
-            return db.collection('layers').doc(docId).set(data);
+            return db.collection('layers').doc(docId).set({name, order});
           } else if (layersToAdd.includes(name)) {
-            return db.collection('layers').add(data);
+            return db.collection('layers').add({name, order});
           }
           return Promise.resolve();
         });
@@ -1824,7 +1790,6 @@ toggleBtn.style.verticalAlign = "top";
         layersToAdd = [];
         layersToDelete = [];
         pinsToDelete = [];
-        layerEmojiChanged = false;
         localStorage.removeItem('nowePinezki');
         location.reload();
       } catch (err) {
