@@ -36,5 +36,14 @@ const emojiList = [
   /* 🪩 Kula dyskotekowa */         "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1faa9.svg",
 
   /* ☠️ skull and crossbones */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2620.svg",
-  /* 👻 ghost */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f47b.svg"
+  /* 👻 ghost */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f47b.svg",
+
+/* red google pin */ "https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png",
+/* blue pin */ "https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png",
+/* ℹ️ information */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2139.svg",
+/* 🛈 alternate info (circled i) */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f6c8.svg",
+/* ❔ white question mark */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2754.svg",
+/* ❓ red question mark */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2753.svg",
+/* ❕ white exclamation */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2755.svg",
+/* ❗ red exclamation */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2757.svg"
 ];
