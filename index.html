@@ -896,6 +896,22 @@ function emojiHtml(str) {
       if (!input) return;
       const list = document.createElement('div');
       list.className = 'emoji-dropdown';
+      const preview = document.createElement('img');
+      preview.className = 'emoji-input-preview';
+      preview.width = 28;
+      preview.height = 28;
+      input.parentNode.insertBefore(preview, input.nextSibling);
+
+      function updatePreview() {
+        const val = input.value.trim();
+        if (val.startsWith('http')) {
+          preview.src = val;
+          preview.style.display = 'inline-block';
+        } else {
+          preview.style.display = 'none';
+        }
+      }
+
       emojiList.forEach(url => {
         const img = document.createElement('img');
         img.src = url;
@@ -906,6 +922,7 @@ function emojiHtml(str) {
         img.addEventListener('mousedown', e => {
           e.preventDefault();
           input.value = url;
+          updatePreview();
           list.style.display = 'none';
         });
         list.appendChild(img);
@@ -924,6 +941,8 @@ function emojiHtml(str) {
       input.addEventListener('blur', () => {
         setTimeout(() => { list.style.display = 'none'; }, 100);
       });
+      input.addEventListener('input', updatePreview);
+      updatePreview();
     }
 
     function initMap() {

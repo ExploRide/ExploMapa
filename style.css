@@ -16,6 +16,11 @@
   max-width: 200px;
 }
 
+.emoji-input-preview {
+  display: none;
+  margin-top: 4px;
+}
+
 #filterKategorie {
   margin-top: 5px;
 }
