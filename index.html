@@ -517,13 +517,26 @@ body, #sidebar, #basemap-switcher {
     const db = firebase.firestore();
     const storage = firebase.storage();
 
-    function slugify(str) {
+function slugify(str) {
   return str
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9_-]/gi, "_")
     .toLowerCase();
 }
+
+    function sanitize(str) {
+      return String(str || '').replace(/[\/%?#]/g, '_');
+    }
+
+    function generateSuffix(len = 6) {
+      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+      let out = '';
+      for (let i = 0; i < len; i++) {
+        out += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return out;
+    }
 
     document.getElementById("loginBtn").addEventListener("click", () => {
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -1040,7 +1053,7 @@ function emojiHtml(str) {
 
     
 function zaladujPinezkiZFirestore() {
-  db.collection("pinezki").get().then(snapshot => {
+  db.collection("pinezki2").get().then(snapshot => {
     snapshot.forEach(doc => {
       const p = doc.data();
       if (p.dataDodania && p.dataDodania.seconds !== undefined) {
@@ -1048,10 +1061,9 @@ function zaladujPinezkiZFirestore() {
       } else if (typeof p.dataDodania === 'string' || p.dataDodania instanceof Date) {
         p.dataDodania = new Date(p.dataDodania).getTime();
       }
-      const id = doc.id;
-      if (!p.id || p.id !== id) {
-        db.collection('pinezki').doc(id).update({ id }).catch(() => {});
-      }
+      const firebaseId = doc.id;
+      const id = p.IDpinezki;
+      p.firebaseId = firebaseId;
       p.id = id;
       p.slug = slugify(p.nazwa);
       if (!photosMap[p.slug]) {
@@ -1083,7 +1095,6 @@ function zaladujPinezkiZFirestore() {
       attachPopupHandlers(marker, p);
 
       p.marker = marker;
-      p.id = id;
       warstwy[warstwaNazwa].lista.push(p);
       wszystkiePinezki.push(p);
     });
@@ -1227,9 +1238,10 @@ attachPopupHandlers(p.marker, p);
 
       container.querySelector("#saveNew").addEventListener("click", (e) => {
         e.stopPropagation();
-      const nowId = 'new_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+      const newId = crypto.randomUUID();
 const data = {
-  id: nowId,
+  id: newId,
+  IDpinezki: newId,
           nazwa: container.querySelector("#nazwaNew").value,
           opis: container.querySelector("#opisNew").value,
           warstwa: container.querySelector("#warstwaNew").value,
@@ -1238,7 +1250,8 @@ const data = {
           lat: latlng.lat,
           lng: latlng.lng,
           dataDodania: Date.now(),
-          unsaved: true
+          unsaved: true,
+          firebaseId: null
         };
         saved = true;
 
@@ -1328,7 +1341,9 @@ const data = {
       }
       let changed = false;
       nowePinezki.forEach(p => {
-        if (!p.id) { p.id = 'new_' + Date.now() + '_' + Math.random().toString(36).slice(2); changed = true; }
+        if (!p.IDpinezki) { p.IDpinezki = crypto.randomUUID(); changed = true; }
+        if (!p.id) { p.id = p.IDpinezki; changed = true; }
+        if (p.firebaseId === undefined) p.firebaseId = null;
         p.unsaved = true;
         if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
@@ -1441,7 +1456,7 @@ const data = {
     function deleteLayer(name) {
       if (!warstwy[name]) return;
       warstwy[name].lista.forEach(p => {
-        if (p.id && !p.id.startsWith('new_')) pinsToDelete.push(p.id);
+        if (p.firebaseId) pinsToDelete.push(p.id);
         const idxN = nowePinezki.indexOf(p);
         if (idxN > -1) nowePinezki.splice(idxN, 1);
         delete zmianyDoZapisania[p.id];
@@ -1811,18 +1826,18 @@ toggleBtn.style.verticalAlign = "top";
     async function zapiszZmiany() {
       try {
         const updatePromises = Object.entries(zmianyDoZapisania).map(async ([id, data]) => {
-          await db.collection('pinezki').doc(id).update(data);
           const p = wszystkiePinezki.find(pp => pp.id === id);
-          if (p) {
-            p.photos = await savePhotosForPin(id, p.slug, getStoredPhotos(p.slug), p.photos || []);
-            delete p.unsaved;
-          }
+          if (!p || !p.firebaseId) return;
+          await db.collection('pinezki2').doc(p.firebaseId).update(data);
+          p.photos = await savePhotosForPin(p.firebaseId, p.slug, getStoredPhotos(p.slug), p.photos || []);
+          delete p.unsaved;
         });
 
         const addPromises = nowePinezki.map(async p => {
-          const docRef = db.collection('pinezki').doc();
-          await docRef.set({
-            id: docRef.id,
+          const suffix = generateSuffix();
+          const firebaseId = `${sanitize(p.nazwa)}_${suffix}`;
+          p.firebaseId = firebaseId;
+          await db.collection('pinezki2').doc(firebaseId).set({
             nazwa: p.nazwa,
             opis: p.opis,
             warstwa: p.warstwa,
@@ -1831,12 +1846,17 @@ toggleBtn.style.verticalAlign = "top";
             emoji: p.emoji,
             lat: p.lat,
             lng: p.lng,
-            dataDodania: firebase.firestore.FieldValue.serverTimestamp()
+            dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
+            IDpinezki: p.id
           });
-          p.photos = await savePhotosForPin(docRef.id, p.slug, getStoredPhotos(p.slug), []);
+          p.photos = await savePhotosForPin(firebaseId, p.slug, getStoredPhotos(p.slug), []);
         });
 
-        const deletePinPromises = pinsToDelete.map(id => db.collection('pinezki').doc(id).delete().catch(()=>{}));
+        const deletePinPromises = pinsToDelete.map(id => {
+          const p = wszystkiePinezki.find(pp => pp.id === id);
+          if (p && p.firebaseId) return db.collection('pinezki2').doc(p.firebaseId).delete().catch(()=>{});
+          return Promise.resolve();
+        });
 
         const orderList = loadLayerOrder();
         const layerUpdates = Object.keys(warstwy).map(name => {
@@ -1897,7 +1917,7 @@ toggleBtn.style.verticalAlign = "top";
 
     async function exportPinsToKML() {
       try {
-        const snapshot = await db.collection('pinezki').get();
+        const snapshot = await db.collection('pinezki2').get();
         const pins = [];
         snapshot.forEach(doc => pins.push(doc.data()));
         const kml = buildKml(pins);
@@ -2001,7 +2021,7 @@ toggleBtn.style.verticalAlign = "top";
       uploads.push(storage.ref().child(path).delete().catch(() => {}));
     });
     await Promise.all(uploads);
-    await db.collection('pinezki').doc(id).update({photos: finalPhotos});
+    await db.collection('pinezki2').doc(id).update({photos: finalPhotos});
     storePhotos(slug, finalPhotos);
     return finalPhotos;
   }
@@ -2021,7 +2041,9 @@ toggleBtn.style.verticalAlign = "top";
 
   function deletePinFromFirestore() {
     if (!deletePinId) return;
-    db.collection('pinezki').doc(deletePinId).delete().then(() => {
+    const p = wszystkiePinezki.find(pp => pp.id === deletePinId);
+    if (!p || !p.firebaseId) return;
+    db.collection('pinezki2').doc(p.firebaseId).delete().then(() => {
       closeDeleteModal();
       location.reload();
     }).catch(err => {
@@ -2092,7 +2114,10 @@ function confirmLayerDelete() {
       return;
     }
     await ensureMovingLayer();
-    const docRef = await db.collection('pinezki').add({
+    const suffix = generateSuffix();
+    const firebaseId = `${sanitize(name)}_${suffix}`;
+    const IDpinezki = crypto.randomUUID();
+    await db.collection('pinezki2').doc(firebaseId).set({
       nazwa: name,
       opis: '',
       warstwa: 'Tryb w ruchu',
@@ -2101,11 +2126,13 @@ function confirmLayerDelete() {
       emoji: '',
       lat: currentLocation[0],
       lng: currentLocation[1],
-      dataDodania: firebase.firestore.FieldValue.serverTimestamp()
+      dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
+      IDpinezki
     });
-    await docRef.update({id: docRef.id});
     const data = {
-      id: docRef.id,
+      id: IDpinezki,
+      IDpinezki,
+      firebaseId,
       nazwa: name,
       opis: '',
       warstwa: 'Tryb w ruchu',
