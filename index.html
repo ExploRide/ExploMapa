@@ -474,6 +474,7 @@ body, #sidebar, #basemap-switcher {
     <h3>Edycja warstwy</h3>
     <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
     <input type="number" id="layerEditOrder" min="1" style="width:70px;"> <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button><br>
+    <input id="layerEditEmoji" placeholder="Emoji warstwy" style="width:100%"><br>
     <button id="layerEditDelete">🗑️ Usuń warstwę</button>
     <button id="layerEditClose" onclick="closeLayerEditor()">Zamknij</button>
   </div>
@@ -548,6 +549,8 @@ body, #sidebar, #basemap-switcher {
     let sztosyId = null;
     let visitedId = null;
     let movingLayerId = null;
+    const orangeLayerId = 'Pwgv6ssxu9sTvrjTaB43';
+    let layerEmojiChanges = {};
     let layersToAdd = [];
     let layersToDelete = [];
     let pinsToDelete = [];
@@ -603,7 +606,7 @@ body, #sidebar, #basemap-switcher {
     function updateSaveButton() {
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
-      const layerChanges = layersToAdd.length > 0 || layersToDelete.length > 0 || layerOrderChanged;
+      const layerChanges = layersToAdd.length > 0 || layersToDelete.length > 0 || layerOrderChanged || Object.keys(layerEmojiChanges).length > 0;
       btn.style.display = (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0 || layerChanges) ? 'block' : 'none';
     }
 
@@ -670,6 +673,13 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     function createEmojiIcon(emojiOrUrl, warstwaId) {
       const isVisited = warstwaId && warstwaId === visitedId;
       const isSztosy = warstwaId && warstwaId === sztosyId;
+      if (warstwaId && warstwaId === orangeLayerId) {
+        return L.icon({
+          iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png',
+          iconSize: [32, 32],
+          iconAnchor: [16, 32]
+        });
+      }
       if (warstwaId && warstwaId === movingLayerId) {
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png',
@@ -979,7 +989,9 @@ function emojiHtml(str) {
           if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
+            warstwy[data.name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: data.emoji || '' };
+          } else if (data.emoji) {
+            warstwy[data.name].emoji = data.emoji;
           }
         });
         if (order.length > 0) {
@@ -1023,11 +1035,13 @@ function zaladujPinezkiZFirestore() {
         warstwy[warstwaNazwa] = {
           lista: [],
           layer: L.layerGroup().addTo(map),
-          collapsed: false
+          collapsed: false,
+          emoji: ''
         };
       }
 
-      const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(p.emoji, p.warstwaId) }).addTo(warstwy[warstwaNazwa].layer);
+      const iconEmoji = warstwy[warstwaNazwa].emoji || p.emoji;
+      const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId) }).addTo(warstwy[warstwaNazwa].layer);
       const popupDiv = document.createElement("div");
       popupDiv.className = "popup-container";
       popupDiv.innerHTML = createPopupHtml(p);
@@ -1121,14 +1135,16 @@ function zaladujPinezkiZFirestore() {
           const idx = warstwy[staraWarstwa].lista.indexOf(p);
           if (idx > -1) warstwy[staraWarstwa].lista.splice(idx, 1);
           if (!warstwy[p.warstwa]) {
-            warstwy[p.warstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
+            warstwy[p.warstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
           }
           warstwy[p.warstwa].lista.push(p);
           if (p.marker) p.marker.remove();
-          p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji, p.warstwaId)}).addTo(warstwy[p.warstwa].layer);
+          const iconEmoji = warstwy[p.warstwa].emoji || p.emoji;
+          p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId)}).addTo(warstwy[p.warstwa].layer);
           attachHighlight(p.marker, p.el);
         } else {
-          p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId));
+          const iconEmoji = warstwy[p.warstwa].emoji || p.emoji;
+          p.marker.setIcon(createEmojiIcon(iconEmoji, p.warstwaId));
         }
         
 const popupDiv = document.createElement("div");
@@ -1195,10 +1211,11 @@ const data = {
         const warstwaN = data.warstwa || "Inne";
         data.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
         }
         data.marker = marker;
-        marker.setIcon(createEmojiIcon(data.emoji, data.warstwaId));
+        const iconEmoji = warstwy[warstwaN].emoji || data.emoji;
+        marker.setIcon(createEmojiIcon(iconEmoji, data.warstwaId));
         data.slug = slugify(data.nazwa);
         if (!photosMap[data.slug]) {
           storePhotos(data.slug, []);
@@ -1286,9 +1303,10 @@ const data = {
         const warstwaN = p.warstwa || 'Inne';
         p.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
         }
-        const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(p.emoji, p.warstwaId)}).addTo(warstwy[warstwaN].layer);
+        const iconEmoji = warstwy[warstwaN].emoji || p.emoji;
+        const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId)}).addTo(warstwy[warstwaN].layer);
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
@@ -1377,7 +1395,7 @@ const data = {
 
     function addLayer(name) {
       if (!name || warstwy[name]) return;
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
       layersToAdd.push(name);
       const order = loadLayerOrder();
       order.unshift(name);
@@ -1417,6 +1435,7 @@ const data = {
       const order = loadLayerOrder();
       const idx = order.indexOf(name);
       document.getElementById('layerEditOrder').value = idx >= 0 ? idx + 1 : (order.length + 1);
+      document.getElementById('layerEditEmoji').value = warstwy[name].emoji || '';
       panel.style.display = 'block';
     }
 
@@ -1428,11 +1447,17 @@ const data = {
     function applyLayerEdits() {
       const newName = document.getElementById('layerEditName').value.trim();
       const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
+      const newEmoji = document.getElementById('layerEditEmoji').value.trim();
       if (newName && newName !== editedLayer) {
         applyRenameLayer(editedLayer, newName);
         editedLayer = newName;
       }
       reorderLayer(editedLayer, newOrder);
+      if (warstwy[editedLayer].emoji !== newEmoji) {
+        warstwy[editedLayer].emoji = newEmoji;
+        layerEmojiChanges[editedLayer] = newEmoji;
+        updateMarkersForLayer(editedLayer);
+      }
       generujListeWarstw();
       updateSaveButton();
       closeLayerEditor();
@@ -1472,6 +1497,16 @@ const data = {
       updateSaveButton();
     }
 
+    function updateMarkersForLayer(name) {
+      const layer = warstwy[name];
+      if (!layer) return;
+      layer.lista.forEach(p => {
+        const emoji = layer.emoji || p.emoji;
+        if (p.marker) p.marker.setIcon(createEmojiIcon(emoji, p.warstwaId));
+        if (p.el) p.el.innerHTML = (emoji ? emojiHtml(emoji) + ' ' : '') + p.nazwa;
+      });
+    }
+
     function initLayerEditor() {
       const panel = document.getElementById('layer-editor');
       if (!panel) return;
@@ -1479,6 +1514,8 @@ const data = {
       const saveBtn = document.getElementById('layerEditSave');
       const delBtn = document.getElementById('layerEditDelete');
       const orderInput = document.getElementById('layerEditOrder');
+      const emojiInput = document.getElementById('layerEditEmoji');
+      setupEmojiInput(emojiInput);
 
       closeBtn.addEventListener('click', e => {
         e.preventDefault();
@@ -1694,7 +1731,8 @@ toggleBtn.style.verticalAlign = "top";
         sorted.forEach(p => {
           const el = document.createElement("div");
           el.className = "pinezka";
-          el.innerHTML = (p.emoji ? emojiHtml(p.emoji) + ' ' : '') + p.nazwa;
+          const dispEmoji = warstwy[nazwa].emoji || p.emoji;
+          el.innerHTML = (dispEmoji ? emojiHtml(dispEmoji) + ' ' : '') + p.nazwa;
           if (p.unsaved) el.classList.add('unsaved');
           el.onclick = () => {
             map.setView([p.lat, p.lng], 16);
@@ -1770,10 +1808,11 @@ toggleBtn.style.verticalAlign = "top";
         const layerUpdates = Object.keys(warstwy).map(name => {
           const order = orderList.indexOf(name);
           const docId = layerDocs[name];
+          const payload = {name, order, emoji: warstwy[name].emoji || ''};
           if (docId) {
-            return db.collection('layers').doc(docId).set({name, order});
+            return db.collection('layers').doc(docId).set(payload);
           } else if (layersToAdd.includes(name)) {
-            return db.collection('layers').add({name, order});
+            return db.collection('layers').add(payload);
           }
           return Promise.resolve();
         });
@@ -1789,6 +1828,7 @@ toggleBtn.style.verticalAlign = "top";
         nowePinezki = [];
         layersToAdd = [];
         layersToDelete = [];
+        layerEmojiChanges = {};
         pinsToDelete = [];
         localStorage.removeItem('nowePinezki');
         location.reload();
@@ -2007,7 +2047,7 @@ function confirmLayerDelete() {
     layerDocs[name] = movingLayerId;
     layerNamesById[movingLayerId] = name;
     if (!warstwy[name]) {
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
     }
     generujListeWarstw();
   }
