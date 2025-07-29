@@ -419,7 +419,19 @@ body, #sidebar, #basemap-switcher {
   #sidebar.show { transform: translateX(0); }
   #basemap-switcher { display: none; }
   #narzedzia { left: 10px; top: 50px; }
-  #geosearch { left: 10px; right: 10px; top: 10px; }
+  #geosearch { left: 10px; right: 10px; top: 90px; }
+  #gpsFollowBtn {
+    position: fixed;
+    bottom: 20px;
+    right: 15px;
+    z-index: 1000;
+    background: #2b2b2b;
+    color: #f0f0f0;
+    border: 1px solid #444;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: none;
+  }
   #exportKML { display: none; }
   .leaflet-control-zoom { left: 10px; }
   #toggleLayers { position: fixed; top: 10px; left: 10px; z-index: 1600; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block; }
@@ -467,6 +479,7 @@ body, #sidebar, #basemap-switcher {
   </div>
   <button id="exportKML">Zapisz do .KML</button>
   <button id="saveChanges">Zapisz edycję mapy</button>
+  <button id="gpsFollowBtn">GPS</button>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -919,12 +932,35 @@ function emojiHtml(str) {
     map.on("click", e => { if (currentTool === "pin") onMapClick(e); });
 
     if (window.innerWidth <= 700) {
-      let pressTimer = null;
+      let startLatLng = null;
+      let startPoint = null;
+      let startTime = 0;
+      let moved = false;
       map.on('touchstart', e => {
-        pressTimer = setTimeout(() => openNewPinPopup(e.latlng), 2000);
+        startLatLng = e.latlng;
+        startPoint = e.containerPoint;
+        startTime = Date.now();
+        moved = false;
       });
-      map.on('touchend touchmove', () => {
-        if (pressTimer) clearTimeout(pressTimer);
+      map.on('touchmove', e => {
+        if (!startPoint) return;
+        if (e.containerPoint.distanceTo(startPoint) > 5) {
+          moved = true;
+        }
+      });
+      map.on('touchend', () => {
+        if (!moved && startLatLng && Date.now() - startTime >= 2000) {
+          openNewPinPopup(startLatLng);
+        }
+        startLatLng = null;
+        startPoint = null;
+      });
+      map.on('dragstart', () => {
+        if (followGps) {
+          followGps = false;
+          const btn = document.getElementById('gpsFollowBtn');
+          if (btn) btn.style.display = 'block';
+        }
       });
     }
 
@@ -1940,6 +1976,7 @@ function confirmLayerDelete() {
   let currentLocation = null;
   let currentMarker = null;
   const gpsIcon = L.divIcon({className:'gps-marker'});
+  let followGps = true;
 
   function initGeolocation() {
     if (!navigator.geolocation) return;
@@ -1951,7 +1988,9 @@ function confirmLayerDelete() {
       } else {
         currentMarker.setLatLng(currentLocation);
       }
-      map.setView(currentLocation, map.getZoom());
+      if (followGps) {
+        map.setView(currentLocation, map.getZoom());
+      }
     }, err => console.error('geo error', err), { enableHighAccuracy: true });
   }
 
@@ -2021,6 +2060,7 @@ function confirmLayerDelete() {
     const modal = document.getElementById('mobilePinModal');
     const ok = document.getElementById('mobilePinOk');
     const cancel = document.getElementById('mobilePinCancel');
+    const gpsBtn = document.getElementById('gpsFollowBtn');
     if (!btn || !modal || !ok || !cancel) return;
     if (window.innerWidth <= 800) {
       btn.style.display = 'block';
@@ -2045,6 +2085,15 @@ function confirmLayerDelete() {
       if (name) saveMovingPin(name);
       modal.style.display = 'none';
     });
+    if (gpsBtn) {
+      gpsBtn.addEventListener('click', () => {
+        followGps = true;
+        gpsBtn.style.display = 'none';
+        if (currentLocation) {
+          map.setView(currentLocation, map.getZoom());
+        }
+      });
+    }
   }
 
   </script>
