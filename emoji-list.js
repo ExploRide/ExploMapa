@@ -40,7 +40,7 @@ const emojiList = [
 
 /* red google pin */ "https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png",
 /* blue pin */ "https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png",
-/* orange pin */ "https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png"
+/* orange pin */ "https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png",
 /* ℹ️ information */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2139.svg",
 /* ❔ white question mark */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2754.svg",
 /* ❓ red question mark */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2753.svg",
