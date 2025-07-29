@@ -42,7 +42,7 @@
     async function dodajBrakujaceWarstwy() {
       log("⏳ Sprawdzam brakujące warstwy...");
       try {
-        const pinsSnap = await db.collection("pinezki2").get();
+        const pinsSnap = await db.collection("pinezki").get();
         const warstwy = new Set();
         pinsSnap.forEach(doc => {
           const p = doc.data();

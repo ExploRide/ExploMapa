@@ -43,14 +43,14 @@
       log("⏳ Rozpoczynam migrację...");
 
       try {
-        const snapshot = await db.collection("pinezki2").get();
+        const snapshot = await db.collection("pinezki").get();
         const batch = db.batch();
         let licznik = 0;
 
         snapshot.forEach(docSnap => {
           const dane = docSnap.data();
           if (dane.emoji === undefined) {
-            const ref = db.collection("pinezki2").doc(docSnap.id);
+            const ref = db.collection("pinezki").doc(docSnap.id);
             batch.update(ref, { emoji: "" });
             licznik++;
           }
