@@ -905,6 +905,7 @@ function emojiHtml(str) {
 
       input.addEventListener('focus', show);
       input.addEventListener('click', show);
+      input.addEventListener('pointerdown', show);
       input.addEventListener('blur', () => {
         setTimeout(() => { list.style.display = 'none'; }, 100);
       });
@@ -1428,7 +1429,12 @@ const data = {
       const order = loadLayerOrder();
       const idx = order.indexOf(name);
       document.getElementById('layerEditOrder').value = idx >= 0 ? idx + 1 : (order.length + 1);
-      document.getElementById('layerEditEmoji').value = warstwy[name].emoji || '';
+      const emojiInput = document.getElementById('layerEditEmoji');
+      emojiInput.value = warstwy[name].emoji || '';
+      if (!emojiInput.dataset.setup) {
+        setupEmojiInput(emojiInput);
+        emojiInput.dataset.setup = '1';
+      }
       panel.style.display = 'block';
     }
 
@@ -1506,8 +1512,7 @@ const data = {
       const delBtn = document.getElementById('layerEditDelete');
       const orderInput = document.getElementById('layerEditOrder');
       const emojiInput = document.getElementById('layerEditEmoji');
-      setupEmojiInput(emojiInput);
-
+      
       closeBtn.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
