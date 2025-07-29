@@ -1072,6 +1072,7 @@ function zaladujPinezkiZFirestore() {
         const oldSlug = p.slug;
         Object.assign(p, nowa);
         categories.add(p.kategoria || '');
+        selectedCategories.add(p.kategoria || '');
         updateCategoryFilter();
         p.slug = slugify(p.nazwa);
         if (oldSlug !== p.slug) {
@@ -1167,6 +1168,7 @@ const data = {
           storePhotos(data.slug, []);
         }
         categories.add(data.kategoria || '');
+        selectedCategories.add(data.kategoria || '');
         updateCategoryFilter();
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
@@ -1244,6 +1246,7 @@ const data = {
         if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
         categories.add(p.kategoria || '');
+        selectedCategories.add(p.kategoria || '');
         const warstwaN = p.warstwa || 'Inne';
         p.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
