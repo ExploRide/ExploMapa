@@ -5,11 +5,12 @@
   <title>ExploRide – Wielka Mapa Urbexu</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <link rel="stylesheet" href="style.css" />
   <script src="https://twemoji.maxcdn.com/v/latest/twemoji.min.js" crossorigin="anonymous"></script>
   <style>
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background-color: #1e1e1e; color: #f0f0f0;}
-    #map, #sidebar, #basemap-switcher, #layer-editor { display: none; }
+    #map, #sidebar, #basemap-switcher, #layer-editor, #route-editor { display: none; }
     #map { position: absolute; top: 0; left: 300px; right: 225px; bottom: 0; }
     #sidebar {
       position: absolute;
@@ -63,6 +64,26 @@
       z-index: 1550;
       pointer-events: auto;
     }
+    #route-editor {
+      position: absolute;
+      top: 0;
+      left: 300px;
+      width: 200px;
+      height: 100%;
+      background-color: #2b2b2b;
+      border-color: #444;
+      color: #f0f0f0;
+      border-left: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+      z-index: 1550;
+      pointer-events: auto;
+      display: none;
+    }
+    .trasy-lista { margin-left: 15px; }
+    .trasa-item { font-size: 12px; cursor: pointer; }
+    .route-line { stroke: #00ccff; stroke-width: 4; }
+    .route-line:hover { filter: drop-shadow(0 0 3px #00ccff); }
     .layer-separator {
       border-bottom: 1px solid #555;
       margin: 5px 0;
@@ -509,6 +530,13 @@ body, #sidebar, #basemap-switcher {
     <button id="layerEditDelete">Usuń warstwę</button>
     <button id="layerEditClose" onclick="closeLayerEditor()">Zamknij</button>
   </div>
+  <div id="route-editor">
+    <h3>Edycja trasy</h3>
+    <input type="text" id="routeEditName" placeholder="Nazwa trasy"><br>
+    <button id="routeEditDelete">Usuń trasę</button>
+    <button id="routeEditClose" onclick="closeRouteEditor()">Zamknij</button>
+    <button id="routeEditApply" onclick="applyRouteEdits()">Zastosuj</button>
+  </div>
   <button id="exportKML">Zapisz do .KML</button>
   <button id="saveChanges">Zapisz edycję mapy</button>
   <button id="gpsFollowBtn">GPS</button>
@@ -518,6 +546,7 @@ body, #sidebar, #basemap-switcher {
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="emoji-list.js"></script>
 
   <script>
@@ -602,6 +631,10 @@ function slugify(str) {
     let layerOrderChanged = false;
     let currentTool = "hand";
     let initialLayerVisibilitySet = false;
+    const rysowaneTrasy = new L.FeatureGroup();
+    window.localTrasy = [];
+    let drawingRoute = false;
+    let activeRoutePin = null;
     const handBtn = document.getElementById("handTool");
     const pinBtn = document.getElementById("pinTool");
     const mapEl = document.getElementById("map");
@@ -651,7 +684,8 @@ function slugify(str) {
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
       const layerChanges = layersToAdd.length > 0 || layersToDelete.length > 0 || layerOrderChanged || Object.keys(layerEmojiChanges).length > 0;
-      btn.style.display = (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0 || layerChanges) ? 'block' : 'none';
+      const routeChanges = window.localTrasy.length > 0;
+      btn.style.display = (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0 || layerChanges || routeChanges) ? 'block' : 'none';
     }
 
     function markPinUnsaved(slug) {
@@ -895,6 +929,7 @@ function emojiHtml(str) {
         <div>${formatCoords(p.lat, p.lng)}</div>
         <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
         <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
+        <button class="popup-route-btn" id="routeBtn-${p.id}">✏️ Dodaj trasę</button>
       `;
     }
 
@@ -909,6 +944,14 @@ function emojiHtml(str) {
           btn.addEventListener('click', ev => {
             ev.stopPropagation();
             edytuj(p.id, p.lat, p.lng);
+          });
+        }
+        const rbtn = container.querySelector(`#routeBtn-${p.id}`);
+        if (rbtn) {
+          rbtn.addEventListener('click', ev => {
+            ev.stopPropagation();
+            map.closePopup();
+            startRouteDrawing(p);
           });
         }
       };
@@ -1012,6 +1055,7 @@ function emojiHtml(str) {
     function initMap() {
       L.Popup.prototype.options.maxWidth = 800;
  map = L.map('map').setView([52.1, 20.9], 7);
+      rysowaneTrasy.addTo(map);
 
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri'
@@ -1045,7 +1089,9 @@ function emojiHtml(str) {
           labels.addTo(map); roads.addTo(map);
         });
       });
-    map.on("click", e => { if (currentTool === "pin") onMapClick(e); });
+    map.on("click", e => { if (currentTool === "pin" && !drawingRoute) onMapClick(e); });
+    map.on(L.Draw.Event.CREATED, onRouteCreated);
+    map.on('draw:drawstop', () => { drawingRoute = false; activeRoutePin = null; });
 
     if (window.innerWidth <= 700) {
       let startLatLng = null;
@@ -1147,6 +1193,14 @@ function zaladujPinezkiZFirestore() {
 
       const iconEmoji = warstwy[warstwaNazwa].emoji || p.emoji;
       const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId) }).addTo(warstwy[warstwaNazwa].layer);
+      if (p.trasy) {
+        p.trasy.forEach(tr => {
+          const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color:'#00ccff', weight:4, className:'route-line'}).addTo(rysowaneTrasy);
+          tr.layer = layer;
+        });
+      } else {
+        p.trasy = [];
+      }
       const popupDiv = document.createElement("div");
       popupDiv.className = "popup-container";
       popupDiv.innerHTML = createPopupHtml(p);
@@ -1427,6 +1481,14 @@ attachPopupHandlers(p.marker, p);
         }
         const iconEmoji = warstwy[warstwaN].emoji || p.emoji;
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId)}).addTo(warstwy[warstwaN].layer);
+        if (p.trasy) {
+          p.trasy.forEach(tr => {
+            const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color:'#00ccff', weight:4, className:'route-line'}).addTo(rysowaneTrasy);
+            tr.layer = layer;
+          });
+        } else {
+          p.trasy = [];
+        }
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
@@ -1479,11 +1541,37 @@ attachPopupHandlers(p.marker, p);
       if (marker._highlightHandler) {
         marker.off('click', marker._highlightHandler);
       }
-      marker._highlightHandler = () => {
-        highlightListItem(el);
-        marker.openPopup();
-      };
-      marker.on('click', marker._highlightHandler);
+  marker._highlightHandler = () => {
+    if (drawingRoute) return;
+    highlightListItem(el);
+    marker.openPopup();
+  };
+  marker.on('click', marker._highlightHandler);
+}
+
+    function startRouteDrawing(pin) {
+      drawingRoute = true;
+      activeRoutePin = pin;
+      const opts = {shapeOptions: {color: '#00ccff', weight: 4, className: 'route-line'}};
+      const dh = new L.Draw.Polyline(map, opts);
+      dh.enable();
+    }
+
+    function onRouteCreated(e) {
+      if (!activeRoutePin) return;
+      const layer = e.layer;
+      rysowaneTrasy.addLayer(layer);
+      const latlngs = layer.getLatLngs().map(pt => ({lat: pt.lat, lng: pt.lng}));
+      if (!activeRoutePin.trasy) activeRoutePin.trasy = [];
+      const name = 'trasa ' + (activeRoutePin.trasy.length + 1);
+      const tr = {nazwa: name, punkty: latlngs, layer};
+      activeRoutePin.trasy.push(tr);
+      window.localTrasy.push({action: 'add', pinId: activeRoutePin.id});
+      zmianyDoZapisania[activeRoutePin.id] = Object.assign(zmianyDoZapisania[activeRoutePin.id] || {}, {
+        trasy: activeRoutePin.trasy.map(t => ({nazwa: t.nazwa, punkty: t.punkty}))
+      });
+      updateSaveButton();
+      generujListeWarstw();
     }
 
     function renameLayer(oldName, labelEl) {
@@ -1662,6 +1750,49 @@ attachPopupHandlers(p.marker, p);
         confirmDeleteLayer(editedLayer);
       });
     }
+
+    let editedRoute = null;
+    function showRouteEditor(pinId, idx) {
+      const panel = document.getElementById('route-editor');
+      if (!panel) return;
+      const pin = wszystkiePinezki.find(p => p.id === pinId);
+      if (!pin || !pin.trasy || !pin.trasy[idx]) return;
+      editedRoute = {pinId, idx};
+      document.getElementById('routeEditName').value = pin.trasy[idx].nazwa;
+      panel.style.display = 'block';
+    }
+
+    function closeRouteEditor() {
+      const panel = document.getElementById('route-editor');
+      if (panel) panel.style.display = 'none';
+    }
+
+    function applyRouteEdits() {
+      if (!editedRoute) return;
+      const pin = wszystkiePinezki.find(p => p.id === editedRoute.pinId);
+      if (!pin || !pin.trasy || !pin.trasy[editedRoute.idx]) return;
+      const name = document.getElementById('routeEditName').value.trim() || pin.trasy[editedRoute.idx].nazwa;
+      pin.trasy[editedRoute.idx].nazwa = name;
+      pin.trasy[editedRoute.idx].unsaved = true;
+      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => ({nazwa:t.nazwa, punkty:t.punkty}))});
+      window.localTrasy.push({action:'update', pinId: pin.id});
+      generujListeWarstw();
+      updateSaveButton();
+      closeRouteEditor();
+    }
+
+    document.getElementById('routeEditDelete').addEventListener('click', function(){
+      if (!editedRoute) return;
+      const pin = wszystkiePinezki.find(p => p.id === editedRoute.pinId);
+      if (!pin || !pin.trasy || !pin.trasy[editedRoute.idx]) return;
+      const tr = pin.trasy.splice(editedRoute.idx,1)[0];
+      if (tr && tr.layer) rysowaneTrasy.removeLayer(tr.layer);
+      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => ({nazwa:t.nazwa, punkty:t.punkty}))});
+      window.localTrasy.push({action:'delete', pinId: pin.id});
+      generujListeWarstw();
+      updateSaveButton();
+      closeRouteEditor();
+    });
 
     function initGeoSearch() {
       const input = document.getElementById('geosearch');
@@ -1864,6 +1995,26 @@ toggleBtn.style.verticalAlign = "top";
           }
           p.el = el;
           listaP.appendChild(el);
+
+          const trList = document.createElement('div');
+          trList.className = 'trasy-lista';
+          (p.trasy || []).forEach((tr, ti) => {
+            const tEl = document.createElement('div');
+            tEl.className = 'trasa-item';
+            tEl.textContent = tr.nazwa;
+            if (tr.unsaved) tEl.classList.add('unsaved');
+            tEl.onclick = (e) => {
+              e.stopPropagation();
+              if (tr.layer) map.fitBounds(tr.layer.getBounds());
+            };
+            const editR = document.createElement('span');
+            editR.textContent = '✏️';
+            editR.style.marginLeft = '5px';
+            editR.onclick = (e) => { e.stopPropagation(); showRouteEditor(p.id, ti); };
+            tEl.appendChild(editR);
+            trList.appendChild(tEl);
+          });
+          el.appendChild(trList);
         });
 
         if (warstwy[nazwa].collapsed) listaP.classList.add("ukryta");
@@ -1896,13 +2047,13 @@ toggleBtn.style.verticalAlign = "top";
 
     async function zapiszZmiany() {
       try {
-        const updatePromises = Object.entries(zmianyDoZapisania).map(async ([id, data]) => {
-          const p = wszystkiePinezki.find(pp => pp.id === id);
-          if (!p || !p.firebaseId) return;
-          await db.collection('pinezki2').doc(p.firebaseId).update(data);
-          p.photos = await savePhotosForPin(p.firebaseId, p.slug, getStoredPhotos(p.slug), p.photos || []);
-          delete p.unsaved;
-        });
+      const updatePromises = Object.entries(zmianyDoZapisania).map(async ([id, data]) => {
+        const p = wszystkiePinezki.find(pp => pp.id === id);
+        if (!p || !p.firebaseId) return;
+        await db.collection('pinezki2').doc(p.firebaseId).update(data);
+        p.photos = await savePhotosForPin(p.firebaseId, p.slug, getStoredPhotos(p.slug), p.photos || []);
+        delete p.unsaved;
+      });
 
         const addPromises = nowePinezki.map(async p => {
           const suffix = generateSuffix();
@@ -1918,7 +2069,8 @@ toggleBtn.style.verticalAlign = "top";
             lat: p.lat,
             lng: p.lng,
             dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
-            IDpinezki: p.id
+            IDpinezki: p.id,
+            trasy: (p.trasy || []).map(t => ({nazwa: t.nazwa, punkty: t.punkty}))
           });
           p.photos = await savePhotosForPin(firebaseId, p.slug, getStoredPhotos(p.slug), []);
         });
@@ -1955,6 +2107,7 @@ toggleBtn.style.verticalAlign = "top";
         layersToDelete = [];
         layerEmojiChanges = {};
         pinsToDelete = [];
+        window.localTrasy = [];
         localStorage.removeItem('nowePinezki');
         location.reload();
       } catch (err) {
