@@ -1222,9 +1222,9 @@ attachPopupHandlers(p.marker, p);
       const saveBtnTmp = document.getElementById('saveChanges');
       if (saveBtnTmp) saveBtnTmp.style.display = 'block';
       const warstwaOptions = Object.keys(warstwy)
-          .map(n => `<option value="${n}"></option>`).join("");
+          .map(n => `<option value="${n}">${n}</option>`).join("");
       const kategoriaOptions = Array.from(categories).filter(c => c)
-          .map(c => `<option value="${c}"></option>`).join("");
+          .map(c => `<option value="${c}">${c}</option>`).join("");
       const marker = L.marker(latlng, {icon: createEmojiIcon("📍")}).addTo(map);
       const container = document.createElement("div");
       const coordsDisplay = formatCoords(latlng.lat, latlng.lng);
@@ -1233,14 +1233,55 @@ attachPopupHandlers(p.marker, p);
         <a href="https://maps.google.com/?q=${latlng.lat},${latlng.lng}" target="_blank">📍 Google Maps</a></div><br>
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
         <textarea id="opisNew" placeholder="Opis" style="width: 100%"></textarea><br>
-        <input id="warstwaNew" list="warstwaNewList" style="width: 100%">
-        <datalist id="warstwaNewList">${warstwaOptions}</datalist><br>
-        <input id="kategoriaNew" list="kategoriaNewList" placeholder="Kategoria" style="width: 100%">
-        <datalist id="kategoriaNewList">${kategoriaOptions}</datalist><br>
+        <select id="warstwaNew" style="width: 100%">
+          <option value="__new__">+ Nowa warstwa</option>
+          ${warstwaOptions}
+        </select><br>
+        <select id="kategoriaNew" style="width: 100%">
+          <option value="__new__">+ Nowa kategoria</option>
+          ${kategoriaOptions}
+        </select><br>
         <input id="emojiNew" placeholder="Emoji" style="width: 100%"><br>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
       setupEmojiInput(container.querySelector('#emojiNew'));
+
+      const layerSelect = container.querySelector('#warstwaNew');
+      const categorySelect = container.querySelector('#kategoriaNew');
+
+      layerSelect.addEventListener('change', () => {
+        if (layerSelect.value === '__new__') {
+          const name = prompt('Nazwa nowej warstwy');
+          if (name) {
+            addLayer(name);
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            layerSelect.appendChild(opt);
+            layerSelect.value = name;
+          } else {
+            layerSelect.value = '__new__';
+          }
+        }
+      });
+
+      categorySelect.addEventListener('change', () => {
+        if (categorySelect.value === '__new__') {
+          const name = prompt('Nazwa nowej kategorii');
+          if (name) {
+            categories.add(name);
+            updateCategoryFilter();
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            categorySelect.appendChild(opt);
+            categorySelect.value = name;
+          } else {
+            categorySelect.value = '__new__';
+          }
+        }
+      });
+
       const popup = marker.bindPopup(container).openPopup();
 
       let saved = false;
@@ -1255,14 +1296,16 @@ attachPopupHandlers(p.marker, p);
 
       container.querySelector("#saveNew").addEventListener("click", (e) => {
         e.stopPropagation();
-      const newId = crypto.randomUUID();
+        const layerVal = container.querySelector("#warstwaNew").value;
+        const catVal = container.querySelector("#kategoriaNew").value;
+        const newId = crypto.randomUUID();
 const data = {
   id: newId,
   IDpinezki: newId,
           nazwa: container.querySelector("#nazwaNew").value,
           opis: container.querySelector("#opisNew").value,
-          warstwa: container.querySelector("#warstwaNew").value,
-          kategoria: container.querySelector("#kategoriaNew").value,
+          warstwa: layerVal === '__new__' ? '' : layerVal,
+          kategoria: catVal === '__new__' ? '' : catVal,
           emoji: container.querySelector("#emojiNew").value,
           lat: latlng.lat,
           lng: latlng.lng,
