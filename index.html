@@ -83,6 +83,7 @@
     z-index: 1000; 
     }
     .tool-btn { font-size: 24px; background: none; border: none; cursor: pointer; font-family: "Noto Color Emoji", sans-serif; }
+    .tool-btn img { border: 1px solid #000; border-radius: 4px; }
     .tool-btn.active { background: #ddd; }
     .pinezka.active { color: #007bff; font-weight: bold; }
     .pinezka:hover { text-decoration: underline; }
@@ -188,7 +189,7 @@ width: 15px;
       z-index: 1000;
     }
     #map.pin-cursor {
-      cursor: url('https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png') 12 32, auto !important;
+      cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBkPSJNMTIgMCBMMTUgOSBMMTIgOSBMMTIgMjQgTDkgOSBMNiA5IFoiIGZpbGw9InJlZCIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9zdmc+') 12 24, auto !important;
     }
       .leaflet-grab {
     cursor: default !important;
@@ -705,29 +706,29 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       }
     }
 
-    function createEmojiIcon(emojiOrUrl, warstwaId) {
+    function createEmojiIcon(emojiOrUrl, warstwaId, size = 32) {
       const isVisited = warstwaId && warstwaId === visitedId;
       const isSztosy = warstwaId && warstwaId === sztosyId;
       if (warstwaId && warstwaId === orangeLayerId) {
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png',
-          iconSize: [32, 32],
-          iconAnchor: [16, 32]
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size]
         });
       }
       if (warstwaId && warstwaId === movingLayerId) {
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png',
-          iconSize: [32, 32],
-          iconAnchor: [16, 32]
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size]
         });
       }
 
       if (!emojiOrUrl || String(emojiOrUrl).trim() === "" || emojiOrUrl === "undefined") {
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png',
-          iconSize: [18, 29],
-          iconAnchor: [9, 29]
+          iconSize: [size * 0.56, size * 0.9],
+          iconAnchor: [size * 0.28, size * 0.9]
         });
       }
 
@@ -747,8 +748,8 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
               <img src="${emojiOrUrl}" class="${cls}" width="28" height="28">
               ${overlay}
             </div>`,
-          iconSize: [32, 32],
-          iconAnchor: [16, 32]
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size]
         });
       }
 
@@ -761,8 +762,8 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
             <span class="${cls}">${emojiOrUrl}</span>
             ${overlay}
           </div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 32]
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size]
       });
     }
 
@@ -1256,7 +1257,7 @@ attachPopupHandlers(p.marker, p);
     function openNewPinPopup(latlng) {
       const saveBtnTmp = document.getElementById('saveChanges');
       if (saveBtnTmp) saveBtnTmp.style.display = 'block';
-      const marker = L.marker(latlng, {icon: createEmojiIcon("📍")}).addTo(map);
+      const marker = L.marker(latlng, {icon: createEmojiIcon("📍", null, 24)}).addTo(map);
       const container = document.createElement("div");
       const coordsDisplay = formatCoords(latlng.lat, latlng.lng);
       container.innerHTML = `
