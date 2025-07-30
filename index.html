@@ -204,6 +204,7 @@ width: 15px;
     .inactive {
       opacity: 0.5;
       color: #999;
+      filter: saturate(50%);
     }
     #saveChanges {
       background-color: red;
@@ -1620,6 +1621,8 @@ attachPopupHandlers(p.marker, p);
     function applyInactiveStyle(p) {
       if (p.marker) {
         p.marker.setOpacity(p.nieaktywne ? 0.5 : 1);
+        const el = p.marker.getElement();
+        if (el) el.style.filter = p.nieaktywne ? 'saturate(50%)' : '';
       }
       if (p.el) {
         if (p.nieaktywne) {
