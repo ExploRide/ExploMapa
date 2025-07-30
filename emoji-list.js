@@ -26,6 +26,9 @@ const emojiList = [
   /* 🚗 Samochód */                 "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f697.svg",
   /* ⛽ Stacja benzynowa */         "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26fd.svg",
   /* ✈️ Samolot */                 "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2708.svg",
+  /* komin */ "https://cdn-icons-png.freepik.com/512/2492/2492016.png?ga=GA1.1.2137604307.1753910010",
+  /*  wiatrak */ "https://cdn-icons-png.freepik.com/512/4331/4331490.png?ga=GA1.1.2137604307.1753910010",
+
 
   /* ⛪ Kościół */                  "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26ea.svg",
   /* 🕍 Synagoga */                 "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f54d.svg",
