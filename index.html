@@ -498,7 +498,8 @@ body, #sidebar, #basemap-switcher {
   <div id="basemap-switcher">
     <h3>Rodzaj mapy</h3>
     <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
-    <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label>
+    <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label><br>
+    <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label>
   </div>
   <div id="layer-editor">
     <h3>Edycja warstwy</h3>
@@ -1019,6 +1020,13 @@ function emojiHtml(str) {
         attribution: 'Esri',
         className: 'hillshade-dark'
       });
+      const hist = L.tileLayer.wms('https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/MapServer/WMSServer', {
+        layers: 'Raster',
+        format: 'image/png',
+        transparent: false,
+        version: '1.3.0',
+        attribution: 'Geoportal.gov.pl \u2013 ortofotomapa historyczna'
+      });
       const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}');
       const roads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}');
 
@@ -1030,7 +1038,8 @@ function emojiHtml(str) {
       document.querySelectorAll('input[name="basemap"]').forEach(radio => {
         radio.addEventListener('change', () => {
           map.removeLayer(baseLayer);
-          baseLayer = (radio.value === 'sat') ? sat : hill;
+          baseLayer = (radio.value === 'sat') ? sat :
+                      (radio.value === 'hill') ? hill : hist;
           baseLayer.addTo(map);
           map.removeLayer(labels); map.removeLayer(roads);
           labels.addTo(map); roads.addTo(map);
