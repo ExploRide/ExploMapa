@@ -757,11 +757,22 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
 
     function trudnoscText(val) {
       switch (parseInt(val, 10)) {
-        case 0: return 'Bardzo łatwy';
-        case 1: return 'Łatwy';
-        case 2: return 'Średni';
-        case 3: return 'Trudny';
-        case 4: return 'Bardzo trudny';
+        case 1: return 'Bardzo łatwy';
+        case 2: return 'Łatwy';
+        case 3: return 'Średni';
+        case 4: return 'Trudny';
+        case 5: return 'Bardzo trudny';
+        default: return '';
+      }
+    }
+
+    function trudnoscColor(val) {
+      switch (parseInt(val, 10)) {
+        case 1: return 'green';
+        case 2: return 'limegreen';
+        case 3: return 'yellow';
+        case 4: return 'orange';
+        case 5: return 'red';
         default: return '';
       }
     }
@@ -935,9 +946,7 @@ function emojiHtml(str) {
       const slug = p.slug || slugify(p.nazwa || '');
       const trudHtml = p.trudnosc !== undefined ?
         `<div class="trudnosc-wrapper">
-          <div class="trudnosc-title">Poziom trudności</div>
-          <input type="range" id="trudnoscRange-${p.id}" class="trudnosc-range" min="0" max="4" step="1" value="${p.trudnosc}" disabled>
-          <div class="trudnosc-value" id="trudnoscLabel-${p.id}">${trudnoscText(p.trudnosc)}</div>
+          <div class="trudnosc-text" id="trudnoscLabel-${p.id}" style="color:${trudnoscColor(p.trudnosc)}">Poziom trudności: ${trudnoscText(p.trudnosc)}</div>
         </div>` : '';
       return `
         <div class="photo-gallery" data-slug="${slug}"></div>
@@ -1095,7 +1104,10 @@ function emojiHtml(str) {
 
     function setupTrudnoscInput(range, label) {
       if (!range || !label) return;
-      function update() { label.textContent = trudnoscText(range.value); }
+      function update() {
+        label.textContent = trudnoscText(range.value);
+        label.style.color = trudnoscColor(range.value);
+      }
       update();
       range.addEventListener('input', update);
     }
@@ -1295,8 +1307,11 @@ function zaladujPinezkiZFirestore() {
         <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 10%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
-          <input type="range" id="etrudnosc" class="trudnosc-range" min="0" max="4" step="1" value="${p.trudnosc ?? 2}">
-          <div class="trudnosc-value" id="etrudnoscLabel">${trudnoscText(p.trudnosc ?? 2)}</div>
+          <input type="range" id="etrudnosc" class="trudnosc-range" min="1" max="5" step="1" value="${p.trudnosc ?? 3}">
+          <div class="trudnosc-labels">
+            <span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
+          </div>
+          <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 3)}">${trudnoscText(p.trudnosc ?? 3)}</div>
         </div>
         <label><input type="checkbox" id="enieaktywne" ${p.nieaktywne ? 'checked' : ''}> Nieaktywne</label><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
