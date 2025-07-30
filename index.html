@@ -486,24 +486,6 @@ body, #sidebar, #basemap-switcher {
   #toggleLayers { position: fixed; top: 10px; left: 10px; z-index: 1600; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block; }
 }
 
-.popup-container {
-  position: relative;
-  padding-bottom: 32px; /* zostaw miejsce na przycisk */
-}
-
-.popup-route-btn {
-  position: absolute;
-  bottom: 4px;
-  left: 4px;
-  background: #333;
-  color: #fff;
-  border: 1px solid #666;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
   </style>
 </head>
 <body>
@@ -982,7 +964,7 @@ function emojiHtml(str) {
         <div>${formatCoords(p.lat, p.lng)}</div>
         <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
         <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
-        <button class="popup-route-btn" id="routeBtn-${p.id}">🚩 Dodaj trasę</button>
+        <button class="popup-route-btn" id="routeBtn-${p.id}">✏️ Dodaj trasę</button>
       `;
     }
 
