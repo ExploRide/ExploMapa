@@ -965,6 +965,41 @@ function emojiHtml(str) {
       updatePreview();
     }
 
+    function setupDropdownInput(input, itemsFn) {
+      if (!input) return;
+      const wrapper = document.createElement('div');
+      wrapper.style.position = 'relative';
+      input.parentNode.insertBefore(wrapper, input);
+      wrapper.appendChild(input);
+      input.style.paddingRight = '20px';
+      input.style.boxSizing = 'border-box';
+      const arrow = document.createElement('span');
+      arrow.textContent = '▼';
+      arrow.className = 'dropdown-arrow';
+      wrapper.appendChild(arrow);
+      const list = document.createElement('div');
+      list.className = 'list-dropdown';
+      wrapper.appendChild(list);
+
+      function populate() {
+        list.innerHTML = '';
+        itemsFn().forEach(item => {
+          const div = document.createElement('div');
+          div.textContent = item;
+          div.addEventListener('mousedown', e => {
+            e.preventDefault();
+            input.value = item;
+            hide();
+          });
+          list.appendChild(div);
+        });
+      }
+      function show() { populate(); list.style.display = 'block'; }
+      function hide() { list.style.display = 'none'; }
+      arrow.addEventListener('click', e => { e.stopPropagation(); list.style.display === 'block' ? hide() : show(); });
+      document.addEventListener('click', e => { if (!wrapper.contains(e.target)) hide(); });
+    }
+
     function initMap() {
       L.Popup.prototype.options.maxWidth = 800;
  map = L.map('map').setView([52.1, 20.9], 7);
@@ -1128,20 +1163,16 @@ function zaladujPinezkiZFirestore() {
         <button class="popup-add-photo" data-slug="${p.slug}">📷</button>
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
         <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
-        <input id="ewarstwa" list="warstwaEditList" value="${p.warstwa}" style="width: 100%">
-        <datalist id="warstwaEditList">
-          ${Object.keys(warstwy).map(n => `<option value="${n}"></option>`).join('')}
-        </datalist><br>
-        <input id="ekategoria" list="kategoriaEditList" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%">
-        <datalist id="kategoriaEditList">
-          ${Array.from(categories).filter(c => c).map(c => `<option value="${c}"></option>`).join('')}
-        </datalist><br>
+        <input id="ewarstwa" value="${p.warstwa || ''}" placeholder="Warstwa" style="width: 100%"><br>
+        <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 10%"><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
       `;
       setupEmojiInput(container.querySelector('#eemoji'));
       setupGallery(container.querySelector('.photo-gallery'));
+      setupDropdownInput(container.querySelector('#ewarstwa'), () => Object.keys(warstwy));
+      setupDropdownInput(container.querySelector('#ekategoria'), () => Array.from(categories).filter(c => c));
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'));
       const delBtn = container.querySelector('#deleteBtn-' + id);
       if (delBtn) {
@@ -1165,12 +1196,16 @@ function zaladujPinezkiZFirestore() {
     }
 
     function zapiszLokalnie(id) {
+      const layerVal = document.getElementById("ewarstwa").value.trim();
+      if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
+      const catVal = document.getElementById("ekategoria").value.trim();
+      if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
       const nowa = {
         nazwa: document.getElementById("enazwa").value,
         opis: document.getElementById("eopis").value,
-        warstwa: document.getElementById("ewarstwa").value,
-        warstwaId: layerDocs[document.getElementById("ewarstwa").value] || null,
-        kategoria: document.getElementById("ekategoria").value,
+        warstwa: layerVal,
+        warstwaId: layerDocs[layerVal] || null,
+        kategoria: catVal,
         emoji: document.getElementById("eemoji").value
       };
       zmianyDoZapisania[id] = nowa;
@@ -1221,10 +1256,6 @@ attachPopupHandlers(p.marker, p);
     function openNewPinPopup(latlng) {
       const saveBtnTmp = document.getElementById('saveChanges');
       if (saveBtnTmp) saveBtnTmp.style.display = 'block';
-      const warstwaOptions = Object.keys(warstwy)
-          .map(n => `<option value="${n}">${n}</option>`).join("");
-      const kategoriaOptions = Array.from(categories).filter(c => c)
-          .map(c => `<option value="${c}">${c}</option>`).join("");
       const marker = L.marker(latlng, {icon: createEmojiIcon("📍")}).addTo(map);
       const container = document.createElement("div");
       const coordsDisplay = formatCoords(latlng.lat, latlng.lng);
@@ -1233,54 +1264,15 @@ attachPopupHandlers(p.marker, p);
         <a href="https://maps.google.com/?q=${latlng.lat},${latlng.lng}" target="_blank">📍 Google Maps</a></div><br>
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
         <textarea id="opisNew" placeholder="Opis" style="width: 100%"></textarea><br>
-        <select id="warstwaNew" style="width: 100%">
-          <option value="__new__">+ Nowa warstwa</option>
-          ${warstwaOptions}
-        </select><br>
-        <select id="kategoriaNew" style="width: 100%">
-          <option value="__new__">+ Nowa kategoria</option>
-          ${kategoriaOptions}
-        </select><br>
+        <input id="warstwaNew" placeholder="Warstwa" style="width: 100%"><br>
+        <input id="kategoriaNew" placeholder="Kategoria" style="width: 100%"><br>
         <input id="emojiNew" placeholder="Emoji" style="width: 100%"><br>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
       setupEmojiInput(container.querySelector('#emojiNew'));
 
-      const layerSelect = container.querySelector('#warstwaNew');
-      const categorySelect = container.querySelector('#kategoriaNew');
-
-      layerSelect.addEventListener('change', () => {
-        if (layerSelect.value === '__new__') {
-          const name = prompt('Nazwa nowej warstwy');
-          if (name) {
-            addLayer(name);
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            layerSelect.appendChild(opt);
-            layerSelect.value = name;
-          } else {
-            layerSelect.value = '__new__';
-          }
-        }
-      });
-
-      categorySelect.addEventListener('change', () => {
-        if (categorySelect.value === '__new__') {
-          const name = prompt('Nazwa nowej kategorii');
-          if (name) {
-            categories.add(name);
-            updateCategoryFilter();
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            categorySelect.appendChild(opt);
-            categorySelect.value = name;
-          } else {
-            categorySelect.value = '__new__';
-          }
-        }
-      });
+      setupDropdownInput(container.querySelector('#warstwaNew'), () => Object.keys(warstwy));
+      setupDropdownInput(container.querySelector('#kategoriaNew'), () => Array.from(categories).filter(c => c));
 
       const popup = marker.bindPopup(container).openPopup();
 
@@ -1294,25 +1286,27 @@ attachPopupHandlers(p.marker, p);
       };
       marker.on('popupclose', removeOnClose);
 
-      container.querySelector("#saveNew").addEventListener("click", (e) => {
-        e.stopPropagation();
-        const layerVal = container.querySelector("#warstwaNew").value;
-        const catVal = container.querySelector("#kategoriaNew").value;
-        const newId = crypto.randomUUID();
-const data = {
-  id: newId,
-  IDpinezki: newId,
-          nazwa: container.querySelector("#nazwaNew").value,
-          opis: container.querySelector("#opisNew").value,
-          warstwa: layerVal === '__new__' ? '' : layerVal,
-          kategoria: catVal === '__new__' ? '' : catVal,
-          emoji: container.querySelector("#emojiNew").value,
-          lat: latlng.lat,
-          lng: latlng.lng,
-          dataDodania: Date.now(),
-          unsaved: true,
-          firebaseId: null
-        };
+        container.querySelector("#saveNew").addEventListener("click", (e) => {
+          e.stopPropagation();
+          const layerVal = container.querySelector("#warstwaNew").value.trim();
+          if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
+          const catVal = container.querySelector("#kategoriaNew").value.trim();
+          if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
+          const newId = crypto.randomUUID();
+          const data = {
+            id: newId,
+            IDpinezki: newId,
+            nazwa: container.querySelector("#nazwaNew").value,
+            opis: container.querySelector("#opisNew").value,
+            warstwa: layerVal,
+            kategoria: catVal,
+            emoji: container.querySelector("#emojiNew").value,
+            lat: latlng.lat,
+            lng: latlng.lng,
+            dataDodania: Date.now(),
+            unsaved: true,
+            firebaseId: null
+          };
         saved = true;
 
         const warstwaN = data.warstwa || "Inne";
