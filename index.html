@@ -201,6 +201,10 @@ width: 15px;
     .unsaved {
       color: red;
     }
+    .inactive {
+      opacity: 0.5;
+      color: #999;
+    }
     #saveChanges {
       background-color: red;
       position: fixed;
@@ -937,6 +941,7 @@ function emojiHtml(str) {
         <div style="border-top:1px solid #444;"></div>
         <div>Warstwa: ${p.warstwa || 'Inne'}</div>
         ${p.kategoria ? `<div>Kategoria: ${p.kategoria}</div>` : ''}
+        ${p.nieaktywne ? `<div style="opacity:0.8;">Nieaktywne</div>` : ''}
         <div>Data dodania: ${formatDate(p.dataDodania)}</div>
         <div>${formatCoords(p.lat, p.lng)}</div>
         <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
@@ -1196,6 +1201,7 @@ function zaladujPinezkiZFirestore() {
       p.firebaseId = firebaseId;
       p.id = id;
       p.trudnosc = p.trudnosc !== undefined ? p.trudnosc : 3;
+      p.nieaktywne = p.nieaktywne === true;
       p.slug = slugify(p.nazwa);
       if (!photosMap[p.slug]) {
         storePhotos(p.slug, (p.photos || []));
@@ -1236,6 +1242,7 @@ function zaladujPinezkiZFirestore() {
       attachPopupHandlers(marker, p);
 
       p.marker = marker;
+      applyInactiveStyle(p);
       warstwy[warstwaNazwa].lista.push(p);
       wszystkiePinezki.push(p);
     });
@@ -1265,6 +1272,7 @@ function zaladujPinezkiZFirestore() {
         <input id="ewarstwa" value="${p.warstwa || ''}" placeholder="Warstwa" style="width: 100%"><br>
         <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 10%"><br>
+        <label><input type="checkbox" id="enieaktywne" ${p.nieaktywne ? 'checked' : ''}> Nieaktywne</label><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
       `;
@@ -1305,7 +1313,8 @@ function zaladujPinezkiZFirestore() {
         warstwa: layerVal,
         warstwaId: layerDocs[layerVal] || null,
         kategoria: catVal,
-        emoji: document.getElementById("eemoji").value
+        emoji: document.getElementById("eemoji").value,
+        nieaktywne: document.getElementById("enieaktywne").checked
       };
       zmianyDoZapisania[id] = nowa;
       const p = wszystkiePinezki.find(pp => pp.id === id);
@@ -1338,6 +1347,7 @@ function zaladujPinezkiZFirestore() {
           const iconEmoji = warstwy[p.warstwa].emoji || p.emoji;
           p.marker.setIcon(createEmojiIcon(iconEmoji, p.warstwaId));
         }
+        applyInactiveStyle(p);
         
 const popupDiv = document.createElement("div");
 popupDiv.className = "popup-container";
@@ -1366,6 +1376,7 @@ attachPopupHandlers(p.marker, p);
         <input id="warstwaNew" placeholder="Warstwa" style="width: 100%"><br>
         <input id="kategoriaNew" placeholder="Kategoria" style="width: 100%"><br>
         <input id="emojiNew" placeholder="Emoji" style="width: 100%"><br>
+        <label><input type="checkbox" id="nieaktywneNew"> Nieaktywne</label><br>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
       setupEmojiInput(container.querySelector('#emojiNew'));
@@ -1400,6 +1411,7 @@ attachPopupHandlers(p.marker, p);
             warstwa: layerVal,
             kategoria: catVal,
             emoji: container.querySelector("#emojiNew").value,
+            nieaktywne: container.querySelector("#nieaktywneNew").checked,
             lat: latlng.lat,
             lng: latlng.lng,
             dataDodania: Date.now(),
@@ -1417,6 +1429,7 @@ attachPopupHandlers(p.marker, p);
         data.marker = marker;
         const iconEmoji = warstwy[warstwaN].emoji || data.emoji;
         marker.setIcon(createEmojiIcon(iconEmoji, data.warstwaId));
+        applyInactiveStyle(data);
         data.slug = slugify(data.nazwa);
         if (!photosMap[data.slug]) {
           storePhotos(data.slug, []);
@@ -1500,6 +1513,7 @@ attachPopupHandlers(p.marker, p);
         if (p.firebaseId === undefined) p.firebaseId = null;
         p.unsaved = true;
         if (p.trudnosc === undefined) p.trudnosc = 3;
+        if (p.nieaktywne === undefined) p.nieaktywne = false;
         if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
         categories.add(p.kategoria || '');
@@ -1527,6 +1541,7 @@ attachPopupHandlers(p.marker, p);
         marker.bindPopup(popupDiv);
         attachPopupHandlers(marker, p);
         p.marker = marker;
+        applyInactiveStyle(p);
         warstwy[warstwaN].lista.push(p);
         wszystkiePinezki.push(p);
       });
@@ -1580,6 +1595,19 @@ attachPopupHandlers(p.marker, p);
   };
   marker.on('click', marker._highlightHandler);
 }
+
+    function applyInactiveStyle(p) {
+      if (p.marker) {
+        p.marker.setOpacity(p.nieaktywne ? 0.5 : 1);
+      }
+      if (p.el) {
+        if (p.nieaktywne) {
+          p.el.classList.add('inactive');
+        } else {
+          p.el.classList.remove('inactive');
+        }
+      }
+    }
 
     function startRouteDrawing(pin) {
       drawingRoute = true;
@@ -2062,6 +2090,7 @@ toggleBtn.style.verticalAlign = "top";
             attachHighlight(p.marker, el);
           }
           p.el = el;
+          applyInactiveStyle(p);
           listaP.appendChild(el);
 
           const trList = document.createElement('div');
@@ -2136,6 +2165,7 @@ toggleBtn.style.verticalAlign = "top";
             warstwaId: p.warstwaId || null,
             kategoria: p.kategoria,
             emoji: p.emoji,
+            nieaktywne: p.nieaktywne || false,
             lat: p.lat,
             lng: p.lng,
             dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
