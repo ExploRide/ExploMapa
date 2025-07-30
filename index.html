@@ -82,9 +82,16 @@
     left: 315px;
     z-index: 1000; 
     }
-    .tool-btn { font-size: 24px; background: none; border: none; cursor: pointer; font-family: "Noto Color Emoji", sans-serif; }
-    .tool-btn img { border: 1px solid #000; border-radius: 4px; }
-    .tool-btn.active { background: #ddd; }
+    .tool-btn {
+      font-size: 24px;
+      background: #2b2b2b;
+      border: 1px solid #444;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: "Noto Color Emoji", sans-serif;
+    }
+    .tool-btn img { border: none; border-radius: 4px; }
+    .tool-btn.active { background: #444; }
     .pinezka.active { color: #007bff; font-weight: bold; }
     .pinezka:hover { text-decoration: underline; }
     .warstwa { margin-bottom: 10px; }
@@ -189,7 +196,7 @@ width: 15px;
       z-index: 1000;
     }
     #map.pin-cursor {
-      cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBkPSJNMTIgMCBMMTUgOSBMMTIgOSBMMTIgMjQgTDkgOSBMNiA5IFoiIGZpbGw9InJlZCIgc3Ryb2tlPSJibGFjayIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9zdmc+') 12 24, auto !important;
+      cursor: url('https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png') 12 24, auto !important;
     }
       .leaflet-grab {
     cursor: default !important;
