@@ -21,6 +21,34 @@
   margin-top: 4px;
 }
 
+.dropdown-arrow {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.list-dropdown {
+  position: absolute;
+  background: #2b2b2b;
+  border: 1px solid #444;
+  z-index: 2000;
+  max-height: 150px;
+  overflow-y: auto;
+  width: 100%;
+  display: none;
+}
+
+.list-dropdown div {
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.list-dropdown div:hover {
+  background: #444;
+}
+
 #filterKategorie {
   margin-top: 5px;
 }
