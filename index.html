@@ -935,6 +935,7 @@ function emojiHtml(str) {
       const slug = p.slug || slugify(p.nazwa || '');
       const trudHtml = p.trudnosc !== undefined ?
         `<div class="trudnosc-wrapper">
+          <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="trudnoscRange-${p.id}" class="trudnosc-range" min="0" max="4" step="1" value="${p.trudnosc}" disabled>
           <div class="trudnosc-value" id="trudnoscLabel-${p.id}">${trudnoscText(p.trudnosc)}</div>
         </div>` : '';
@@ -1293,6 +1294,7 @@ function zaladujPinezkiZFirestore() {
         <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 10%"><br>
         <div class="trudnosc-wrapper">
+          <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="etrudnosc" class="trudnosc-range" min="0" max="4" step="1" value="${p.trudnosc ?? 2}">
           <div class="trudnosc-value" id="etrudnoscLabel">${trudnoscText(p.trudnosc ?? 2)}</div>
         </div>

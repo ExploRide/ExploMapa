@@ -146,12 +146,29 @@
 .trudnosc-wrapper {
   margin: 6px 0;
 }
+.trudnosc-title {
+  text-align: center;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
 .trudnosc-range {
   -webkit-appearance: none;
   width: 100%;
   height: 10px;
   border-radius: 5px;
-  background: linear-gradient(to right, green, red);
+  background: repeating-linear-gradient(
+    to right,
+    green 0%,
+    green 20%,
+    limegreen 20%,
+    limegreen 40%,
+    yellow 40%,
+    yellow 60%,
+    orange 60%,
+    orange 80%,
+    red 80%,
+    red 100%
+  );
   outline: none;
 }
 .trudnosc-range::-webkit-slider-thumb {
