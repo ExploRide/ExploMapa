@@ -81,9 +81,9 @@
       display: none;
     }
     .trasy-lista { margin-left: 15px; }
-    .trasa-item { font-size: 12px; cursor: pointer; }
-    .route-line { stroke: #00ccff; stroke-width: 4; }
-    .route-line:hover { filter: drop-shadow(0 0 3px #00ccff); }
+    .trasa-item { font-size: 12px; cursor: pointer; padding-left: 4px; }
+    .route-line { stroke-width: 4; }
+    .route-line:hover { filter: drop-shadow(0 0 3px black); }
     .layer-separator {
       border-bottom: 1px solid #555;
       margin: 5px 0;
@@ -533,6 +533,8 @@ body, #sidebar, #basemap-switcher {
   <div id="route-editor">
     <h3>Edycja trasy</h3>
     <input type="text" id="routeEditName" placeholder="Nazwa trasy"><br>
+    <textarea id="routeEditDesc" placeholder="Opis trasy" style="width:100%"></textarea><br>
+    <input type="color" id="routeEditColor"><br>
     <button id="routeEditDelete">Usuń trasę</button>
     <button id="routeEditClose" onclick="closeRouteEditor()">Zamknij</button>
     <button id="routeEditApply" onclick="applyRouteEdits()">Zastosuj</button>
@@ -1196,8 +1198,10 @@ function zaladujPinezkiZFirestore() {
       const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId) }).addTo(warstwy[warstwaNazwa].layer);
       if (p.trasy) {
         p.trasy.forEach(tr => {
-          const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color:'#00ccff', weight:4, className:'route-line'}).addTo(rysowaneTrasy);
+          const color = tr.kolor || '#00ccff';
+          const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color, weight:4, className:'route-line'}).addTo(rysowaneTrasy);
           tr.layer = layer;
+          layer.on('click', e => showRoutePopup(p.id, tr, e.latlng));
         });
       } else {
         p.trasy = [];
@@ -1484,8 +1488,10 @@ attachPopupHandlers(p.marker, p);
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId)}).addTo(warstwy[warstwaN].layer);
         if (p.trasy) {
           p.trasy.forEach(tr => {
-            const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color:'#00ccff', weight:4, className:'route-line'}).addTo(rysowaneTrasy);
+            const color = tr.kolor || '#00ccff';
+            const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color, weight:4, className:'route-line'}).addTo(rysowaneTrasy);
             tr.layer = layer;
+            layer.on('click', e => showRoutePopup(p.id, tr, e.latlng));
           });
         } else {
           p.trasy = [];
@@ -1565,11 +1571,12 @@ attachPopupHandlers(p.marker, p);
       const latlngs = layer.getLatLngs().map(pt => ({lat: pt.lat, lng: pt.lng}));
       if (!activeRoutePin.trasy) activeRoutePin.trasy = [];
       const name = 'trasa ' + (activeRoutePin.trasy.length + 1);
-      const tr = {nazwa: name, punkty: latlngs, layer};
+      const tr = {nazwa: name, opis: '', kolor: '#00ccff', punkty: latlngs, layer};
       activeRoutePin.trasy.push(tr);
+      layer.on('click', ev => showRoutePopup(activeRoutePin.id, tr, ev.latlng));
       window.localTrasy.push({action: 'add', pinId: activeRoutePin.id});
       zmianyDoZapisania[activeRoutePin.id] = Object.assign(zmianyDoZapisania[activeRoutePin.id] || {}, {
-        trasy: activeRoutePin.trasy.map(t => ({nazwa: t.nazwa, punkty: t.punkty}))
+        trasy: activeRoutePin.trasy.map(t => ({nazwa: t.nazwa, opis:t.opis||'', kolor:t.kolor||'#00ccff', punkty: t.punkty}))
       });
       updateSaveButton();
       generujListeWarstw();
@@ -1760,22 +1767,57 @@ attachPopupHandlers(p.marker, p);
       if (!pin || !pin.trasy || !pin.trasy[idx]) return;
       editedRoute = {pinId, idx};
       document.getElementById('routeEditName').value = pin.trasy[idx].nazwa;
+      document.getElementById('routeEditDesc').value = pin.trasy[idx].opis || '';
+      document.getElementById('routeEditColor').value = pin.trasy[idx].kolor || '#00ccff';
       panel.style.display = 'block';
     }
 
-    function closeRouteEditor() {
-      const panel = document.getElementById('route-editor');
-      if (panel) panel.style.display = 'none';
-    }
+function closeRouteEditor() {
+  const panel = document.getElementById('route-editor');
+  if (panel) panel.style.display = 'none';
+}
+
+function showRoutePopup(pinId, tr, latlng) {
+  if (!tr || !tr.layer) return;
+  const content = `<b>${tr.nazwa}</b><br>${tr.opis || ''}<br><button id="delRouteBtn">Usuń trasę</button>`;
+  const popup = L.popup()
+    .setLatLng(latlng || tr.layer.getBounds().getCenter())
+    .setContent(content)
+    .openOn(map);
+  const btn = popup.getElement().querySelector('#delRouteBtn');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const pin = wszystkiePinezki.find(p => p.id === pinId);
+      if (!pin) return;
+      const idx = pin.trasy.indexOf(tr);
+      if (idx > -1) {
+        pin.trasy.splice(idx,1);
+        if (tr.layer) rysowaneTrasy.removeLayer(tr.layer);
+        zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => ({nazwa:t.nazwa, opis:t.opis||'', kolor:t.kolor||'#00ccff', punkty:t.punkty}))});
+        window.localTrasy.push({action:'delete', pinId: pin.id});
+        generujListeWarstw();
+        updateSaveButton();
+        map.closePopup();
+      }
+    });
+  }
+}
 
     function applyRouteEdits() {
       if (!editedRoute) return;
       const pin = wszystkiePinezki.find(p => p.id === editedRoute.pinId);
       if (!pin || !pin.trasy || !pin.trasy[editedRoute.idx]) return;
       const name = document.getElementById('routeEditName').value.trim() || pin.trasy[editedRoute.idx].nazwa;
+      const desc = document.getElementById('routeEditDesc').value.trim();
+      const color = document.getElementById('routeEditColor').value || '#00ccff';
       pin.trasy[editedRoute.idx].nazwa = name;
+      pin.trasy[editedRoute.idx].opis = desc;
+      pin.trasy[editedRoute.idx].kolor = color;
+      if (pin.trasy[editedRoute.idx].layer) {
+        pin.trasy[editedRoute.idx].layer.setStyle({color});
+      }
       pin.trasy[editedRoute.idx].unsaved = true;
-      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => ({nazwa:t.nazwa, punkty:t.punkty}))});
+      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => ({nazwa:t.nazwa, opis:t.opis||'', kolor:t.kolor||'#00ccff', punkty:t.punkty}))});
       window.localTrasy.push({action:'update', pinId: pin.id});
       generujListeWarstw();
       updateSaveButton();
@@ -1788,7 +1830,7 @@ attachPopupHandlers(p.marker, p);
       if (!pin || !pin.trasy || !pin.trasy[editedRoute.idx]) return;
       const tr = pin.trasy.splice(editedRoute.idx,1)[0];
       if (tr && tr.layer) rysowaneTrasy.removeLayer(tr.layer);
-      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => ({nazwa:t.nazwa, punkty:t.punkty}))});
+      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => ({nazwa:t.nazwa, opis:t.opis||'', kolor:t.kolor||'#00ccff', punkty:t.punkty}))});
       window.localTrasy.push({action:'delete', pinId: pin.id});
       generujListeWarstw();
       updateSaveButton();
@@ -2003,6 +2045,8 @@ toggleBtn.style.verticalAlign = "top";
             const tEl = document.createElement('div');
             tEl.className = 'trasa-item';
             tEl.textContent = tr.nazwa;
+            tEl.title = tr.opis || '';
+            tEl.style.borderLeft = `4px solid ${tr.kolor || '#00ccff'}`;
             if (tr.unsaved) tEl.classList.add('unsaved');
             tEl.onclick = (e) => {
               e.stopPropagation();
@@ -2071,7 +2115,7 @@ toggleBtn.style.verticalAlign = "top";
             lng: p.lng,
             dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
             IDpinezki: p.id,
-            trasy: (p.trasy || []).map(t => ({nazwa: t.nazwa, punkty: t.punkty}))
+            trasy: (p.trasy || []).map(t => ({nazwa: t.nazwa, opis: t.opis || '', kolor: t.kolor || '#00ccff', punkty: t.punkty}))
           });
           p.photos = await savePhotosForPin(firebaseId, p.slug, getStoredPhotos(p.slug), []);
         });
