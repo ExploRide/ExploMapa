@@ -933,13 +933,15 @@ function emojiHtml(str) {
 
     function createPopupHtml(p) {
       const slug = p.slug || slugify(p.nazwa || '');
+      const trudHtml = p.trudnosc !== undefined ?
+        `<div class="trudnosc-wrapper">
+          <input type="range" id="trudnoscRange-${p.id}" class="trudnosc-range" min="0" max="4" step="1" value="${p.trudnosc}" disabled>
+          <div class="trudnosc-value" id="trudnoscLabel-${p.id}">${trudnoscText(p.trudnosc)}</div>
+        </div>` : '';
       return `
         <div class="photo-gallery" data-slug="${slug}"></div>
         <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
-        <div class="trudnosc-wrapper">
-          <input type="range" id="trudnoscRange-${p.id}" class="trudnosc-range" min="0" max="4" step="1" value="${p.trudnosc ?? 2}" disabled>
-          <div class="trudnosc-value" id="trudnoscLabel-${p.id}">${trudnoscText(p.trudnosc ?? 2)}</div>
-        </div>
+        ${trudHtml}
         <div style="border-top:1px solid #444;"></div>
         <div style="height:4px;"></div>
         <div class="popup-description${p.opis && p.opis.length > 100 ? ' scrollable' : ''}">${linkify(p.opis)}</div>
@@ -1216,7 +1218,9 @@ function zaladujPinezkiZFirestore() {
       const id = p.IDpinezki;
       p.firebaseId = firebaseId;
       p.id = id;
-      p.trudnosc = p.trudnosc !== undefined ? p.trudnosc : 2;
+      if (p.trudnosc !== undefined) {
+        p.trudnosc = parseInt(p.trudnosc, 10);
+      }
       p.nieaktywne = p.nieaktywne === true;
       p.slug = slugify(p.nazwa);
       if (!photosMap[p.slug]) {
@@ -1438,8 +1442,7 @@ attachPopupHandlers(p.marker, p);
             lng: latlng.lng,
             dataDodania: Date.now(),
             unsaved: true,
-            firebaseId: null,
-            trudnosc: 2
+            firebaseId: null
           };
         saved = true;
 
@@ -1534,7 +1537,6 @@ attachPopupHandlers(p.marker, p);
         if (!p.id) { p.id = p.IDpinezki; changed = true; }
         if (p.firebaseId === undefined) p.firebaseId = null;
         p.unsaved = true;
-        if (p.trudnosc === undefined) p.trudnosc = 2;
         if (p.nieaktywne === undefined) p.nieaktywne = false;
         if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
@@ -2182,7 +2184,7 @@ toggleBtn.style.verticalAlign = "top";
           const suffix = generateSuffix();
           const firebaseId = `${sanitize(p.nazwa)}_${suffix}`;
           p.firebaseId = firebaseId;
-          await db.collection('pinezki2').doc(firebaseId).set({
+          const payload = {
             nazwa: p.nazwa,
             opis: p.opis,
             warstwa: p.warstwa,
@@ -2194,9 +2196,10 @@ toggleBtn.style.verticalAlign = "top";
             lng: p.lng,
             dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
             IDpinezki: p.id,
-            trudnosc: p.trudnosc || 2,
             trasy: (p.trasy || []).map(t => ({nazwa: t.nazwa, opis: t.opis || '', kolor: t.kolor || '#00ccff', punkty: t.punkty}))
-          });
+          };
+          if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
+          await db.collection('pinezki2').doc(firebaseId).set(payload);
           p.photos = await savePhotosForPin(firebaseId, p.slug, getStoredPhotos(p.slug), []);
         });
 
@@ -2485,8 +2488,7 @@ function confirmLayerDelete() {
       lat: currentLocation[0],
       lng: currentLocation[1],
       dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
-      IDpinezki,
-      trudnosc: 2
+      IDpinezki
     });
     const data = {
       id: IDpinezki,
@@ -2501,8 +2503,7 @@ function confirmLayerDelete() {
       lat: currentLocation[0],
       lng: currentLocation[1],
       dataDodania: Date.now(),
-      slug: slugify(name),
-      trudnosc: 2
+      slug: slugify(name)
     };
     const marker = L.marker(currentLocation, {icon: createEmojiIcon('', movingLayerId)}).addTo(warstwy['Tryb w ruchu'].layer);
     const popupDiv = document.createElement('div');
