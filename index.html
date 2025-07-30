@@ -1069,6 +1069,7 @@ function emojiHtml(str) {
         format: 'image/png',
         transparent: false,
         version: '1.3.0',
+        crs: L.CRS.EPSG3857,
         attribution: 'Geoportal.gov.pl \u2013 ortofotomapa historyczna'
       });
       const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}');
