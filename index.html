@@ -1128,8 +1128,14 @@ function zaladujPinezkiZFirestore() {
         <button class="popup-add-photo" data-slug="${p.slug}">📷</button>
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
         <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
-        <input id="ewarstwa" value="${p.warstwa}" style="width: 100%"><br>
-        <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
+        <input id="ewarstwa" list="warstwaEditList" value="${p.warstwa}" style="width: 100%">
+        <datalist id="warstwaEditList">
+          ${Object.keys(warstwy).map(n => `<option value="${n}"></option>`).join('')}
+        </datalist><br>
+        <input id="ekategoria" list="kategoriaEditList" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%">
+        <datalist id="kategoriaEditList">
+          ${Array.from(categories).filter(c => c).map(c => `<option value="${c}"></option>`).join('')}
+        </datalist><br>
         <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 10%"><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
@@ -1216,7 +1222,9 @@ attachPopupHandlers(p.marker, p);
       const saveBtnTmp = document.getElementById('saveChanges');
       if (saveBtnTmp) saveBtnTmp.style.display = 'block';
       const warstwaOptions = Object.keys(warstwy)
-          .map(n => `<option value="${n}">${n}</option>`).join("");
+          .map(n => `<option value="${n}"></option>`).join("");
+      const kategoriaOptions = Array.from(categories).filter(c => c)
+          .map(c => `<option value="${c}"></option>`).join("");
       const marker = L.marker(latlng, {icon: createEmojiIcon("📍")}).addTo(map);
       const container = document.createElement("div");
       const coordsDisplay = formatCoords(latlng.lat, latlng.lng);
@@ -1225,8 +1233,10 @@ attachPopupHandlers(p.marker, p);
         <a href="https://maps.google.com/?q=${latlng.lat},${latlng.lng}" target="_blank">📍 Google Maps</a></div><br>
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
         <textarea id="opisNew" placeholder="Opis" style="width: 100%"></textarea><br>
-        <select id="warstwaNew" style="width: 100%">${warstwaOptions}</select><br>
-        <input id="kategoriaNew" placeholder="Kategoria" style="width: 100%"><br>
+        <input id="warstwaNew" list="warstwaNewList" style="width: 100%">
+        <datalist id="warstwaNewList">${warstwaOptions}</datalist><br>
+        <input id="kategoriaNew" list="kategoriaNewList" placeholder="Kategoria" style="width: 100%">
+        <datalist id="kategoriaNewList">${kategoriaOptions}</datalist><br>
         <input id="emojiNew" placeholder="Emoji" style="width: 100%"><br>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
@@ -2037,7 +2047,12 @@ toggleBtn.style.verticalAlign = "top";
   function openDeleteModal(id) {
     deletePinId = id;
     const modal = document.getElementById('deleteModal');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+      const txt = modal.querySelector('#deleteModalContent div');
+      const p = wszystkiePinezki.find(pp => pp.id === id);
+      if (txt && p) txt.textContent = `Czy na pewno chcesz usunąć pinezkę ${p.nazwa}?`;
+      modal.style.display = 'flex';
+    }
   }
 
   function closeDeleteModal() {
@@ -2063,7 +2078,11 @@ let layerDeleteName = null;
 function openLayerDeleteModal(name) {
   layerDeleteName = name;
   const modal = document.getElementById("layerDeleteModal");
-  if (modal) modal.style.display = "flex";
+  if (modal) {
+    const txt = modal.querySelector('#layerDeleteModalContent div');
+    if (txt) txt.textContent = `Czy na pewno chcesz usunąć warstwę ${name} i wszystkie jej pinezki?`;
+    modal.style.display = "flex";
+  }
 }
 function closeLayerDeleteModal() {
   layerDeleteName = null;
