@@ -1373,6 +1373,14 @@ function zaladujPinezkiZFirestore() {
       setupDropdownInput(container.querySelector('#ekategoria'), () => Array.from(categories).filter(c => c));
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'));
       setupTrudnoscInput(container.querySelector('#etrudnosc'), container.querySelector('#etrudnoscLabel'));
+      const chkInactive = container.querySelector('#enieaktywne');
+      if (chkInactive) {
+        chkInactive.addEventListener('change', () => {
+          p.nieaktywne = chkInactive.checked;
+          markPinUnsaved(p.slug);
+          applyInactiveStyle(p);
+        });
+      }
       const delBtn = container.querySelector('#deleteBtn-' + id);
       if (delBtn) {
         delBtn.addEventListener('click', e => {
@@ -1480,6 +1488,14 @@ attachPopupHandlers(p.marker, p);
       setupDropdownInput(container.querySelector('#kategoriaNew'), () => Array.from(categories).filter(c => c));
 
       const popup = marker.bindPopup(container).openPopup();
+
+      const chkNewInactive = container.querySelector('#nieaktywneNew');
+      if (chkNewInactive) {
+        chkNewInactive.addEventListener('change', () => {
+          const tmp = { marker, el: null, nieaktywne: chkNewInactive.checked };
+          applyInactiveStyle(tmp);
+        });
+      }
 
       let saved = false;
       const removeOnClose = () => {
