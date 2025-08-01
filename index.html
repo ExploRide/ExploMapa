@@ -1259,8 +1259,12 @@ function emojiHtml(str) {
 
     
 function zaladujPinezkiZFirestore() {
-  db.collection("pinezki2").get().then(snapshot => {
-    snapshot.forEach(doc => {
+  Promise.all([
+    db.collection("pinezki2").get(),
+    db.collection("Pinterest_Diane_G").get()
+  ]).then(([snap1, snap2]) => {
+    ;[snap1, snap2].forEach(snapshot => {
+      snapshot.forEach(doc => {
       const p = doc.data();
       if (p.dataDodania && p.dataDodania.seconds !== undefined) {
         p.dataDodania = p.dataDodania.seconds * 1000;
@@ -1318,6 +1322,7 @@ function zaladujPinezkiZFirestore() {
       applyInactiveStyle(p);
       warstwy[warstwaNazwa].lista.push(p);
       wszystkiePinezki.push(p);
+    });
     });
     loadNewPinsFromLocal();
     updateCategoryFilter();
