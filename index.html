@@ -1301,7 +1301,7 @@ function zaladujPinezkiZFirestore() {
         <div class="photo-gallery" data-slug="${p.slug}"></div>
         <button class="popup-add-photo" data-slug="${p.slug}">📷</button>
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
-        <textarea id="eopis" style="width: 100%"></textarea><br>
+        <textarea id="eopis" style="width: 100%; height: 100px"></textarea><br>
         <input id="ewarstwa" value="${p.warstwa || ''}" placeholder="Warstwa" style="width: 100%"><br>
         <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 10%"><br>
