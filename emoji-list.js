@@ -48,5 +48,6 @@ const emojiList = [
 /* ❔ white question mark */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2754.svg",
 /* ❓ red question mark */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2753.svg",
 /* ❕ white exclamation */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2755.svg",
-/* ❗ red exclamation */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2757.svg"
+/* ❗ red exclamation */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2757.svg",
+  /* pinterest */ "https://www.svgrepo.com/show/475670/pinterest-color.svg"
 ];
