@@ -1362,7 +1362,7 @@ function zaladujPinezkiZFirestore() {
       if (eOpisInput) {
         eOpisInput.value = (p.opis || '').replace(/<br\s*\/?>/gi, '\n');
       }
-      setupEmojiPicker(container.querySelector('#emojiPicker-${id}'), p);
+      setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p);
       setupGallery(container.querySelector('.photo-gallery'));
       setupDropdownInput(container.querySelector('#ewarstwa'), () => Object.keys(warstwy));
       setupDropdownInput(container.querySelector('#ekategoria'), () => Array.from(categories).filter(c => c));
