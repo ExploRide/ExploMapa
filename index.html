@@ -1301,7 +1301,7 @@ function zaladujPinezkiZFirestore() {
         <div class="photo-gallery" data-slug="${p.slug}"></div>
         <button class="popup-add-photo" data-slug="${p.slug}">📷</button>
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
-        <textarea id="eopis" style="width: 100%">${p.opis}</textarea><br>
+        <textarea id="eopis" style="width: 100%"></textarea><br>
         <input id="ewarstwa" value="${p.warstwa || ''}" placeholder="Warstwa" style="width: 100%"><br>
         <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 10%"><br>
@@ -1317,6 +1317,10 @@ function zaladujPinezkiZFirestore() {
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
       `;
+      const eOpisInput = container.querySelector('#eopis');
+      if (eOpisInput) {
+        eOpisInput.value = (p.opis || '').replace(/<br\s*\/?>/gi, '\n');
+      }
       setupEmojiInput(container.querySelector('#eemoji'));
       setupGallery(container.querySelector('.photo-gallery'));
       setupDropdownInput(container.querySelector('#ewarstwa'), () => Object.keys(warstwy));
@@ -1351,7 +1355,7 @@ function zaladujPinezkiZFirestore() {
       if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
       const nowa = {
         nazwa: document.getElementById("enazwa").value,
-        opis: document.getElementById("eopis").value,
+        opis: document.getElementById("eopis").value.replace(/\n/g, '<br>'),
         warstwa: layerVal,
         warstwaId: layerDocs[layerVal] || null,
         kategoria: catVal,
@@ -1450,7 +1454,7 @@ attachPopupHandlers(p.marker, p);
             id: newId,
             IDpinezki: newId,
             nazwa: container.querySelector("#nazwaNew").value,
-            opis: container.querySelector("#opisNew").value,
+            opis: container.querySelector("#opisNew").value.replace(/\n/g, '<br>'),
             warstwa: layerVal,
             kategoria: catVal,
             emoji: container.querySelector("#emojiNew").value,
