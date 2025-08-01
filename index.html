@@ -1067,6 +1067,46 @@ function emojiHtml(str) {
       updatePreview();
     }
 
+    function setupEmojiPicker(container, pin) {
+      if (!container || !pin) return;
+      const preview = document.createElement('img');
+      preview.className = 'emoji-picker-preview';
+      preview.width = 28;
+      preview.height = 28;
+      function getCurrent() {
+        const val = pin.noweEmoji !== undefined ? pin.noweEmoji : pin.emoji;
+        if (!val || String(val).trim() === '' || val === 'undefined') {
+          return 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
+        }
+        return val;
+      }
+      preview.src = getCurrent();
+      container.appendChild(preview);
+
+      const grid = document.createElement('div');
+      grid.className = 'emoji-picker-grid';
+      emojiList.forEach(url => {
+        const img = document.createElement('img');
+        img.src = url;
+        img.addEventListener('click', e => {
+          e.stopPropagation();
+          preview.src = url;
+          pin.noweEmoji = url;
+          grid.style.display = 'none';
+        });
+        grid.appendChild(img);
+      });
+      container.appendChild(grid);
+
+      preview.addEventListener('click', e => {
+        e.stopPropagation();
+        grid.style.display = grid.style.display === 'flex' ? 'none' : 'flex';
+      });
+      document.addEventListener('click', function hide(e) {
+        if (!container.contains(e.target)) grid.style.display = 'none';
+      });
+    }
+
     function setupDropdownInput(input, itemsFn) {
       if (!input) return;
       const wrapper = document.createElement('div');
@@ -1295,6 +1335,7 @@ function zaladujPinezkiZFirestore() {
      /* console.log('Wywołano edytuj dla id:', id, 'lat:', lat, 'lng:', lng); // <-- dodane */
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (!p) return;
+      delete p.noweEmoji;
       const container = document.createElement("div");
       container.className = "popup-container edit-popup";
       container.innerHTML = `
@@ -1304,7 +1345,6 @@ function zaladujPinezkiZFirestore() {
         <textarea id="eopis" style="width: 100%; height: 100px"></textarea><br>
         <input id="ewarstwa" value="${p.warstwa || ''}" placeholder="Warstwa" style="width: 100%"><br>
         <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
-        <input id="eemoji" value="${p.emoji || ''}" placeholder="Emoji" style="width: 10%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="etrudnosc" class="trudnosc-range" min="1" max="5" step="1" value="${p.trudnosc ?? 3}">
@@ -1316,12 +1356,13 @@ function zaladujPinezkiZFirestore() {
         <label><input type="checkbox" id="enieaktywne" ${p.nieaktywne ? 'checked' : ''}> Nieaktywne</label><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
+        <div id="emojiPicker-${id}" class="emoji-picker"></div>
       `;
       const eOpisInput = container.querySelector('#eopis');
       if (eOpisInput) {
         eOpisInput.value = (p.opis || '').replace(/<br\s*\/?>/gi, '\n');
       }
-      setupEmojiInput(container.querySelector('#eemoji'));
+      setupEmojiPicker(container.querySelector('#emojiPicker-${id}'), p);
       setupGallery(container.querySelector('.photo-gallery'));
       setupDropdownInput(container.querySelector('#ewarstwa'), () => Object.keys(warstwy));
       setupDropdownInput(container.querySelector('#ekategoria'), () => Array.from(categories).filter(c => c));
@@ -1353,22 +1394,24 @@ function zaladujPinezkiZFirestore() {
       if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
       const catVal = document.getElementById("ekategoria").value.trim();
       if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
+      const p = wszystkiePinezki.find(pp => pp.id === id);
+      const emojiVal = p && p.noweEmoji !== undefined ? p.noweEmoji : (p ? p.emoji : '');
       const nowa = {
         nazwa: document.getElementById("enazwa").value,
         opis: document.getElementById("eopis").value.replace(/\n/g, '<br>'),
         warstwa: layerVal,
         warstwaId: layerDocs[layerVal] || null,
         kategoria: catVal,
-        emoji: document.getElementById("eemoji").value,
+        emoji: emojiVal,
         trudnosc: parseInt(document.getElementById("etrudnosc").value, 10),
         nieaktywne: document.getElementById("enieaktywne").checked
       };
       zmianyDoZapisania[id] = nowa;
-      const p = wszystkiePinezki.find(pp => pp.id === id);
       if (p) {
         const staraWarstwa = p.warstwa || "Inne";
         const oldSlug = p.slug;
         Object.assign(p, nowa);
+        delete p.noweEmoji;
         categories.add(p.kategoria || '');
         selectedCategories.add(p.kategoria || '');
         updateCategoryFilter();
