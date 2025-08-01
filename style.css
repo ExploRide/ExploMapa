@@ -190,7 +190,7 @@
   cursor: pointer;
 }
 .trudnosc-labels {
-  display: flex;
+  display: none;
   justify-content: space-between;
   font-size: 12px;
   margin-top: 2px;
