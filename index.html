@@ -568,6 +568,13 @@ body, #sidebar, #basemap-switcher {
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const storage = firebase.storage();
+    const emojiMap = {};
+    emojiList.forEach(e => { emojiMap[e.id] = e.url; });
+
+    function resolveEmoji(val) {
+      if (!val) return val;
+      return emojiMap[val] || val;
+    }
 
 function slugify(str) {
   return str
@@ -778,6 +785,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     }
 
     function createEmojiIcon(emojiOrUrl, warstwaId, size = 32) {
+      emojiOrUrl = resolveEmoji(emojiOrUrl);
       const isVisited = warstwaId && warstwaId === visitedId;
       const isSztosy = warstwaId && warstwaId === sztosyId;
       if (warstwaId && warstwaId === orangeLayerId) {
@@ -841,10 +849,11 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
 
 function emojiHtml(str) {
   if (!str) return '';
-  if (str.startsWith('http')) {
-    return `<span class="hidden-text">${str} </span><img src="${str}" class="emoji-inline">`;
+  const url = resolveEmoji(str);
+  if (url.startsWith('http')) {
+    return `<span class="hidden-text">${str} </span><img src="${url}" class="emoji-inline">`;
   }
-  return str;
+  return url;
 }
 
 
@@ -1026,15 +1035,16 @@ function emojiHtml(str) {
 
       function updatePreview() {
         const val = input.value.trim();
-        if (val.startsWith('http')) {
-          preview.src = val;
+        const url = resolveEmoji(val);
+        if (url && url.startsWith('http')) {
+          preview.src = url;
           preview.style.display = 'inline-block';
         } else {
           preview.style.display = 'none';
         }
       }
 
-      emojiList.forEach(url => {
+      emojiList.forEach(({id, url}) => {
         const img = document.createElement('img');
         img.src = url;
         img.width = 24;
@@ -1043,7 +1053,7 @@ function emojiHtml(str) {
         img.style.margin = '2px';
         img.addEventListener('mousedown', e => {
           e.preventDefault();
-          input.value = url;
+          input.value = id;
           updatePreview();
           list.style.display = 'none';
         });
@@ -1078,20 +1088,20 @@ function emojiHtml(str) {
         if (!val || String(val).trim() === '' || val === 'undefined') {
           return 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
         }
-        return val;
+        return resolveEmoji(val);
       }
       preview.src = getCurrent();
       container.appendChild(preview);
 
       const grid = document.createElement('div');
       grid.className = 'emoji-picker-grid';
-      emojiList.forEach(url => {
+      emojiList.forEach(({id, url}) => {
         const img = document.createElement('img');
         img.src = url;
         img.addEventListener('click', e => {
           e.stopPropagation();
           preview.src = url;
-          pin.noweEmoji = url;
+          pin.noweEmoji = id;
           grid.style.display = 'none';
         });
         grid.appendChild(img);
