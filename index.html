@@ -514,7 +514,8 @@ body, #sidebar, #basemap-switcher {
       </details>
       <button id="addLayerBtn">+ Nowa warstwa</button>
       <input type="text" id="newLayerInput" style="display:none;width:90%;margin-top:5px;" placeholder="Nazwa warstwy">
-      <button id="collapseAllLayers">Zwiń wszystkie warstwy</button>
+        <button id="collapseAllLayers">Zwiń wszystkie warstwy</button>
+        <button id="toggleVisibility">Ukryj wszystkie warstwy</button>
       <div id="lista-warstw"></div>
     </div>
   </div>
@@ -668,7 +669,9 @@ function slugify(str) {
     const addLayerBtn = document.getElementById('addLayerBtn');
     const newLayerInput = document.getElementById('newLayerInput');
     const collapseAllBtn = document.getElementById('collapseAllLayers');
+    const toggleVisibilityBtn = document.getElementById('toggleVisibility');
     let allLayersCollapsed = false;
+    let allLayersVisible = true;
     if (addLayerBtn && newLayerInput) {
       addLayerBtn.addEventListener('click', () => {
         newLayerInput.style.display = 'block';
@@ -690,6 +693,21 @@ function slugify(str) {
         allLayersCollapsed = !allLayersCollapsed;
         Object.keys(warstwy).forEach(n => { warstwy[n].collapsed = allLayersCollapsed; });
         collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń wszystkie warstwy' : 'Zwiń wszystkie warstwy';
+        generujListeWarstw();
+      });
+    }
+    if (toggleVisibilityBtn) {
+      toggleVisibilityBtn.addEventListener('click', () => {
+        allLayersVisible = !allLayersVisible;
+        Object.keys(warstwy).forEach(n => {
+          warstwy[n].visible = allLayersVisible;
+          if (allLayersVisible) {
+            warstwy[n].layer.addTo(map);
+          } else {
+            map.removeLayer(warstwy[n].layer);
+          }
+        });
+        toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
         generujListeWarstw();
       });
     }
@@ -2263,6 +2281,10 @@ toggleBtn.style.verticalAlign = "top";
           el.style.display = el.textContent.toLowerCase().includes(q) ? "block" : "none";
         });
       });
+      allLayersVisible = Object.values(warstwy).every(w => w.visible);
+      if (toggleVisibilityBtn) {
+        toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
+      }
     }
 
     async function zapiszZmiany() {
