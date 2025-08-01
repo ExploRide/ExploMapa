@@ -1110,7 +1110,7 @@ function emojiHtml(str) {
 
       preview.addEventListener('click', e => {
         e.stopPropagation();
-        grid.style.display = grid.style.display === 'flex' ? 'none' : 'flex';
+        grid.style.display = grid.style.display === 'grid' ? 'none' : 'grid';
       });
       document.addEventListener('click', function hide(e) {
         if (!container.contains(e.target)) grid.style.display = 'none';
