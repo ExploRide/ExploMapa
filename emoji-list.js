@@ -1,53 +1,48 @@
 const emojiList = [
-  /* 🏠 Dom */        "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e0.svg",
-  /* 🏡 Dom z ogrodem */      "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e1.svg",
-  /* 🏢 Biurowiec */          "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e2.svg",
-  /* 🏣 Poczta japońska */    "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e3.svg",
-  /* 🏤 Poczta europejska */  "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e4.svg",
-  /* 🏥 Szpital */            "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e5.svg",
-  /* 🏦 Bank */               "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e6.svg",
-  /* 🏨 Hotel */              "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e8.svg",
-  /* 🏩 Love hotel */         "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e9.svg",
-  /* 🏪 Sklep nocny */        "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ea.svg",
-  /* 🏫 Szkoła */             "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3eb.svg",
-  /* 🏬 Centrum handlowe */   "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ec.svg",
-  /* 🏭 Fabryka */            "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ed.svg",
-  /* 🏰 Zamek europejski */   "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3f0.svg",
-  /* 🏛️ Budynek klasyczny */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3db.svg",
-  /* 🏚️ Opuszczony dom */     "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3da.svg",
-
-  /* 🏟️ Stadion */                 "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3df.svg",
-  /* 🏗️ Dźwig budowlany */         "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3d7.svg",
-  /* 🏘️ Osiedle domków */          "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3d8.svg",
-  /* 🗼 Wieża (Tokyo Tower) */      "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f5fc.svg",
-  /* 🎡 Diabelski młyn */           "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3a1.svg",
-  /* 🚂 Lokomotywa */               "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f682.svg",
-  /* 🚓 Radiowóz policyjny */       "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f693.svg",
-  /* 🚗 Samochód */                 "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f697.svg",
-  /* ⛽ Stacja benzynowa */         "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26fd.svg",
-  /* ✈️ Samolot */                 "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2708.svg",
-  /* komin */ "https://cdn-icons-png.freepik.com/512/2492/2492016.png?ga=GA1.1.2137604307.1753910010",
-  /*  wiatrak */ "https://cdn-icons-png.freepik.com/512/4331/4331490.png?ga=GA1.1.2137604307.1753910010",
-
-
-  /* ⛪ Kościół */                  "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26ea.svg",
-  /* 🕍 Synagoga */                 "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f54d.svg",
-  /* ⛴️ Prom/statki */             "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26f4.svg",
-  /* 🎬 Klaps filmowy */            "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg",
-  /* 🚫 Zakaz wstępu */             "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f6ab.svg",
-  /* 🔐 Zamek z kluczem */          "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f510.svg",
-  /* 🪩 Kula dyskotekowa */         "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1faa9.svg",
-
-  /* ☠️ skull and crossbones */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2620.svg",
-  /* 👻 ghost */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f47b.svg",
-
-/* red google pin */ "https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png",
-/* blue pin */ "https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png",
-/* orange pin */ "https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png",
-/* ℹ️ information */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2139.svg",
-/* ❔ white question mark */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2754.svg",
-/* ❓ red question mark */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2753.svg",
-/* ❕ white exclamation */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2755.svg",
-/* ❗ red exclamation */ "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2757.svg",
-  /* pinterest */ "https://www.svgrepo.com/show/475670/pinterest-color.svg"
+  { id: "emoji1", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e0.svg" }, // 🏠 Dom
+  { id: "emoji2", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e1.svg" }, // 🏡 Dom z ogrodem
+  { id: "emoji3", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e2.svg" }, // 🏢 Biurowiec
+  { id: "emoji4", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e3.svg" }, // 🏣 Poczta japońska
+  { id: "emoji5", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e4.svg" }, // 🏤 Poczta europejska
+  { id: "emoji6", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e5.svg" }, // 🏥 Szpital
+  { id: "emoji7", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e6.svg" }, // 🏦 Bank
+  { id: "emoji8", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e8.svg" }, // 🏨 Hotel
+  { id: "emoji9", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e9.svg" }, // 🏩 Love hotel
+  { id: "emoji10", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ea.svg" }, // 🏪 Sklep nocny
+  { id: "emoji11", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3eb.svg" }, // 🏫 Szkoła
+  { id: "emoji12", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ec.svg" }, // 🏬 Centrum handlowe
+  { id: "emoji13", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ed.svg" }, // 🏭 Fabryka
+  { id: "emoji14", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3f0.svg" }, // 🏰 Zamek europejski
+  { id: "emoji15", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3db.svg" }, // 🏛️ Budynek klasyczny
+  { id: "emoji16", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3da.svg" }, // 🏚️ Opuszczony dom
+  { id: "emoji17", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3df.svg" }, // 🏟️ Stadion
+  { id: "emoji18", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3d7.svg" }, // 🏗️ Dźwig budowlany
+  { id: "emoji19", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3d8.svg" }, // 🏘️ Osiedle domków
+  { id: "emoji20", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f5fc.svg" }, // 🗼 Wieża (Tokyo Tower)
+  { id: "emoji21", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3a1.svg" }, // 🎡 Diabelski młyn
+  { id: "emoji22", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f682.svg" }, // 🚂 Lokomotywa
+  { id: "emoji23", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f693.svg" }, // 🚓 Radiowóz
+  { id: "emoji24", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f697.svg" }, // 🚗 Samochód
+  { id: "emoji25", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26fd.svg" }, // ⛽ Stacja
+  { id: "emoji26", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2708.svg" }, // ✈️ Samolot
+  { id: "emoji27", url: "https://cdn-icons-png.freepik.com/512/2492/2492016.png?ga=GA1.1.2137604307.1753910010" }, // komin
+  { id: "emoji28", url: "https://cdn-icons-png.freepik.com/512/4331/4331490.png?ga=GA1.1.2137604307.1753910010" }, // wiatrak
+  { id: "emoji29", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26ea.svg" }, // ⛪ Kościół
+  { id: "emoji30", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f54d.svg" }, // 🕍 Synagoga
+  { id: "emoji31", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26f4.svg" }, // ⛴️ Prom
+  { id: "emoji32", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3ac.svg" }, // 🎬 Klaps
+  { id: "emoji33", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f6ab.svg" }, // 🚫 Zakaz
+  { id: "emoji34", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f510.svg" }, // 🔐 Zamek
+  { id: "emoji35", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1faa9.svg" }, // 🪩 Kula
+  { id: "emoji36", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2620.svg" }, // ☠️ Skull
+  { id: "emoji37", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f47b.svg" }, // 👻 Ghost
+  { id: "emoji38", url: "https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png" }, // red pin
+  { id: "emoji39", url: "https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png" }, // blue pin
+  { id: "emoji40", url: "https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png" }, // orange pin
+  { id: "emoji41", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2139.svg" }, // ℹ️ info
+  { id: "emoji42", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2754.svg" }, // ❔ białe ?
+  { id: "emoji43", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2753.svg" }, // ❓ czerwone ?
+  { id: "emoji44", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2755.svg" }, // ❕ białe !
+  { id: "emoji45", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2757.svg" }, // ❗ czerwone !
+  { id: "emoji46", url: "https://www.svgrepo.com/show/475670/pinterest-color.svg" } // pinterest
 ];
