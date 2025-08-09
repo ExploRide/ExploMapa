@@ -527,6 +527,13 @@ body, #sidebar, #basemap-switcher {
     <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label>
+
+    <div id="route-controls">
+      <h3>Wyznacz trasę</h3>
+      <input type="text" id="routeStart" placeholder="Punkt początkowy"><br>
+      <input type="text" id="routeEnd" placeholder="Punkt końcowy"><br>
+      <button id="routeCalculate">Pokaż trasę</button>
+    </div>
   </div>
   <div id="layer-editor">
     <h3>Edycja warstwy</h3>
@@ -618,10 +625,11 @@ function slugify(str) {
         zaladujPinezkiZFirestore();
         initGeoSearch();
         setupMobile();
+        initRouteSearch();
       });
     });
 
-    let map, baseLayer;
+    let map, baseLayer, routingLayer;
     const warstwy = {};
     let wszystkiePinezki = [];
     let draggedLayer = null;
@@ -1184,6 +1192,7 @@ function emojiHtml(str) {
       L.Popup.prototype.options.maxWidth = 800;
  map = L.map('map').setView([52.1, 20.9], 7);
       rysowaneTrasy.addTo(map);
+      routingLayer = L.layerGroup().addTo(map);
 
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri'
@@ -2061,6 +2070,58 @@ function showRoutePopup(pinId, tr, latlng) {
             alert('Błąd geokodowania');
           });
       });
+    }
+
+    function initRouteSearch() {
+      const btn = document.getElementById('routeCalculate');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const start = document.getElementById('routeStart').value.trim();
+        const end = document.getElementById('routeEnd').value.trim();
+        if (!start || !end) {
+          alert('Podaj adresy obu punktów');
+          return;
+        }
+        await showRoute(start, end);
+      });
+    }
+
+    async function geocodeAddress(addr) {
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}`);
+      const data = await resp.json();
+      if (!data || !data[0]) throw new Error('Nie znaleziono adresu');
+      return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+    }
+
+    async function showRoute(startAddr, endAddr) {
+      try {
+        if (window.google && google.maps && google.maps.DirectionsService) {
+          const directionsService = new google.maps.DirectionsService();
+          const res = await directionsService.route({
+            origin: startAddr,
+            destination: endAddr,
+            travelMode: google.maps.TravelMode.DRIVING
+          });
+          const pts = res.routes[0].overview_path.map(p => [p.lat(), p.lng()]);
+          routingLayer.clearLayers();
+          const line = L.polyline(pts, {color: '#ff0000', weight: 4, className: 'route-line'}).addTo(routingLayer);
+          map.fitBounds(line.getBounds());
+        } else {
+          const [sLat, sLon] = await geocodeAddress(startAddr);
+          const [eLat, eLon] = await geocodeAddress(endAddr);
+          const url = `https://router.project-osrm.org/route/v1/driving/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`;
+          const r = await fetch(url);
+          const json = await r.json();
+          if (!json.routes || !json.routes[0]) throw new Error('Brak trasy');
+          const coords = json.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+          routingLayer.clearLayers();
+          const line = L.polyline(coords, {color: '#ff0000', weight: 4, className: 'route-line'}).addTo(routingLayer);
+          map.fitBounds(line.getBounds());
+        }
+      } catch (err) {
+        console.error('Route error', err);
+        alert('Nie udało się wyznaczyć trasy');
+      }
     }
 
     function updateCategoryFilter() {
