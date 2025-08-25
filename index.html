@@ -528,6 +528,10 @@ body, #sidebar, #basemap-switcher {
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label>
 
+    <h3>Widok ulic</h3>
+    <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
+    <label><input type="radio" name="streets" value="main"> Tylko główne trasy</label><br>
+
     <div id="route-controls">
       <h3>Wyznacz trasę</h3>
       <input type="text" id="routeStart" placeholder="Punkt początkowy"><br>
@@ -629,7 +633,7 @@ function slugify(str) {
       });
     });
 
-    let map, baseLayer, routingLayer;
+    let map, baseLayer, routingLayer, roadsLayer;
     const warstwy = {};
     let wszystkiePinezki = [];
     let draggedLayer = null;
@@ -1210,12 +1214,14 @@ function emojiHtml(str) {
         attribution: 'Geoportal.gov.pl \u2013 ortofotomapa historyczna'
       });
       const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}');
-      const roads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}');
+      const roadsFull = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}');
+      const roadsSimple = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 12, maxZoom: 18 });
 
       baseLayer = sat;
       baseLayer.addTo(map);
       labels.addTo(map);
-      roads.addTo(map);
+      roadsLayer = roadsFull;
+      roadsLayer.addTo(map);
 
       document.querySelectorAll('input[name="basemap"]').forEach(radio => {
         radio.addEventListener('change', () => {
@@ -1223,8 +1229,16 @@ function emojiHtml(str) {
           baseLayer = (radio.value === 'sat') ? sat :
                       (radio.value === 'hill') ? hill : hist;
           baseLayer.addTo(map);
-          map.removeLayer(labels); map.removeLayer(roads);
-          labels.addTo(map); roads.addTo(map);
+          map.removeLayer(labels); map.removeLayer(roadsLayer);
+          labels.addTo(map); roadsLayer.addTo(map);
+        });
+      });
+
+      document.querySelectorAll('input[name="streets"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          map.removeLayer(roadsLayer);
+          roadsLayer = (radio.value === 'main') ? roadsSimple : roadsFull;
+          roadsLayer.addTo(map);
         });
       });
     map.on("click", e => { if (currentTool === "pin" && !drawingRoute) onMapClick(e); });
