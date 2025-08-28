@@ -536,7 +536,7 @@ body, #sidebar, #basemap-switcher {
       </details>
       <button id="addLayerBtn">+ Nowa warstwa</button>
       <input type="text" id="newLayerInput" style="display:none;width:90%;margin-top:5px;" placeholder="Nazwa warstwy">
-        <button id="collapseAllLayers">Zwiń wszystkie warstwy</button>
+        <button id="collapseAllLayers">Rozwiń wszystkie warstwy</button>
         <button id="toggleVisibility">Ukryj wszystkie warstwy</button>
       <div id="lista-warstw"></div>
     </div>
@@ -704,7 +704,7 @@ function slugify(str) {
     const newLayerInput = document.getElementById('newLayerInput');
     const collapseAllBtn = document.getElementById('collapseAllLayers');
     const toggleVisibilityBtn = document.getElementById('toggleVisibility');
-    let allLayersCollapsed = false;
+    let allLayersCollapsed = true;
     let allLayersVisible = true;
     if (addLayerBtn && newLayerInput) {
       addLayerBtn.addEventListener('click', () => {
@@ -1315,7 +1315,7 @@ function emojiHtml(str) {
           if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: L.layerGroup(), collapsed: false, emoji: data.emoji || '' };
+            warstwy[data.name] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: data.emoji || '' };
           } else if (data.emoji) {
             warstwy[data.name].emoji = data.emoji;
           }
@@ -1370,7 +1370,7 @@ function zaladujPinezkiZFirestore() {
         warstwy[warstwaNazwa] = {
           lista: [],
           layer: L.layerGroup(),
-          collapsed: false,
+          collapsed: true,
           emoji: ''
         };
       }
@@ -1516,7 +1516,7 @@ function zaladujPinezkiZFirestore() {
           const idx = warstwy[staraWarstwa].lista.indexOf(p);
           if (idx > -1) warstwy[staraWarstwa].lista.splice(idx, 1);
           if (!warstwy[p.warstwa]) {
-            warstwy[p.warstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
+            warstwy[p.warstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
           }
           warstwy[p.warstwa].lista.push(p);
           if (p.marker) p.marker.remove();
@@ -1611,7 +1611,7 @@ attachPopupHandlers(p.marker, p);
         const warstwaN = data.warstwa || "Inne";
         data.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
         }
         data.marker = marker;
         const iconEmoji = warstwy[warstwaN].emoji || data.emoji;
@@ -1707,7 +1707,7 @@ attachPopupHandlers(p.marker, p);
         const warstwaN = p.warstwa || 'Inne';
         p.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
         }
         const iconEmoji = warstwy[warstwaN].emoji || p.emoji;
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId)}).addTo(warstwy[warstwaN].layer);
@@ -1852,7 +1852,7 @@ attachPopupHandlers(p.marker, p);
 
     function addLayer(name) {
       if (!name || warstwy[name]) return;
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
       layersToAdd.push(name);
       const order = loadLayerOrder();
       order.unshift(name);
@@ -2682,7 +2682,7 @@ function confirmLayerDelete() {
     layerDocs[name] = movingLayerId;
     layerNamesById[movingLayerId] = name;
     if (!warstwy[name]) {
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: '' };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
     }
     generujListeWarstw();
   }
