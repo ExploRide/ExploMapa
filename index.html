@@ -460,6 +460,27 @@ body, #sidebar, #basemap-switcher {
   border-radius: 2px;
 }
 
+#loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2000;
+  display: none;
+}
+.loader {
+  border: 8px solid #f3f3f3;
+  border-top: 8px solid #007bff;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 #toggleLayers { display: none; }
 
 @media (max-width: 700px) {
@@ -490,6 +511,7 @@ body, #sidebar, #basemap-switcher {
 </head>
 <body>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
+  <div id="loading"><div class="loader"></div></div>
   <div id="sidebar">
     <div id="sidebar-inner">
       <h2 id="logoNaglowek">ExploMapy</h2>
@@ -1293,7 +1315,7 @@ function emojiHtml(str) {
           if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: false, emoji: data.emoji || '' };
+            warstwy[data.name] = { lista: [], layer: L.layerGroup(), collapsed: false, emoji: data.emoji || '' };
           } else if (data.emoji) {
             warstwy[data.name].emoji = data.emoji;
           }
@@ -1310,6 +1332,8 @@ function emojiHtml(str) {
 
     
 function zaladujPinezkiZFirestore() {
+  const loading = document.getElementById('loading');
+  if (loading) loading.style.display = 'block';
   Promise.all([
     db.collection("pinezki2").get(),
     db.collection("Pinterest_Diane_G").get()
@@ -1345,7 +1369,7 @@ function zaladujPinezkiZFirestore() {
       if (!warstwy[warstwaNazwa]) {
         warstwy[warstwaNazwa] = {
           lista: [],
-          layer: L.layerGroup().addTo(map),
+          layer: L.layerGroup(),
           collapsed: false,
           emoji: ''
         };
@@ -1384,6 +1408,8 @@ function zaladujPinezkiZFirestore() {
     loadNewPinsFromLocal();
     updateCategoryFilter();
     generujListeWarstw();
+  }).finally(() => {
+    if (loading) loading.style.display = 'none';
   });
 }
 
