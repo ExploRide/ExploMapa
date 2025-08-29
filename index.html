@@ -214,7 +214,7 @@ width: 15px;
       z-index: 1000;
     }
     #map.pin-cursor {
-      cursor: url('https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png') 12 36, auto !important;
+      cursor: crosshair;
     }
       .leaflet-grab {
     cursor: default !important;
@@ -760,6 +760,7 @@ function slugify(str) {
     const handBtn = document.getElementById("handTool");
     const pinBtn = document.getElementById("pinTool");
     const mapEl = document.getElementById("map");
+    const pinCursorUrl = 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
     let searchLayer = null;
     let searchMarker = null;
     const greenIcon = L.icon({
@@ -845,6 +846,33 @@ function slugify(str) {
       }
       updateSaveButton();
     }
+    function applyPinCursor() {
+      if (!mapEl) return;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        const max = 128;
+        let url = pinCursorUrl;
+        if (w > max || h > max) {
+          const scale = Math.min(max / w, max / h);
+          const canvas = document.createElement('canvas');
+          canvas.width = w * scale;
+          canvas.height = h * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          url = canvas.toDataURL('image/png');
+          w = canvas.width;
+          h = canvas.height;
+        }
+        mapEl.style.cursor = `url(${url}) ${w / 2} ${h}, auto`;
+      };
+      img.src = pinCursorUrl;
+    }
+    function clearPinCursor() {
+      if (mapEl) mapEl.style.cursor = '';
+    }
     function selectTool(t) {
       currentTool = t;
       handBtn.classList.toggle("active", t === "hand");
@@ -852,8 +880,10 @@ function slugify(str) {
       if (mapEl) {
         if (t === "pin") {
           mapEl.classList.add("pin-cursor");
+          applyPinCursor();
         } else {
           mapEl.classList.remove("pin-cursor");
+          clearPinCursor();
         }
       }
       const cm = document.getElementById('centerMarker');
@@ -935,25 +965,36 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       const isVisited = warstwaId && warstwaId === visitedId;
       const isSztosy = warstwaId && warstwaId === sztosyId;
       if (warstwaId && warstwaId === orangeLayerId) {
+        const anchor = [size / 2, size];
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png',
           iconSize: [size, size],
-          iconAnchor: [size / 2, size]
+          iconAnchor: anchor,
+          popupAnchor: [0, -anchor[1]],
+          tooltipAnchor: [0, -anchor[1]]
         });
       }
       if (warstwaId && warstwaId === movingLayerId) {
+        const anchor = [size / 2, size];
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png',
           iconSize: [size, size],
-          iconAnchor: [size / 2, size]
+          iconAnchor: anchor,
+          popupAnchor: [0, -anchor[1]],
+          tooltipAnchor: [0, -anchor[1]]
         });
       }
 
       if (!emojiOrUrl || String(emojiOrUrl).trim() === "" || emojiOrUrl === "undefined") {
+        const w = size * 0.56;
+        const h = size * 0.9;
+        const anchor = [w / 2, h];
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png',
-          iconSize: [size * 0.56, size * 0.9],
-          iconAnchor: [size * 0.28, size * 0.9]
+          iconSize: [w, h],
+          iconAnchor: anchor,
+          popupAnchor: [0, -anchor[1]],
+          tooltipAnchor: [0, -anchor[1]]
         });
       }
 
@@ -966,6 +1007,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
 
       if (isUrl) {
         const cls = isSztosy ? "emoji-obrys-sztosy" : "emoji-obrys";
+        const anchor = [size / 2, size];
         return L.divIcon({
           className: 'emoji-marker',
           html: `
@@ -974,11 +1016,14 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
               ${overlay}
             </div>`,
           iconSize: [size, size],
-          iconAnchor: [size / 2, size]
+          iconAnchor: anchor,
+          popupAnchor: [0, -anchor[1]],
+          tooltipAnchor: [0, -anchor[1]]
         });
       }
 
       const cls = isSztosy ? "emoji-sztosy" : "";
+      const anchor = [size / 2, size];
 
       return L.divIcon({
         className: 'emoji-marker',
@@ -988,7 +1033,9 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
             ${overlay}
           </div>`,
         iconSize: [size, size],
-        iconAnchor: [size / 2, size]
+        iconAnchor: anchor,
+        popupAnchor: [0, -anchor[1]],
+        tooltipAnchor: [0, -anchor[1]]
       });
     }
 
@@ -1701,28 +1748,29 @@ attachPopupHandlers(p.marker, p);
       };
       marker.on('popupclose', removeOnClose);
 
-        container.querySelector("#saveNew").addEventListener("click", (e) => {
-          e.stopPropagation();
-          const layerVal = container.querySelector("#warstwaNew").value.trim();
-          if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
-          const catVal = container.querySelector("#kategoriaNew").value.trim();
-          if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
-          const newId = crypto.randomUUID();
-          const data = {
-            id: newId,
-            IDpinezki: newId,
-            nazwa: container.querySelector("#nazwaNew").value,
-            opis: container.querySelector("#opisNew").value.replace(/\n/g, '<br>'),
-            warstwa: layerVal,
-            kategoria: catVal,
-            emoji: container.querySelector("#emojiNew").value,
-            nieaktywne: container.querySelector("#nieaktywneNew").checked,
-            lat: latlng.lat,
-            lng: latlng.lng,
-            dataDodania: Date.now(),
-            unsaved: true,
-            firebaseId: null
-          };
+      const handleSave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const layerVal = container.querySelector("#warstwaNew").value.trim();
+        if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
+        const catVal = container.querySelector("#kategoriaNew").value.trim();
+        if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
+        const newId = crypto.randomUUID();
+        const data = {
+          id: newId,
+          IDpinezki: newId,
+          nazwa: container.querySelector("#nazwaNew").value,
+          opis: container.querySelector("#opisNew").value.replace(/\n/g, '<br>'),
+          warstwa: layerVal,
+          kategoria: catVal,
+          emoji: container.querySelector("#emojiNew").value,
+          nieaktywne: container.querySelector("#nieaktywneNew").checked,
+          lat: latlng.lat,
+          lng: latlng.lng,
+          dataDodania: Date.now(),
+          unsaved: true,
+          firebaseId: null
+        };
         saved = true;
 
         const warstwaN = data.warstwa || "Inne";
@@ -1754,12 +1802,18 @@ attachPopupHandlers(p.marker, p);
         generujListeWarstw();
         updateSaveButton();
         map.closePopup();
-      });
-
-      container.querySelector("#cancelNew").addEventListener("click", (e) => {
+      };
+      const handleCancel = (e) => {
+        e.preventDefault();
         e.stopPropagation();
         map.closePopup();
-      });
+      };
+      const saveEl = container.querySelector("#saveNew");
+      const cancelEl = container.querySelector("#cancelNew");
+      saveEl.addEventListener('click', handleSave);
+      saveEl.addEventListener('touchend', handleSave);
+      cancelEl.addEventListener('click', handleCancel);
+      cancelEl.addEventListener('touchend', handleCancel);
     }
     function onMapClick(e) {
       openNewPinPopup(e.latlng);
@@ -3070,8 +3124,9 @@ function confirmLayerDelete() {
       }
     });
 
-    cancel.addEventListener('click', () => { modal.style.display = 'none'; });
-    ok.addEventListener('click', () => {
+    const cancelHandler = (e) => { e.preventDefault(); modal.style.display = 'none'; };
+    const okHandler = (e) => {
+      e.preventDefault();
       const name = nameInput.value.trim();
       if (!name) { modal.style.display = 'none'; return; }
       if (currentTool === 'pin') {
@@ -3087,7 +3142,11 @@ function confirmLayerDelete() {
         saveMovingPin(name);
       }
       modal.style.display = 'none';
-    });
+    };
+    cancel.addEventListener('click', cancelHandler);
+    cancel.addEventListener('touchend', cancelHandler);
+    ok.addEventListener('click', okHandler);
+    ok.addEventListener('touchend', okHandler);
 
     if (gpsBtn) {
       gpsBtn.addEventListener('click', () => {
