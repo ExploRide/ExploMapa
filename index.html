@@ -707,7 +707,12 @@ function slugify(str) {
       document.getElementById("basemap-switcher").style.display = "block";
       initMap();
       loadLayersFromFirestore().then(() => {
-        zaladujPinezkiZFirestore();
+        if (window.innerWidth <= 700) {
+          loadNewPinsFromLocal();
+          generujListeWarstw();
+        } else {
+          zaladujPinezkiZFirestore();
+        }
         initGeoSearch();
         setupMobile();
         initRouteSearch();
@@ -1433,7 +1438,7 @@ function emojiHtml(str) {
           if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: data.emoji || '' };
+            warstwy[data.name] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: data.emoji || '', loaded: false, loading: false };
           } else if (data.emoji) {
             warstwy[data.name].emoji = data.emoji;
           }
@@ -1513,6 +1518,7 @@ function zaladujPinezkiZFirestore() {
       p.marker = marker;
       applyInactiveStyle(p);
       warstwy[warstwaNazwa].lista.push(p);
+      warstwy[warstwaNazwa].loaded = true;
       wszystkiePinezki.push(p);
     });
     });
@@ -1528,6 +1534,74 @@ function zaladujPinezkiZFirestore() {
   }).finally(() => {
     hideLoading();
   });
+}
+
+async function loadPinsForLayer(nazwa) {
+  const w = warstwy[nazwa];
+  if (!w || w.loaded || w.loading) return;
+  w.loading = true;
+  showLoading();
+  try {
+    const field = layerDocs[nazwa] ? 'warstwaId' : 'warstwa';
+    const value = layerDocs[nazwa] || nazwa;
+    const [snap1, snap2] = await Promise.all([
+      db.collection('pinezki2').where(field, '==', value).get(),
+      db.collection('Pinterest_Diane_G').where(field, '==', value).get().catch(() => ({ forEach: () => {} }))
+    ]);
+    [snap1, snap2].forEach(snapshot => {
+      snapshot.forEach(doc => {
+        const p = doc.data();
+        if (p.dataDodania && p.dataDodania.seconds !== undefined) {
+          p.dataDodania = p.dataDodania.seconds * 1000;
+        } else if (typeof p.dataDodania === 'string' || p.dataDodania instanceof Date) {
+          p.dataDodania = new Date(p.dataDodania).getTime();
+        }
+        const firebaseId = doc.id;
+        const id = p.IDpinezki;
+        p.firebaseId = firebaseId;
+        p.id = id;
+        if (p.trudnosc !== undefined) {
+          p.trudnosc = parseInt(p.trudnosc, 10);
+        }
+        p.nieaktywne = p.nieaktywne === true;
+        p.slug = slugify(p.nazwa);
+        if (!photosMap[p.slug]) {
+          storePhotos(p.slug, (p.photos || []));
+        }
+        categories.add(p.kategoria || '');
+        p.warstwaId = layerDocs[nazwa] || null;
+        const iconEmoji = warstwy[nazwa].emoji || p.emoji;
+        const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId)}).addTo(warstwy[nazwa].layer);
+        if (p.trasy) {
+          p.trasy.forEach(tr => {
+            const color = tr.kolor || '#00ccff';
+            const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color, weight:4, className:'route-line'}).addTo(rysowaneTrasy);
+            tr.layer = layer;
+            layer.on('click', e => showRoutePopup(p.id, tr, e.latlng));
+          });
+        } else {
+          p.trasy = [];
+        }
+        const popupDiv = document.createElement('div');
+        popupDiv.className = 'popup-container';
+        popupDiv.innerHTML = createPopupHtml(p);
+        marker.bindPopup(popupDiv);
+        attachPopupHandlers(marker, p);
+        p.marker = marker;
+        applyInactiveStyle(p);
+        warstwy[nazwa].lista.push(p);
+        wszystkiePinezki.push(p);
+      });
+    });
+    w.loaded = true;
+    updateCategoryFilter();
+  } catch (e) {
+    console.error('Błąd pobierania pinezek warstwy', nazwa, e);
+  } finally {
+    w.loading = false;
+    hideLoading();
+    generujListeWarstw();
+  }
 }
 
     function edytuj(id, lat, lng) {
@@ -1731,7 +1805,7 @@ attachPopupHandlers(p.marker, p);
         const warstwaN = data.warstwa || "Inne";
         data.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
         }
         data.marker = marker;
         const iconEmoji = warstwy[warstwaN].emoji || data.emoji;
@@ -1828,7 +1902,7 @@ attachPopupHandlers(p.marker, p);
         const warstwaN = p.warstwa || 'Inne';
         p.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
         }
         const iconEmoji = warstwy[warstwaN].emoji || p.emoji;
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId)}).addTo(warstwy[warstwaN].layer);
@@ -2417,6 +2491,7 @@ function showRoutePopup(pinId, tr, latlng) {
           warstwy[nazwa].visible = checkbox.checked;
           if (checkbox.checked) {
             warstwy[nazwa].layer.addTo(map);
+            if (!warstwy[nazwa].loaded) loadPinsForLayer(nazwa);
           } else {
             map.removeLayer(warstwy[nazwa].layer);
           }
@@ -2518,6 +2593,9 @@ toggleBtn.style.verticalAlign = "top";
           warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
           listaP.classList.toggle("ukryta");
           toggleBtn.textContent = listaP.classList.contains("ukryta") ? "▶️" : "🔽";
+          if (!listaP.classList.contains("ukryta") && !warstwy[nazwa].loaded) {
+            loadPinsForLayer(nazwa);
+          }
         };
 
         div.appendChild(listaP);
@@ -2984,7 +3062,7 @@ function confirmLayerDelete() {
     const warstwaN = data.warstwa || 'Inne';
     data.warstwaId = layerDocs[warstwaN] || null;
     if (!warstwy[warstwaN]) {
-      warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+      warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
     }
     const marker = L.marker(latlng, {icon: createEmojiIcon(warstwy[warstwaN].emoji || data.emoji, data.warstwaId)}).addTo(warstwy[warstwaN].layer);
     applyInactiveStyle(data);
