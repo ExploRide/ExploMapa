@@ -166,6 +166,15 @@
   100% { box-shadow: 0 0 0 0 rgba(0,128,255,0); }
 }
 
+#saveChanges {
+  background-color: red;
+  position: fixed;
+  bottom: 30px;
+  right: 45px;
+  z-index: 1000;
+  display: none;
+}
+
 @media (max-width: 700px) {
   #geosearch { top: 90px; left: 10px; right: 10px; }
   #gpsFollowBtn {
