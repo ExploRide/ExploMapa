@@ -813,7 +813,12 @@ function slugify(str) {
     if (collapseAllBtn) {
       collapseAllBtn.addEventListener('click', () => {
         allLayersCollapsed = !allLayersCollapsed;
-        Object.keys(warstwy).forEach(n => { warstwy[n].collapsed = allLayersCollapsed; });
+        Object.keys(warstwy).forEach(n => {
+          warstwy[n].collapsed = allLayersCollapsed;
+          if (!allLayersCollapsed && !warstwy[n].loaded) {
+            loadPinsForLayer(n);
+          }
+        });
         collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń wszystkie warstwy' : 'Zwiń wszystkie warstwy';
         generujListeWarstw();
       });
@@ -825,6 +830,7 @@ function slugify(str) {
           warstwy[n].visible = allLayersVisible;
           if (allLayersVisible) {
             warstwy[n].layer.addTo(map);
+            if (!warstwy[n].loaded) loadPinsForLayer(n);
           } else {
             map.removeLayer(warstwy[n].layer);
           }
@@ -1825,7 +1831,10 @@ attachPopupHandlers(p.marker, p);
         attachPopupHandlers(marker, data);
 
         nowePinezki.push(data);
-        localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki));
+        localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
+          const {marker, ...rest} = p;
+          return rest;
+        })));
         warstwy[warstwaN].lista.push(data);
         wszystkiePinezki.push(data);
         generujListeWarstw();
@@ -1926,7 +1935,10 @@ attachPopupHandlers(p.marker, p);
         warstwy[warstwaN].lista.push(p);
         wszystkiePinezki.push(p);
       });
-      if (changed) localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki));
+      if (changed) localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
+        const {marker, ...rest} = p;
+        return rest;
+      })));
       updateSaveButton();
       updateCategoryFilter();
     }
@@ -3080,7 +3092,10 @@ function confirmLayerDelete() {
     marker.bindPopup(popupDiv);
     attachPopupHandlers(marker, data);
     nowePinezki.push(data);
-    localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki));
+    localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
+      const {marker, ...rest} = p;
+      return rest;
+    })));
     warstwy[warstwaN].lista.push(data);
     wszystkiePinezki.push(data);
     generujListeWarstw();
