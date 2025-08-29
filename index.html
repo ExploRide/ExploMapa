@@ -562,7 +562,8 @@ body, #sidebar, #basemap-switcher {
     <h3>Rodzaj mapy</h3>
     <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label><br>
-    <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label>
+    <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label><br>
+    <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label>
 
     <h3>Widok ulic</h3>
     <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
@@ -731,6 +732,20 @@ function slugify(str) {
     });
 
     let map, baseLayer, routingLayer, roadsLayer;
+    let currentBase = 'sat';
+    let loadingCount = 0;
+    function showLoading() {
+      const el = document.getElementById('loading');
+      if (loadingCount === 0 && el) el.style.display = 'block';
+      loadingCount++;
+    }
+    function hideLoading() {
+      if (loadingCount > 0) loadingCount--;
+      if (loadingCount === 0) {
+        const el = document.getElementById('loading');
+        if (el) el.style.display = 'none';
+      }
+    }
     const warstwy = {};
     let wszystkiePinezki = [];
     let draggedLayer = null;
@@ -1336,11 +1351,16 @@ function emojiHtml(str) {
         crs: L.CRS.EPSG3857,
         attribution: 'Geoportal.gov.pl \u2013 ortofotomapa historyczna'
       });
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      });
       const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}');
       const roadsFull = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}');
       const roadsSimple = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 12, maxZoom: 18 });
 
       baseLayer = sat;
+      baseLayer.on('loading', showLoading);
+      baseLayer.on('load', hideLoading);
       baseLayer.addTo(map);
       labels.addTo(map);
       roadsLayer = roadsFull;
@@ -1349,11 +1369,17 @@ function emojiHtml(str) {
       document.querySelectorAll('input[name="basemap"]').forEach(radio => {
         radio.addEventListener('change', () => {
           map.removeLayer(baseLayer);
+          baseLayer.off('loading', showLoading);
+          baseLayer.off('load', hideLoading);
           baseLayer = (radio.value === 'sat') ? sat :
-                      (radio.value === 'hill') ? hill : hist;
+                      (radio.value === 'hill') ? hill :
+                      (radio.value === 'hist') ? hist : osm;
+          baseLayer.on('loading', showLoading);
+          baseLayer.on('load', hideLoading);
           baseLayer.addTo(map);
           map.removeLayer(labels); map.removeLayer(roadsLayer);
-          labels.addTo(map); roadsLayer.addTo(map);
+          if (radio.value !== 'osm') { labels.addTo(map); roadsLayer.addTo(map); }
+          currentBase = radio.value;
         });
       });
 
@@ -1361,7 +1387,7 @@ function emojiHtml(str) {
         radio.addEventListener('change', () => {
           map.removeLayer(roadsLayer);
           roadsLayer = (radio.value === 'main') ? roadsSimple : roadsFull;
-          roadsLayer.addTo(map);
+          if (currentBase !== 'osm') roadsLayer.addTo(map);
         });
       });
     map.on("click", e => { if (currentTool === "pin" && !drawingRoute) onMapClick(e); });
@@ -1433,8 +1459,7 @@ function emojiHtml(str) {
 
     
 function zaladujPinezkiZFirestore() {
-  const loading = document.getElementById('loading');
-  if (loading) loading.style.display = 'block';
+  showLoading();
   Promise.all([
     db.collection("pinezki2").get(),
     db.collection("Pinterest_Diane_G").get()
@@ -1510,7 +1535,7 @@ function zaladujPinezkiZFirestore() {
     updateCategoryFilter();
     generujListeWarstw();
   }).finally(() => {
-    if (loading) loading.style.display = 'none';
+    hideLoading();
   });
 }
 
