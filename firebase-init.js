@@ -13,4 +13,14 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const storage = firebase.storage();
+// Udostępnij instancje innym skryptom
+if (typeof window !== 'undefined') {
+  window.db = db;
+  window.storage = storage;
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = { db, storage };
+}
+
 console.log("Firebase test!", firebaseConfig);
