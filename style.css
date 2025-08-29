@@ -5,6 +5,10 @@
   z-index: 1000;
 }
 
+#map {
+  touch-action: none;
+}
+
 .emoji-dropdown {
   position: absolute;
   background: #2b2b2b;
@@ -176,7 +180,14 @@
     border-radius: 4px;
     display: none;
   }
-  #narzedzia { top: 50px; left: 10px; }
+  #narzedzia { top: 140px; left: 10px; }
+  #saveChanges {
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: auto;
+    right: auto;
+  }
   #exportKML { display: none; }
 }
 .trudnosc-wrapper {

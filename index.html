@@ -503,7 +503,7 @@ body, #sidebar, #basemap-switcher {
   #sidebar { position: fixed; transform: translateX(-100%); transition: transform 0.3s ease; width: 260px; z-index: 1500; }
   #sidebar.show { transform: translateX(0); }
   #basemap-switcher { display: none; }
-  #narzedzia { left: 10px; top: 50px; }
+  #narzedzia { left: 10px; top: 140px; }
   #geosearch { left: 10px; right: 10px; top: 90px; }
   #gpsFollowBtn {
     position: fixed;
@@ -531,14 +531,6 @@ body, #sidebar, #basemap-switcher {
     <div id="sidebar-inner">
       <h2 id="logoNaglowek">ExploMapy</h2>
       <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
-   <div id="narzedzia">
-  <button id="handTool" class="tool-btn">
-    <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f44b.svg" width="24" height="24" alt="hand">
-  </button>
-  <button id="pinTool" class="tool-btn">
-    <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4cd.svg" width="24" height="24" alt="pin">
-  </button>
-</div>
       <select id="sortowanie">
         <option value="dateDesc">Sortuj wg daty – od najnowszych</option>
         <option value="dateAsc">Sortuj wg daty – od najstarszych</option>
@@ -552,19 +544,27 @@ body, #sidebar, #basemap-switcher {
       <button id="addLayerBtn">+ Nowa warstwa</button>
       <input type="text" id="newLayerInput" style="display:none;width:90%;margin-top:5px;" placeholder="Nazwa warstwy">
         <button id="collapseAllLayers">Rozwiń wszystkie warstwy</button>
-        <button id="toggleVisibility">Ukryj wszystkie warstwy</button>
+      <button id="toggleVisibility">Ukryj wszystkie warstwy</button>
       <div id="lista-warstw"></div>
     </div>
   </div>
   <input type="text" id="geosearch" placeholder="Szukaj adresu lub współrzędnych...">
+  <div id="narzedzia">
+    <button id="handTool" class="tool-btn">
+      <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f44b.svg" width="24" height="24" alt="hand">
+    </button>
+    <button id="pinTool" class="tool-btn">
+      <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4cd.svg" width="24" height="24" alt="pin">
+    </button>
+  </div>
   <div id="map"></div>
   <button id="toggleLayers">☰ Warstwy</button>
   <div id="basemap-switcher">
     <h3>Rodzaj mapy</h3>
+    <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
     <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label><br>
-    <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label><br>
-    <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label>
+    <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label>
 
     <h3>Widok ulic</h3>
     <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
