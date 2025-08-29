@@ -122,6 +122,22 @@
   display: none;
 }
 
+#loadPinsBtn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px;
+  width: 100%;
+  display: none;
+}
+
+@media (max-width: 700px) {
+  #loadPinsBtn {
+    display: block;
+    margin-top: 5px;
+  }
+}
+
 @media (max-width: 800px) {
   #savePinBtn { display: block; }
 }
