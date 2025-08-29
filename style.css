@@ -27,8 +27,8 @@
 
 .emoji-picker-preview {
   position: absolute;
-  bottom: 2px;
-  right: 2px;
+  bottom: 23px;
+  right: 150px;
   width: 28px;
   height: 28px;
   cursor: pointer;
