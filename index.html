@@ -645,6 +645,67 @@ function slugify(str) {
       return out;
     }
 
+    // === [CODEx ADDED] Kompresja obrazów ===
+    const IMG_COMPRESS = {
+      maxEdge: 1600,   // dłuższy bok skalujemy do 1600 px
+      quality: 0.82,   // jakość JPEG
+      targetKB: 350,   // docelowy rozmiar ~350 KB (0 = wyłącz)
+      minQuality: 0.6, // nie schodź niżej
+      step: 0.06,      // krok obniżania jakości
+    };
+
+    async function compressDataUrl(dataUrl, opts = {}) {
+      const cfg = { ...IMG_COMPRESS, ...opts };
+
+      // Jeśli mały JPEG i brak targetu — zwróć jak jest
+      if (!cfg.targetKB && dataUrl.startsWith('data:image/jpeg') && dataUrl.length < 250_000) {
+        return dataUrl;
+      }
+
+      const img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = rej;
+        i.src = dataUrl;
+      });
+
+      let { width, height } = img;
+      const longer = Math.max(width, height);
+
+      // Skalowanie do maxEdge
+      let canvas = document.createElement('canvas');
+      let ctx = canvas.getContext('2d', { alpha: false });
+
+      if (longer > cfg.maxEdge) {
+        const scale = cfg.maxEdge / longer;
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+
+      let q = cfg.quality;
+      let out = canvas.toDataURL('image/jpeg', q);
+
+      if (cfg.targetKB > 0) {
+        const targetBytes = cfg.targetKB * 1024;
+        let iter = 0;
+        while (out.length > targetBytes && q > cfg.minQuality && iter < 6) {
+          q = Math.max(cfg.minQuality, q - cfg.step);
+          out = canvas.toDataURL('image/jpeg', q);
+          iter++;
+        }
+      }
+
+      canvas.width = 0; canvas.height = 0; canvas = null; ctx = null;
+      return out;
+    }
+
     document.getElementById("loginBtn").addEventListener("click", () => {
       const provider = new firebase.auth.GoogleAuthProvider();
       firebase.auth().signInWithPopup(provider);
@@ -1016,13 +1077,7 @@ function emojiHtml(str) {
           updateSaveButton();
           return;
         }
-        const file = files[idx];
-        if (file.size > 1024 * 1024) {
-          alert('Plik jest większy niż 1 MB i nie zostanie dodany.');
-          idx++;
-          next();
-          return;
-        }
+        const file = files[idx]; // [CODEx CHANGED] usunięty limit rozmiaru 1 MB
         const reader = new FileReader();
         reader.onload = e => {
           existing.push({url: e.target.result});
@@ -2472,16 +2527,38 @@ toggleBtn.style.verticalAlign = "top";
     }
 
     async function zapiszZmiany() {
+      const btn = document.getElementById('saveChanges'); // [CODEx CHANGED] fragment w zapiszZmiany()
+      const origLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Zapisywanie…';
       try {
-      const updatePromises = Object.entries(zmianyDoZapisania).map(async ([id, data]) => {
-        const p = wszystkiePinezki.find(pp => pp.id === id);
-        if (!p || !p.firebaseId) return;
-        if (Object.keys(data).length > 0) {
-          await db.collection('pinezki2').doc(p.firebaseId).update(data);
-        }
-        p.photos = await savePhotosForPin(p.firebaseId, p.slug, getStoredPhotos(p.slug), p.photos || []);
-        delete p.unsaved;
-      });
+        let totalAll = 0;
+        Object.entries(zmianyDoZapisania).forEach(([id]) => {
+          const p = wszystkiePinezki.find(pp => pp.id === id);
+          if (!p || !p.firebaseId) return;
+          const lp = getStoredPhotos(p.slug) || [];
+          lp.forEach(ph => { if (!ph.path) totalAll++; });
+        });
+        nowePinezki.forEach(p => {
+          const lp = getStoredPhotos(p.slug) || [];
+          lp.forEach(ph => { if (!ph.path) totalAll++; });
+        });
+        let doneAll = 0;
+        const onProgress = () => {
+          doneAll++;
+          btn.textContent = `Zapisywanie… (${doneAll}/${totalAll})`;
+        };
+
+        const updatePromises = Object.entries(zmianyDoZapisania).map(async ([id, data]) => {
+          const p = wszystkiePinezki.find(pp => pp.id === id);
+          if (!p || !p.firebaseId) return;
+          if (Object.keys(data).length > 0) {
+            await db.collection('pinezki2').doc(p.firebaseId).update(data);
+          }
+          const localPhotos = getStoredPhotos(p.slug);
+          p.photos = await savePhotosForPin(p.firebaseId, p.slug, localPhotos, p.photos || [], onProgress);
+          delete p.unsaved;
+        });
 
         const addPromises = nowePinezki.map(async p => {
           const suffix = generateSuffix();
@@ -2503,7 +2580,8 @@ toggleBtn.style.verticalAlign = "top";
           };
           if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
           await db.collection('pinezki2').doc(firebaseId).set(payload);
-          p.photos = await savePhotosForPin(firebaseId, p.slug, getStoredPhotos(p.slug), []);
+          const localPhotos = getStoredPhotos(p.slug);
+          p.photos = await savePhotosForPin(firebaseId, p.slug, localPhotos, [], onProgress);
         });
 
         const deletePinPromises = pinsToDelete.map(id => {
@@ -2540,9 +2618,17 @@ toggleBtn.style.verticalAlign = "top";
         pinsToDelete = [];
         window.localTrasy = [];
         localStorage.removeItem('nowePinezki');
+        btn.textContent = 'Zapisano ✔';
         location.reload();
       } catch (err) {
-        alert('Błąd zapisu: ' + err.message);
+        console.error(err);
+        alert('Nie udało się zapisać zmian. Spróbuj ponownie.');
+        btn.textContent = origLabel;
+      } finally {
+        setTimeout(() => {
+          btn.textContent = origLabel;
+          btn.disabled = false;
+        }, 600);
       }
     }
 
@@ -2655,30 +2741,58 @@ toggleBtn.style.verticalAlign = "top";
     if (modal) modal.style.display = 'none';
   }
 
-  async function savePhotosForPin(id, slug, localPhotos, remotePhotos) {
-    const uploads = [];
+  // === [CODEx REPLACED] Upload i zapis listy zdjęć z kompresją ===
+  async function savePhotosForPin(id, slug, localPhotos, remotePhotos, onProgress) {
+    // localPhotos: [{url, path?}]   (nowe zdjęcia mają tylko 'url' = dataURL)
+    // remotePhotos: [{url, path}]   (to co już jest w Firestore/Storage)
     const finalPhotos = [];
     const remoteMap = {};
     (remotePhotos || []).forEach(ph => { if (ph.path) remoteMap[ph.path] = ph; });
-    for (const ph of localPhotos) {
+
+    let totalNew = 0;
+    for (const ph of (localPhotos || [])) if (!ph.path) totalNew++;
+
+    let doneNew = 0;
+
+    for (const ph of (localPhotos || [])) {
       if (ph.path) {
-        finalPhotos.push(ph);
+        // istniejące zdjęcie zostaje
+        finalPhotos.push({ url: ph.url, path: ph.path });
         delete remoteMap[ph.path];
       } else {
-        const ref = storage.ref().child(`pinezki/${id}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
-        uploads.push(
-          ref.putString(ph.url, 'data_url').then(() => ref.getDownloadURL()).then(url => {
-            finalPhotos.push({url, path: ref.fullPath});
-          })
-        );
+        // NOWE zdjęcie — kompresja + upload
+        const compressedDataUrl = await compressDataUrl(ph.url);
+        // (opcjonalny) próg po kompresji:
+        // if (compressedDataUrl.length > 500 * 1024) console.warn('Duże foto po kompresji');
+
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        const path = `pins/${id}/${fileName}`;
+        const ref = storage.ref().child(path);
+
+        await ref.putString(compressedDataUrl, 'data_url');
+        const url = await ref.getDownloadURL();
+
+        finalPhotos.push({ url, path });
+
+        doneNew++;
+        if (typeof onProgress === 'function') onProgress(doneNew, totalNew);
       }
     }
-    Object.keys(remoteMap).forEach(path => {
-      uploads.push(storage.ref().child(path).delete().catch(() => {}));
-    });
-    await Promise.all(uploads);
-    await db.collection('pinezki2').doc(id).update({photos: finalPhotos});
-    storePhotos(slug, finalPhotos);
+
+    // Usuń ze Storage zdjęcia skasowane w UI
+    const toDelete = Object.keys(remoteMap);
+    for (const path of toDelete) {
+      try { await storage.ref().child(path).delete(); } catch (e) {}
+    }
+
+    // Zapis listy zdjęć w dokumencie pinezki
+    await db.collection('pinezki2').doc(id).update({ photos: finalPhotos });
+
+    // Synchronizacja lokalnego cache'a jeśli istnieje
+    if (typeof storePhotos === 'function') {
+      storePhotos(slug, finalPhotos);
+    }
+
     return finalPhotos;
   }
 
