@@ -320,7 +320,6 @@ body, #sidebar, #basemap-switcher {
   max-height: 150px;
   object-fit: cover;
   cursor: pointer;
-  margin-bottom: 4px;
 }
 .photo-gallery {
   display: flex;
@@ -328,8 +327,23 @@ body, #sidebar, #basemap-switcher {
   gap: 2px;
   margin-bottom: 4px;
 }
-.photo-gallery img {
+.photo-item {
+  position: relative;
   flex: 0 0 auto;
+}
+.photo-delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 14px;
+  padding: 2px;
+  cursor: pointer;
+  display: none;
+}
+.photo-item:hover .photo-delete {
+  display: block;
 }
 #photoModal {
   display: none;
@@ -934,25 +948,33 @@ function emojiHtml(str) {
       gallery.innerHTML = '';
       if (photos.length === 0) return;
       photos.forEach((ph, idx) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'photo-item';
         const img = document.createElement('img');
         img.src = ph.url;
         img.dataset.index = idx;
         img.className = 'popup-photo';
-        gallery.appendChild(img);
+        const del = document.createElement('span');
+        del.className = 'photo-delete';
+        del.dataset.index = idx;
+        del.textContent = '🗑️';
+        wrapper.appendChild(img);
+        wrapper.appendChild(del);
+        gallery.appendChild(wrapper);
       });
       adjustGalleryLayout(gallery);
     }
 
     function adjustGalleryLayout(gallery) {
-      const imgs = gallery.querySelectorAll('img');
-      const count = imgs.length;
-      imgs.forEach(img => {
+      const items = gallery.querySelectorAll('.photo-item');
+      const count = items.length;
+      items.forEach(item => {
         if (count === 1) {
-          img.style.width = '100%';
+          item.style.width = '100%';
         } else if (count === 2) {
-          img.style.width = 'calc((100% - 2px) / 2)';
+          item.style.width = 'calc((100% - 2px) / 2)';
         } else {
-          img.style.width = 'calc((100% - 4px) / 3)';
+          item.style.width = 'calc((100% - 4px) / 3)';
         }
       });
     }
@@ -961,7 +983,16 @@ function emojiHtml(str) {
       if (!gallery) return;
       renderGallery(gallery);
       gallery.addEventListener('click', e => {
-        if (e.target.tagName === 'IMG') {
+        if (e.target.classList.contains('photo-delete')) {
+          e.stopPropagation();
+          const slug = gallery.dataset.slug;
+          const idx = parseInt(e.target.dataset.index);
+          const photos = getStoredPhotos(slug);
+          photos.splice(idx, 1);
+          storePhotos(slug, photos);
+          renderGallery(gallery);
+          markPinUnsaved(slug);
+        } else if (e.target.tagName === 'IMG') {
           openPhotoModal(gallery.dataset.slug, parseInt(e.target.dataset.index));
         }
       });
