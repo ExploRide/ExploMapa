@@ -342,7 +342,7 @@ body, #sidebar, #basemap-switcher {
   cursor: pointer;
   display: none;
 }
-.photo-item:hover .photo-delete {
+.edit-popup .photo-item:hover .photo-delete {
   display: block;
 }
 #photoModal {
@@ -378,6 +378,7 @@ body, #sidebar, #basemap-switcher {
   font-size: 32px;
   cursor: pointer;
   z-index: 2101;
+  display: none;
 }
 
 #deleteModal {
@@ -2738,6 +2739,11 @@ toggleBtn.style.verticalAlign = "top";
     if (!ph) return;
     const img = document.getElementById('photoModalImg');
     if (img) img.src = ph.url;
+    const delBtn = document.getElementById('photoModalDelete');
+    if (delBtn) {
+      const gallery = document.querySelector(`.photo-gallery[data-slug="${slug}"]`);
+      delBtn.style.display = gallery && gallery.closest('.edit-popup') ? 'block' : 'none';
+    }
     const modal = document.getElementById('photoModal');
     if (modal) modal.style.display = 'flex';
   }
