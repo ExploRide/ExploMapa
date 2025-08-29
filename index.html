@@ -214,7 +214,7 @@ width: 15px;
       z-index: 1000;
     }
     #map.pin-cursor {
-      cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSczMCcgaGVpZ2h0PSczMCc+Cjxwb2x5Z29uIHBvaW50cz0nMTUsMzAgMjUsNSA1LDUnIGZpbGw9J3JlZCcgc3Ryb2tlPSdibGFjaycvPgo8L3N2Zz4=') 15 30, auto !important;
+      cursor: url('https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png') 12 36, auto !important;
     }
       .leaflet-grab {
     cursor: default !important;
@@ -856,6 +856,14 @@ function slugify(str) {
           mapEl.classList.remove("pin-cursor");
         }
       }
+      const cm = document.getElementById('centerMarker');
+      if (cm) {
+        if (t === 'pin' && window.innerWidth <= 800) {
+          cm.style.display = 'block';
+        } else {
+          cm.style.display = 'none';
+        }
+      }
     }
     if (handBtn) handBtn.addEventListener("click", () => selectTool("hand"));
 if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
@@ -1373,7 +1381,7 @@ function emojiHtml(str) {
           if (currentBase !== 'osm') roadsLayer.addTo(map);
         });
       });
-    map.on("click", e => { if (currentTool === "pin" && !drawingRoute) onMapClick(e); });
+    map.on("click", e => { if (currentTool === "pin" && !drawingRoute && window.innerWidth > 800) onMapClick(e); });
     map.on(L.Draw.Event.CREATED, onRouteCreated);
     map.on('draw:drawstop', () => { drawingRoute = false; activeRoutePin = null; });
 
@@ -2948,13 +2956,98 @@ function confirmLayerDelete() {
     generujListeWarstw();
   }
 
+  function saveCenterPin(form) {
+    const latlng = map.getCenter();
+    const layerVal = form.warstwa.trim();
+    if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
+    const catVal = form.kategoria.trim();
+    if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
+    const newId = crypto.randomUUID();
+    const data = {
+      id: newId,
+      IDpinezki: newId,
+      nazwa: form.nazwa,
+      opis: form.opis.replace(/\n/g, '<br>'),
+      warstwa: layerVal,
+      kategoria: catVal,
+      emoji: form.emoji,
+      nieaktywne: form.nieaktywne,
+      lat: latlng.lat,
+      lng: latlng.lng,
+      dataDodania: Date.now(),
+      unsaved: true,
+      firebaseId: null
+    };
+    const warstwaN = data.warstwa || 'Inne';
+    data.warstwaId = layerDocs[warstwaN] || null;
+    if (!warstwy[warstwaN]) {
+      warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+    }
+    const marker = L.marker(latlng, {icon: createEmojiIcon(warstwy[warstwaN].emoji || data.emoji, data.warstwaId)}).addTo(warstwy[warstwaN].layer);
+    applyInactiveStyle(data);
+    data.marker = marker;
+    data.slug = slugify(data.nazwa);
+    if (!photosMap[data.slug]) {
+      storePhotos(data.slug, []);
+    }
+    categories.add(data.kategoria || '');
+    selectedCategories.add(data.kategoria || '');
+    updateCategoryFilter();
+    const popupDiv = document.createElement('div');
+    popupDiv.className = 'popup-container';
+    popupDiv.innerHTML = createPopupHtml(data);
+    marker.bindPopup(popupDiv);
+    attachPopupHandlers(marker, data);
+    nowePinezki.push(data);
+    localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki));
+    warstwy[warstwaN].lista.push(data);
+    wszystkiePinezki.push(data);
+    generujListeWarstw();
+    updateSaveButton();
+  }
+
   function setupMobile() {
     const btn = document.getElementById('savePinBtn');
     const modal = document.getElementById('mobilePinModal');
     const ok = document.getElementById('mobilePinOk');
     const cancel = document.getElementById('mobilePinCancel');
     const gpsBtn = document.getElementById('gpsFollowBtn');
-    if (!btn || !modal || !ok || !cancel) return;
+    const nameInput = document.getElementById('mobilePinName');
+    const descInput = document.getElementById('mobilePinDesc');
+    const layerInput = document.getElementById('mobilePinLayer');
+    const catInput = document.getElementById('mobilePinCategory');
+    const emojiInput = document.getElementById('mobilePinEmoji');
+    const inactiveInput = document.getElementById('mobilePinInactive');
+    if (!btn || !modal || !ok || !cancel || !nameInput) return;
+
+    function openGpsModal() {
+      nameInput.value = '';
+      descInput.style.display = 'none';
+      layerInput.style.display = 'none';
+      catInput.style.display = 'none';
+      emojiInput.style.display = 'none';
+      inactiveInput.parentElement.style.display = 'none';
+      modal.style.display = 'flex';
+    }
+
+    function openCenterModal() {
+      nameInput.value = '';
+      descInput.value = '';
+      layerInput.value = '';
+      catInput.value = '';
+      emojiInput.value = '';
+      inactiveInput.checked = false;
+      descInput.style.display = '';
+      layerInput.style.display = '';
+      catInput.style.display = '';
+      emojiInput.style.display = '';
+      inactiveInput.parentElement.style.display = '';
+      modal.style.display = 'flex';
+      setupEmojiInput(emojiInput);
+      setupDropdownInput(layerInput, () => Object.keys(warstwy));
+      setupDropdownInput(catInput, () => Array.from(categories).filter(c => c));
+    }
+
     if (window.innerWidth <= 800) {
       btn.style.display = 'block';
       if (typeof map !== 'undefined' && map) {
@@ -2968,16 +3061,34 @@ function confirmLayerDelete() {
         }, 500);
       }
     }
+
     btn.addEventListener('click', () => {
-      document.getElementById('mobilePinName').value = '';
-      modal.style.display = 'flex';
+      if (currentTool === 'pin') {
+        openCenterModal();
+      } else {
+        openGpsModal();
+      }
     });
+
     cancel.addEventListener('click', () => { modal.style.display = 'none'; });
     ok.addEventListener('click', () => {
-      const name = document.getElementById('mobilePinName').value.trim();
-      if (name) saveMovingPin(name);
+      const name = nameInput.value.trim();
+      if (!name) { modal.style.display = 'none'; return; }
+      if (currentTool === 'pin') {
+        saveCenterPin({
+          nazwa: name,
+          opis: descInput.value,
+          warstwa: layerInput.value,
+          kategoria: catInput.value,
+          emoji: emojiInput.value,
+          nieaktywne: inactiveInput.checked
+        });
+      } else {
+        saveMovingPin(name);
+      }
       modal.style.display = 'none';
     });
+
     if (gpsBtn) {
       gpsBtn.addEventListener('click', () => {
         followGps = true;
@@ -3009,10 +3120,16 @@ function confirmLayerDelete() {
     <span id="photoModalDelete" onclick="deleteCurrentPhoto()">🗑️</span>
     <img id="photoModalImg" src="">
   </div>
+  <img id="centerMarker" src="https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png" alt="center marker">
   <button id="savePinBtn">ZAPISZ PIN</button>
   <div id="mobilePinModal" class="mobile-modal">
     <div class="mobile-modal-content">
       <input type="text" id="mobilePinName" placeholder="Nazwa pinezki">
+      <textarea id="mobilePinDesc" placeholder="Opis"></textarea>
+      <input type="text" id="mobilePinLayer" placeholder="Warstwa">
+      <input type="text" id="mobilePinCategory" placeholder="Kategoria">
+      <input type="text" id="mobilePinEmoji" placeholder="Emoji">
+      <label><input type="checkbox" id="mobilePinInactive"> Nieaktywne</label>
       <div style="display:flex;gap:10px;justify-content:center;">
         <button id="mobilePinOk">Zapisz</button>
         <button id="mobilePinCancel">Anuluj</button>
