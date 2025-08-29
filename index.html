@@ -1664,6 +1664,9 @@ attachPopupHandlers(p.marker, p);
       if (saveBtnTmp) saveBtnTmp.style.display = 'block';
       const marker = L.marker(latlng, {icon: createEmojiIcon("📍", null, 24)}).addTo(map);
       const container = document.createElement("div");
+      // Zapobiega zamykaniu popupu przy dotyku na urządzeniach mobilnych
+      // i umożliwia poprawne działanie przycisków wewnątrz popupu.
+      L.DomEvent.disableClickPropagation(container);
       const coordsDisplay = formatCoords(latlng.lat, latlng.lng);
       container.innerHTML = `
         <div>${coordsDisplay}<br>
