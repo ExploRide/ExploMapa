@@ -537,6 +537,7 @@ body, #sidebar, #basemap-switcher {
       <input type="text" id="newLayerInput" style="display:none;width:90%;margin-top:5px;" placeholder="Nazwa warstwy">
         <button id="collapseAllLayers">Rozwiń wszystkie warstwy</button>
       <button id="toggleVisibility">Ukryj wszystkie warstwy</button>
+      <button id="loadPinsBtn">Załaduj pinezki</button>
       <div id="lista-warstw"></div>
     </div>
   </div>
@@ -716,6 +717,15 @@ function slugify(str) {
         initGeoSearch();
         setupMobile();
         initRouteSearch();
+        if (window.innerWidth <= 700) {
+          const loadBtn = document.getElementById('loadPinsBtn');
+          if (loadBtn) {
+            loadBtn.addEventListener('click', () => {
+              zaladujPinezkiZFirestore();
+              loadBtn.style.display = 'none';
+            }, { once: true });
+          }
+        }
       });
     });
 
@@ -740,6 +750,7 @@ function slugify(str) {
     let highlightedItem = null;
     let zmianyDoZapisania = {};
     let nowePinezki = [];
+    let localPinsLoaded = false;
     const photosMap = {};
     let sortMode = 'dateDesc';
     const categories = new Set();
@@ -815,9 +826,6 @@ function slugify(str) {
         allLayersCollapsed = !allLayersCollapsed;
         Object.keys(warstwy).forEach(n => {
           warstwy[n].collapsed = allLayersCollapsed;
-          if (!allLayersCollapsed && !warstwy[n].loaded) {
-            loadPinsForLayer(n);
-          }
         });
         collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń wszystkie warstwy' : 'Zwiń wszystkie warstwy';
         generujListeWarstw();
@@ -830,7 +838,6 @@ function slugify(str) {
           warstwy[n].visible = allLayersVisible;
           if (allLayersVisible) {
             warstwy[n].layer.addTo(map);
-            if (!warstwy[n].loaded) loadPinsForLayer(n);
           } else {
             map.removeLayer(warstwy[n].layer);
           }
@@ -1528,86 +1535,18 @@ function zaladujPinezkiZFirestore() {
       wszystkiePinezki.push(p);
     });
     });
-    loadNewPinsFromLocal();
+    if (!localPinsLoaded) loadNewPinsFromLocal();
     updateCategoryFilter();
     generujListeWarstw();
   })
   .catch(err => {
     console.error("Błąd pobierania pinezek:", err);
-    loadNewPinsFromLocal();
+    if (!localPinsLoaded) loadNewPinsFromLocal();
     updateCategoryFilter();
     generujListeWarstw();
   }).finally(() => {
     hideLoading();
   });
-}
-
-async function loadPinsForLayer(nazwa) {
-  const w = warstwy[nazwa];
-  if (!w || w.loaded || w.loading) return;
-  w.loading = true;
-  showLoading();
-  try {
-    const field = layerDocs[nazwa] ? 'warstwaId' : 'warstwa';
-    const value = layerDocs[nazwa] || nazwa;
-    const [snap1, snap2] = await Promise.all([
-      db.collection('pinezki2').where(field, '==', value).get(),
-      db.collection('Pinterest_Diane_G').where(field, '==', value).get().catch(() => ({ forEach: () => {} }))
-    ]);
-    [snap1, snap2].forEach(snapshot => {
-      snapshot.forEach(doc => {
-        const p = doc.data();
-        if (p.dataDodania && p.dataDodania.seconds !== undefined) {
-          p.dataDodania = p.dataDodania.seconds * 1000;
-        } else if (typeof p.dataDodania === 'string' || p.dataDodania instanceof Date) {
-          p.dataDodania = new Date(p.dataDodania).getTime();
-        }
-        const firebaseId = doc.id;
-        const id = p.IDpinezki;
-        p.firebaseId = firebaseId;
-        p.id = id;
-        if (p.trudnosc !== undefined) {
-          p.trudnosc = parseInt(p.trudnosc, 10);
-        }
-        p.nieaktywne = p.nieaktywne === true;
-        p.slug = slugify(p.nazwa);
-        if (!photosMap[p.slug]) {
-          storePhotos(p.slug, (p.photos || []));
-        }
-        categories.add(p.kategoria || '');
-        p.warstwaId = layerDocs[nazwa] || null;
-        const iconEmoji = warstwy[nazwa].emoji || p.emoji;
-        const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId)}).addTo(warstwy[nazwa].layer);
-        if (p.trasy) {
-          p.trasy.forEach(tr => {
-            const color = tr.kolor || '#00ccff';
-            const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color, weight:4, className:'route-line'}).addTo(rysowaneTrasy);
-            tr.layer = layer;
-            layer.on('click', e => showRoutePopup(p.id, tr, e.latlng));
-          });
-        } else {
-          p.trasy = [];
-        }
-        const popupDiv = document.createElement('div');
-        popupDiv.className = 'popup-container';
-        popupDiv.innerHTML = createPopupHtml(p);
-        marker.bindPopup(popupDiv);
-        attachPopupHandlers(marker, p);
-        p.marker = marker;
-        applyInactiveStyle(p);
-        warstwy[nazwa].lista.push(p);
-        wszystkiePinezki.push(p);
-      });
-    });
-    w.loaded = true;
-    updateCategoryFilter();
-  } catch (e) {
-    console.error('Błąd pobierania pinezek warstwy', nazwa, e);
-  } finally {
-    w.loading = false;
-    hideLoading();
-    generujListeWarstw();
-  }
 }
 
     function edytuj(id, lat, lng) {
@@ -1897,6 +1836,7 @@ attachPopupHandlers(p.marker, p);
       } catch (e) {
         nowePinezki = [];
       }
+      localPinsLoaded = true;
       let changed = false;
       nowePinezki.forEach(p => {
         if (!p.IDpinezki) { p.IDpinezki = crypto.randomUUID(); changed = true; }
@@ -2503,7 +2443,6 @@ function showRoutePopup(pinId, tr, latlng) {
           warstwy[nazwa].visible = checkbox.checked;
           if (checkbox.checked) {
             warstwy[nazwa].layer.addTo(map);
-            if (!warstwy[nazwa].loaded) loadPinsForLayer(nazwa);
           } else {
             map.removeLayer(warstwy[nazwa].layer);
           }
@@ -2605,9 +2544,6 @@ toggleBtn.style.verticalAlign = "top";
           warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
           listaP.classList.toggle("ukryta");
           toggleBtn.textContent = listaP.classList.contains("ukryta") ? "▶️" : "🔽";
-          if (!listaP.classList.contains("ukryta") && !warstwy[nazwa].loaded) {
-            loadPinsForLayer(nazwa);
-          }
         };
 
         div.appendChild(listaP);
