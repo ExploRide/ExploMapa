@@ -45,7 +45,7 @@ const emojiList = [
   { id: "emoji44", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2755.svg" }, // ❕ białe !
   { id: "emoji45", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2757.svg" }, // ❗ czerwone !
   { id: "emoji46", url: "https://www.svgrepo.com/show/475670/pinterest-color.svg" }, // pinterest
-  { id: "emoji47", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f69c.svg" }, // traktor
-{ id: "emoji48", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2692.svg" } // kopalnia
+  { id: "emoji47", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f69c.svg" }, // 🚜 traktor
+{ id: "emoji48", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2692.svg" } // ⚒️ kopalnia
 
 ];
