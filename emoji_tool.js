@@ -27,7 +27,7 @@ const db = getFirestore(app);
 // ====== Mini CSS (namespacing, żeby nie gryźć się z Twoją stroną) ======
 const css = `
   .expe-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:saturate(0.9) blur(2px);z-index:2147483000;display:none}
-  .expe-modal{position:fixed;right:24px;bottom:24px;width:680px;max-width:calc(100vw - 32px);max-height:80vh;overflow:hidden;border-radius:16px;background:#151821;border:1px solid #202635;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+  .expe-modal{position:fixed;left:300px;top:24px;width:680px;max-width:calc(100vw - 340px);max-height:80vh;overflow:hidden;border-radius:16px;background:#151821;border:1px solid #202635;box-shadow:0 24px 60px rgba(0,0,0,.45)}
   .expe-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #1e2430}
   .expe-hdr h3{margin:0;font:600 15px/1.2 system-ui,-apple-system,Segoe UI,Roboto}
   .expe-hdr .expe-close{background:transparent;color:#9aa3b2;border:none;font-size:20px;cursor:pointer}
@@ -36,6 +36,10 @@ const css = `
   .expe-lbl{display:block;font:500 12px/1.2 system-ui;color:#9aa3b2;margin:6px 0}
   .expe-inp{width:100%;background:#0b0f16;border:1px solid #1d2330;border-radius:10px;color:#e6e8eb;padding:10px 12px;font-size:14px;outline:none}
   .expe-inp:focus{border-color:#2b88ff}
+  .expe-emoji-picker{position:relative;width:fit-content}
+  .expe-emoji-preview{width:28px;height:28px;cursor:pointer;border:1px solid #222a39;border-radius:4px;background:#0b0f16}
+  .expe-emoji-grid{position:absolute;top:36px;left:0;background:#2b2b2b;border:1px solid #444;padding:4px;display:none;z-index:1000;display:grid;grid-template-columns:repeat(8,24px);gap:4px}
+  .expe-emoji-grid img{width:24px;height:24px;cursor:pointer}
   .expe-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .expe-btn{background:#7aa2f7;color:#0c1020;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
   .expe-btn[disabled]{opacity:.55;cursor:not-allowed}
@@ -63,7 +67,7 @@ backdrop.innerHTML = `
           <input id="expe-kw" class="expe-inp" placeholder="np. fabryka, cementownia, kopalnia, pałac">
 
           <label class="expe-lbl" style="margin-top:10px">Wartość do wpisania w polu <code>emoji</code></label>
-          <input id="expe-emoji" class="expe-inp" placeholder="np. 📌 lub URL SVG" />
+          <div id="expe-emoji" class="expe-emoji-picker"></div>
 
           <div style="height:1px;background:#1e2430;margin:10px 0"></div>
 
@@ -101,6 +105,7 @@ document.body.appendChild(backdrop);
 const $ = (sel, root=document) => root.querySelector(sel);
 const logEl = $('#expe-log');
 let abortFlag = false;
+let selectedEmoji = '';
 const els = {
   kw: $('#expe-kw'), emoji: $('#expe-emoji'),
   preview: $('#expe-preview'), whole: $('#expe-whole'),
@@ -109,6 +114,37 @@ const els = {
   found: $('#expe-found'), ok: $('#expe-ok'), bad: $('#expe-bad'), skip: $('#expe-skip'),
   close: $('.expe-close'), modal: $('.expe-modal')
 };
+
+function initEmojiPicker(){
+  const container = els.emoji;
+  if(!container) return;
+  const preview = document.createElement('img');
+  preview.className = 'expe-emoji-preview';
+  preview.src = 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
+  container.appendChild(preview);
+  const grid = document.createElement('div');
+  grid.className = 'expe-emoji-grid';
+  (window.emojiList || []).forEach(({id,url})=>{
+    const img=document.createElement('img');
+    img.src=url;
+    img.addEventListener('click',e=>{
+      e.stopPropagation();
+      selectedEmoji=id;
+      preview.src=url;
+      grid.style.display='none';
+    });
+    grid.appendChild(img);
+  });
+  container.appendChild(grid);
+  preview.addEventListener('click',e=>{
+    e.stopPropagation();
+    grid.style.display = grid.style.display==='grid' ? 'none' : 'grid';
+  });
+  document.addEventListener('click',e=>{
+    if(!container.contains(e.target)) grid.style.display='none';
+  });
+}
+initEmojiPicker();
 
 function log(msg){
   const t = new Date().toLocaleTimeString();
@@ -137,7 +173,7 @@ async function runUpdate(){
   log('— START —');
 
   const keywords = (els.kw.value || '').split(',').map(s=>s.trim()).filter(Boolean);
-  const emojiVal = els.emoji.value || '';
+  const emojiVal = selectedEmoji;
   const preview = els.preview.checked;
   const whole = els.whole.checked;
   const kase = els.kase.checked;
@@ -223,4 +259,3 @@ backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) backdrop.sty
 els.start.addEventListener('click', runUpdate);
 els.stop.addEventListener('click', ()=>{ abortFlag = true; els.stop.disabled = true; log('🛑 Żądanie przerwania…'); });
 els.kw.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey) runUpdate(); });
-els.emoji.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey) runUpdate(); });
