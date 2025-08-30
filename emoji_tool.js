@@ -136,6 +136,7 @@ function initEmojiPicker(){
     grid.appendChild(img);
   });
   container.appendChild(grid);
+  grid.style.display='none';
   preview.addEventListener('click',e=>{
     e.stopPropagation();
     grid.style.display = grid.style.display==='grid' ? 'none' : 'grid';

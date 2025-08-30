@@ -1,4 +1,4 @@
-const emojiList = [
+const emojiList = window.emojiList = [
   { id: "emoji1", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e0.svg" }, // 🏠 Dom
   { id: "emoji2", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e1.svg" }, // 🏡 Dom z ogrodem
   { id: "emoji3", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f3e2.svg" }, // 🏢 Biurowiec
