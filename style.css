@@ -25,14 +25,12 @@
   margin-top: 4px;
 }
 
-.emoji-picker-preview {
-  position: absolute;
-  bottom: 23px;
-  right: 150px;
-  width: 28px;
-  height: 28px;
-  cursor: pointer;
-}
+  .emoji-picker-preview {
+    display: block;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+  }
 
 .emoji-picker {
   position: absolute;
@@ -40,10 +38,10 @@
   right: 0;
 }
 
-.emoji-picker-grid {
-  position: absolute;
-  top: 34px;
-  right: 0;
+  .emoji-picker-grid {
+    position: absolute;
+    top: 34px;
+    left: 0;
   background: #2b2b2b;
   border: 1px solid #444;
   padding: 4px;
