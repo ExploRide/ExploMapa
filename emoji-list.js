@@ -36,7 +36,7 @@ const emojiList = window.emojiList = [
   { id: "emoji35", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1faa9.svg" }, // 🪩 Kula
   { id: "emoji36", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2620.svg" }, // ☠️ Skull
   { id: "emoji37", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f47b.svg" }, // 👻 Ghost
-  { id: "emoji38", url: "https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png" }, // red pin
+  { id: "emoji38", url: "https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2.png" }, // red pin
   { id: "emoji39", url: "https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png" }, // blue pin
   { id: "emoji40", url: "https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png" }, // orange pin
   { id: "emoji41", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2139.svg" }, // ℹ️ info
