@@ -631,17 +631,57 @@ function slugify(str) {
       return out;
     }
 
-    function normalizePhotoUrl(u) {
+    function isFirebaseStorage(u) {
+      try { return new URL(u).hostname.includes('firebasestorage.googleapis.com'); }
+      catch { return false; }
+    }
+
+    function isMyMapsHostedImage(u) {
       try {
         const url = new URL(u);
-        if (url.hostname.includes('firebasestorage.googleapis.com')) {
+        return url.hostname === 'mymaps.usercontent.google.com' &&
+               url.pathname.includes('/hostedimage/');
+      } catch { return false; }
+    }
+
+    // Proxy do samego wyświetlania (niezależny od ciasteczek Google).
+    // Używamy images.weserv.nl – podajemy URL bez protokołu.
+    function proxyImage(u) {
+      const noScheme = u.replace(/^https?:\/\//, '');
+      // output=jpg zwiększa szanse „zwykłego” Content-Type
+      return `https://images.weserv.nl/?url=${encodeURIComponent(noScheme)}&output=jpg`;
+    }
+
+    // Dla Firebase dopinamy ?alt=media. Dla MyMaps od razu proxy.
+    function normalizePhotoUrl(u) {
+      try {
+        if (!u) return u;
+        if (isFirebaseStorage(u)) {
+          const url = new URL(u);
           if (!url.searchParams.has('alt')) url.searchParams.set('alt', 'media');
           return url.toString();
         }
+        if (isMyMapsHostedImage(u)) {
+          return proxyImage(u);
+        }
         return u;
-      } catch (e) {
+      } catch {
         return u;
       }
+    }
+
+    function imgWithFallback(url) {
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.src = normalizePhotoUrl(url);
+      img.onerror = function () {
+        if (!img.dataset.fallback) {
+          img.dataset.fallback = '1';
+          img.src = proxyImage(url);
+        }
+      };
+      return img;
     }
 
     // === [CODEx ADDED] Kompresja obrazów ===
@@ -1052,8 +1092,7 @@ function emojiHtml(str) {
       photos.forEach((ph, idx) => {
         const wrapper = document.createElement('div');
         wrapper.className = 'photo-item';
-        const img = document.createElement('img');
-        img.src = ph.url;
+        const img = imgWithFallback(ph.url);
         img.dataset.index = idx;
         img.className = 'popup-photo';
         const del = document.createElement('span');
@@ -2803,8 +2842,12 @@ toggleBtn.style.verticalAlign = "top";
     const photos = getStoredPhotos(slug);
     const ph = photos[idx];
     if (!ph) return;
-    const img = document.getElementById('photoModalImg');
-    if (img) img.src = ph.url;
+    const oldImg = document.getElementById('photoModalImg');
+    if (oldImg) {
+      const img = imgWithFallback(ph.url);
+      img.id = 'photoModalImg';
+      oldImg.replaceWith(img);
+    }
     const delBtn = document.getElementById('photoModalDelete');
     if (delBtn) {
       const gallery = document.querySelector(`.photo-gallery[data-slug="${slug}"]`);
