@@ -631,6 +631,19 @@ function slugify(str) {
       return out;
     }
 
+    function normalizePhotoUrl(u) {
+      try {
+        const url = new URL(u);
+        if (url.hostname.includes('firebasestorage.googleapis.com')) {
+          if (!url.searchParams.has('alt')) url.searchParams.set('alt', 'media');
+          return url.toString();
+        }
+        return u;
+      } catch (e) {
+        return u;
+      }
+    }
+
     // === [CODEx ADDED] Kompresja obrazów ===
     const IMG_COMPRESS = {
       maxEdge: 1600,   // dłuższy bok skalujemy do 1600 px
@@ -1492,7 +1505,30 @@ function zaladujPinezkiZFirestore() {
       p.nieaktywne = p.nieaktywne === true;
       p.slug = slugify(p.nazwa);
       if (!photosMap[p.slug]) {
-        storePhotos(p.slug, (p.photos || []));
+        // 1) Start od legacy 'photo' (jeśli istnieje) – jako PIERWSZE
+        const merged = [];
+        if (p.photo && typeof p.photo === 'string' && p.photo.trim()) {
+          merged.push({ url: normalizePhotoUrl(p.photo), legacy: true });
+        }
+
+        // 2) Dorzuć 'photos' (jeśli są)
+        if (Array.isArray(p.photos)) {
+          for (const x of p.photos) {
+            if (x && x.url) merged.push({ ...x, url: normalizePhotoUrl(x.url) });
+          }
+        }
+
+        // 3) Deduplikacja po URL
+        const seen = new Set();
+        const dedup = [];
+        for (const ph of merged) {
+          if (!ph || !ph.url) continue;
+          if (seen.has(ph.url)) continue;
+          seen.add(ph.url);
+          dedup.push(ph);
+        }
+
+        storePhotos(p.slug, dedup);
       }
       categories.add(p.kategoria || '');
       let warstwaNazwa = p.warstwa || "Inne";
@@ -2810,8 +2846,17 @@ toggleBtn.style.verticalAlign = "top";
         // istniejące zdjęcie zostaje
         finalPhotos.push({ url: ph.url, path: ph.path });
         delete remoteMap[ph.path];
+      } else if (ph.legacy) {
+        // LEGACY: stare 'photo' – NIE uploadujemy, NIE kompresujemy
+        // WERSJA A (domyślna): zachowaj w Firestore, ale tylko jako { url }
+        finalPhotos.push({ url: ph.url });
+
+        // --- WERSJA B (opcjonalnie: legacy tylko w runtime, nie zapisuj do Firestore) ---
+        // Aby włączyć WERSJĘ B, ZAMIENIĆ powyższą linię na:
+        // continue;
+
       } else {
-        // NOWE zdjęcie — kompresja + upload
+        // NOWE zdjęcie (dataURL) -> kompresja + upload
         const compressedDataUrl = await compressDataUrl(ph.url);
         // (opcjonalny) próg po kompresji:
         // if (compressedDataUrl.length > 500 * 1024) console.warn('Duże foto po kompresji');
