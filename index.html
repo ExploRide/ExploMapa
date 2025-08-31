@@ -3040,6 +3040,8 @@ function confirmLayerDelete() {
   }
 
   function setupMobile() {
+    if (setupMobile.initialized) return;
+    setupMobile.initialized = true;
     const btn = document.getElementById('savePinBtn');
     const modal = document.getElementById('mobilePinModal');
     const ok = document.getElementById('mobilePinOk');
@@ -3241,6 +3243,7 @@ function confirmLayerDelete() {
           <div style="height:1px;background:#1e2430;margin:10px 0"></div>
           <label class="expe-row"><input type="checkbox" id="expe-preview" checked> <span class="expe-lbl" style="margin:0">Podgląd (bez zmian)</span></label>
           <label class="expe-row" style="margin-top:6px"><input type="checkbox" id="expe-whole"> <span class="expe-lbl" style="margin:0">Dopasowanie całych słów</span></label>
+          <label class="expe-row" style="margin-top:6px"><input type="checkbox" id="expe-exact"> <span class="expe-lbl" style="margin:0">Tylko pełna nazwa</span></label>
           <label class="expe-row" style="margin-top:6px"><input type="checkbox" id="expe-case"> <span class="expe-lbl" style="margin:0">Rozróżniaj wielkość liter</span></label>
           <label class="expe-row" style="margin-top:6px"><input type="checkbox" id="expe-onlyempty"> <span class="expe-lbl" style="margin:0">Aktualizuj tylko, gdy <code>emoji</code> jest puste</span></label>
           <div style="height:1px;background:#1e2430;margin:10px 0"></div>
@@ -3267,7 +3270,7 @@ function confirmLayerDelete() {
   const els = {
     kw: $('#expe-kw'), emoji: $('#expe-emoji'),
     preview: $('#expe-preview'), whole: $('#expe-whole'),
-    kase: $('#expe-case'), onlyempty: $('#expe-onlyempty'),
+    exact: $('#expe-exact'), kase: $('#expe-case'), onlyempty: $('#expe-onlyempty'),
     start: $('#expe-start'), stop: $('#expe-stop'),
     found: $('#expe-found'), ok: $('#expe-ok'), bad: $('#expe-bad'), skip: $('#expe-skip'),
     close: $('.expe-close'), modal: $('.expe-modal'),
@@ -3277,7 +3280,7 @@ function confirmLayerDelete() {
   setupEmojiToolPicker(document.getElementById('expe-emoji-picker'), els.emoji);
   function log(msg){ const t=new Date().toLocaleTimeString(); logEl.textContent+=`[${t}] ${msg}\n`; logEl.scrollTop=logEl.scrollHeight; }
   function setCounters({found, ok, bad, skip}){ if(found!=null)els.found.textContent=found; if(ok!=null)els.ok.textContent=ok; if(bad!=null)els.bad.textContent=bad; if(skip!=null)els.skip.textContent=skip; }
-  function buildMatcher(keywords,{caseSensitive,wholeWord}){ const parts=keywords.map(k=>k.trim()).filter(Boolean).map(k=>k.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')); if(!parts.length)return null; const b=wholeWord?'\\b':''; try{return new RegExp(`${b}(${parts.join('|')})${b}`,caseSensitive?'':'i');}catch(e){log(`❌ Błąd regex: ${e.message}`);return null;} }
+  function buildMatcher(keywords,{caseSensitive,wholeWord,exactName}){ const parts=keywords.map(k=>k.trim()).filter(Boolean).map(k=>k.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')); if(!parts.length)return null; let pattern; if(exactName){pattern = `^(${parts.join('|')})$`;} else {const b=wholeWord?'\\b':''; pattern = `${b}(${parts.join('|')})${b}`;} try{return new RegExp(pattern,caseSensitive?'':'i');}catch(e){log(`❌ Błąd regex: ${e.message}`);return null;} }
 
   function setupEmojiToolPicker(container, input) {
     if (!container || !input) return;
@@ -3351,11 +3354,11 @@ function confirmLayerDelete() {
 
     const keywords = (els.kw.value || '').split(',').map(s=>s.trim()).filter(Boolean);
     const emojiVal = els.emoji.value || ''; const preview = els.preview.checked;
-    const whole = els.whole.checked; const kase = els.kase.checked; const onlyEmpty = els.onlyempty.checked;
+    const whole = els.whole.checked; const exact = els.exact.checked; const kase = els.kase.checked; const onlyEmpty = els.onlyempty.checked;
     if (!keywords.length){ log('⚠️ Brak słów kluczowych.'); reset(); return; }
     if (!emojiVal && !preview){ log('⚠️ Puste emoji (a tryb NIE jest podglądem).'); reset(); return; }
 
-    const matcher = buildMatcher(keywords, {caseSensitive:kase, wholeWord:whole}); if (!matcher){ reset(); return; }
+    const matcher = buildMatcher(keywords, {caseSensitive:kase, wholeWord:whole, exactName:exact}); if (!matcher){ reset(); return; }
 
     try{
       log('Szukam w "pinezki2"…');
