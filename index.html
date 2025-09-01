@@ -539,6 +539,10 @@ body, #sidebar, #basemap-switcher {
         <summary>Filtruj kategorie</summary>
         <div id="kategorie-lista"></div>
       </details>
+      <details id="filterStatusy">
+        <summary>Filtruj statusy</summary>
+        <div id="status-lista"></div>
+      </details>
       <button id="addLayerBtn">+ Nowa warstwa</button>
       <input type="text" id="newLayerInput" style="display:none;width:90%;margin-top:5px;" placeholder="Nazwa warstwy">
         <button id="collapseAllLayers">Rozwiń wszystkie warstwy</button>
@@ -831,6 +835,13 @@ function slugify(str) {
     let sortMode = 'dateDesc';
     const categories = new Set();
     let selectedCategories = new Set();
+    const statusOptions = [
+      {key: 'niedostepne', label: 'Niedostępne ⛔', matches: p => p.niedostepne || p.nieaktywne},
+      {key: 'doSprawdzenia', label: 'Do sprawdzenia ❔', matches: p => p.doSprawdzenia},
+      {key: 'zwiedzone', label: 'Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys">', matches: p => p.zwiedzone},
+      {key: 'zamkniete', label: 'Zamknięte 🔐', matches: p => p.zamkniete}
+    ];
+    let selectedStatuses = new Set();
     const layerDocs = {};
     const layerNamesById = {};
     let sztosyId = null;
@@ -1708,12 +1719,14 @@ function zaladujPinezkiZFirestore() {
     });
     if (!localPinsLoaded) loadNewPinsFromLocal();
     updateCategoryFilter();
+    updateStatusFilter();
     generujListeWarstw();
   })
   .catch(err => {
     console.error("Błąd pobierania pinezek:", err);
     if (!localPinsLoaded) loadNewPinsFromLocal();
     updateCategoryFilter();
+    updateStatusFilter();
     generujListeWarstw();
   }).finally(() => {
     hideLoading();
@@ -2568,6 +2581,57 @@ function showRoutePopup(pinId, tr, latlng) {
       }
     }
 
+    function updateStatusFilter() {
+      const container = document.getElementById('status-lista');
+      if (!container) return;
+      container.innerHTML = '';
+      const keys = statusOptions.map(s => s.key);
+      const allDiv = document.createElement('div');
+      const allChk = document.createElement('input');
+      allChk.type = 'checkbox';
+      allChk.id = 'status-all';
+      allChk.checked = selectedStatuses.size === 0 || selectedStatuses.size === keys.length;
+      const allLbl = document.createElement('label');
+      allLbl.textContent = 'Zaznacz wszystkie';
+      allDiv.appendChild(allChk);
+      allDiv.appendChild(allLbl);
+      container.appendChild(allDiv);
+      allChk.addEventListener('change', () => {
+        if (allChk.checked) {
+          selectedStatuses = new Set(keys);
+          container.querySelectorAll('.status-item input').forEach(ch => ch.checked = true);
+        } else {
+          selectedStatuses.clear();
+          container.querySelectorAll('.status-item input').forEach(ch => ch.checked = false);
+        }
+        generujListeWarstw();
+      });
+      statusOptions.forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'status-item';
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.value = s.key;
+        chk.checked = selectedStatuses.size === 0 || selectedStatuses.has(s.key);
+        const lbl = document.createElement('label');
+        lbl.innerHTML = s.label;
+        div.appendChild(chk);
+        div.appendChild(lbl);
+        container.appendChild(div);
+        chk.addEventListener('change', () => {
+          selectedStatuses = new Set(Array.from(container.querySelectorAll('.status-item input')).filter(c => c.checked).map(c => c.value));
+          const all = document.getElementById('status-all');
+          if (all) all.checked = selectedStatuses.size === 0 || selectedStatuses.size === keys.length;
+          generujListeWarstw();
+        });
+      });
+    }
+
+    function pinMatchesStatus(p) {
+      if (selectedStatuses.size === 0 || selectedStatuses.size === statusOptions.length) return true;
+      return statusOptions.some(s => selectedStatuses.has(s.key) && s.matches(p));
+    }
+
     function updateCategoryFilter() {
       const container = document.getElementById('kategorie-lista');
       if (!container) return;
@@ -2623,7 +2687,7 @@ function showRoutePopup(pinId, tr, latlng) {
       Object.values(warstwy).forEach(w => {
         w.lista.forEach(p => {
           if (!p.marker) return;
-          const visible = selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '');
+          const visible = (selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '')) && pinMatchesStatus(p);
           if (visible) {
             if (!w.layer.hasLayer(p.marker)) {
               w.layer.addLayer(p.marker);
@@ -2708,7 +2772,7 @@ toggleBtn.style.verticalAlign = "top";
         listaP.className = "pinezki-lista";
 
         const sorted = warstwy[nazwa].lista.slice().filter(p => {
-          return selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '');
+          return (selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '')) && pinMatchesStatus(p);
         }).sort((a, b) => {
           const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
           const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
