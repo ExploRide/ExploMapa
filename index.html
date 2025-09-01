@@ -1054,13 +1054,15 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       const isUrl = emojiOrUrl && emojiOrUrl.startsWith("http");
       const overlay = isSztosy
         ? `<span class="sztosy-gwiazda">⭐</span>`
-        : status.zamkniete
-          ? `<span class="status-icon">🔐</span>`
-          : status.doSprawdzenia
-            ? `<span class="status-icon">❔</span>`
-            : (status.zwiedzone || isVisitedLayer)
-              ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="20" height="20" class="status-icon checkmark-obrys">`
-              : '';
+        : (status.nieaktywne || status.niedostepne)
+          ? `<span class="status-icon">⛔</span>`
+          : status.zamkniete
+            ? `<span class="status-icon">🔐</span>`
+            : status.doSprawdzenia
+              ? `<span class="status-icon">❔</span>`
+              : (status.zwiedzone || isVisitedLayer)
+                ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="20" height="20" class="status-icon checkmark-obrys">`
+                : '';
 
       if (isUrl) {
         const cls = isSztosy ? "emoji-obrys-sztosy" : "emoji-obrys";
@@ -1740,10 +1742,10 @@ function zaladujPinezkiZFirestore() {
           </div>
           <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 3)}">${trudnoscText(p.trudnosc ?? 3)}</div>
         </div>
-        <label><input type="checkbox" id="enieaktywne" ${p.nieaktywne ? 'checked' : ''}> Nieaktywne</label><br>
-        <label><input type="checkbox" id="ezamkniete" ${p.zamkniete ? 'checked' : ''}> Zamknięte</label><br>
-        <label><input type="checkbox" id="edoSprawdzenia" ${p.doSprawdzenia ? 'checked' : ''}> Do sprawdzenia</label><br>
-        <label><input type="checkbox" id="ezwiedzone" ${p.zwiedzone ? 'checked' : ''}> Zwiedzone</label><br>
+        <label><input type="checkbox" id="enieaktywne" ${p.nieaktywne ? 'checked' : ''}> Niedostępne ⛔</label><br>
+        <label><input type="checkbox" id="ezamkniete" ${p.zamkniete ? 'checked' : ''}> Zamknięte 🔐</label><br>
+        <label><input type="checkbox" id="edoSprawdzenia" ${p.doSprawdzenia ? 'checked' : ''}> Do sprawdzenia ❔</label><br>
+        <label><input type="checkbox" id="ezwiedzone" ${p.zwiedzone ? 'checked' : ''}> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
         <div id="emojiPicker-${id}" class="emoji-picker"></div>
@@ -1764,6 +1766,7 @@ function zaladujPinezkiZFirestore() {
           p.nieaktywne = chkInactive.checked;
           markPinUnsaved(p.slug);
           applyInactiveStyle(p);
+          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
       }
       const chkClosed = container.querySelector('#ezamkniete');
@@ -1894,10 +1897,10 @@ attachPopupHandlers(p.marker, p);
         <input id="warstwaNew" placeholder="Warstwa" style="width: 100%"><br>
         <input id="kategoriaNew" placeholder="Kategoria" style="width: 100%"><br>
         <input id="emojiNew" placeholder="Emoji" style="width: 100%"><br>
-        <label><input type="checkbox" id="nieaktywneNew"> Nieaktywne</label><br>
-        <label><input type="checkbox" id="zamknieteNew"> Zamknięte</label><br>
-        <label><input type="checkbox" id="doSprawdzeniaNew"> Do sprawdzenia</label><br>
-        <label><input type="checkbox" id="zwiedzoneNew"> Zwiedzone</label><br>
+        <label><input type="checkbox" id="nieaktywneNew"> Niedostępne ⛔</label><br>
+        <label><input type="checkbox" id="zamknieteNew"> Zamknięte 🔐</label><br>
+        <label><input type="checkbox" id="doSprawdzeniaNew"> Do sprawdzenia ❔</label><br>
+        <label><input type="checkbox" id="zwiedzoneNew"> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label><br>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
       setupEmojiInput(container.querySelector('#emojiNew'));
@@ -1913,6 +1916,7 @@ attachPopupHandlers(p.marker, p);
       const chkNewVisited = container.querySelector('#zwiedzoneNew');
       const refreshIcon = () => {
         const status = {
+          nieaktywne: chkNewInactive && chkNewInactive.checked,
           zamkniete: chkNewClosed && chkNewClosed.checked,
           doSprawdzenia: chkNewTodo && chkNewTodo.checked,
           zwiedzone: chkNewVisited && chkNewVisited.checked
@@ -3451,10 +3455,10 @@ function confirmLayerDelete() {
       <input type="text" id="mobilePinLayer" placeholder="Warstwa">
       <input type="text" id="mobilePinCategory" placeholder="Kategoria">
       <input type="text" id="mobilePinEmoji" placeholder="Emoji">
-      <label><input type="checkbox" id="mobilePinInactive"> Nieaktywne</label>
-      <label><input type="checkbox" id="mobilePinClosed"> Zamknięte</label>
-      <label><input type="checkbox" id="mobilePinTodo"> Do sprawdzenia</label>
-      <label><input type="checkbox" id="mobilePinVisited"> Zwiedzone</label>
+      <label><input type="checkbox" id="mobilePinInactive"> Niedostępne ⛔</label>
+      <label><input type="checkbox" id="mobilePinClosed"> Zamknięte 🔐</label>
+      <label><input type="checkbox" id="mobilePinTodo"> Do sprawdzenia ❔</label>
+      <label><input type="checkbox" id="mobilePinVisited"> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label>
       <div style="display:flex;gap:10px;justify-content:center;">
         <button id="mobilePinOk">Zapisz</button>
         <button id="mobilePinCancel">Anuluj</button>
