@@ -462,6 +462,12 @@ body, #sidebar, #basemap-switcher {
   right: -6px;
   z-index: 10;
 }
+.status-icon {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  z-index: 10;
+}
 .checkmark-obrys {
   filter: drop-shadow(0 0 0.5px black) drop-shadow(1px 1px 0 black) drop-shadow(-1px -1px 0 black);
   border-radius: 2px;
@@ -1018,9 +1024,9 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       }
     }
 
-    function createEmojiIcon(emojiOrUrl, warstwaId, size = 32) {
+    function createEmojiIcon(emojiOrUrl, warstwaId, size = 32, status = {}) {
       emojiOrUrl = resolveEmoji(emojiOrUrl);
-      const isVisited = warstwaId && warstwaId === visitedId;
+      const isVisitedLayer = warstwaId && warstwaId === visitedId;
       const isSztosy = warstwaId && warstwaId === sztosyId;
       if (warstwaId && warstwaId === orangeLayerId) {
         return L.icon({
@@ -1048,9 +1054,13 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       const isUrl = emojiOrUrl && emojiOrUrl.startsWith("http");
       const overlay = isSztosy
         ? `<span class="sztosy-gwiazda">⭐</span>`
-        : isVisited
-          ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="20" height="20" class="zwiedzone-check checkmark-obrys">`
-          : '';
+        : status.zamkniete
+          ? `<span class="status-icon">🔐</span>`
+          : status.doSprawdzenia
+            ? `<span class="status-icon">❔</span>`
+            : (status.zwiedzone || isVisitedLayer)
+              ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="20" height="20" class="status-icon checkmark-obrys">`
+              : '';
 
       if (isUrl) {
         const cls = isSztosy ? "emoji-obrys-sztosy" : "emoji-obrys";
@@ -1214,6 +1224,9 @@ function emojiHtml(str) {
         <div style="border-top:1px solid #444;"></div>
         <div>Warstwa: ${p.warstwa || 'Inne'}</div>
         ${p.kategoria ? `<div>Kategoria: ${p.kategoria}</div>` : ''}
+        ${p.zamkniete ? `<div style="opacity:0.8;">Zamknięte 🔐</div>` : ''}
+        ${p.doSprawdzenia ? `<div style="opacity:0.8;">Do sprawdzenia ❔</div>` : ''}
+        ${p.zwiedzone ? `<div style="opacity:0.8;">Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></div>` : ''}
         ${p.nieaktywne ? `<div style="opacity:0.8;">Nieaktywne</div>` : ''}
         <div>Data dodania: ${formatDate(p.dataDodania)}</div>
         <div>${formatCoords(p.lat, p.lng)}</div>
@@ -1617,6 +1630,9 @@ function zaladujPinezkiZFirestore() {
         p.trudnosc = parseInt(p.trudnosc, 10);
       }
       p.nieaktywne = p.nieaktywne === true;
+      p.zamkniete = p.zamkniete === true;
+      p.doSprawdzenia = p.doSprawdzenia === true;
+      p.zwiedzone = p.zwiedzone === true;
       p.slug = slugify(p.nazwa);
       if (!photosMap[p.slug]) {
         // 1) Start od legacy 'photo' (jeśli istnieje) – jako PIERWSZE
@@ -1662,7 +1678,7 @@ function zaladujPinezkiZFirestore() {
       }
 
       const iconEmoji = warstwy[warstwaNazwa].emoji || p.emoji;
-      const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId) }).addTo(warstwy[warstwaNazwa].layer);
+      const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p) }).addTo(warstwy[warstwaNazwa].layer);
       if (p.trasy) {
         p.trasy.forEach(tr => {
           const color = tr.kolor || '#00ccff';
@@ -1723,6 +1739,9 @@ function zaladujPinezkiZFirestore() {
           <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 3)}">${trudnoscText(p.trudnosc ?? 3)}</div>
         </div>
         <label><input type="checkbox" id="enieaktywne" ${p.nieaktywne ? 'checked' : ''}> Nieaktywne</label><br>
+        <label><input type="checkbox" id="ezamkniete" ${p.zamkniete ? 'checked' : ''}> Zamknięte</label><br>
+        <label><input type="checkbox" id="edoSprawdzenia" ${p.doSprawdzenia ? 'checked' : ''}> Do sprawdzenia</label><br>
+        <label><input type="checkbox" id="ezwiedzone" ${p.zwiedzone ? 'checked' : ''}> Zwiedzone</label><br>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
         <div id="emojiPicker-${id}" class="emoji-picker"></div>
@@ -1743,6 +1762,30 @@ function zaladujPinezkiZFirestore() {
           p.nieaktywne = chkInactive.checked;
           markPinUnsaved(p.slug);
           applyInactiveStyle(p);
+        });
+      }
+      const chkClosed = container.querySelector('#ezamkniete');
+      if (chkClosed) {
+        chkClosed.addEventListener('change', () => {
+          p.zamkniete = chkClosed.checked;
+          markPinUnsaved(p.slug);
+          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
+        });
+      }
+      const chkTodo = container.querySelector('#edoSprawdzenia');
+      if (chkTodo) {
+        chkTodo.addEventListener('change', () => {
+          p.doSprawdzenia = chkTodo.checked;
+          markPinUnsaved(p.slug);
+          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
+        });
+      }
+      const chkVisited = container.querySelector('#ezwiedzone');
+      if (chkVisited) {
+        chkVisited.addEventListener('change', () => {
+          p.zwiedzone = chkVisited.checked;
+          markPinUnsaved(p.slug);
+          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
       }
       const delBtn = container.querySelector('#deleteBtn-' + id);
@@ -1781,7 +1824,10 @@ function zaladujPinezkiZFirestore() {
         kategoria: catVal,
         emoji: emojiVal,
         trudnosc: parseInt(document.getElementById("etrudnosc").value, 10),
-        nieaktywne: document.getElementById("enieaktywne").checked
+        nieaktywne: document.getElementById("enieaktywne").checked,
+        zamkniete: document.getElementById("ezamkniete").checked,
+        doSprawdzenia: document.getElementById("edoSprawdzenia").checked,
+        zwiedzone: document.getElementById("ezwiedzone").checked
       };
       zmianyDoZapisania[id] = nowa;
       if (p) {
@@ -1808,11 +1854,11 @@ function zaladujPinezkiZFirestore() {
           warstwy[p.warstwa].lista.push(p);
           if (p.marker) p.marker.remove();
           const iconEmoji = warstwy[p.warstwa].emoji || p.emoji;
-          p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId)}).addTo(warstwy[p.warstwa].layer);
+          p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[p.warstwa].layer);
           attachHighlight(p.marker, p.el);
         } else {
           const iconEmoji = warstwy[p.warstwa].emoji || p.emoji;
-          p.marker.setIcon(createEmojiIcon(iconEmoji, p.warstwaId));
+          p.marker.setIcon(createEmojiIcon(iconEmoji, p.warstwaId, 32, p));
         }
         applyInactiveStyle(p);
         
@@ -1847,6 +1893,9 @@ attachPopupHandlers(p.marker, p);
         <input id="kategoriaNew" placeholder="Kategoria" style="width: 100%"><br>
         <input id="emojiNew" placeholder="Emoji" style="width: 100%"><br>
         <label><input type="checkbox" id="nieaktywneNew"> Nieaktywne</label><br>
+        <label><input type="checkbox" id="zamknieteNew"> Zamknięte</label><br>
+        <label><input type="checkbox" id="doSprawdzeniaNew"> Do sprawdzenia</label><br>
+        <label><input type="checkbox" id="zwiedzoneNew"> Zwiedzone</label><br>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
       setupEmojiInput(container.querySelector('#emojiNew'));
@@ -1857,12 +1906,28 @@ attachPopupHandlers(p.marker, p);
       const popup = marker.bindPopup(container).openPopup();
 
       const chkNewInactive = container.querySelector('#nieaktywneNew');
+      const chkNewClosed = container.querySelector('#zamknieteNew');
+      const chkNewTodo = container.querySelector('#doSprawdzeniaNew');
+      const chkNewVisited = container.querySelector('#zwiedzoneNew');
+      const refreshIcon = () => {
+        const status = {
+          zamkniete: chkNewClosed && chkNewClosed.checked,
+          doSprawdzenia: chkNewTodo && chkNewTodo.checked,
+          zwiedzone: chkNewVisited && chkNewVisited.checked
+        };
+        const emojiVal = container.querySelector('#emojiNew').value || "📍";
+        marker.setIcon(createEmojiIcon(emojiVal, null, 24, status));
+      };
       if (chkNewInactive) {
         chkNewInactive.addEventListener('change', () => {
           const tmp = { marker, el: null, nieaktywne: chkNewInactive.checked };
           applyInactiveStyle(tmp);
+          refreshIcon();
         });
       }
+      if (chkNewClosed) chkNewClosed.addEventListener('change', refreshIcon);
+      if (chkNewTodo) chkNewTodo.addEventListener('change', refreshIcon);
+      if (chkNewVisited) chkNewVisited.addEventListener('change', refreshIcon);
 
       let saved = false;
       const removeOnClose = () => {
@@ -1890,6 +1955,9 @@ attachPopupHandlers(p.marker, p);
             kategoria: catVal,
             emoji: container.querySelector("#emojiNew").value,
             nieaktywne: container.querySelector("#nieaktywneNew").checked,
+            zamkniete: container.querySelector("#zamknieteNew").checked,
+            doSprawdzenia: container.querySelector("#doSprawdzeniaNew").checked,
+            zwiedzone: container.querySelector("#zwiedzoneNew").checked,
             lat: latlng.lat,
             lng: latlng.lng,
             dataDodania: Date.now(),
@@ -1905,7 +1973,7 @@ attachPopupHandlers(p.marker, p);
         }
         data.marker = marker;
         const iconEmoji = warstwy[warstwaN].emoji || data.emoji;
-        marker.setIcon(createEmojiIcon(iconEmoji, data.warstwaId));
+        marker.setIcon(createEmojiIcon(iconEmoji, data.warstwaId, 32, data));
         applyInactiveStyle(data);
         data.slug = slugify(data.nazwa);
         if (!photosMap[data.slug]) {
@@ -1995,6 +2063,9 @@ attachPopupHandlers(p.marker, p);
         if (p.firebaseId === undefined) p.firebaseId = null;
         p.unsaved = true;
         if (p.nieaktywne === undefined) p.nieaktywne = false;
+        if (p.zamkniete === undefined) p.zamkniete = false;
+        if (p.doSprawdzenia === undefined) p.doSprawdzenia = false;
+        if (p.zwiedzone === undefined) p.zwiedzone = false;
         if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
         categories.add(p.kategoria || '');
@@ -2005,7 +2076,7 @@ attachPopupHandlers(p.marker, p);
           warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
         }
         const iconEmoji = warstwy[warstwaN].emoji || p.emoji;
-        const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId)}).addTo(warstwy[warstwaN].layer);
+        const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[warstwaN].layer);
         if (p.trasy) {
           p.trasy.forEach(tr => {
             const color = tr.kolor || '#00ccff';
@@ -2257,7 +2328,7 @@ attachPopupHandlers(p.marker, p);
       if (!layer) return;
       layer.lista.forEach(p => {
         const emoji = layer.emoji || p.emoji;
-        if (p.marker) p.marker.setIcon(createEmojiIcon(emoji, p.warstwaId));
+        if (p.marker) p.marker.setIcon(createEmojiIcon(emoji, p.warstwaId, 32, p));
         if (p.el) p.el.innerHTML = (emoji ? emojiHtml(emoji) + ' ' : '') + p.nazwa;
       });
     }
@@ -2768,6 +2839,9 @@ toggleBtn.style.verticalAlign = "top";
             kategoria: p.kategoria,
             emoji: p.emoji,
             nieaktywne: p.nieaktywne || false,
+            zamkniete: p.zamkniete || false,
+            doSprawdzenia: p.doSprawdzenia || false,
+            zwiedzone: p.zwiedzone || false,
             lat: p.lat,
             lng: p.lng,
             dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
@@ -3183,6 +3257,9 @@ function confirmLayerDelete() {
       kategoria: catVal,
       emoji: form.emoji,
       nieaktywne: form.nieaktywne,
+      zamkniete: form.zamkniete,
+      doSprawdzenia: form.doSprawdzenia,
+      zwiedzone: form.zwiedzone,
       lat: latlng.lat,
       lng: latlng.lng,
       dataDodania: Date.now(),
@@ -3194,7 +3271,7 @@ function confirmLayerDelete() {
     if (!warstwy[warstwaN]) {
       warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
     }
-    const marker = L.marker(latlng, {icon: createEmojiIcon(warstwy[warstwaN].emoji || data.emoji, data.warstwaId)}).addTo(warstwy[warstwaN].layer);
+    const marker = L.marker(latlng, {icon: createEmojiIcon(warstwy[warstwaN].emoji || data.emoji, data.warstwaId, 32, data)}).addTo(warstwy[warstwaN].layer);
     applyInactiveStyle(data);
     data.marker = marker;
     data.slug = slugify(data.nazwa);
@@ -3243,6 +3320,9 @@ function confirmLayerDelete() {
     const catInput = document.getElementById('mobilePinCategory');
     const emojiInput = document.getElementById('mobilePinEmoji');
     const inactiveInput = document.getElementById('mobilePinInactive');
+    const closedInput = document.getElementById('mobilePinClosed');
+    const todoInput = document.getElementById('mobilePinTodo');
+    const visitedInput = document.getElementById('mobilePinVisited');
     if (!btn || !modal || !ok || !cancel || !nameInput) return;
 
     function openGpsModal() {
@@ -3252,6 +3332,9 @@ function confirmLayerDelete() {
       catInput.style.display = 'none';
       emojiInput.style.display = 'none';
       inactiveInput.parentElement.style.display = 'none';
+      closedInput.parentElement.style.display = 'none';
+      todoInput.parentElement.style.display = 'none';
+      visitedInput.parentElement.style.display = 'none';
       modal.style.display = 'flex';
     }
 
@@ -3262,11 +3345,17 @@ function confirmLayerDelete() {
       catInput.value = '';
       emojiInput.value = '';
       inactiveInput.checked = false;
+      closedInput.checked = false;
+      todoInput.checked = false;
+      visitedInput.checked = false;
       descInput.style.display = '';
       layerInput.style.display = '';
       catInput.style.display = '';
       emojiInput.style.display = '';
       inactiveInput.parentElement.style.display = '';
+      closedInput.parentElement.style.display = '';
+      todoInput.parentElement.style.display = '';
+      visitedInput.parentElement.style.display = '';
       modal.style.display = 'flex';
       setupEmojiInput(emojiInput);
       setupDropdownInput(layerInput, () => Object.keys(warstwy));
@@ -3306,7 +3395,10 @@ function confirmLayerDelete() {
           warstwa: layerInput.value,
           kategoria: catInput.value,
           emoji: emojiInput.value,
-          nieaktywne: inactiveInput.checked
+          nieaktywne: inactiveInput.checked,
+          zamkniete: closedInput.checked,
+          doSprawdzenia: todoInput.checked,
+          zwiedzone: visitedInput.checked
         });
       } else {
         await saveMovingPin(name);
@@ -3358,6 +3450,9 @@ function confirmLayerDelete() {
       <input type="text" id="mobilePinCategory" placeholder="Kategoria">
       <input type="text" id="mobilePinEmoji" placeholder="Emoji">
       <label><input type="checkbox" id="mobilePinInactive"> Nieaktywne</label>
+      <label><input type="checkbox" id="mobilePinClosed"> Zamknięte</label>
+      <label><input type="checkbox" id="mobilePinTodo"> Do sprawdzenia</label>
+      <label><input type="checkbox" id="mobilePinVisited"> Zwiedzone</label>
       <div style="display:flex;gap:10px;justify-content:center;">
         <button id="mobilePinOk">Zapisz</button>
         <button id="mobilePinCancel">Anuluj</button>
