@@ -48,6 +48,7 @@ const emojiList = window.emojiList = [
   { id: "emoji47", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f69c.svg" }, // 🚜 traktor
 { id: "emoji48", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2692.svg" }, // ⚒️ kopalnia
   { id: "emoji49", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1fa96.svg" }, // 🪖 hełm
-    { id: "emoji50", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26e9.svg" } // ⛩️ chiński most
+    { id: "emoji50", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/26e9.svg" }, // ⛩️ chiński most
+   {  id: "emoji51", url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/2697.svg" } // ⚗️ labo
 
 ];
