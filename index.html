@@ -1289,6 +1289,34 @@ function emojiHtml(str) {
         });
         list.appendChild(img);
       });
+
+      const addBtn = document.createElement('button');
+      addBtn.textContent = '+';
+      addBtn.className = 'emoji-add-btn';
+      addBtn.addEventListener('click', async e => {
+        e.preventDefault();
+        const url = prompt('URL nowego emoji:');
+        if (url) {
+          const id = await addEmojiToList(url);
+          const img = document.createElement('img');
+          img.src = url;
+          img.width = 24;
+          img.height = 24;
+          img.style.cursor = 'pointer';
+          img.style.margin = '2px';
+          img.addEventListener('mousedown', ev => {
+            ev.preventDefault();
+            input.value = id;
+            updatePreview();
+            list.style.display = 'none';
+          });
+          list.insertBefore(img, addBtn);
+          input.value = id;
+          updatePreview();
+          list.style.display = 'none';
+        }
+      });
+      list.appendChild(addBtn);
       document.body.appendChild(list);
 
       function show() {
@@ -1336,6 +1364,29 @@ function emojiHtml(str) {
         });
         grid.appendChild(img);
       });
+      const addBtn = document.createElement('button');
+      addBtn.textContent = '+';
+      addBtn.className = 'emoji-add-btn';
+      addBtn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const url = prompt('URL nowego emoji:');
+        if (url) {
+          const id = await addEmojiToList(url);
+          const img = document.createElement('img');
+          img.src = url;
+          img.addEventListener('click', ev => {
+            ev.stopPropagation();
+            preview.src = url;
+            pin.noweEmoji = id;
+            grid.style.display = 'none';
+          });
+          grid.insertBefore(img, addBtn);
+          preview.src = url;
+          pin.noweEmoji = id;
+          grid.style.display = 'none';
+        }
+      });
+      grid.appendChild(addBtn);
       container.appendChild(grid);
 
       preview.addEventListener('click', e => {
@@ -3032,6 +3083,10 @@ function confirmLayerDelete() {
       return;
     }
     await ensureMovingLayer();
+    if (warstwy['Tryb w ruchu']) {
+      warstwy['Tryb w ruchu'].visible = true;
+      warstwy['Tryb w ruchu'].layer.addTo(map);
+    }
     const suffix = generateSuffix();
     const firebaseId = `${sanitize(name)}_${suffix}`;
     const IDpinezki = crypto.randomUUID();
@@ -3407,6 +3462,29 @@ function confirmLayerDelete() {
       });
       grid.appendChild(img);
     });
+    const addBtn = document.createElement('button');
+    addBtn.textContent = '+';
+    addBtn.className = 'emoji-add-btn';
+    addBtn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const url = prompt('URL nowego emoji:');
+      if (url) {
+        const id = await addEmojiToList(url, log);
+        const img = document.createElement('img');
+        img.src = url;
+        img.addEventListener('click', ev => {
+          ev.stopPropagation();
+          input.value = id;
+          preview.src = url;
+          grid.style.display = 'none';
+        });
+        grid.insertBefore(img, addBtn);
+        input.value = id;
+        preview.src = url;
+        grid.style.display = 'none';
+      }
+    });
+    grid.appendChild(addBtn);
     container.appendChild(grid);
     preview.addEventListener('click', e => {
       e.stopPropagation();
@@ -3417,7 +3495,7 @@ function confirmLayerDelete() {
     });
   }
 
-  async function addEmojiToList(url) {
+  async function addEmojiToList(url, logger = console.log) {
     const nextNum = emojiList.reduce((m,e)=>{
       const n = parseInt(String(e.id).replace('emoji','')) || 0;
       return Math.max(m,n);
@@ -3426,12 +3504,19 @@ function confirmLayerDelete() {
     emojiList.push({ id: newId, url });
     if (window.emojiMap) window.emojiMap[newId] = url;
     try {
-      const content = 'const emojiList = window.emojiList = ' + JSON.stringify(emojiList, null, 2) + ';';
-      await fetch('emoji-list.js', { method:'POST', headers:{'Content-Type':'text/javascript'}, body: content });
-      log(`💾 Dodano ${newId} do emoji-list.js`);
+      const content = 'const emojiList = window.emojiList = ' + JSON.stringify(emojiList, null, 2) + ';\n';
+      const resp = await fetch('emoji-list.js', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+        body: content,
+        cache: 'no-store'
+      });
+      if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
+      logger(`💾 Dodano ${newId} do emoji-list.js`);
     } catch(e) {
-      log(`❌ Błąd zapisu emoji-list.js: ${e.message}`);
+      logger(`❌ Błąd zapisu emoji-list.js: ${e.message}`);
     }
+    return newId;
   }
 
   // Auth UI
@@ -3488,7 +3573,7 @@ function confirmLayerDelete() {
         emojiToolChanged = true;
         if (emojiVal.startsWith('http')) {
           const exists = emojiList.some(e => e.id === emojiVal || e.url === emojiVal);
-          if (!exists) await addEmojiToList(emojiVal);
+          if (!exists) await addEmojiToList(emojiVal, log);
         }
       }
     }catch(e){ log('❌ Błąd: ' + e.message); }
