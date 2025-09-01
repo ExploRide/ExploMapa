@@ -30,16 +30,17 @@
 }
 
   .emoji-picker-preview {
-    display: block;
+    display: inline-block;
     width: 28px;
     height: 28px;
     cursor: pointer;
+    vertical-align: middle;
+    margin-left: 4px;
   }
 
 .emoji-picker {
-  position: absolute;
-  bottom: 0;
-  right: 0;
+  position: relative;
+  display: inline-block;
 }
 
   .emoji-picker-grid {
