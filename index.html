@@ -3496,19 +3496,39 @@ function confirmLayerDelete() {
   }
 
   async function addEmojiToList(url, logger = console.log) {
-    const nextNum = emojiList.reduce((m,e)=>{
-      const n = parseInt(String(e.id).replace('emoji','')) || 0;
-      return Math.max(m,n);
-    },0) + 1;
+    const nextNum = emojiList.reduce((m, e) => {
+      const n = parseInt(String(e.id).replace('emoji', '')) || 0;
+      return Math.max(m, n);
+    }, 0) + 1;
     const newId = `emoji${nextNum}`;
     emojiList.push({ id: newId, url });
     if (window.emojiMap) window.emojiMap[newId] = url;
+
+    const content =
+      'const emojiList = window.emojiList = ' +
+      JSON.stringify(emojiList, null, 2) +
+      ';\n';
+
     try {
-      const content = 'const emojiList = window.emojiList = ' + JSON.stringify(emojiList, null, 2) + ';';
-      await fetch('emoji-list.js', { method:'POST', headers:{'Content-Type':'text/javascript'}, body: content });
+      const res = await fetch('emoji-list.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/javascript' },
+        body: content,
+      });
+      if (!res.ok) throw new Error(await res.text());
       logger(`💾 Dodano ${newId} do emoji-list.js`);
-    } catch(e) {
+    } catch (e) {
       logger(`❌ Błąd zapisu emoji-list.js: ${e.message}`);
+      try {
+        const blob = new Blob([content], { type: 'text/javascript' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'emoji-list.js';
+        a.click();
+        logger('⬇️ Pobierz i zamień plik emoji-list.js ręcznie.');
+      } catch (downErr) {
+        logger(`❌ Nie udało się pobrać pliku: ${downErr.message}`);
+      }
     }
     return newId;
   }
