@@ -3127,6 +3127,15 @@ function confirmLayerDelete() {
     updateSaveButton();
   }
 
+  function showPinSavedMessage() {
+    const el = document.getElementById('pinSavedMessage');
+    if (!el) return;
+    el.style.display = 'block';
+    setTimeout(() => {
+      el.style.display = 'none';
+    }, 3000);
+  }
+
   function setupMobile() {
     if (setupMobile.initialized) return;
     setupMobile.initialized = true;
@@ -3194,7 +3203,7 @@ function confirmLayerDelete() {
     });
 
     cancel.addEventListener('click', () => { modal.style.display = 'none'; });
-    ok.addEventListener('click', () => {
+    ok.addEventListener('click', async () => {
       const name = nameInput.value.trim();
       if (!name) { modal.style.display = 'none'; return; }
       if (currentTool === 'pin') {
@@ -3207,9 +3216,10 @@ function confirmLayerDelete() {
           nieaktywne: inactiveInput.checked
         });
       } else {
-        saveMovingPin(name);
+        await saveMovingPin(name);
       }
       modal.style.display = 'none';
+      showPinSavedMessage();
     });
 
     if (gpsBtn) {
@@ -3245,6 +3255,7 @@ function confirmLayerDelete() {
   </div>
   <img id="centerMarker" src="https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png" alt="center marker">
   <button id="savePinBtn">ZAPISZ PIN</button>
+  <div id="pinSavedMessage">Zapisano pinezkę</div>
   <div id="mobilePinModal" class="mobile-modal">
     <div class="mobile-modal-content">
       <input type="text" id="mobilePinName" placeholder="Nazwa pinezki">

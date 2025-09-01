@@ -120,6 +120,21 @@
   display: none;
 }
 
+#pinSavedMessage {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.8);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  z-index: 2000;
+  display: none;
+  font-size: 24px;
+  text-align: center;
+}
+
 #loadPinsBtn {
   background: #007bff;
   color: white;
