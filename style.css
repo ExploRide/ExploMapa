@@ -20,6 +20,10 @@
   max-width: 200px;
 }
 
+.emoji-dropdown img {
+  position: relative;
+}
+
 .emoji-input-preview {
   display: none;
   margin-top: 4px;
@@ -57,6 +61,39 @@
   width: 24px;
   height: 24px;
   cursor: pointer;
+  position: relative;
+}
+
+.emoji-picker-grid img[data-info]:hover::after {
+  content: attr(data-info);
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.emoji-dropdown img[data-info]:hover::after {
+  content: attr(data-info);
+  position: absolute;
+  bottom: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1000;
 }
 
 .emoji-add-btn {
