@@ -605,12 +605,16 @@ body, #sidebar, #basemap-switcher {
     const emojiMap = window.emojiMap = {};
     let emojiListResolver;
     const emojiListReady = new Promise(res => (emojiListResolver = res));
-    db.collection('Emoji').doc('emoji-list').onSnapshot(doc => {
-      const data = doc.data() || {};
-      const list = Array.isArray(data.list) ? data.list : [];
+    db.collection('emoji-list').onSnapshot(snapshot => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      docs.sort((a, b) => {
+        const na = parseInt(String(a.id).replace('emoji', '')) || 0;
+        const nb = parseInt(String(b.id).replace('emoji', '')) || 0;
+        return na - nb;
+      });
       emojiList.length = 0;
       Object.keys(emojiMap).forEach(k => delete emojiMap[k]);
-      list.forEach(e => { emojiList.push(e); emojiMap[e.id] = e.url; });
+      docs.forEach(e => { emojiList.push(e); emojiMap[e.id] = e.url; });
       if (emojiListResolver) { emojiListResolver(); emojiListResolver = null; }
     }, err => {
       console.error('❌ Błąd pobierania emoji-list:', err);
@@ -3532,10 +3536,11 @@ function confirmLayerDelete() {
       return Math.max(m, n);
     }, 0) + 1;
     const newId = `emoji${nextNum}`;
-    emojiList.push({ id: newId, url });
+    const data = { id: newId, url };
+    emojiList.push(data);
     emojiMap[newId] = url;
     try {
-      await db.collection('Emoji').doc('emoji-list').set({ list: emojiList }, { merge: true });
+      await db.collection('emoji-list').doc(newId).set(data);
       logger(`💾 Dodano ${newId} do Firebase`);
     } catch (e) {
       logger(`❌ Błąd zapisu do Firebase: ${e.message}`);
