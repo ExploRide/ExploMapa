@@ -52,7 +52,6 @@
   padding: 4px;
   display: none;
   z-index: 2000;
-  display: grid;
   grid-template-columns: repeat(8, 24px);
   gap: 4px;
   width: calc(8 * 24px + 7 * 4px);
