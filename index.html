@@ -468,6 +468,12 @@ body, #sidebar, #basemap-switcher {
   right: -6px;
   z-index: 10;
 }
+
+.status-icon.sztosy {
+  top: -8px;
+  bottom: auto;
+  z-index: 20;
+}
 .checkmark-obrys {
   filter: drop-shadow(0 0 0.5px black) drop-shadow(1px 1px 0 black) drop-shadow(-1px -1px 0 black);
   border-radius: 2px;
@@ -1063,17 +1069,17 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       }
 
       const isUrl = emojiOrUrl && emojiOrUrl.startsWith("http");
-      const overlay = isSztosy
-        ? `<span class="sztosy-gwiazda">⭐</span>`
-        : (status.nieaktywne || status.niedostepne)
-          ? `<span class="status-icon">⛔</span>`
-          : status.zamkniete
-            ? `<span class="status-icon">🔐</span>`
-            : status.doSprawdzenia
-              ? `<span class="status-icon">❔</span>`
-              : (status.zwiedzone || isVisitedLayer)
-                ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="20" height="20" class="status-icon checkmark-obrys">`
-                : '';
+      const statusClass = isSztosy ? 'status-icon sztosy' : 'status-icon';
+      const statusIcon = (status.nieaktywne || status.niedostepne)
+        ? `<span class="${statusClass}">⛔</span>`
+        : status.zamkniete
+          ? `<span class="${statusClass}">🔐</span>`
+          : status.doSprawdzenia
+            ? `<span class="${statusClass}">❔</span>`
+            : (status.zwiedzone || isVisitedLayer)
+              ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="20" height="20" class="${statusClass} checkmark-obrys">`
+              : '';
+      const overlay = `${isSztosy ? '<span class="sztosy-gwiazda">⭐</span>' : ''}${statusIcon}`;
 
       if (isUrl) {
         const cls = isSztosy ? "emoji-obrys-sztosy" : "emoji-obrys";
