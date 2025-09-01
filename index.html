@@ -599,11 +599,23 @@ body, #sidebar, #basemap-switcher {
   <script src="firebase-init.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="emoji-list.js"></script>
 
   <script>
-    const emojiMap = {};
-    emojiList.forEach(e => { emojiMap[e.id] = e.url; });
+    const emojiList = window.emojiList = [];
+    const emojiMap = window.emojiMap = {};
+    let emojiListResolver;
+    const emojiListReady = new Promise(res => (emojiListResolver = res));
+    db.collection('Emoji').doc('emoji-list').onSnapshot(doc => {
+      const data = doc.data() || {};
+      const list = Array.isArray(data.list) ? data.list : [];
+      emojiList.length = 0;
+      Object.keys(emojiMap).forEach(k => delete emojiMap[k]);
+      list.forEach(e => { emojiList.push(e); emojiMap[e.id] = e.url; });
+      if (emojiListResolver) { emojiListResolver(); emojiListResolver = null; }
+    }, err => {
+      console.error('❌ Błąd pobierania emoji-list:', err);
+      if (emojiListResolver) { emojiListResolver(); emojiListResolver = null; }
+    });
 
     function resolveEmoji(val) {
       if (!val) return val;
@@ -1253,8 +1265,9 @@ function emojiHtml(str) {
 
   
 
-    function setupEmojiInput(input) {
+    async function setupEmojiInput(input) {
       if (!input) return;
+      await emojiListReady;
       const list = document.createElement('div');
       list.className = 'emoji-dropdown';
       const preview = document.createElement('img');
@@ -1335,8 +1348,9 @@ function emojiHtml(str) {
       updatePreview();
     }
 
-    function setupEmojiPicker(container, pin) {
+    async function setupEmojiPicker(container, pin) {
       if (!container || !pin) return;
+      await emojiListReady;
       const preview = document.createElement('img');
       preview.className = 'emoji-picker-preview';
       preview.width = 28;
@@ -3451,8 +3465,9 @@ function confirmLayerDelete() {
   function setCounters({found, ok, bad, skip}){ if(found!=null)els.found.textContent=found; if(ok!=null)els.ok.textContent=ok; if(bad!=null)els.bad.textContent=bad; if(skip!=null)els.skip.textContent=skip; }
   function buildMatcher(keywords,{caseSensitive,wholeWord,exactName}){ const parts=keywords.map(k=>k.trim()).filter(Boolean).map(k=>k.replace(/[.*+?^${}()|[\\]\\]/g,'\\$&')); if(!parts.length)return null; let pattern; if(exactName){pattern = `^(${parts.join('|')})$`;} else {const b=wholeWord?'\\b':''; pattern = `${b}(${parts.join('|')})${b}`;} try{return new RegExp(pattern,caseSensitive?'':'i');}catch(e){log(`❌ Błąd regex: ${e.message}`);return null;} }
 
-  function setupEmojiToolPicker(container, input) {
+  async function setupEmojiToolPicker(container, input) {
     if (!container || !input) return;
+    await emojiListReady;
     container.style.position = 'relative';
     const preview = document.createElement('img');
     preview.className = 'emoji-picker-preview';
@@ -3511,39 +3526,19 @@ function confirmLayerDelete() {
   }
 
   async function addEmojiToList(url, logger = console.log) {
+    await emojiListReady;
     const nextNum = emojiList.reduce((m, e) => {
       const n = parseInt(String(e.id).replace('emoji', '')) || 0;
       return Math.max(m, n);
     }, 0) + 1;
     const newId = `emoji${nextNum}`;
     emojiList.push({ id: newId, url });
-    if (window.emojiMap) window.emojiMap[newId] = url;
-
-    const content =
-      'const emojiList = window.emojiList = ' +
-      JSON.stringify(emojiList, null, 2) +
-      ';\n';
-
+    emojiMap[newId] = url;
     try {
-      const res = await fetch('emoji-list.js', {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/javascript' },
-        body: content,
-      });
-      if (!res.ok) throw new Error(await res.text());
-      logger(`💾 Dodano ${newId} do emoji-list.js`);
+      await db.collection('Emoji').doc('emoji-list').set({ list: emojiList }, { merge: true });
+      logger(`💾 Dodano ${newId} do Firebase`);
     } catch (e) {
-      logger(`❌ Błąd zapisu emoji-list.js: ${e.message}`);
-      try {
-        const blob = new Blob([content], { type: 'text/javascript' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'emoji-list.js';
-        a.click();
-        logger('⬇️ Pobierz i zamień plik emoji-list.js ręcznie.');
-      } catch (downErr) {
-        logger(`❌ Nie udało się pobrać pliku: ${downErr.message}`);
-      }
+      logger(`❌ Błąd zapisu do Firebase: ${e.message}`);
     }
     return newId;
   }
@@ -3559,6 +3554,7 @@ function confirmLayerDelete() {
   });
 
   async function runUpdate(){
+    await emojiListReady;
     const user = auth.currentUser;
     if (!els.preview.checked && !user) { log('⚠️ Musisz być zalogowany, aby zapisywać zmiany.'); return; }
 
