@@ -1213,10 +1213,16 @@ function emojiHtml(str) {
         `<div class="trudnosc-wrapper">
           <div class="trudnosc-text" id="trudnoscLabel-${p.id}" style="color:${trudnoscColor(p.trudnosc)}">Poziom trudności: ${trudnoscText(p.trudnosc)}</div>
         </div>` : '';
+      const statusHtml = `
+        ${(p.niedostepne || p.nieaktywne) ? `<div style="opacity:0.8;">Niedostępne ⛔</div>` : ''}
+        ${p.zamkniete ? `<div style="opacity:0.8;">Zamknięte 🔐</div>` : ''}
+        ${p.doSprawdzenia ? `<div style="opacity:0.8;">Do sprawdzenia ❔</div>` : ''}
+        ${p.zwiedzone ? `<div style="opacity:0.8;">Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></div>` : ''}`;
       return `
         <div class="photo-gallery" data-slug="${slug}"></div>
         <b>${p.emoji ? emojiHtml(p.emoji) + ' ' : ''}${p.nazwa}</b>
         ${trudHtml}
+        ${statusHtml}
         <div style="border-top:1px solid #444;"></div>
         <div style="height:4px;"></div>
         <div class="popup-description${p.opis && p.opis.length > 100 ? ' scrollable' : ''}">${linkify(p.opis)}</div>
@@ -1224,10 +1230,6 @@ function emojiHtml(str) {
         <div style="border-top:1px solid #444;"></div>
         <div>Warstwa: ${p.warstwa || 'Inne'}</div>
         ${p.kategoria ? `<div>Kategoria: ${p.kategoria}</div>` : ''}
-        ${p.zamkniete ? `<div style="opacity:0.8;">Zamknięte 🔐</div>` : ''}
-        ${p.doSprawdzenia ? `<div style="opacity:0.8;">Do sprawdzenia ❔</div>` : ''}
-        ${p.zwiedzone ? `<div style="opacity:0.8;">Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></div>` : ''}
-        ${p.nieaktywne ? `<div style="opacity:0.8;">Nieaktywne</div>` : ''}
         <div>Data dodania: ${formatDate(p.dataDodania)}</div>
         <div>${formatCoords(p.lat, p.lng)}</div>
         <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
