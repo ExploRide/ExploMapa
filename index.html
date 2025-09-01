@@ -1291,9 +1291,10 @@ function emojiHtml(str) {
         }
       }
 
-      emojiList.forEach(({id, url}) => {
+      emojiList.forEach(({id, url, info}) => {
         const img = document.createElement('img');
         img.src = url;
+        if (info) { img.title = info; img.dataset.info = info; }
         img.width = 24;
         img.height = 24;
         img.style.cursor = 'pointer';
@@ -1314,9 +1315,11 @@ function emojiHtml(str) {
         e.preventDefault();
         const url = prompt('URL nowego emoji:');
         if (url) {
-          const id = await addEmojiToList(url);
+          const info = prompt('Nazwa nowego emoji:') || '';
+          const id = await addEmojiToList(url, info);
           const img = document.createElement('img');
           img.src = url;
+          if (info) { img.title = info; img.dataset.info = info; }
           img.width = 24;
           img.height = 24;
           img.style.cursor = 'pointer';
@@ -1371,9 +1374,10 @@ function emojiHtml(str) {
 
       const grid = document.createElement('div');
       grid.className = 'emoji-picker-grid';
-      emojiList.forEach(({id, url}) => {
+      emojiList.forEach(({id, url, info}) => {
         const img = document.createElement('img');
         img.src = url;
+        if (info) { img.title = info; img.dataset.info = info; }
         img.addEventListener('click', e => {
           e.stopPropagation();
           preview.src = url;
@@ -1389,9 +1393,11 @@ function emojiHtml(str) {
         e.stopPropagation();
         const url = prompt('URL nowego emoji:');
         if (url) {
-          const id = await addEmojiToList(url);
+          const info = prompt('Nazwa nowego emoji:') || '';
+          const id = await addEmojiToList(url, info);
           const img = document.createElement('img');
           img.src = url;
+          if (info) { img.title = info; img.dataset.info = info; }
           img.addEventListener('click', ev => {
             ev.stopPropagation();
             preview.src = url;
@@ -3485,9 +3491,10 @@ function confirmLayerDelete() {
     container.appendChild(preview);
     const grid = document.createElement('div');
     grid.className = 'emoji-picker-grid';
-    emojiList.forEach(({id, url}) => {
+    emojiList.forEach(({id, url, info}) => {
       const img = document.createElement('img');
       img.src = url;
+      if (info) { img.title = info; img.dataset.info = info; }
       img.addEventListener('click', e => {
         e.stopPropagation();
         input.value = id;
@@ -3503,9 +3510,11 @@ function confirmLayerDelete() {
       e.stopPropagation();
       const url = prompt('URL nowego emoji:');
       if (url) {
-        const id = await addEmojiToList(url, log);
+        const info = prompt('Nazwa nowego emoji:') || '';
+        const id = await addEmojiToList(url, info, log);
         const img = document.createElement('img');
         img.src = url;
+        if (info) { img.title = info; img.dataset.info = info; }
         img.addEventListener('click', ev => {
           ev.stopPropagation();
           input.value = id;
@@ -3529,14 +3538,14 @@ function confirmLayerDelete() {
     });
   }
 
-  async function addEmojiToList(url, logger = console.log) {
+  async function addEmojiToList(url, info = '', logger = console.log) {
     await emojiListReady;
     const nextNum = emojiList.reduce((m, e) => {
       const n = parseInt(String(e.id).replace('emoji', '')) || 0;
       return Math.max(m, n);
     }, 0) + 1;
     const newId = `emoji${nextNum}`;
-    const data = { id: newId, url };
+    const data = { id: newId, url, info };
     emojiList.push(data);
     emojiMap[newId] = url;
     try {
@@ -3603,7 +3612,7 @@ function confirmLayerDelete() {
         emojiToolChanged = true;
         if (emojiVal.startsWith('http')) {
           const exists = emojiList.some(e => e.id === emojiVal || e.url === emojiVal);
-          if (!exists) await addEmojiToList(emojiVal, log);
+          if (!exists) await addEmojiToList(emojiVal, '', log);
         }
       }
     }catch(e){ log('❌ Błąd: ' + e.message); }
