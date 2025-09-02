@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <title>ExploRide – Wielka Mapa Urbexu</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0f131b" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="style.css" />
@@ -531,6 +533,8 @@ body, #sidebar, #basemap-switcher {
   </style>
 </head>
 <body>
+  <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
+  <div id="banner" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 12px;border-radius:4px;z-index:2000;"></div>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
   <div id="loading"><div class="loader"></div></div>
   <div id="sidebar">
@@ -558,6 +562,7 @@ body, #sidebar, #basemap-switcher {
       <button id="loadPinsBtn">Załaduj pinezki</button>
       <div id="lista-warstw"></div>
       <button id="emojiToolBtn">Emoji Tool</button>
+      <button id="syncBtn">Synchronizuj (<span id="syncCount">0</span>)</button>
     </div>
   </div>
   <input type="text" id="geosearch" placeholder="Szukaj adresu lub współrzędnych...">
@@ -614,7 +619,8 @@ body, #sidebar, #basemap-switcher {
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="firebase-init.js"></script>
+  <script src="offline-uploads.js"></script>
+  <script src="firestore-setup.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
 
