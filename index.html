@@ -3332,33 +3332,35 @@ function confirmLayerDelete() {
     const suffix = generateSuffix();
     const firebaseId = `${sanitize(name)}_${suffix}`;
     const IDpinezki = crypto.randomUUID();
-    await db.collection('pinezki2').doc(firebaseId).set({
-      nazwa: name,
-      opis: '',
-      warstwa: 'Tryb w ruchu',
-      warstwaId: movingLayerId,
-      kategoria: '',
-      emoji: '',
-      lat: currentLocation[0],
-      lng: currentLocation[1],
-      dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
-      IDpinezki
-    });
-    const data = {
-      id: IDpinezki,
-      IDpinezki,
-      firebaseId,
-      nazwa: name,
-      opis: '',
-      warstwa: 'Tryb w ruchu',
-      warstwaId: movingLayerId,
-      kategoria: '',
-      emoji: '',
-      lat: currentLocation[0],
-      lng: currentLocation[1],
-      dataDodania: Date.now(),
-      slug: slugify(name)
-    };
+      await db.collection('pinezki2').doc(firebaseId).set({
+        nazwa: name,
+        opis: '',
+        warstwa: 'Tryb w ruchu',
+        warstwaId: movingLayerId,
+        kategoria: '',
+        emoji: '',
+        trudnosc: 3,
+        lat: currentLocation[0],
+        lng: currentLocation[1],
+        dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
+        IDpinezki
+      });
+      const data = {
+        id: IDpinezki,
+        IDpinezki,
+        firebaseId,
+        nazwa: name,
+        opis: '',
+        warstwa: 'Tryb w ruchu',
+        warstwaId: movingLayerId,
+        kategoria: '',
+        emoji: '',
+        trudnosc: 3,
+        lat: currentLocation[0],
+        lng: currentLocation[1],
+        dataDodania: Date.now(),
+        slug: slugify(name)
+      };
     const marker = L.marker(currentLocation, {icon: createEmojiIcon('', movingLayerId)}).addTo(warstwy['Tryb w ruchu'].layer);
     const popupDiv = document.createElement('div');
     popupDiv.className = 'popup-container';
@@ -3385,9 +3387,10 @@ function confirmLayerDelete() {
       opis: form.opis.replace(/\n/g, '<br>'),
       warstwa: layerVal,
       kategoria: catVal,
-      emoji: form.emoji,
-      nieaktywne: form.nieaktywne,
-      zamkniete: form.zamkniete,
+        emoji: form.emoji,
+        trudnosc: parseInt(form.trudnosc, 10),
+        nieaktywne: form.nieaktywne,
+        zamkniete: form.zamkniete,
       tajne: form.tajne,
       doSprawdzenia: form.doSprawdzenia,
       zwiedzone: form.zwiedzone,
@@ -3447,19 +3450,23 @@ function confirmLayerDelete() {
     const ok = document.getElementById('mobilePinOk');
     const cancel = document.getElementById('mobilePinCancel');
     const gpsBtn = document.getElementById('gpsFollowBtn');
-    const nameInput = document.getElementById('mobilePinName');
-    const descInput = document.getElementById('mobilePinDesc');
-    const layerInput = document.getElementById('mobilePinLayer');
-    const catInput = document.getElementById('mobilePinCategory');
-    const emojiInput = document.getElementById('mobilePinEmoji');
-    const inactiveInput = document.getElementById('mobilePinInactive');
-    const closedInput = document.getElementById('mobilePinClosed');
-    const secretInput = document.getElementById('mobilePinSecret');
-    const todoInput = document.getElementById('mobilePinTodo');
-    const visitedInput = document.getElementById('mobilePinVisited');
-    const highlightedInput = document.getElementById('mobilePinHighlighted');
-    const fromInput = document.getElementById('mobilePinFrom');
-    if (!btn || !modal || !ok || !cancel || !nameInput) return;
+      const nameInput = document.getElementById('mobilePinName');
+      const descInput = document.getElementById('mobilePinDesc');
+      const layerInput = document.getElementById('mobilePinLayer');
+      const catInput = document.getElementById('mobilePinCategory');
+      const emojiInput = document.getElementById('mobilePinEmoji');
+      const inactiveInput = document.getElementById('mobilePinInactive');
+      const closedInput = document.getElementById('mobilePinClosed');
+      const secretInput = document.getElementById('mobilePinSecret');
+      const todoInput = document.getElementById('mobilePinTodo');
+      const visitedInput = document.getElementById('mobilePinVisited');
+      const highlightedInput = document.getElementById('mobilePinHighlighted');
+      const fromInput = document.getElementById('mobilePinFrom');
+      const trudInput = document.getElementById('mobilePinTrudnosc');
+      const trudLabel = document.getElementById('mobilePinTrudnoscLabel');
+      const trudWrapper = document.getElementById('mobileTrudnoscWrapper');
+      if (!btn || !modal || !ok || !cancel || !nameInput || !trudInput || !trudLabel || !trudWrapper) return;
+      setupTrudnoscInput(trudInput, trudLabel);
 
     function openGpsModal() {
       nameInput.value = '';
@@ -3472,10 +3479,11 @@ function confirmLayerDelete() {
       secretInput.parentElement.style.display = 'none';
       todoInput.parentElement.style.display = 'none';
       visitedInput.parentElement.style.display = 'none';
-      highlightedInput.parentElement.style.display = 'none';
-      fromInput.style.display = 'none';
-      modal.style.display = 'flex';
-    }
+        highlightedInput.parentElement.style.display = 'none';
+        fromInput.style.display = 'none';
+        trudWrapper.style.display = 'none';
+        modal.style.display = 'flex';
+      }
 
     function openCenterModal() {
       nameInput.value = '';
@@ -3498,14 +3506,17 @@ function confirmLayerDelete() {
       secretInput.parentElement.style.display = '';
       todoInput.parentElement.style.display = '';
       visitedInput.parentElement.style.display = '';
-      highlightedInput.parentElement.style.display = '';
-      fromInput.style.display = '';
-      fromInput.value = '';
-      modal.style.display = 'flex';
-      setupEmojiInput(emojiInput);
-      setupDropdownInput(layerInput, () => Object.keys(warstwy));
-      setupDropdownInput(catInput, () => Array.from(categories).filter(c => c));
-    }
+        highlightedInput.parentElement.style.display = '';
+        fromInput.style.display = '';
+        fromInput.value = '';
+        trudWrapper.style.display = '';
+        trudInput.value = 3;
+        trudInput.dispatchEvent(new Event('input'));
+        modal.style.display = 'flex';
+        setupEmojiInput(emojiInput);
+        setupDropdownInput(layerInput, () => Object.keys(warstwy));
+        setupDropdownInput(catInput, () => Array.from(categories).filter(c => c));
+      }
 
     if (window.innerWidth <= 800) {
       btn.style.display = 'block';
@@ -3546,8 +3557,9 @@ function confirmLayerDelete() {
           doSprawdzenia: todoInput.checked,
           zwiedzone: visitedInput.checked,
           wyroznione: highlightedInput.checked,
-          odKogo: fromInput.value
-        });
+          odKogo: fromInput.value,
+          trudnosc: trudInput.value
+          });
       } else {
         await saveMovingPin(name);
       }
@@ -3592,18 +3604,28 @@ function confirmLayerDelete() {
   <div id="gpsLoadingMessage">Wczytuję lokalizację GPS...</div>
   <div id="mobilePinModal" class="mobile-modal">
     <div class="mobile-modal-content">
-      <input type="text" id="mobilePinName" placeholder="Nazwa pinezki">
-      <textarea id="mobilePinDesc" placeholder="Opis"></textarea>
-      <input type="text" id="mobilePinFrom" placeholder="Od kogo">
-      <input type="text" id="mobilePinLayer" placeholder="Warstwa">
-      <input type="text" id="mobilePinCategory" placeholder="Kategoria">
-      <input type="text" id="mobilePinEmoji" placeholder="Emoji">
-      <label><input type="checkbox" id="mobilePinInactive"> Niedostępne ⛔</label>
-      <label><input type="checkbox" id="mobilePinClosed"> Zamknięte 🔐</label>
-      <label><input type="checkbox" id="mobilePinSecret"> Tajne 🤫</label>
-      <label><input type="checkbox" id="mobilePinTodo"> Do sprawdzenia ❔</label>
-      <label><input type="checkbox" id="mobilePinVisited"> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label>
-      <label><input type="checkbox" id="mobilePinHighlighted"> Wyróżnione ⭐</label>
+      <input type="text" id="mobilePinName" placeholder="Nazwa pinezki" style="width: 100%">
+      <textarea id="mobilePinDesc" placeholder="Opis" style="width: 100%; height: 100px"></textarea>
+      <input type="text" id="mobilePinFrom" placeholder="Od kogo" style="width: 100%">
+      <input type="text" id="mobilePinLayer" placeholder="Warstwa" style="width: 100%">
+      <input type="text" id="mobilePinCategory" placeholder="Kategoria" style="width: 100%">
+      <input type="text" id="mobilePinEmoji" placeholder="Emoji" style="width: 100%">
+      <div class="trudnosc-wrapper" id="mobileTrudnoscWrapper">
+        <div class="trudnosc-title">Poziom trudności</div>
+        <input type="range" id="mobilePinTrudnosc" class="trudnosc-range" min="1" max="5" step="1" value="3">
+        <div class="trudnosc-labels">
+          <span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
+        </div>
+        <div class="trudnosc-value" id="mobilePinTrudnoscLabel"></div>
+      </div>
+      <div class="status-grid">
+        <label><input type="checkbox" id="mobilePinInactive"> Niedostępne ⛔</label>
+        <label><input type="checkbox" id="mobilePinClosed"> Zamknięte 🔐</label>
+        <label><input type="checkbox" id="mobilePinSecret"> Tajne 🤫</label>
+        <label><input type="checkbox" id="mobilePinTodo"> Do sprawdzenia ❔</label>
+        <label><input type="checkbox" id="mobilePinVisited"> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label>
+        <label><input type="checkbox" id="mobilePinHighlighted"> Wyróżnione ⭐</label>
+      </div>
       <div style="display:flex;gap:10px;justify-content:center;">
         <button id="mobilePinOk">Zapisz</button>
         <button id="mobilePinCancel">Anuluj</button>
