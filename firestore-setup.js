@@ -1,11 +1,13 @@
 // Firebase and PWA setup
 // Replace placeholders with real Firebase config before deployment
 const firebaseConfig = {
-  apiKey: 'FIREBASE_API_KEY',
-  authDomain: 'FIREBASE_AUTH_DOMAIN',
-  projectId: 'FIREBASE_PROJECT_ID',
-  storageBucket: 'FIREBASE_STORAGE_BUCKET',
-  appId: 'FIREBASE_APP_ID'
+  apiKey: "AIzaSyBj8xPy81NaxFwHmBL3ni_UVjYKFZflyv0",
+  authDomain: "exploridemap.firebaseapp.com",
+  projectId: "exploridemap",
+  storageBucket: "exploridemap.firebasestorage.app",
+  messagingSenderId: "1074659589759",
+  appId: "1:1074659589759:web:f8bdffc15d41d47ac8094a",
+  measurementId: "G-2JHQZ6HXTM"
 };
 
 if (!firebase.apps.length) {
