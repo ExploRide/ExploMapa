@@ -385,3 +385,19 @@
 .status-grid label {
   display: block;
 }
+
+.status-emoji {
+  font-size: 1em;
+  line-height: 1em;
+}
+
+.status-emoji.checkmark-obrys {
+  width: 1em;
+  height: 1em;
+}
+
+@media (max-width: 600px) {
+  .status-emoji {
+    font-size: 0.8em;
+  }
+}
