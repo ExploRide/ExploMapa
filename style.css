@@ -406,4 +406,17 @@
   .status-emoji {
     font-size: 0.8em;
   }
+
+/* Emoji w siatce pickera — zachowaj proporcje (naprawia czerwony pin) */
+.emoji-picker img,
+.emoji-grid img,
+#emojiPicker img {
+  height: 1.25em !important;   /* lub 1em – dobierz wizualnie */
+  width: auto !important;       /* klucz do braku „rozciągania” */
+  vertical-align: -0.15em;
+  object-fit: contain;          /* bezpiecznik */
+}
+
+
+
 }
