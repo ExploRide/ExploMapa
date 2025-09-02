@@ -793,7 +793,9 @@ function slugify(str) {
       document.getElementById("ekran-logowania").style.display = "none";
       document.getElementById("map").style.display = "block";
       document.getElementById("sidebar").style.display = "block";
-      document.getElementById("basemap-switcher").style.display = "block";
+      if (window.innerWidth > 700) {
+        document.getElementById("basemap-switcher").style.display = "block";
+      }
       initMap();
       loadLayersFromFirestore().then(() => {
         if (window.innerWidth <= 700) {
