@@ -1777,6 +1777,19 @@ function zaladujPinezkiZFirestore() {
   });
 }
 
+    function buildStatusGrid(prefix = '', suffix = '', status = {}) {
+      return `
+        <div class="status-grid">
+          <label><input type="checkbox" id="${prefix}nieaktywne${suffix}" ${status.nieaktywne ? 'checked' : ''}> Niedostępne <span class="status-emoji">⛔</span></label>
+          <label><input type="checkbox" id="${prefix}zamkniete${suffix}" ${status.zamkniete ? 'checked' : ''}> Zamknięte <span class="status-emoji">🔐</span></label>
+          <label><input type="checkbox" id="${prefix}tajne${suffix}" ${status.tajne ? 'checked' : ''}> Tajne <span class="status-emoji">🤫</span></label>
+          <label><input type="checkbox" id="${prefix}doSprawdzenia${suffix}" ${status.doSprawdzenia ? 'checked' : ''}> Do sprawdzenia <span class="status-emoji">❔</span></label>
+          <label><input type="checkbox" id="${prefix}zwiedzone${suffix}" ${status.zwiedzone ? 'checked' : ''}> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" class="status-emoji checkmark-obrys"></label>
+          <label><input type="checkbox" id="${prefix}wyroznione${suffix}" ${status.wyroznione ? 'checked' : ''}> Wyróżnione <span class="status-emoji">⭐</span></label>
+        </div>
+      `;
+    }
+
     function edytuj(id, lat, lng) {
      /* console.log('Wywołano edytuj dla id:', id, 'lat:', lat, 'lng:', lng); // <-- dodane */
       const p = wszystkiePinezki.find(pp => pp.id === id);
@@ -1800,14 +1813,7 @@ function zaladujPinezkiZFirestore() {
           </div>
           <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 3)}">${trudnoscText(p.trudnosc ?? 3)}</div>
         </div>
-        <div class="status-grid">
-          <label><input type="checkbox" id="enieaktywne" ${p.nieaktywne ? 'checked' : ''}> Niedostępne <span class="status-emoji">⛔</span></label>
-          <label><input type="checkbox" id="ezamkniete" ${p.zamkniete ? 'checked' : ''}> Zamknięte <span class="status-emoji">🔐</span></label>
-          <label><input type="checkbox" id="etajne" ${p.tajne ? 'checked' : ''}> Tajne <span class="status-emoji">🤫</span></label>
-          <label><input type="checkbox" id="edoSprawdzenia" ${p.doSprawdzenia ? 'checked' : ''}> Do sprawdzenia <span class="status-emoji">❔</span></label>
-          <label><input type="checkbox" id="ezwiedzone" ${p.zwiedzone ? 'checked' : ''}> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" class="status-emoji checkmark-obrys"></label>
-          <label><input type="checkbox" id="ewyroznione" ${p.wyroznione ? 'checked' : ''}> Wyróżnione <span class="status-emoji">⭐</span></label>
-        </div>
+        ${buildStatusGrid('e', '', p)}
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
         <div id="emojiPicker-${id}" class="emoji-picker"></div>
@@ -1995,14 +2001,7 @@ attachPopupHandlers(p.marker, p);
           </div>
           <div class="trudnosc-value" id="trudnoscNewLabel" style="color:${trudnoscColor(3)}">${trudnoscText(3)}</div>
         </div>
-        <div class="status-grid">
-          <label><input type="checkbox" id="nieaktywneNew"> Niedostępne <span class="status-emoji">⛔</span></label>
-          <label><input type="checkbox" id="zamknieteNew"> Zamknięte <span class="status-emoji">🔐</span></label>
-          <label><input type="checkbox" id="tajneNew"> Tajne <span class="status-emoji">🤫</span></label>
-          <label><input type="checkbox" id="doSprawdzeniaNew"> Do sprawdzenia <span class="status-emoji">❔</span></label>
-          <label><input type="checkbox" id="zwiedzoneNew"> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" class="status-emoji checkmark-obrys"></label>
-          <label><input type="checkbox" id="wyroznioneNew"> Wyróżnione <span class="status-emoji">⭐</span></label>
-        </div>
+        ${buildStatusGrid('', 'New')}
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>
         <div id="emojiPickerNew" class="emoji-picker"></div>`;

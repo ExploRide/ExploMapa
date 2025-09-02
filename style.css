@@ -383,7 +383,9 @@
   gap: 4px 8px;
 }
 .status-grid label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .status-emoji {
