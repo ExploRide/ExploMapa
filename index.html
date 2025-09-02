@@ -575,6 +575,19 @@ img.emoji {
   vertical-align: -0.15em;
 }
 
+/* FIX: brak rozciągania w pickerze */
+.emoji-picker-grid img {
+  height: 1.25em !important;   /* możesz dać 1em, jeśli wolisz mniejsze */
+  width: auto !important;       /* klucz: zachowaj proporcje */
+  object-fit: contain;
+  vertical-align: -0.15em;
+}
+
+/* podgląd przy przycisku z emoji (jeśli chcesz też go odchudzić) */
+.emoji-picker-preview {
+  height: 1.25em; 
+  width: auto;
+}
 
   </style>
 </head>
