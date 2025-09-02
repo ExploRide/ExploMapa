@@ -538,6 +538,44 @@ body, #sidebar, #basemap-switcher {
   #toggleLayers { position: fixed; top: 10px; left: 10px; z-index: 1600; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block; }
 }
 
+/* --- FIX: normalny rozmiar ikon statusu na mobile i desktop --- */
+.status-grid label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+.status-grid input[type="checkbox"] {
+  margin-right: 4px; /* backup gdy flex gap nie złapie */
+}
+
+/* Emoji w statusach (także po podmianie przez twemoji) */
+.status-grid .status-emoji,
+.status-grid .status-emoji img,
+#mobilePinModal .status-grid img.emoji,
+#mobilePinModal .status-grid .emoji,
+#mobilePinModal .status-grid img {
+  width: 1em !important;
+  height: 1em !important;
+  display: inline-block;
+  vertical-align: -0.15em;
+}
+
+/* Zielony ptaszek ze statusu „Zwiedzone” */
+.status-grid .checkmark-obrys {
+  width: 1em !important;
+  height: 1em !important;
+}
+
+/* (opcjonalnie) globalny bezpiecznik na twemoji, żeby nigdzie nie wybuchały */
+img.emoji {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+}
+
+
   </style>
 </head>
 <body>
