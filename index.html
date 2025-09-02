@@ -848,7 +848,8 @@ function slugify(str) {
       {key: 'doSprawdzenia', label: 'Do sprawdzenia ❔', matches: p => p.doSprawdzenia},
       {key: 'zwiedzone', label: 'Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys">', matches: p => p.zwiedzone},
       {key: 'wyroznione', label: 'Wyróżnione ⭐', matches: p => p.wyroznione},
-      {key: 'zamkniete', label: 'Zamknięte 🔐', matches: p => p.zamkniete}
+      {key: 'zamkniete', label: 'Zamknięte 🔐', matches: p => p.zamkniete},
+      {key: 'tajne', label: 'Tajne 🤫', matches: p => p.tajne}
     ];
     let selectedStatuses = new Set();
     const layerDocs = {};
@@ -1078,11 +1079,13 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
         ? `<span class="${statusClass}">⛔</span>`
         : status.zamkniete
           ? `<span class="${statusClass}">🔐</span>`
-          : status.doSprawdzenia
-            ? `<span class="${statusClass}">❔</span>`
-            : (status.zwiedzone || isVisitedLayer)
-              ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="20" height="20" class="${statusClass} checkmark-obrys">`
-              : '';
+          : status.tajne
+            ? `<span class="${statusClass}">🤫</span>`
+            : status.doSprawdzenia
+              ? `<span class="${statusClass}">❔</span>`
+              : (status.zwiedzone || isVisitedLayer)
+                ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="20" height="20" class="${statusClass} checkmark-obrys">`
+                : '';
       const overlay = `${isHighlighted ? '<span class="sztosy-gwiazda">⭐</span>' : ''}${statusIcon}`;
 
       if (isUrl) {
@@ -1239,6 +1242,7 @@ function emojiHtml(str) {
       const statusHtml = `
         ${(p.niedostepne || p.nieaktywne) ? `<div style="opacity:0.8;">Niedostępne ⛔</div>` : ''}
         ${p.zamkniete ? `<div style="opacity:0.8;">Zamknięte 🔐</div>` : ''}
+        ${p.tajne ? `<div style="opacity:0.8;">Tajne 🤫</div>` : ''}
         ${p.doSprawdzenia ? `<div style="opacity:0.8;">Do sprawdzenia ❔</div>` : ''}
         ${p.zwiedzone ? `<div style="opacity:0.8;">Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></div>` : ''}
         ${p.wyroznione ? `<div style="opacity:0.8;">Wyróżnione ⭐</div>` : ''}`;
@@ -1254,6 +1258,7 @@ function emojiHtml(str) {
         <div style="border-top:1px solid #444;"></div>
         <div>Warstwa: ${p.warstwa || 'Inne'}</div>
         ${p.kategoria ? `<div>Kategoria: ${p.kategoria}</div>` : ''}
+        ${p.odKogo ? `<div>Od kogo: ${p.odKogo}</div>` : ''}
         <div>Data dodania: ${formatDate(p.dataDodania)}</div>
         <div>${formatCoords(p.lat, p.lng)}</div>
         <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
@@ -1757,6 +1762,7 @@ function zaladujPinezkiZFirestore() {
         <button class="popup-add-photo" data-slug="${p.slug}">📷</button>
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
         <textarea id="eopis" style="width: 100%; height: 100px"></textarea><br>
+        <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo" style="width: 100%"><br>
         <input id="ewarstwa" value="${p.warstwa || ''}" placeholder="Warstwa" style="width: 100%"><br>
         <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <div class="trudnosc-wrapper">
@@ -1767,11 +1773,14 @@ function zaladujPinezkiZFirestore() {
           </div>
           <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 3)}">${trudnoscText(p.trudnosc ?? 3)}</div>
         </div>
-        <label><input type="checkbox" id="enieaktywne" ${p.nieaktywne ? 'checked' : ''}> Niedostępne ⛔</label><br>
-        <label><input type="checkbox" id="ezamkniete" ${p.zamkniete ? 'checked' : ''}> Zamknięte 🔐</label><br>
-        <label><input type="checkbox" id="edoSprawdzenia" ${p.doSprawdzenia ? 'checked' : ''}> Do sprawdzenia ❔</label><br>
-        <label><input type="checkbox" id="ezwiedzone" ${p.zwiedzone ? 'checked' : ''}> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label><br>
-        <label><input type="checkbox" id="ewyroznione" ${p.wyroznione ? 'checked' : ''}> Wyróżnione ⭐</label><br>
+        <div class="status-grid">
+          <label><input type="checkbox" id="enieaktywne" ${p.nieaktywne ? 'checked' : ''}> Niedostępne ⛔</label>
+          <label><input type="checkbox" id="ezamkniete" ${p.zamkniete ? 'checked' : ''}> Zamknięte 🔐</label>
+          <label><input type="checkbox" id="etajne" ${p.tajne ? 'checked' : ''}> Tajne 🤫</label>
+          <label><input type="checkbox" id="edoSprawdzenia" ${p.doSprawdzenia ? 'checked' : ''}> Do sprawdzenia ❔</label>
+          <label><input type="checkbox" id="ezwiedzone" ${p.zwiedzone ? 'checked' : ''}> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label>
+          <label><input type="checkbox" id="ewyroznione" ${p.wyroznione ? 'checked' : ''}> Wyróżnione ⭐</label>
+        </div>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
         <div id="emojiPicker-${id}" class="emoji-picker"></div>
@@ -1799,6 +1808,14 @@ function zaladujPinezkiZFirestore() {
       if (chkClosed) {
         chkClosed.addEventListener('change', () => {
           p.zamkniete = chkClosed.checked;
+          markPinUnsaved(p.slug);
+          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
+        });
+      }
+      const chkSecret = container.querySelector('#etajne');
+      if (chkSecret) {
+        chkSecret.addEventListener('change', () => {
+          p.tajne = chkSecret.checked;
           markPinUnsaved(p.slug);
           if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
@@ -1858,6 +1875,7 @@ function zaladujPinezkiZFirestore() {
       const nowa = {
         nazwa: document.getElementById("enazwa").value,
         opis: document.getElementById("eopis").value.replace(/\n/g, '<br>'),
+        odKogo: document.getElementById("eodKogo").value,
         warstwa: layerVal,
         warstwaId: layerDocs[layerVal] || null,
         kategoria: catVal,
@@ -1865,6 +1883,7 @@ function zaladujPinezkiZFirestore() {
         trudnosc: parseInt(document.getElementById("etrudnosc").value, 10),
         nieaktywne: document.getElementById("enieaktywne").checked,
         zamkniete: document.getElementById("ezamkniete").checked,
+        tajne: document.getElementById("etajne").checked,
         doSprawdzenia: document.getElementById("edoSprawdzenia").checked,
         zwiedzone: document.getElementById("ezwiedzone").checked,
         wyroznione: document.getElementById("ewyroznione").checked
@@ -1929,14 +1948,18 @@ attachPopupHandlers(p.marker, p);
         <a href="https://maps.google.com/?q=${latlng.lat},${latlng.lng}" target="_blank">📍 Google Maps</a></div><br>
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
         <textarea id="opisNew" placeholder="Opis" style="width: 100%"></textarea><br>
+        <input id="odKogoNew" placeholder="Od kogo" style="width: 100%"><br>
         <input id="warstwaNew" placeholder="Warstwa" style="width: 100%"><br>
         <input id="kategoriaNew" placeholder="Kategoria" style="width: 100%"><br>
         <input id="emojiNew" placeholder="Emoji" style="width: 100%"><br>
-        <label><input type="checkbox" id="nieaktywneNew"> Niedostępne ⛔</label><br>
-        <label><input type="checkbox" id="zamknieteNew"> Zamknięte 🔐</label><br>
-        <label><input type="checkbox" id="doSprawdzeniaNew"> Do sprawdzenia ❔</label><br>
-        <label><input type="checkbox" id="zwiedzoneNew"> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label><br>
-        <label><input type="checkbox" id="wyroznioneNew"> Wyróżnione ⭐</label><br>
+        <div class="status-grid">
+          <label><input type="checkbox" id="nieaktywneNew"> Niedostępne ⛔</label>
+          <label><input type="checkbox" id="zamknieteNew"> Zamknięte 🔐</label>
+          <label><input type="checkbox" id="tajneNew"> Tajne 🤫</label>
+          <label><input type="checkbox" id="doSprawdzeniaNew"> Do sprawdzenia ❔</label>
+          <label><input type="checkbox" id="zwiedzoneNew"> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label>
+          <label><input type="checkbox" id="wyroznioneNew"> Wyróżnione ⭐</label>
+        </div>
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
       setupEmojiInput(container.querySelector('#emojiNew'));
@@ -1948,6 +1971,7 @@ attachPopupHandlers(p.marker, p);
 
       const chkNewInactive = container.querySelector('#nieaktywneNew');
       const chkNewClosed = container.querySelector('#zamknieteNew');
+      const chkNewSecret = container.querySelector('#tajneNew');
       const chkNewTodo = container.querySelector('#doSprawdzeniaNew');
       const chkNewVisited = container.querySelector('#zwiedzoneNew');
       const chkNewHighlighted = container.querySelector('#wyroznioneNew');
@@ -1955,6 +1979,7 @@ attachPopupHandlers(p.marker, p);
         const status = {
           nieaktywne: chkNewInactive && chkNewInactive.checked,
           zamkniete: chkNewClosed && chkNewClosed.checked,
+          tajne: chkNewSecret && chkNewSecret.checked,
           doSprawdzenia: chkNewTodo && chkNewTodo.checked,
           zwiedzone: chkNewVisited && chkNewVisited.checked,
           wyroznione: chkNewHighlighted && chkNewHighlighted.checked
@@ -1970,6 +1995,7 @@ attachPopupHandlers(p.marker, p);
         });
       }
       if (chkNewClosed) chkNewClosed.addEventListener('change', refreshIcon);
+      if (chkNewSecret) chkNewSecret.addEventListener('change', refreshIcon);
       if (chkNewTodo) chkNewTodo.addEventListener('change', refreshIcon);
       if (chkNewVisited) chkNewVisited.addEventListener('change', refreshIcon);
       if (chkNewHighlighted) chkNewHighlighted.addEventListener('change', refreshIcon);
@@ -2001,9 +2027,11 @@ attachPopupHandlers(p.marker, p);
             emoji: container.querySelector("#emojiNew").value,
             nieaktywne: container.querySelector("#nieaktywneNew").checked,
             zamkniete: container.querySelector("#zamknieteNew").checked,
+            tajne: container.querySelector("#tajneNew").checked,
             doSprawdzenia: container.querySelector("#doSprawdzeniaNew").checked,
             zwiedzone: container.querySelector("#zwiedzoneNew").checked,
             wyroznione: container.querySelector("#wyroznioneNew").checked,
+            odKogo: container.querySelector("#odKogoNew").value,
             lat: latlng.lat,
             lng: latlng.lng,
             dataDodania: Date.now(),
@@ -2110,6 +2138,7 @@ attachPopupHandlers(p.marker, p);
         p.unsaved = true;
         if (p.nieaktywne === undefined) p.nieaktywne = false;
         if (p.zamkniete === undefined) p.zamkniete = false;
+        if (p.tajne === undefined) p.tajne = false;
         if (p.doSprawdzenia === undefined) p.doSprawdzenia = false;
         if (p.zwiedzone === undefined) p.zwiedzone = false;
         if (p.wyroznione === undefined) p.wyroznione = false;
@@ -2938,6 +2967,7 @@ toggleBtn.style.verticalAlign = "top";
             emoji: p.emoji,
             nieaktywne: p.nieaktywne || false,
             zamkniete: p.zamkniete || false,
+            tajne: p.tajne || false,
             doSprawdzenia: p.doSprawdzenia || false,
             zwiedzone: p.zwiedzone || false,
             wyroznione: p.wyroznione || false,
@@ -2945,6 +2975,7 @@ toggleBtn.style.verticalAlign = "top";
             lng: p.lng,
             dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
             IDpinezki: p.id,
+            odKogo: p.odKogo || '',
             trasy: (p.trasy || []).map(t => ({nazwa: t.nazwa, opis: t.opis || '', kolor: t.kolor || '#00ccff', punkty: t.punkty}))
           };
           if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
@@ -3357,9 +3388,11 @@ function confirmLayerDelete() {
       emoji: form.emoji,
       nieaktywne: form.nieaktywne,
       zamkniete: form.zamkniete,
+      tajne: form.tajne,
       doSprawdzenia: form.doSprawdzenia,
       zwiedzone: form.zwiedzone,
       wyroznione: form.wyroznione,
+      odKogo: form.odKogo,
       lat: latlng.lat,
       lng: latlng.lng,
       dataDodania: Date.now(),
@@ -3421,9 +3454,11 @@ function confirmLayerDelete() {
     const emojiInput = document.getElementById('mobilePinEmoji');
     const inactiveInput = document.getElementById('mobilePinInactive');
     const closedInput = document.getElementById('mobilePinClosed');
+    const secretInput = document.getElementById('mobilePinSecret');
     const todoInput = document.getElementById('mobilePinTodo');
     const visitedInput = document.getElementById('mobilePinVisited');
     const highlightedInput = document.getElementById('mobilePinHighlighted');
+    const fromInput = document.getElementById('mobilePinFrom');
     if (!btn || !modal || !ok || !cancel || !nameInput) return;
 
     function openGpsModal() {
@@ -3434,9 +3469,11 @@ function confirmLayerDelete() {
       emojiInput.style.display = 'none';
       inactiveInput.parentElement.style.display = 'none';
       closedInput.parentElement.style.display = 'none';
+      secretInput.parentElement.style.display = 'none';
       todoInput.parentElement.style.display = 'none';
       visitedInput.parentElement.style.display = 'none';
       highlightedInput.parentElement.style.display = 'none';
+      fromInput.style.display = 'none';
       modal.style.display = 'flex';
     }
 
@@ -3448,6 +3485,7 @@ function confirmLayerDelete() {
       emojiInput.value = '';
       inactiveInput.checked = false;
       closedInput.checked = false;
+      secretInput.checked = false;
       todoInput.checked = false;
       visitedInput.checked = false;
       highlightedInput.checked = false;
@@ -3457,9 +3495,12 @@ function confirmLayerDelete() {
       emojiInput.style.display = '';
       inactiveInput.parentElement.style.display = '';
       closedInput.parentElement.style.display = '';
+      secretInput.parentElement.style.display = '';
       todoInput.parentElement.style.display = '';
       visitedInput.parentElement.style.display = '';
       highlightedInput.parentElement.style.display = '';
+      fromInput.style.display = '';
+      fromInput.value = '';
       modal.style.display = 'flex';
       setupEmojiInput(emojiInput);
       setupDropdownInput(layerInput, () => Object.keys(warstwy));
@@ -3501,9 +3542,11 @@ function confirmLayerDelete() {
           emoji: emojiInput.value,
           nieaktywne: inactiveInput.checked,
           zamkniete: closedInput.checked,
+          tajne: secretInput.checked,
           doSprawdzenia: todoInput.checked,
           zwiedzone: visitedInput.checked,
-          wyroznione: highlightedInput.checked
+          wyroznione: highlightedInput.checked,
+          odKogo: fromInput.value
         });
       } else {
         await saveMovingPin(name);
@@ -3551,11 +3594,13 @@ function confirmLayerDelete() {
     <div class="mobile-modal-content">
       <input type="text" id="mobilePinName" placeholder="Nazwa pinezki">
       <textarea id="mobilePinDesc" placeholder="Opis"></textarea>
+      <input type="text" id="mobilePinFrom" placeholder="Od kogo">
       <input type="text" id="mobilePinLayer" placeholder="Warstwa">
       <input type="text" id="mobilePinCategory" placeholder="Kategoria">
       <input type="text" id="mobilePinEmoji" placeholder="Emoji">
       <label><input type="checkbox" id="mobilePinInactive"> Niedostępne ⛔</label>
       <label><input type="checkbox" id="mobilePinClosed"> Zamknięte 🔐</label>
+      <label><input type="checkbox" id="mobilePinSecret"> Tajne 🤫</label>
       <label><input type="checkbox" id="mobilePinTodo"> Do sprawdzenia ❔</label>
       <label><input type="checkbox" id="mobilePinVisited"> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label>
       <label><input type="checkbox" id="mobilePinHighlighted"> Wyróżnione ⭐</label>

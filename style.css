@@ -376,3 +376,12 @@
   font-size: 12px;
   margin: 6px 0;
 }
+
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+}
+.status-grid label {
+  display: block;
+}
