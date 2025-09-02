@@ -1934,15 +1934,17 @@ attachPopupHandlers(p.marker, p);
     }
 
 
-    function openNewPinPopup(latlng) {
+    async function openNewPinPopup(latlng) {
+      await emojiListReady;
       const saveBtnTmp = document.getElementById('saveChanges');
       if (saveBtnTmp) saveBtnTmp.style.display = 'block';
-      const marker = L.marker(latlng, {icon: createEmojiIcon("📍", null, 24)}).addTo(map);
+      const defaultEmoji = 'emoji38';
+      const marker = L.marker(latlng, {icon: createEmojiIcon(defaultEmoji, null, 24)}).addTo(map);
       const newId = crypto.randomUUID();
       const tempPin = {
         id: newId,
         slug: `tmp-${newId}`,
-        emoji: "📍",
+        emoji: defaultEmoji,
         trudnosc: 3
       };
       const container = document.createElement("div");
@@ -2002,7 +2004,7 @@ attachPopupHandlers(p.marker, p);
           zwiedzone: chkNewVisited && chkNewVisited.checked,
           wyroznione: chkNewHighlighted && chkNewHighlighted.checked
         };
-        const emojiVal = tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji || "📍";
+        const emojiVal = tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji || defaultEmoji;
         marker.setIcon(createEmojiIcon(emojiVal, null, 24, status));
       };
       container.querySelector('#emojiPickerNew').addEventListener('click', () => setTimeout(refreshIcon, 0));
@@ -2103,8 +2105,9 @@ attachPopupHandlers(p.marker, p);
         map.closePopup();
       });
     }
-    function onMapClick(e) {
-      openNewPinPopup(e.latlng);
+    async function onMapClick(e) {
+      await openNewPinPopup(e.latlng);
+      selectTool('hand');
     }
 
     function findMarkerByLatLng(lat, lng) {
