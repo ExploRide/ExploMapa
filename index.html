@@ -645,6 +645,7 @@ img.emoji {
     <h3>Widok ulic</h3>
     <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
     <label><input type="radio" name="streets" value="main"> Tylko główne trasy</label><br>
+    <label><input type="radio" name="streets" value="none"> Brak ulic</label><br>
 
     <div id="route-controls">
       <h3>Wyznacz trasę</h3>
@@ -1636,17 +1637,22 @@ function emojiHtml(str) {
           baseLayer.on('loading', showLoading);
           baseLayer.on('load', hideLoading);
           baseLayer.addTo(map);
-          map.removeLayer(labels); map.removeLayer(roadsLayer);
-          if (radio.value !== 'osm') { labels.addTo(map); roadsLayer.addTo(map); }
+          map.removeLayer(labels);
+          if (roadsLayer) map.removeLayer(roadsLayer);
+          if (radio.value !== 'osm') {
+            labels.addTo(map);
+            if (roadsLayer) roadsLayer.addTo(map);
+          }
           currentBase = radio.value;
         });
       });
 
       document.querySelectorAll('input[name="streets"]').forEach(radio => {
         radio.addEventListener('change', () => {
-          map.removeLayer(roadsLayer);
-          roadsLayer = (radio.value === 'main') ? roadsSimple : roadsFull;
-          if (currentBase !== 'osm') roadsLayer.addTo(map);
+          if (roadsLayer) map.removeLayer(roadsLayer);
+          roadsLayer = (radio.value === 'main') ? roadsSimple :
+                       (radio.value === 'full') ? roadsFull : null;
+          if (currentBase !== 'osm' && roadsLayer) roadsLayer.addTo(map);
         });
       });
     map.on("click", e => { if (currentTool === "pin" && !drawingRoute && window.innerWidth > 800) onMapClick(e); });
