@@ -299,15 +299,28 @@ body, #sidebar, #basemap-switcher {
 }
 .popup-container {
   position: relative;
-  padding-bottom: 24px;
+  padding-bottom: 40px;
 }
 .edit-popup {
   min-width: 300px;
 }
-.popup-edit-btn {
+.popup-footer {
   position: absolute;
   bottom: 0;
+  left: 0;
   right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.popup-footer .popup-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.popup-edit-btn {
+  margin-left: auto;
 }
 .popup-photo {
   width: 100%;
@@ -1328,9 +1341,13 @@ function emojiHtml(str) {
         ${p.odKogo ? `<div>Od kogo: ${p.odKogo}</div>` : ''}
         <div>Data dodania: ${formatDate(p.dataDodania)}</div>
         <div>${formatCoords(p.lat, p.lng)}</div>
-        <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
-        <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
-        <button class="popup-route-btn" id="routeBtn-${p.id}">✏️ Dodaj trasę</button>
+        <div class="popup-footer">
+          <div class="popup-actions">
+            <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a>
+            <button class="popup-route-btn" id="routeBtn-${p.id}">✏️ Dodaj trasę</button>
+          </div>
+          <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
+        </div>
       `;
     }
 
