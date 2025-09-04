@@ -299,28 +299,15 @@ body, #sidebar, #basemap-switcher {
 }
 .popup-container {
   position: relative;
-  padding-bottom: 40px;
+  padding-bottom: 24px;
 }
 .edit-popup {
   min-width: 300px;
 }
-.popup-footer {
+.popup-edit-btn {
   position: absolute;
   bottom: 0;
-  left: 0;
   right: 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.popup-footer .popup-actions {
-  display: flex;
-  gap: 4px;
-}
-
-.popup-edit-btn {
-  margin-left: auto;
 }
 .popup-photo {
   width: 100%;
@@ -482,6 +469,7 @@ body, #sidebar, #basemap-switcher {
  top: -1px;
   bottom: auto;
   z-index: 20;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 1px #000;
   filter: drop-shadow(0 0 0.5px black) drop-shadow(1px 1px 0 black) drop-shadow(-1px -1px 0 black);
 }
 
@@ -928,8 +916,8 @@ function slugify(str) {
       {key: 'doSprawdzenia', label: 'Do sprawdzenia ❔', matches: p => p.doSprawdzenia},
       {key: 'zwiedzone', label: 'Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys">', matches: p => p.zwiedzone},
       {key: 'wyroznione', label: 'Wyróżnione ⭐', matches: p => p.wyroznione},
-      {key: 'zamkniete', label: 'Zamknięte 🔒', matches: p => p.zamkniete},
-      {key: 'tajne', label: 'Tajne 🤐', matches: p => p.tajne}
+      {key: 'zamkniete', label: 'Zamknięte 🔐', matches: p => p.zamkniete},
+      {key: 'tajne', label: 'Tajne 🤫', matches: p => p.tajne}
     ];
     let selectedStatuses = new Set();
     const layerDocs = {};
@@ -1158,9 +1146,9 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       const statusIcon = (status.nieaktywne || status.niedostepne)
         ? `<span class="${statusClass}">⛔</span>`
         : status.zamkniete
-          ? `<span class="${statusClass}">🔒</span>`
+          ? `<span class="${statusClass}">🔐</span>`
           : status.tajne
-            ? `<span class="${statusClass}">🤐</span>`
+            ? `<span class="${statusClass}">🤫</span>`
             : status.doSprawdzenia
               ? `<span class="${statusClass}">❔</span>`
               : (status.zwiedzone || isVisitedLayer)
@@ -1321,8 +1309,8 @@ function emojiHtml(str) {
         </div>` : '';
       const statusHtml = `
         ${(p.niedostepne || p.nieaktywne) ? `<div style="opacity:0.8;">Niedostępne ⛔</div>` : ''}
-        ${p.zamkniete ? `<div style="opacity:0.8;">Zamknięte 🔒</div>` : ''}
-        ${p.tajne ? `<div style="opacity:0.8;">Tajne 🤐</div>` : ''}
+        ${p.zamkniete ? `<div style="opacity:0.8;">Zamknięte 🔐</div>` : ''}
+        ${p.tajne ? `<div style="opacity:0.8;">Tajne 🤫</div>` : ''}
         ${p.doSprawdzenia ? `<div style="opacity:0.8;">Do sprawdzenia ❔</div>` : ''}
         ${p.zwiedzone ? `<div style="opacity:0.8;">Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></div>` : ''}
         ${p.wyroznione ? `<div style="opacity:0.8;">Wyróżnione ⭐</div>` : ''}`;
@@ -1341,13 +1329,9 @@ function emojiHtml(str) {
         ${p.odKogo ? `<div>Od kogo: ${p.odKogo}</div>` : ''}
         <div>Data dodania: ${formatDate(p.dataDodania)}</div>
         <div>${formatCoords(p.lat, p.lng)}</div>
-        <div class="popup-footer">
-          <div class="popup-actions">
-            <a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a>
-            <button class="popup-route-btn" id="routeBtn-${p.id}">✏️ Dodaj trasę</button>
-          </div>
-          <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
-        </div>
+        <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
+        <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
+        <button class="popup-route-btn" id="routeBtn-${p.id}">✏️ Dodaj trasę</button>
       `;
     }
 
@@ -1854,8 +1838,8 @@ function zaladujPinezkiZFirestore() {
       return `
         <div class="status-grid">
           <label><input type="checkbox" id="${prefix}nieaktywne${suffix}" ${status.nieaktywne ? 'checked' : ''}> Niedostępne <span class="status-emoji">⛔</span></label>
-          <label><input type="checkbox" id="${prefix}zamkniete${suffix}" ${status.zamkniete ? 'checked' : ''}> Zamknięte <span class="status-emoji">🔒</span></label>
-          <label><input type="checkbox" id="${prefix}tajne${suffix}" ${status.tajne ? 'checked' : ''}> Tajne <span class="status-emoji">🤐</span></label>
+          <label><input type="checkbox" id="${prefix}zamkniete${suffix}" ${status.zamkniete ? 'checked' : ''}> Zamknięte <span class="status-emoji">🔐</span></label>
+          <label><input type="checkbox" id="${prefix}tajne${suffix}" ${status.tajne ? 'checked' : ''}> Tajne <span class="status-emoji">🤫</span></label>
           <label><input type="checkbox" id="${prefix}doSprawdzenia${suffix}" ${status.doSprawdzenia ? 'checked' : ''}> Do sprawdzenia <span class="status-emoji">❔</span></label>
           <label><input type="checkbox" id="${prefix}zwiedzone${suffix}" ${status.zwiedzone ? 'checked' : ''}> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" class="status-emoji checkmark-obrys"></label>
           <label><input type="checkbox" id="${prefix}wyroznione${suffix}" ${status.wyroznione ? 'checked' : ''}> Wyróżnione <span class="status-emoji">⭐</span></label>
@@ -3746,8 +3730,8 @@ function confirmLayerDelete() {
       </div>
       <div class="status-grid">
         <label><input type="checkbox" id="mobilePinInactive"> Niedostępne ⛔</label>
-        <label><input type="checkbox" id="mobilePinClosed"> Zamknięte 🔒</label>
-        <label><input type="checkbox" id="mobilePinSecret"> Tajne 🤐</label>
+        <label><input type="checkbox" id="mobilePinClosed"> Zamknięte 🔐</label>
+        <label><input type="checkbox" id="mobilePinSecret"> Tajne 🤫</label>
         <label><input type="checkbox" id="mobilePinTodo"> Do sprawdzenia ❔</label>
         <label><input type="checkbox" id="mobilePinVisited"> Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></label>
         <label><input type="checkbox" id="mobilePinHighlighted"> Wyróżnione ⭐</label>
