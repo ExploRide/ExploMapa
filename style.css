@@ -392,6 +392,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px 8px;
+  margin: 15px 0;
 }
 .status-grid label {
   display: flex;
