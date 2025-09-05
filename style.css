@@ -429,7 +429,8 @@
 }
 
 #saveNew {
-bottom: 2px 
+bottom: 2px;
+  margin: 5px 0;
 } 
 
 }
