@@ -442,5 +442,14 @@ bottom: 2px;
     #nazwaNew {
     margin: 15px 0 !important;
     }
+
+
+    #history-log{
+    border-width: 2px;
+    border-style: inset;
+    border-color: buttonborder;
+    border-image: initial;
+    padding-bottom: 10px;
+}
     
 }
