@@ -52,6 +52,14 @@
       overflow-y: auto;
       font-size: 12px !important;
     }
+    #history-log {
+      border-top: 1px solid #444;
+      margin-top: 10px;
+      padding-top: 5px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-size: 11px;
+    }
     #layer-editor {
       position: absolute;
       top: 0;
@@ -694,6 +702,8 @@ img.emoji {
       <input type="text" id="routeEnd" placeholder="Punkt końcowy"><br>
       <button id="routeCalculate">Pokaż trasę</button>
     </div>
+    <h3>Historia edycji</h3>
+    <div id="history-log"></div>
   </div>
   <div id="layer-editor">
     <h3>Edycja warstwy</h3>
@@ -997,15 +1007,31 @@ function slugify(str) {
 
     const undoStack = [];
     const redoStack = [];
-    function pushAction(action) {
+    function addHistoryEntry(desc) {
+      const log = document.getElementById('history-log');
+      if (!log || !desc) return;
+      const div = document.createElement('div');
+      div.textContent = desc;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+    function removeLastHistoryEntry() {
+      const log = document.getElementById('history-log');
+      if (!log) return;
+      if (log.lastChild) log.removeChild(log.lastChild);
+    }
+    function pushAction(action, description) {
+      action.description = description;
       undoStack.push(action);
       redoStack.length = 0;
+      addHistoryEntry(description);
     }
     function undo() {
       const action = undoStack.pop();
       if (action) {
         action.undo();
         redoStack.push(action);
+        removeLastHistoryEntry();
       }
     }
     function redo() {
@@ -1013,6 +1039,7 @@ function slugify(str) {
       if (action) {
         action.redo();
         undoStack.push(action);
+        addHistoryEntry(action.description);
       }
     }
     if (undoBtn) undoBtn.addEventListener('click', undo);
@@ -1651,33 +1678,8 @@ function emojiHtml(str) {
       rysowaneTrasy.addTo(map);
       routingLayer = L.layerGroup().addTo(map);
 
-      let moveStartCenter = null;
-      let moveStartZoom = null;
-      let restoringView = false;
-      map.on('movestart', () => {
-        if (restoringView) return;
-        moveStartCenter = map.getCenter();
-        moveStartZoom = map.getZoom();
-      });
-      map.on('moveend', () => {
-        if (restoringView) return;
-        const fromCenter = moveStartCenter;
-        const fromZoom = moveStartZoom;
-        const toCenter = map.getCenter();
-        const toZoom = map.getZoom();
-        pushAction({
-          undo: () => {
-            restoringView = true;
-            map.setView(fromCenter, fromZoom);
-            restoringView = false;
-          },
-          redo: () => {
-            restoringView = true;
-            map.setView(toCenter, toZoom);
-            restoringView = false;
-          }
-        });
-      });
+      // Undo/redo should ignore map view changes, so no actions are
+      // recorded for map movements.
 
       // Ensure popups are fully visible by centering the map on them
       map.on('popupopen', e => {
@@ -2049,12 +2051,56 @@ function zaladujPinezkiZFirestore() {
       }
     }
 
+    function applyPinData(p, data) {
+      const staraWarstwa = p.warstwa || "Inne";
+      Object.assign(p, data);
+      const nowaWarstwa = p.warstwa || "Inne";
+      if (!warstwy[nowaWarstwa]) {
+        warstwy[nowaWarstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+      }
+      if (staraWarstwa !== nowaWarstwa) {
+        const idx = warstwy[staraWarstwa].lista.indexOf(p);
+        if (idx > -1) warstwy[staraWarstwa].lista.splice(idx, 1);
+        warstwy[nowaWarstwa].lista.push(p);
+        if (p.marker) p.marker.remove();
+        const iconEmoji = warstwy[nowaWarstwa].emoji || p.emoji;
+        p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[nowaWarstwa].layer);
+        attachHighlight(p.marker, p.el);
+      } else {
+        const iconEmoji = warstwy[nowaWarstwa].emoji || p.emoji;
+        if (p.marker) p.marker.setIcon(createEmojiIcon(iconEmoji, p.warstwaId, 32, p));
+      }
+      applyInactiveStyle(p);
+      const popupDiv = document.createElement("div");
+      popupDiv.className = "popup-container";
+      popupDiv.innerHTML = createPopupHtml(p);
+      p.marker.bindPopup(popupDiv);
+      attachPopupHandlers(p.marker, p);
+    }
+
     function zapiszLokalnie(id) {
       const layerVal = document.getElementById("ewarstwa").value.trim();
       if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
       const catVal = document.getElementById("ekategoria").value.trim();
       if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
       const p = wszystkiePinezki.find(pp => pp.id === id);
+      const oldData = p ? {
+        nazwa: p.nazwa,
+        opis: p.opis,
+        odKogo: p.odKogo,
+        warstwa: p.warstwa,
+        warstwaId: p.warstwaId,
+        kategoria: p.kategoria,
+        emoji: p.emoji,
+        trudnosc: p.trudnosc,
+        nieaktywne: p.nieaktywne,
+        zamkniete: p.zamkniete,
+        tajne: p.tajne,
+        doSprawdzenia: p.doSprawdzenia,
+        zwiedzone: p.zwiedzone,
+        wyroznione: p.wyroznione,
+        slug: p.slug
+      } : null;
       const emojiVal = p && p.noweEmoji !== undefined ? p.noweEmoji : (p ? p.emoji : '');
       const nowa = {
         nazwa: document.getElementById("enazwa").value,
@@ -2074,10 +2120,8 @@ function zaladujPinezkiZFirestore() {
       };
       zmianyDoZapisania[id] = nowa;
       if (p) {
-        const staraWarstwa = p.warstwa || "Inne";
         const oldSlug = p.slug;
-        Object.assign(p, nowa);
-        delete p.noweEmoji;
+        applyPinData(p, nowa);
         categories.add(p.kategoria || '');
         selectedCategories.add(p.kategoria || '');
         updateCategoryFilter();
@@ -2088,29 +2132,11 @@ function zaladujPinezkiZFirestore() {
           storePhotos(p.slug, photos);
         }
         p.unsaved = true;
-        if (staraWarstwa !== p.warstwa) {
-          const idx = warstwy[staraWarstwa].lista.indexOf(p);
-          if (idx > -1) warstwy[staraWarstwa].lista.splice(idx, 1);
-          if (!warstwy[p.warstwa]) {
-            warstwy[p.warstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
-          }
-          warstwy[p.warstwa].lista.push(p);
-          if (p.marker) p.marker.remove();
-          const iconEmoji = warstwy[p.warstwa].emoji || p.emoji;
-          p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[p.warstwa].layer);
-          attachHighlight(p.marker, p.el);
-        } else {
-          const iconEmoji = warstwy[p.warstwa].emoji || p.emoji;
-          p.marker.setIcon(createEmojiIcon(iconEmoji, p.warstwaId, 32, p));
-        }
-        applyInactiveStyle(p);
-        
-const popupDiv = document.createElement("div");
-popupDiv.className = "popup-container";
-popupDiv.innerHTML = createPopupHtml(p);
-p.marker.bindPopup(popupDiv);
-attachPopupHandlers(p.marker, p);
-
+        const newSlug = p.slug;
+        pushAction({
+          undo: () => { applyPinData(p, oldData); p.slug = oldData.slug; generujListeWarstw(); updateSaveButton(); },
+          redo: () => { applyPinData(p, nowa); p.slug = newSlug; generujListeWarstw(); updateSaveButton(); }
+        }, 'Edytowano pinezkę');
       }
       generujListeWarstw();
       updateSaveButton();
@@ -2127,7 +2153,7 @@ attachPopupHandlers(p.marker, p);
       pushAction({
         undo: () => map.removeLayer(marker),
         redo: () => marker.addTo(map)
-      });
+      }, 'Dodano pinezkę');
       const newId = crypto.randomUUID();
       const tempPin = {
         id: newId,
@@ -2503,20 +2529,53 @@ attachPopupHandlers(p.marker, p);
       };
     }
 
-    function addLayer(name) {
+    function addLayer(name, record = true) {
       if (!name || warstwy[name]) return;
+      const prevLayersToAdd = layersToAdd.slice();
+      const prevOrder = loadLayerOrder();
       warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
       layersToAdd.push(name);
-      const order = loadLayerOrder();
+      const order = prevOrder.slice();
       order.unshift(name);
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
       generujListeWarstw();
       updateSaveButton();
+      if (record) {
+        pushAction({
+          undo: () => {
+            if (warstwy[name]) {
+              map.removeLayer(warstwy[name].layer);
+              delete warstwy[name];
+            }
+            layersToAdd = prevLayersToAdd;
+            localStorage.setItem('warstwaOrder', JSON.stringify(prevOrder));
+            generujListeWarstw();
+            updateSaveButton();
+          },
+          redo: () => {
+            warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+            layersToAdd = prevLayersToAdd.concat(name);
+            const o = prevOrder.slice();
+            o.unshift(name);
+            localStorage.setItem('warstwaOrder', JSON.stringify(o));
+            generujListeWarstw();
+            updateSaveButton();
+          }
+        }, `Dodano warstwę ${name}`);
+      }
     }
 
-    function deleteLayer(name) {
+    function deleteLayer(name, record = true) {
       if (!warstwy[name]) return;
-      warstwy[name].lista.forEach(p => {
+      const layerData = warstwy[name];
+      const pins = layerData.lista.slice();
+      const prevOrder = loadLayerOrder();
+      const prevLayersToDelete = layersToDelete.slice();
+      const prevLayersToAdd = layersToAdd.slice();
+      const prevPinsToDelete = pinsToDelete.slice();
+      const prevZmiany = Object.assign({}, zmianyDoZapisania);
+      const prevNowe = nowePinezki.slice();
+      layerData.lista.forEach(p => {
         if (p.firebaseId) pinsToDelete.push(p.id);
         const idxN = nowePinezki.indexOf(p);
         if (idxN > -1) nowePinezki.splice(idxN, 1);
@@ -2524,13 +2583,34 @@ attachPopupHandlers(p.marker, p);
         if (p.marker) map.removeLayer(p.marker);
       });
       wszystkiePinezki = wszystkiePinezki.filter(pp => pp.warstwa !== name);
-      map.removeLayer(warstwy[name].layer);
+      map.removeLayer(layerData.layer);
       delete warstwy[name];
       layersToDelete.push(name);
       const order = loadLayerOrder().filter(n => n !== name);
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
       generujListeWarstw();
       updateSaveButton();
+      if (record) {
+        pushAction({
+          undo: () => {
+            warstwy[name] = layerData;
+            layerData.layer.addTo(map);
+            warstwy[name].lista.forEach(p => { if (p.marker) p.marker.addTo(layerData.layer); });
+            wszystkiePinezki.push(...pins);
+            layersToDelete = prevLayersToDelete;
+            layersToAdd = prevLayersToAdd;
+            pinsToDelete = prevPinsToDelete;
+            zmianyDoZapisania = Object.assign({}, prevZmiany);
+            nowePinezki = prevNowe;
+            localStorage.setItem('warstwaOrder', JSON.stringify(prevOrder));
+            generujListeWarstw();
+            updateSaveButton();
+          },
+          redo: () => {
+            deleteLayer(name, false);
+          }
+        }, `Usunięto warstwę ${name}`);
+      }
     }
 
     function confirmDeleteLayer(name) {
@@ -2555,6 +2635,11 @@ attachPopupHandlers(p.marker, p);
     }
 
     function applyLayerEdits() {
+      const oldState = {
+        name: editedLayer,
+        order: loadLayerOrder(),
+        emoji: warstwy[editedLayer].emoji || ''
+      };
       const newName = document.getElementById('layerEditName').value.trim();
       const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
       const newEmoji = document.getElementById('layerEditEmoji').value.trim();
@@ -2571,6 +2656,33 @@ attachPopupHandlers(p.marker, p);
       generujListeWarstw();
       updateSaveButton();
       closeLayerEditor();
+      const newState = {
+        name: editedLayer,
+        order: loadLayerOrder(),
+        emoji: warstwy[editedLayer].emoji || ''
+      };
+      pushAction({
+        undo: () => {
+          if (newState.name !== oldState.name) applyRenameLayer(newState.name, oldState.name);
+          reorderLayer(oldState.name, oldState.order.indexOf(oldState.name) + 1);
+          if (warstwy[oldState.name].emoji !== oldState.emoji) {
+            warstwy[oldState.name].emoji = oldState.emoji;
+            updateMarkersForLayer(oldState.name);
+          }
+          generujListeWarstw();
+          updateSaveButton();
+        },
+        redo: () => {
+          if (newState.name !== oldState.name) applyRenameLayer(oldState.name, newState.name);
+          reorderLayer(newState.name, newState.order.indexOf(newState.name) + 1);
+          if (warstwy[newState.name].emoji !== newState.emoji) {
+            warstwy[newState.name].emoji = newState.emoji;
+            updateMarkersForLayer(newState.name);
+          }
+          generujListeWarstw();
+          updateSaveButton();
+        }
+      }, 'Edytowano warstwę ' + newState.name);
     }
 
     function applyRenameLayer(oldName, newName) {
@@ -3344,7 +3456,7 @@ toggleBtn.style.verticalAlign = "top";
 
     const delModal = document.getElementById('deleteModal');
     if (delModal) {
-      document.getElementById('deleteConfirmYes').addEventListener('click', deletePinFromFirestore);
+      document.getElementById('deleteConfirmYes').addEventListener('click', () => deletePinLocal(deletePinId));
       document.getElementById('deleteConfirmNo').addEventListener('click', closeDeleteModal);
       delModal.addEventListener('click', e => {
         if (e.target === delModal) closeDeleteModal();
@@ -3484,17 +3596,47 @@ toggleBtn.style.verticalAlign = "top";
     if (modal) modal.style.display = 'none';
   }
 
-  function deletePinFromFirestore() {
-    if (!deletePinId) return;
-    const p = wszystkiePinezki.find(pp => pp.id === deletePinId);
-    if (!p || !p.firebaseId) return;
-    db.collection('pinezki2').doc(p.firebaseId).delete().then(() => {
-      closeDeleteModal();
-      location.reload();
-    }).catch(err => {
-      alert('B\u0142\u0105d usuwania: ' + err.message);
-      closeDeleteModal();
-    });
+  function deletePinLocal(id, record = true) {
+    const p = wszystkiePinezki.find(pp => pp.id === id);
+    if (!p) return;
+    const layerName = p.warstwa || 'Inne';
+    const backup = {
+      pin: p,
+      layerName,
+      prevPinsToDelete: pinsToDelete.slice(),
+      prevNowe: nowePinezki.slice(),
+      prevZmiany: Object.assign({}, zmianyDoZapisania),
+      prevAll: wszystkiePinezki.slice()
+    };
+    if (p.firebaseId) pinsToDelete.push(p.id);
+    const idxN = nowePinezki.indexOf(p);
+    if (idxN > -1) nowePinezki.splice(idxN, 1);
+    delete zmianyDoZapisania[p.id];
+    if (p.marker) map.removeLayer(p.marker);
+    const layer = warstwy[layerName];
+    if (layer) {
+      const idx = layer.lista.indexOf(p);
+      if (idx > -1) layer.lista.splice(idx, 1);
+    }
+    wszystkiePinezki = wszystkiePinezki.filter(pp => pp !== p);
+    generujListeWarstw();
+    updateSaveButton();
+    if (record) {
+      pushAction({
+        undo: () => {
+          wszystkiePinezki = backup.prevAll;
+          if (backup.pin.marker) backup.pin.marker.addTo(warstwy[backup.layerName].layer);
+          warstwy[backup.layerName].lista.push(backup.pin);
+          pinsToDelete = backup.prevPinsToDelete;
+          nowePinezki = backup.prevNowe;
+          zmianyDoZapisania = Object.assign({}, backup.prevZmiany);
+          generujListeWarstw();
+          updateSaveButton();
+        },
+        redo: () => { deletePinLocal(id, false); }
+      }, 'Usunięto pinezkę');
+    }
+    closeDeleteModal();
   }
 
 let layerDeleteName = null;
