@@ -428,6 +428,8 @@
   object-fit: contain;          /* bezpiecznik */
 }
 
-
+#saveNew {
+bottom: 2px 
+} 
 
 }
