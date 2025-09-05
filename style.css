@@ -139,6 +139,11 @@
 
 #filterKategorie {
   margin-top: 5px;
+  font-size: 14px;
+}
+#filterStatusy {
+  margin-top: 5px;
+  font-size: 14px;
 }
   #kategorie-lista {
     margin-left: 10px;
