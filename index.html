@@ -2079,7 +2079,12 @@ function zaladujPinezkiZFirestore() {
     }
 
     function zapiszLokalnie(id) {
+      const nameVal = document.getElementById("enazwa").value.trim();
       const layerVal = document.getElementById("ewarstwa").value.trim();
+      const missing = [];
+      if (!nameVal) missing.push("Wpisz nazwę pinezki");
+      if (!layerVal) missing.push("Wybierz warstwę");
+      if (missing.length) { alert(missing.join("\n")); return; }
       if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
       const catVal = document.getElementById("ekategoria").value.trim();
       if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
@@ -2103,7 +2108,7 @@ function zaladujPinezkiZFirestore() {
       } : null;
       const emojiVal = p && p.noweEmoji !== undefined ? p.noweEmoji : (p ? p.emoji : '');
       const nowa = {
-        nazwa: document.getElementById("enazwa").value,
+        nazwa: nameVal,
         opis: document.getElementById("eopis").value.replace(/\n/g, '<br>'),
         odKogo: document.getElementById("eodKogo").value,
         warstwa: layerVal,
@@ -2240,14 +2245,19 @@ function zaladujPinezkiZFirestore() {
 
         container.querySelector("#saveNew").addEventListener("click", (e) => {
           e.stopPropagation();
+          const nameVal = container.querySelector("#nazwaNew").value.trim();
           const layerVal = container.querySelector("#warstwaNew").value.trim();
+          const missing = [];
+          if (!nameVal) missing.push("Wpisz nazwę pinezki");
+          if (!layerVal) missing.push("Wybierz warstwę");
+          if (missing.length) { alert(missing.join("\n")); return; }
           if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
           const catVal = container.querySelector("#kategoriaNew").value.trim();
           if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
           const data = {
             id: tempPin.id,
             IDpinezki: tempPin.id,
-            nazwa: container.querySelector("#nazwaNew").value,
+            nazwa: nameVal,
             opis: container.querySelector("#opisNew").value.replace(/\n/g, '<br>'),
             warstwa: layerVal,
             kategoria: catVal,
@@ -3937,12 +3947,16 @@ function confirmLayerDelete() {
     cancel.addEventListener('click', () => { modal.style.display = 'none'; });
     ok.addEventListener('click', async () => {
       const name = nameInput.value.trim();
-      if (!name) { modal.style.display = 'none'; return; }
+      const layer = layerInput.value.trim();
+      const missing = [];
+      if (!name) missing.push('Wpisz nazwę pinezki');
+      if (!layer) missing.push('Wybierz warstwę');
+      if (missing.length) { alert(missing.join('\n')); return; }
       if (currentTool === 'pin') {
         saveCenterPin({
           nazwa: name,
           opis: descInput.value,
-          warstwa: layerInput.value,
+          warstwa: layer,
           kategoria: catInput.value,
           emoji: emojiInput.value,
           nieaktywne: inactiveInput.checked,
@@ -3953,7 +3967,7 @@ function confirmLayerDelete() {
           wyroznione: highlightedInput.checked,
           odKogo: fromInput.value,
           trudnosc: trudInput.value
-          });
+        });
       } else {
         await saveMovingPin(name);
       }
