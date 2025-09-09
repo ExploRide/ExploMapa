@@ -718,7 +718,7 @@ img.emoji {
     <strong>Bazy</strong><br>
     <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
     <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
-    <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label><br>
+    <label><input type="radio" name="basemap" value="hill"> Cieniowanie</label><br>
     <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label><br>
     <label><input type="radio" name="basemap" value="otm-trails"> OpenTopoMap + Szlaki (Waymarked)</label><br>
     <label><input type="radio" name="basemap" value="orto-wmts-std"> Orto (WMTS – Standard)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
@@ -1785,7 +1785,7 @@ function emojiHtml(str) {
           attribution: '© OpenTopoMap (CC BY-SA), © OpenStreetMap'
         }),
         overlay: L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png', {
-          opacity: 0.9,
+          opacity: 0.6,
           attribution: '© waymarkedtrails.org, © OpenStreetMap (CC BY-SA)'
         })
       };
