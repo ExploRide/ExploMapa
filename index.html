@@ -134,6 +134,7 @@
     .layer-number.dragging { opacity: 0.5; }
     .pinezki-lista { margin-left: 10px; display: block; }
     .ukryta { display: none; }
+    .opacity-slider { width: 100%; }
     #ekran-logowania {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -718,8 +719,20 @@ img.emoji {
     <label><input type="radio" name="basemap" value="true-orto"> True Ortho (WMS)<button type="button" class="info-btn" data-info="TrueOrtho – brak zniekształceń od wysokości">i</button></label><br>
     <div class="layer-separator"></div>
     <strong>Nakładki</strong><br>
-    <label><input type="checkbox" id="overlay-arch-std"> Orto Archiwalne – Standard (WMS)<button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button></label><br>
-    <label><input type="checkbox" id="overlay-arch-hi"> Orto Archiwalne – HighRes (WMS)<button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button></label><br>
+    <div class="overlay-item">
+      <label><input type="checkbox" id="overlay-arch-std"> Orto Archiwalne – Standard (WMS)
+        <button type="button" class="opacity-btn" data-target="archStd">⚙</button>
+        <button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button>
+      </label><br>
+      <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archStd">
+    </div>
+    <div class="overlay-item">
+      <label><input type="checkbox" id="overlay-arch-hi"> Orto Archiwalne – HighRes (WMS)
+        <button type="button" class="opacity-btn" data-target="archHi">⚙</button>
+        <button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button>
+      </label><br>
+      <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archHi">
+    </div>
 
     <h3>Widok ulic</h3>
     <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
@@ -1861,6 +1874,17 @@ function emojiHtml(str) {
       document.getElementById('overlay-arch-hi').addEventListener('change', e => {
         if (e.target.checked) overlays.archHi.addTo(map);
         else map.removeLayer(overlays.archHi);
+      });
+
+      ['archStd','archHi'].forEach(key => {
+        const btn = document.querySelector(`.opacity-btn[data-target="${key}"]`);
+        const slider = document.getElementById(`opacity-${key}`);
+        btn.addEventListener('click', () => {
+          slider.classList.toggle('ukryta');
+        });
+        slider.addEventListener('input', ev => {
+          overlays[key].setOpacity(ev.target.value / 100);
+        });
       });
 
       document.querySelectorAll('.info-btn').forEach(btn => {
