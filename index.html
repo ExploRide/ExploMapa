@@ -1174,12 +1174,25 @@ function slugify(str) {
       });
     }
 
+    function hasUnsavedChanges() {
+      const layerChanges =
+        layersToAdd.length > 0 ||
+        layersToDelete.length > 0 ||
+        layerOrderChanged ||
+        Object.keys(layerEmojiChanges).length > 0;
+      const routeChanges = window.localTrasy.length > 0;
+      return (
+        Object.keys(zmianyDoZapisania).length > 0 ||
+        nowePinezki.length > 0 ||
+        layerChanges ||
+        routeChanges
+      );
+    }
+
     function updateSaveButton() {
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
-      const layerChanges = layersToAdd.length > 0 || layersToDelete.length > 0 || layerOrderChanged || Object.keys(layerEmojiChanges).length > 0;
-      const routeChanges = window.localTrasy.length > 0;
-      btn.style.display = (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0 || layerChanges || routeChanges) ? 'block' : 'none';
+      btn.style.display = hasUnsavedChanges() ? 'block' : 'none';
     }
 
     function markPinUnsaved(slug) {
@@ -1215,7 +1228,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     selectTool("hand");
 
     window.addEventListener('beforeunload', e => {
-      if (Object.keys(zmianyDoZapisania).length > 0 || nowePinezki.length > 0) {
+      if (hasUnsavedChanges()) {
         e.preventDefault();
         e.returnValue = 'Masz niezapisane zmiany. Czy na pewno chcesz wyjść?';
       }
