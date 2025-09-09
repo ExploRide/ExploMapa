@@ -687,7 +687,10 @@ img.emoji {
   <div id="basemap-switcher">
     <h3>Rodzaj mapy</h3>
     <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
-    <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
+    <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
+    <label><input type="radio" name="basemap" value="nasa"> NASA GIBS (VIIRS City Lights)</label><br>
+    <label><input type="radio" name="basemap" value="sentinel"> Sentinel-2 Cloudless</label><br>
+    <label><input type="radio" name="basemap" value="geo"> Ortofotomapa (Geoportal)</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label>
 
@@ -1695,6 +1698,23 @@ function emojiHtml(str) {
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri'
       });
+      const nasa = L.tileLayer('https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_CityLights_2012/default/2012-01-01/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg', {
+        attribution: 'NASA GIBS',
+        maxNativeZoom: 8,
+        maxZoom: 8
+      });
+      const sentinel = L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg', {
+        attribution: 'Sentinel-2 cloudless &copy; EOX',
+        maxNativeZoom: 14
+      });
+      const orto = L.tileLayer.wms('https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMSServer', {
+        layers: 'Raster',
+        format: 'image/jpeg',
+        transparent: false,
+        version: '1.3.0',
+        crs: L.CRS.EPSG3857,
+        attribution: 'Geoportal.gov.pl \u2013 ortofotomapa'
+      });
       const hill = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri',
         className: 'hillshade-dark'
@@ -1728,6 +1748,9 @@ function emojiHtml(str) {
           baseLayer.off('loading', showLoading);
           baseLayer.off('load', hideLoading);
           baseLayer = (radio.value === 'sat') ? sat :
+                      (radio.value === 'nasa') ? nasa :
+                      (radio.value === 'sentinel') ? sentinel :
+                      (radio.value === 'geo') ? orto :
                       (radio.value === 'hill') ? hill :
                       (radio.value === 'hist') ? hist : osm;
           baseLayer.on('loading', showLoading);
