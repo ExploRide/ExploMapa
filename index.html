@@ -687,7 +687,10 @@ img.emoji {
   <div id="basemap-switcher">
     <h3>Rodzaj mapy</h3>
     <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
-    <label><input type="radio" name="basemap" value="sat" checked> Satelitarna + miasta + drogi</label><br>
+    <label><input type="radio" name="basemap" value="esri" checked> Esri World Imagery</label><br>
+    <label><input type="radio" name="basemap" value="gibs"> NASA GIBS (Blue Marble)</label><br>
+    <label><input type="radio" name="basemap" value="gugik"> Geoportal GUGiK ortofotomapa</label><br>
+    <label><input type="radio" name="basemap" value="osmHybrid"> OpenStreetMap hybryda</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label>
 
@@ -937,7 +940,7 @@ function slugify(str) {
     });
 
     let map, baseLayer, routingLayer, roadsLayer;
-    let currentBase = 'sat';
+    let currentBase = 'esri';
     let loadingCount = 0;
     function showLoading() {
       const el = document.getElementById('loading');
@@ -1713,6 +1716,24 @@ function emojiHtml(str) {
       const labels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}');
       const roadsFull = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}');
       const roadsSimple = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 12, maxZoom: 18 });
+      const today = new Date().toISOString().split('T')[0];
+      const gibs = L.tileLayer(`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief/default/${today}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`, {
+        attribution: 'NASA Blue Marble',
+        maxZoom: 9,
+        maxNativeZoom: 9
+      });
+      const gugik = L.tileLayer.wms('https://mapy.geoportal.gov.pl/wss/service/ORTO/MapServer/WMSServer', {
+        layers: 'Raster',
+        format: 'image/png',
+        transparent: false,
+        version: '1.3.0',
+        crs: L.CRS.EPSG3857,
+        attribution: 'Geoportal.gov.pl – ortofotomapa'
+      });
+      const osmOverlay = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        opacity: 0.5
+      });
 
       baseLayer = sat;
       baseLayer.on('loading', showLoading);
@@ -1727,15 +1748,21 @@ function emojiHtml(str) {
           map.removeLayer(baseLayer);
           baseLayer.off('loading', showLoading);
           baseLayer.off('load', hideLoading);
-          baseLayer = (radio.value === 'sat') ? sat :
+          if (map.hasLayer(osmOverlay)) map.removeLayer(osmOverlay);
+          baseLayer = (radio.value === 'esri') ? sat :
+                      (radio.value === 'gibs') ? gibs :
+                      (radio.value === 'gugik') ? gugik :
                       (radio.value === 'hill') ? hill :
-                      (radio.value === 'hist') ? hist : osm;
+                      (radio.value === 'hist') ? hist :
+                      (radio.value === 'osmHybrid') ? sat : osm;
           baseLayer.on('loading', showLoading);
           baseLayer.on('load', hideLoading);
           baseLayer.addTo(map);
           map.removeLayer(labels);
           if (roadsLayer) map.removeLayer(roadsLayer);
-          if (radio.value !== 'osm') {
+          if (radio.value === 'osmHybrid') {
+            osmOverlay.addTo(map);
+          } else if (radio.value !== 'osm') {
             labels.addTo(map);
             if (roadsLayer) roadsLayer.addTo(map);
           }
@@ -1748,7 +1775,7 @@ function emojiHtml(str) {
           if (roadsLayer) map.removeLayer(roadsLayer);
           roadsLayer = (radio.value === 'main') ? roadsSimple :
                        (radio.value === 'full') ? roadsFull : null;
-          if (currentBase !== 'osm' && roadsLayer) roadsLayer.addTo(map);
+          if (currentBase !== 'osm' && currentBase !== 'osmHybrid' && roadsLayer) roadsLayer.addTo(map);
         });
       });
     map.on("click", e => { if (currentTool === "pin" && !drawingRoute && window.innerWidth > 800) onMapClick(e); });
