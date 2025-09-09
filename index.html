@@ -1811,6 +1811,7 @@ function emojiHtml(str) {
           baseLayer.off('loading', showLoading);
           baseLayer.off('load', hideLoading);
           if (baseTileErrorHandler) baseLayer.off('tileerror', baseTileErrorHandler);
+          if (baseLayer._abortLoading) baseLayer._abortLoading();
           map.removeLayer(baseLayer);
         }
         try {
