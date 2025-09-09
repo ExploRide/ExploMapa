@@ -720,7 +720,6 @@ img.emoji {
       <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
       <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
       <label><input type="radio" name="basemap" value="hill"> Cieniowanie</label><br>
-      <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label><br>
       <label><input type="radio" name="basemap" value="orto-wmts-std"> Orto (WMTS – Standard)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
       <label><input type="radio" name="basemap" value="orto-wmts-hi"> Orto HighRes (WMTS – HighResolution)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
       <label><input type="radio" name="basemap" value="orto-wms-std"> Orto (WMS – Standard)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
@@ -1781,14 +1780,6 @@ function emojiHtml(str) {
         attribution: 'Esri',
         className: 'hillshade-dark'
       });
-      const hist = L.tileLayer.wms('https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO_ARCH/MapServer/WMSServer', {
-        layers: 'Raster',
-        format: 'image/png',
-        transparent: false,
-        version: '1.3.0',
-        crs: L.CRS.EPSG3857,
-        attribution: 'Geoportal.gov.pl \u2013 ortofotomapa historyczna'
-      });
       const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
       });
@@ -1845,7 +1836,6 @@ function emojiHtml(str) {
       const baseLayerDefs = {
         sat: { create: () => sat },
         hill: { create: () => hill },
-        hist: { create: () => hist },
         'otm-trails': { create: () => baseOpenTopoPlusTrails.base },
         osm: { create: () => osm },
         'orto-wmts-std': { create: () => wmtsLayer(WMTS_STD_URL), fallback: 'orto-wms-std' },
