@@ -628,15 +628,35 @@ img.emoji {
 
 /* podgląd przy przycisku z emoji (jeśli chcesz też go odchudzić) */
 .emoji-picker-preview {
-  height: 1.8em; 
+  height: 1.8em;
   width: auto;
 }
+
+    #toast {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 4px;
+      display: none;
+      z-index: 2000;
+      pointer-events: none;
+    }
+    .info-btn {
+      margin-left: 4px;
+      font-size: 10px;
+      padding: 0 4px;
+      cursor: pointer;
+    }
 
   </style>
 </head>
 <body>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="banner" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 12px;border-radius:4px;z-index:2000;"></div>
+  <div id="toast"></div>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
   <div id="loading"><div class="loader"></div></div>
   <div id="sidebar">
@@ -686,13 +706,20 @@ img.emoji {
   <button id="toggleLayers">☰ Warstwy</button>
   <div id="basemap-switcher">
     <h3>Rodzaj mapy</h3>
+    <strong>Bazy</strong><br>
     <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
     <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label><br>
+    <label><input type="radio" name="basemap" value="orto-wmts-std"> Orto (WMTS – Standard)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
+    <label><input type="radio" name="basemap" value="orto-wmts-hi"> Orto HighRes (WMTS – HighResolution)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
+    <label><input type="radio" name="basemap" value="orto-wms-std"> Orto (WMS – Standard)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
+    <label><input type="radio" name="basemap" value="orto-wms-hi"> Orto HighRes (WMS – HighResolution)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
+    <label><input type="radio" name="basemap" value="true-orto"> True Ortho (WMS)<button type="button" class="info-btn" data-info="TrueOrtho – brak zniekształceń od wysokości">i</button></label><br>
     <div class="layer-separator"></div>
     <strong>Nakładki</strong><br>
-    <label><input type="checkbox" id="overlay-orto"> Ortofotomapa (Geoportal)</label>
+    <label><input type="checkbox" id="overlay-arch-std"> Orto Archiwalne – Standard (WMS)<button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button></label><br>
+    <label><input type="checkbox" id="overlay-arch-hi"> Orto Archiwalne – HighRes (WMS)<button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button></label><br>
 
     <h3>Widok ulic</h3>
     <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
@@ -737,6 +764,7 @@ img.emoji {
   <script src="firestore-setup.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-tilelayer-wmts@1.0.2/leaflet-tilelayer-wmts.js"></script>
 
   <script>
     const emojiList = window.emojiList = [];
@@ -939,7 +967,7 @@ function slugify(str) {
       });
     });
 
-    let map, baseLayer, routingLayer, roadsLayer;
+    let map, baseLayer, routingLayer, roadsLayer, baseTileErrorHandler;
     let currentBase = 'sat';
     let loadingCount = 0;
     function showLoading() {
@@ -953,6 +981,13 @@ function slugify(str) {
         const el = document.getElementById('loading');
         if (el) el.style.display = 'none';
       }
+    }
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      if (!el) return;
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 3000);
     }
     const warstwy = {};
     let wszystkiePinezki = [];
@@ -1677,7 +1712,7 @@ function emojiHtml(str) {
 
     function initMap() {
       L.Popup.prototype.options.maxWidth = 800;
-      map = L.map('map').setView([52.1, 20.9], 7);
+      map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
       rysowaneTrasy.addTo(map);
       routingLayer = L.layerGroup().addTo(map);
 
@@ -1698,14 +1733,6 @@ function emojiHtml(str) {
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri'
       });
-      const orto = L.tileLayer.wms('https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMSServer', {
-        layers: 'Raster',
-        format: 'image/png',
-        transparent: false,
-        version: '1.3.0',
-        crs: L.CRS.EPSG3857,
-        attribution: 'Geoportal.gov.pl \u2013 ortofotomapa'
-      });
       const hill = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri',
         className: 'hillshade-dark'
@@ -1725,41 +1752,122 @@ function emojiHtml(str) {
       const roadsFull = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}');
       const roadsSimple = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 12, maxZoom: 18 });
 
-      baseLayer = sat;
-      baseLayer.on('loading', showLoading);
-      baseLayer.on('load', hideLoading);
-      baseLayer.addTo(map);
-      labels.addTo(map);
-      roadsLayer = roadsFull;
-      roadsLayer.addTo(map);
+      const ORTO_ATTR = '© GUGiK – Orto.';
+      // WMTS GetCapabilities: https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution?Service=WMTS&Request=GetCapabilities
+      const WMTS_STD_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution';
+      const WMTS_HI_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/HighResolution';
+      // WMS GetCapabilities: https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution?service=WMS&request=GetCapabilities&version=1.3.0
+      const WMS_STD_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution';
+      const WMS_HI_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/HighResolution';
+      const WMS_TRUE_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/TrueOrtho';
+      const WMS_ARCH_STD_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolutionTime';
+      const WMS_ARCH_HI_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/HighResolutionTime';
 
-      document.querySelectorAll('input[name="basemap"]').forEach(radio => {
-        radio.addEventListener('change', () => {
-          map.removeLayer(baseLayer);
+      function wmtsLayer(url) {
+        if (!L.tileLayer.wmts) throw new Error('Brak wtyczki WMTS');
+        return L.tileLayer.wmts(url, {
+          layer: 'ORTO',
+          tilematrixSet: 'EPSG:3857',
+          format: 'image/jpeg',
+          style: 'default',
+          attribution: ORTO_ATTR
+        });
+      }
+
+      function wmsLayer(url) {
+        return L.tileLayer.wms(url, {
+          layers: 'Raster',
+          format: 'image/jpeg',
+          transparent: false,
+          version: '1.3.0',
+          uppercase: true,
+          crs: L.CRS.EPSG3857,
+          attribution: ORTO_ATTR
+        });
+      }
+
+      const baseLayerDefs = {
+        sat: { create: () => sat },
+        hill: { create: () => hill },
+        hist: { create: () => hist },
+        osm: { create: () => osm },
+        'orto-wmts-std': { create: () => wmtsLayer(WMTS_STD_URL), fallback: 'orto-wms-std' },
+        'orto-wmts-hi': { create: () => wmtsLayer(WMTS_HI_URL), fallback: 'orto-wms-hi' },
+        'orto-wms-std': { create: () => wmsLayer(WMS_STD_URL), fallback: 'orto-wmts-std' },
+        'orto-wms-hi': { create: () => wmsLayer(WMS_HI_URL), fallback: 'orto-wmts-hi' },
+        'true-orto': { create: () => wmsLayer(WMS_TRUE_URL) }
+      };
+
+      const overlays = {
+        archStd: wmsLayer(WMS_ARCH_STD_URL),
+        archHi: wmsLayer(WMS_ARCH_HI_URL)
+      };
+      overlays.archStd.on('tileerror', () => showToast('Sprawdź parametry warstwy (layers/CRS/format).'));
+      overlays.archHi.on('tileerror', () => showToast('Sprawdź parametry warstwy (layers/CRS/format).'));
+
+      function switchBaseLayer(key, isFallback = false) {
+        const def = baseLayerDefs[key] || baseLayerDefs['osm'];
+        if (baseLayer) {
           baseLayer.off('loading', showLoading);
           baseLayer.off('load', hideLoading);
-          baseLayer = (radio.value === 'sat') ? sat :
-                      (radio.value === 'hill') ? hill :
-                      (radio.value === 'hist') ? hist : osm;
-          baseLayer.on('loading', showLoading);
-          baseLayer.on('load', hideLoading);
-          baseLayer.addTo(map);
-          map.removeLayer(labels);
-          if (roadsLayer) map.removeLayer(roadsLayer);
-          if (radio.value !== 'osm') {
-            labels.addTo(map);
-            if (roadsLayer) roadsLayer.addTo(map);
+          if (baseTileErrorHandler) baseLayer.off('tileerror', baseTileErrorHandler);
+          map.removeLayer(baseLayer);
+        }
+        try {
+          baseLayer = def.create();
+        } catch (e) {
+          if (def.fallback && !isFallback) {
+            showToast('WMTS niedostępny, przełączam na WMS.');
+            switchBaseLayer(def.fallback, true);
+            return;
+          } else {
+            showToast('Nie można wczytać warstwy.');
+            baseLayer = baseLayerDefs['osm'].create();
           }
-          currentBase = radio.value;
-        });
+        }
+        baseTileErrorHandler = () => {
+          if (def.fallback && !isFallback) {
+            showToast('Sprawdź parametry warstwy (layers/CRS/format). Przełączam na WMS/WMTS.');
+            switchBaseLayer(def.fallback, true);
+          } else {
+            showToast('Błąd ładowania warstwy.');
+          }
+        };
+        baseLayer.on('tileerror', baseTileErrorHandler);
+        baseLayer.on('loading', showLoading);
+        baseLayer.on('load', hideLoading);
+        baseLayer.addTo(map);
+        map.removeLayer(labels);
+        if (roadsLayer) map.removeLayer(roadsLayer);
+        if (key !== 'osm') {
+          labels.addTo(map);
+          if (roadsLayer) roadsLayer.addTo(map);
+        }
+        currentBase = key;
+      }
+
+      roadsLayer = roadsFull;
+      switchBaseLayer('sat');
+
+      document.querySelectorAll('input[name="basemap"]').forEach(radio => {
+        radio.addEventListener('change', () => switchBaseLayer(radio.value));
       });
 
-      document.getElementById('overlay-orto').addEventListener('change', e => {
-        if (e.target.checked) {
-          orto.addTo(map);
-        } else {
-          map.removeLayer(orto);
-        }
+      document.getElementById('overlay-arch-std').addEventListener('change', e => {
+        if (e.target.checked) overlays.archStd.addTo(map);
+        else map.removeLayer(overlays.archStd);
+      });
+      document.getElementById('overlay-arch-hi').addEventListener('change', e => {
+        if (e.target.checked) overlays.archHi.addTo(map);
+        else map.removeLayer(overlays.archHi);
+      });
+
+      document.querySelectorAll('.info-btn').forEach(btn => {
+        btn.addEventListener('click', ev => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          showToast(btn.dataset.info);
+        });
       });
 
       document.querySelectorAll('input[name="streets"]').forEach(radio => {
