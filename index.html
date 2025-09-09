@@ -3060,6 +3060,11 @@ function showRoutePopup(pinId, tr, latlng) {
     });
 
     function showSearchMarker(lat, lng, label) {
+      if (followGps) {
+        followGps = false;
+        const btn = document.getElementById('gpsFollowBtn');
+        if (btn) btn.style.display = 'block';
+      }
       if (searchLayer) {
         map.removeLayer(searchLayer.layer);
         delete warstwy['wyszukane'];
