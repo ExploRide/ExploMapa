@@ -715,33 +715,37 @@ img.emoji {
   <button id="toggleBasemaps">☰ Mapy</button>
   <div id="basemap-switcher">
     <h3>Rodzaj mapy</h3>
-    <strong>Bazy</strong><br>
-    <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
-    <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
-    <label><input type="radio" name="basemap" value="hill"> Cieniowanie</label><br>
-    <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label><br>
-    <label><input type="radio" name="basemap" value="otm-trails"> OpenTopoMap + Szlaki (Waymarked)</label><br>
-    <label><input type="radio" name="basemap" value="orto-wmts-std"> Orto (WMTS – Standard)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
-    <label><input type="radio" name="basemap" value="orto-wmts-hi"> Orto HighRes (WMTS – HighResolution)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
-    <label><input type="radio" name="basemap" value="orto-wms-std"> Orto (WMS – Standard)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
-    <label><input type="radio" name="basemap" value="orto-wms-hi"> Orto HighRes (WMS – HighResolution)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
-    <label><input type="radio" name="basemap" value="true-orto"> True Ortho (WMS)<button type="button" class="info-btn" data-info="TrueOrtho – brak zniekształceń od wysokości">i</button></label><br>
+    <details>
+      <summary><strong>Bazy</strong></summary>
+      <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
+      <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
+      <label><input type="radio" name="basemap" value="hill"> Cieniowanie</label><br>
+      <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label><br>
+      <label><input type="radio" name="basemap" value="orto-wmts-std"> Orto (WMTS – Standard)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
+      <label><input type="radio" name="basemap" value="orto-wmts-hi"> Orto HighRes (WMTS – HighResolution)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
+      <label><input type="radio" name="basemap" value="orto-wms-std"> Orto (WMS – Standard)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
+      <label><input type="radio" name="basemap" value="orto-wms-hi"> Orto HighRes (WMS – HighResolution)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
+      <label><input type="radio" name="basemap" value="true-orto"> True Ortho (WMS)<button type="button" class="info-btn" data-info="TrueOrtho – brak zniekształceń od wysokości">i</button></label><br>
+      <label><input type="radio" name="basemap" value="otm-trails"> OpenTopoMap + Szlaki (Waymarked)</label><br>
+    </details>
     <div class="layer-separator"></div>
-    <strong>Nakładki</strong><br>
-    <div class="overlay-item">
-      <label><input type="checkbox" id="overlay-arch-std"> Orto Archiwalne – Standard (WMS)
-        <button type="button" class="opacity-btn" data-target="archStd">⚙</button>
-        <button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button>
-      </label><br>
-      <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archStd">
-    </div>
-    <div class="overlay-item">
-      <label><input type="checkbox" id="overlay-arch-hi"> Orto Archiwalne – HighRes (WMS)
-        <button type="button" class="opacity-btn" data-target="archHi">⚙</button>
-        <button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button>
-      </label><br>
-      <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archHi">
-    </div>
+    <details>
+      <summary><strong>Nakładki</strong></summary>
+      <div class="overlay-item">
+        <label><input type="checkbox" id="overlay-arch-std"> Orto Archiwalne – Standard (WMS)
+          <button type="button" class="opacity-btn" data-target="archStd">⚙</button>
+          <button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button>
+        </label><br>
+        <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archStd">
+      </div>
+      <div class="overlay-item">
+        <label><input type="checkbox" id="overlay-arch-hi"> Orto Archiwalne – HighRes (WMS)
+          <button type="button" class="opacity-btn" data-target="archHi">⚙</button>
+          <button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button>
+        </label><br>
+        <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archHi">
+      </div>
+    </details>
 
     <h3>Widok ulic</h3>
     <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
