@@ -716,6 +716,7 @@ img.emoji {
     <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
     <label><input type="radio" name="basemap" value="hill"> Cieniowanie + miasta + drogi</label><br>
     <label><input type="radio" name="basemap" value="hist"> Mapa historyczna (Geoportal)</label><br>
+    <label><input type="radio" name="basemap" value="otm-trails"> OpenTopoMap + Szlaki (Waymarked)</label><br>
     <label><input type="radio" name="basemap" value="orto-wmts-std"> Orto (WMTS – Standard)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
     <label><input type="radio" name="basemap" value="orto-wmts-hi"> Orto HighRes (WMTS – HighResolution)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
     <label><input type="radio" name="basemap" value="orto-wms-std"> Orto (WMS – Standard)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
@@ -982,7 +983,7 @@ function slugify(str) {
       });
     });
 
-    let map, baseLayer, routingLayer, roadsLayer, baseTileErrorHandler;
+    let map, baseLayer, routingLayer, roadsLayer, baseTileErrorHandler, waymarkedErrorHandler;
     let currentBase = 'sat';
     let loadingCount = 0;
     function showLoading() {
@@ -1774,6 +1775,18 @@ function emojiHtml(str) {
       const roadsFull = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}');
       const roadsSimple = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxNativeZoom: 12, maxZoom: 18 });
 
+      const baseOpenTopoPlusTrails = {
+        base: L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', {
+          maxZoom: 17,
+          attribution: '© OpenTopoMap (CC BY-SA), © OpenStreetMap'
+        }),
+        overlay: L.tileLayer('https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png', {
+          opacity: 0.9,
+          attribution: '© waymarkedtrails.org, © OpenStreetMap (CC BY-SA)'
+        })
+      };
+      const OTM_ATTR = '© OpenTopoMap (CC BY-SA), © waymarkedtrails.org, © OpenStreetMap (CC BY-SA)';
+
       const ORTO_ATTR = '© GUGiK – Orto.';
       // WMTS GetCapabilities: https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution?Service=WMTS&Request=GetCapabilities
       const WMTS_STD_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution';
@@ -1812,6 +1825,7 @@ function emojiHtml(str) {
         sat: { create: () => sat },
         hill: { create: () => hill },
         hist: { create: () => hist },
+        'otm-trails': { create: () => baseOpenTopoPlusTrails.base },
         osm: { create: () => osm },
         'orto-wmts-std': { create: () => wmtsLayer(WMTS_STD_URL), fallback: 'orto-wms-std' },
         'orto-wmts-hi': { create: () => wmtsLayer(WMTS_HI_URL), fallback: 'orto-wms-hi' },
@@ -1829,6 +1843,16 @@ function emojiHtml(str) {
 
       function switchBaseLayer(key, isFallback = false) {
         const def = baseLayerDefs[key] || baseLayerDefs['osm'];
+        if (currentBase === 'otm-trails') {
+          if (waymarkedErrorHandler) {
+            baseOpenTopoPlusTrails.overlay.off('tileerror', waymarkedErrorHandler);
+            waymarkedErrorHandler = null;
+          }
+          if (map.hasLayer(baseOpenTopoPlusTrails.overlay)) {
+            map.removeLayer(baseOpenTopoPlusTrails.overlay);
+          }
+          map.attributionControl.removeAttribution(OTM_ATTR);
+        }
         if (baseLayer) {
           baseLayer.off('loading', showLoading);
           baseLayer.off('load', hideLoading);
@@ -1846,6 +1870,7 @@ function emojiHtml(str) {
           } else {
             showToast('Nie można wczytać warstwy.');
             baseLayer = baseLayerDefs['osm'].create();
+            key = 'osm';
           }
         }
         baseTileErrorHandler = () => {
@@ -1860,6 +1885,18 @@ function emojiHtml(str) {
         baseLayer.on('loading', showLoading);
         baseLayer.on('load', hideLoading);
         baseLayer.addTo(map);
+        if (key === 'otm-trails') {
+          baseOpenTopoPlusTrails.overlay.addTo(map);
+          waymarkedErrorHandler = () => {
+            showToast('Nie udało się załadować nakładki szlaków (Waymarked). Mapa OpenTopo pozostaje włączona.');
+            baseOpenTopoPlusTrails.overlay.off('tileerror', waymarkedErrorHandler);
+            waymarkedErrorHandler = null;
+          };
+          baseOpenTopoPlusTrails.overlay.on('tileerror', waymarkedErrorHandler);
+          map.attributionControl.removeAttribution('© OpenTopoMap (CC BY-SA), © OpenStreetMap');
+          map.attributionControl.removeAttribution('© waymarkedtrails.org, © OpenStreetMap (CC BY-SA)');
+          map.attributionControl.addAttribution(OTM_ATTR);
+        }
         map.removeLayer(labels);
         if (roadsLayer) map.removeLayer(roadsLayer);
         if (key !== 'osm') {
