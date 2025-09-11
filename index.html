@@ -1842,7 +1842,9 @@ function emojiHtml(str) {
         'orto-wmts-hi': { create: () => wmtsLayer(WMTS_HI_URL), fallback: 'orto-wms-hi' },
         'orto-wms-std': { create: () => wmsLayer(WMS_STD_URL), fallback: 'orto-wmts-std' },
         'orto-wms-hi': { create: () => wmsLayer(WMS_HI_URL), fallback: 'orto-wmts-hi' },
-        'true-orto': { create: () => wmsLayer(WMS_TRUE_URL, 'TrueOrtho') }
+        // TrueOrtho WMS layer uses the default 'Raster' layer name
+        // Removing the explicit layer parameter fixes loading issues
+        'true-orto': { create: () => wmsLayer(WMS_TRUE_URL) }
       };
 
       const overlays = {
