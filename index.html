@@ -1033,6 +1033,7 @@ function slugify(str) {
     let draggedLayer = null;
     let highlightedItem = null;
     let zmianyDoZapisania = {};
+    let shouldWarnBeforeUnload = false;
     let nowePinezki = [];
     let localPinsLoaded = false;
     const photosMap = {};
@@ -1232,9 +1233,11 @@ function slugify(str) {
     }
 
     function updateSaveButton() {
+      const pending = hasUnsavedChanges();
+      shouldWarnBeforeUnload = pending;
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
-      btn.style.display = hasUnsavedChanges() ? 'block' : 'none';
+      btn.style.display = pending ? 'block' : 'none';
     }
 
     function markPinUnsaved(slug) {
@@ -1270,7 +1273,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     selectTool("hand");
 
     window.addEventListener('beforeunload', e => {
-      if (hasUnsavedChanges()) {
+      if (shouldWarnBeforeUnload) {
         e.preventDefault();
         e.returnValue = 'Masz niezapisane zmiany. Czy na pewno chcesz wyjść?';
       }
@@ -3838,6 +3841,7 @@ toggleBtn.style.verticalAlign = "top";
         pinsToDelete = [];
         window.localTrasy = [];
         localStorage.removeItem('nowePinezki');
+        shouldWarnBeforeUnload = false;
         btn.textContent = 'Zapisano ✔';
         location.reload();
       } catch (err) {
