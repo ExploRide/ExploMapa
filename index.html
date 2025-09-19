@@ -584,6 +584,7 @@ body, #sidebar, #basemap-switcher {
     display: none;
   }
   #exportKML { display: none; }
+  .leaflet-popup { z-index: 2147483600 !important; }
   .leaflet-control-zoom { left: 10px; }
   #toggleLayers { position: fixed; top: 10px; left: 10px; z-index: 1600; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block; }
   #toggleBasemaps { position: fixed; top: 10px; right: 10px; z-index: 1600; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block; }
@@ -1074,6 +1075,32 @@ function slugify(str) {
     const mapEl = document.getElementById("map");
     let searchLayer = null;
     let searchMarker = null;
+    let layerDomRefs = {};
+    let currentSearchTerm = '';
+
+    function applySearchFilter() {
+      const query = currentSearchTerm;
+      Object.values(layerDomRefs).forEach(info => {
+        if (!info || !info.label) return;
+        const items = info.items || [];
+        let visibleCount = 0;
+        items.forEach(el => {
+          const match = !query || el.textContent.toLowerCase().includes(query);
+          el.style.display = match ? 'block' : 'none';
+          if (match) visibleCount++;
+        });
+        const countToShow = query ? visibleCount : info.totalCount;
+        info.label.textContent = `${info.name} (${countToShow})`;
+      });
+    }
+
+    const searchInput = document.getElementById('wyszukiwarka');
+    if (searchInput) {
+      searchInput.addEventListener('input', e => {
+        currentSearchTerm = e.target.value.trim().toLowerCase();
+        applySearchFilter();
+      });
+    }
     const greenIcon = L.icon({
       iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
       shadowUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-shadow.png',
@@ -1901,7 +1928,7 @@ function emojiHtml(str) {
           mapYearSelect.onchange = null;
         }
         if (mapDateBadgeEl) mapDateBadgeEl.textContent = '';
-        if (map) map.off('click', handleEsriIdentify);
+        if (map) map.off('contextmenu', handleEsriIdentify);
       }
 
       function setBadge(text) {
@@ -1967,6 +1994,9 @@ function emojiHtml(str) {
       }
 
       async function handleEsriIdentify(e) {
+        if (e.originalEvent && typeof e.originalEvent.preventDefault === 'function') {
+          e.originalEvent.preventDefault();
+        }
         const { lat, lng } = e.latlng;
         const size = map.getSize();
         const bounds = map.getBounds();
@@ -2011,8 +2041,8 @@ function emojiHtml(str) {
         } else if (['orto-wmts-std','orto-wmts-hi','orto-wms-std','orto-wms-hi','true-orto'].includes(key)) {
           setBadge('Orto: mozaika (brak jednego roku)');
         } else if (key === 'sat') {
-          setBadge('Esri: kliknij w mapę, aby sprawdzić datę');
-          map.on('click', handleEsriIdentify);
+          setBadge('Esri: kliknij prawym przyciskiem, aby sprawdzić datę');
+          map.on('contextmenu', handleEsriIdentify);
         } else if (key === 'otm-trails') {
           setBadge('Topo (OSM): brak daty');
         }
@@ -2872,7 +2902,7 @@ function zaladujPinezkiZFirestore() {
 
     function applyInactiveStyle(p) {
       if (p.marker) {
-        p.marker.setOpacity(p.nieaktywne ? 0.5 : 1);
+        p.marker.setOpacity(1);
         const el = p.marker.getElement();
         if (el) el.style.filter = p.nieaktywne ? 'saturate(50%)' : '';
       }
@@ -3538,6 +3568,7 @@ function showRoutePopup(pinId, tr, latlng) {
 
     function generujListeWarstw() {
       updateMarkerVisibility();
+      layerDomRefs = {};
       const lista = document.getElementById("lista-warstw");
       lista.innerHTML = "";
       const saved = loadLayerOrder();
@@ -3666,6 +3697,13 @@ toggleBtn.style.verticalAlign = "top";
           el.appendChild(trList);
         });
 
+        layerDomRefs[nazwa] = {
+          name: nazwa,
+          label,
+          totalCount: warstwy[nazwa].lista.length,
+          items: Array.from(listaP.querySelectorAll('.pinezka'))
+        };
+
         if (warstwy[nazwa].collapsed) listaP.classList.add("ukryta");
         toggleBtn.onclick = () => {
           warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
@@ -3686,12 +3724,7 @@ toggleBtn.style.verticalAlign = "top";
         initialLayerVisibilitySet = true;
       }
 
-      document.getElementById("wyszukiwarka").addEventListener("input", e => {
-        const q = e.target.value.toLowerCase();
-        document.querySelectorAll(".pinezka").forEach(el => {
-          el.style.display = el.textContent.toLowerCase().includes(q) ? "block" : "none";
-        });
-      });
+      applySearchFilter();
       allLayersVisible = Object.values(warstwy).every(w => w.visible);
       if (toggleVisibilityBtn) {
         toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';

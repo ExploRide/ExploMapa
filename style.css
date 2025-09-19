@@ -253,7 +253,7 @@
   background: rgba(0,0,0,0.7);
   justify-content: center;
   align-items: center;
-  z-index: 2000;
+  z-index: 2147483600;
 }
 .mobile-modal-content {
   background: #2b2b2b;
@@ -265,6 +265,8 @@
   gap: 10px;
   width: 90%;
   max-width: 500px;
+  position: relative;
+  z-index: 2147483601;
 }
 .mobile-modal-content button {
   padding: 8px 12px;
