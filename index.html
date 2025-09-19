@@ -3015,7 +3015,7 @@ function zaladujPinezkiZFirestore() {
       const prevZmiany = Object.assign({}, zmianyDoZapisania);
       const prevNowe = nowePinezki.slice();
       layerData.lista.forEach(p => {
-        if (p.firebaseId) pinsToDelete.push(p.id);
+        if (p.firebaseId) pinsToDelete.push({ id: p.id, firebaseId: p.firebaseId });
         const idxN = nowePinezki.indexOf(p);
         if (idxN > -1) nowePinezki.splice(idxN, 1);
         delete zmianyDoZapisania[p.id];
@@ -3796,8 +3796,12 @@ toggleBtn.style.verticalAlign = "top";
           p.photos = await savePhotosForPin(firebaseId, p.slug, localPhotos, [], onProgress);
         });
 
-        const deletePinPromises = pinsToDelete.map(id => {
-          const p = wszystkiePinezki.find(pp => pp.id === id);
+        const deletePinPromises = pinsToDelete.map(info => {
+          const firebaseId = info && info.firebaseId;
+          if (firebaseId) {
+            return db.collection('pinezki2').doc(firebaseId).delete().catch(()=>{});
+          }
+          const p = wszystkiePinezki.find(pp => pp.id === (info ? info.id : info));
           if (p && p.firebaseId) return db.collection('pinezki2').doc(p.firebaseId).delete().catch(()=>{});
           return Promise.resolve();
         });
@@ -4056,7 +4060,7 @@ toggleBtn.style.verticalAlign = "top";
       prevZmiany: Object.assign({}, zmianyDoZapisania),
       prevAll: wszystkiePinezki.slice()
     };
-    if (p.firebaseId) pinsToDelete.push(p.id);
+    if (p.firebaseId) pinsToDelete.push({ id: p.id, firebaseId: p.firebaseId });
     const idxN = nowePinezki.indexOf(p);
     if (idxN > -1) nowePinezki.splice(idxN, 1);
     delete zmianyDoZapisania[p.id];
