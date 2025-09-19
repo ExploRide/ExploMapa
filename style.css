@@ -458,5 +458,13 @@ bottom: 2px;
     border-image: initial;
     padding-bottom: 10px;
 }
+
+    .leaflet-container {
+    font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+    font-size: 12px;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    z-index: 21000000 !important;
+}
     
 }
