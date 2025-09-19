@@ -3663,6 +3663,11 @@ toggleBtn.style.verticalAlign = "top";
           el.innerHTML = (dispEmoji ? emojiHtml(dispEmoji) + ' ' : '') + p.nazwa;
           if (p.unsaved) el.classList.add('unsaved');
           el.onclick = () => {
+            if (isMobile && followGps) {
+              followGps = false;
+              const gpsBtn = document.getElementById('gpsFollowBtn');
+              if (gpsBtn) gpsBtn.style.display = 'block';
+            }
             map.setView([p.lat, p.lng], 16);
             p.marker.openPopup();
             highlightListItem(el);
