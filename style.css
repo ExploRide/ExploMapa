@@ -5,6 +5,11 @@
   z-index: 1000;
 }
 
+.leaflet-pane.leaflet-popup-pane,
+.leaflet-popup {
+  z-index: 2147483600 !important;
+}
+
 #map {
   touch-action: none;
 }
