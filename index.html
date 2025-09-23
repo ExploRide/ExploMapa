@@ -2905,13 +2905,23 @@ function zaladujPinezkiZFirestore() {
       const latlng = marker.getLatLng();
       if (!latlng) return;
 
+      const iconOptions = marker.options.icon?.options || {};
+      const iconSizePoint = L.point(iconOptions.iconSize || [32, 32]);
+      const iconAnchorPoint = L.point(iconOptions.iconAnchor || [iconSizePoint.x / 2, iconSizePoint.y / 2]);
+      const markerPoint = map.latLngToLayerPoint(latlng);
+      const centerPoint = markerPoint.subtract(
+        L.point(iconAnchorPoint.x - iconSizePoint.x / 2, iconAnchorPoint.y - iconSizePoint.y / 2)
+      );
+      const iconCenterLatLng = map.layerPointToLatLng(centerPoint);
+      const radius = Math.max(iconSizePoint.x, iconSizePoint.y) * 0.6;
+
       highlightedMarker = marker;
 
       if (!pinHighlightCircle) {
-        pinHighlightCircle = L.circleMarker(latlng, {
-          radius: 32,
+        pinHighlightCircle = L.circleMarker(iconCenterLatLng, {
+          radius,
           color: '#ffffff',
-          weight: 6,
+          weight: 4,
           opacity: 0.2,
           fillColor: '#ffffff',
           fillOpacity: 0.5,
@@ -2919,7 +2929,8 @@ function zaladujPinezkiZFirestore() {
           interactive: false
         }).addTo(map);
       } else {
-        pinHighlightCircle.setLatLng(latlng);
+        pinHighlightCircle.setLatLng(iconCenterLatLng);
+        pinHighlightCircle.setStyle({ radius, weight: 4 });
         if (!map.hasLayer(pinHighlightCircle)) {
           pinHighlightCircle.addTo(map);
         }
