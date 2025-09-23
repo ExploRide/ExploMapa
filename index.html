@@ -1032,6 +1032,8 @@ function slugify(str) {
     let wszystkiePinezki = [];
     let draggedLayer = null;
     let highlightedItem = null;
+    let highlightedMarker = null;
+    let pinHighlightCircle = null;
     let zmianyDoZapisania = {};
     let shouldWarnBeforeUnload = false;
     let nowePinezki = [];
@@ -1805,6 +1807,13 @@ function emojiHtml(str) {
     function initMap() {
       L.Popup.prototype.options.maxWidth = 800;
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
+      const highlightPane = map.createPane('pinHighlightPane');
+      const markerPane = map.getPane('markerPane');
+      const markerPaneZIndex = markerPane && markerPane.style && markerPane.style.zIndex
+        ? parseInt(markerPane.style.zIndex, 10)
+        : 600;
+      highlightPane.style.zIndex = String(markerPaneZIndex - 1);
+      highlightPane.style.pointerEvents = 'none';
       rysowaneTrasy.addTo(map);
       routingLayer = L.layerGroup().addTo(map);
 
@@ -2321,6 +2330,7 @@ function zaladujPinezkiZFirestore() {
       popupDiv.innerHTML = createPopupHtml(p);
       marker.bindPopup(popupDiv);
       attachPopupHandlers(marker, p);
+      attachHighlight(marker, null);
 
       p.marker = marker;
       applyInactiveStyle(p);
@@ -2626,6 +2636,7 @@ function zaladujPinezkiZFirestore() {
       setupTrudnoscInput(container.querySelector('#trudnoscNew'), container.querySelector('#trudnoscNewLabel'));
 
       const popup = marker.bindPopup(container).openPopup();
+      attachHighlight(marker, null);
 
       const chkNewInactive = container.querySelector('#nieaktywneNew');
       const chkNewClosed = container.querySelector('#zamknieteNew');
@@ -2889,18 +2900,78 @@ function zaladujPinezkiZFirestore() {
       }
     }
 
+    function setMarkerHighlight(marker) {
+      if (!map || !marker) return;
+      const latlng = marker.getLatLng();
+      if (!latlng) return;
+
+      highlightedMarker = marker;
+
+      if (!pinHighlightCircle) {
+        pinHighlightCircle = L.circleMarker(latlng, {
+          radius: 32,
+          color: '#ffffff',
+          weight: 6,
+          opacity: 0.2,
+          fillColor: '#ffffff',
+          fillOpacity: 0.5,
+          pane: 'pinHighlightPane',
+          interactive: false
+        }).addTo(map);
+      } else {
+        pinHighlightCircle.setLatLng(latlng);
+        if (!map.hasLayer(pinHighlightCircle)) {
+          pinHighlightCircle.addTo(map);
+        }
+      }
+    }
+
+    function clearMarkerHighlight(marker) {
+      if (marker && marker !== highlightedMarker) return;
+      if (map && pinHighlightCircle && map.hasLayer(pinHighlightCircle)) {
+        map.removeLayer(pinHighlightCircle);
+      }
+      if (!marker || marker === highlightedMarker) {
+        highlightedMarker = null;
+      }
+    }
+
     function attachHighlight(marker, el) {
       if (!marker) return;
       if (marker._highlightHandler) {
         marker.off('click', marker._highlightHandler);
       }
-  marker._highlightHandler = () => {
-    if (drawingRoute) return;
-    highlightListItem(el);
-    marker.openPopup();
-  };
-  marker.on('click', marker._highlightHandler);
-}
+      marker._highlightHandler = () => {
+        if (drawingRoute) return;
+        marker.openPopup();
+      };
+      marker.on('click', marker._highlightHandler);
+
+      if (marker._highlightPopupHandler) {
+        marker.off('popupopen', marker._highlightPopupHandler);
+      }
+      marker._highlightPopupHandler = () => {
+        setMarkerHighlight(marker);
+        if (el) highlightListItem(el);
+      };
+      marker.on('popupopen', marker._highlightPopupHandler);
+
+      if (marker._highlightCloseHandler) {
+        marker.off('popupclose', marker._highlightCloseHandler);
+      }
+      marker._highlightCloseHandler = () => {
+        clearMarkerHighlight(marker);
+      };
+      marker.on('popupclose', marker._highlightCloseHandler);
+
+      if (marker._highlightRemoveHandler) {
+        marker.off('remove', marker._highlightRemoveHandler);
+      }
+      marker._highlightRemoveHandler = () => {
+        clearMarkerHighlight(marker);
+      };
+      marker.on('remove', marker._highlightRemoveHandler);
+    }
 
     function applyInactiveStyle(p) {
       if (p.marker) {
