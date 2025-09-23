@@ -1807,6 +1807,10 @@ function emojiHtml(str) {
     function initMap() {
       L.Popup.prototype.options.maxWidth = 800;
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
+      map.on('zoomend', () => {
+        if (!highlightedMarker || !pinHighlightCircle) return;
+        setMarkerHighlight(highlightedMarker);
+      });
       const highlightPane = map.createPane('pinHighlightPane');
       const markerPane = map.getPane('markerPane');
       const markerPaneZIndex = markerPane && markerPane.style && markerPane.style.zIndex
