@@ -4491,7 +4491,7 @@ function confirmLayerDelete() {
       const layer = layerInput.value.trim();
       const missing = [];
       if (!name) missing.push('Wpisz nazwę pinezki');
-      if (!layer) missing.push('Wybierz warstwę');
+      if (currentTool === 'pin' && !layer) missing.push('Wybierz warstwę');
       if (missing.length) { alert(missing.join('\n')); return; }
       if (currentTool === 'pin') {
         saveCenterPin({
