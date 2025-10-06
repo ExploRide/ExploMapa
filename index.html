@@ -4301,10 +4301,33 @@ function confirmLayerDelete() {
 
   const isMobile = window.matchMedia('(max-width: 768px)').matches;
 
+  const GPS_ARROW_BASE_TRANSFORM = 'translate(-50%, calc(-50% - 8px))';
   let currentLocation = null;
   let currentMarker = null;
-  const gpsIcon = L.divIcon({className:'gps-marker'});
+  const gpsIcon = L.divIcon({
+    className: 'gps-marker',
+    html: '<div class="gps-arrow"></div><div class="gps-dot"></div>',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
   let followGps = true;
+
+  function updateGpsHeading(heading) {
+    if (!currentMarker) return;
+    const markerEl = currentMarker.getElement();
+    if (!markerEl) return;
+    const arrow = markerEl.querySelector('.gps-arrow');
+    if (!arrow) return;
+
+    if (typeof heading === 'number' && !Number.isNaN(heading)) {
+      const normalized = (heading + 360) % 360;
+      arrow.style.transform = `${GPS_ARROW_BASE_TRANSFORM} rotate(${normalized}deg)`;
+      markerEl.classList.add('has-heading');
+    } else {
+      arrow.style.transform = `${GPS_ARROW_BASE_TRANSFORM} rotate(0deg)`;
+      markerEl.classList.remove('has-heading');
+    }
+  }
 
   function initGeolocation() {
     if (!navigator.geolocation) return;
@@ -4314,11 +4337,19 @@ function confirmLayerDelete() {
     }
     navigator.geolocation.watchPosition(pos => {
       currentLocation = [pos.coords.latitude, pos.coords.longitude];
+      const heading = pos.coords.heading;
+      let markerCreated = false;
       if (!currentMarker) {
         currentMarker = L.marker(currentLocation, {icon: gpsIcon}).addTo(map);
         map.setView(currentLocation, 16);
+        markerCreated = true;
       } else {
         currentMarker.setLatLng(currentLocation);
+      }
+      if (markerCreated) {
+        requestAnimationFrame(() => updateGpsHeading(heading));
+      } else {
+        updateGpsHeading(heading);
       }
       if (followGps) {
         map.setView(currentLocation, map.getZoom());

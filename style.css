@@ -285,12 +285,43 @@
 }
 
 .gps-marker {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+}
+
+.gps-marker .gps-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   width: 12px;
   height: 12px;
   background: #0080ff;
   border-radius: 50%;
   box-shadow: 0 0 0 0 rgba(0,128,255,0.7);
   animation: gps-pulse 2s infinite;
+  transform: translate(-50%, -50%);
+}
+
+.gps-marker .gps-arrow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid #0080ff;
+  transform: translate(-50%, calc(-50% - 8px)) rotate(0deg);
+  transform-origin: 50% calc(100% + 6px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  filter: drop-shadow(0 0 4px rgba(0,128,255,0.4));
+}
+
+.gps-marker.has-heading .gps-arrow {
+  opacity: 0.9;
 }
 
 @keyframes gps-pulse {
