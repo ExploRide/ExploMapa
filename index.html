@@ -3511,6 +3511,17 @@ function showRoutePopup(pinId, tr, latlng) {
       if (btn) btn.addEventListener('click', handleSearch);
       input.addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(); });
 
+      input.addEventListener('focus', () => {
+        if (input.value) {
+          setTimeout(() => input.select(), 0);
+        }
+      });
+      input.addEventListener('mouseup', e => {
+        if (input.value) {
+          e.preventDefault();
+        }
+      });
+
       let debounce;
       input.addEventListener('input', () => {
         const q = input.value.trim();
@@ -3572,6 +3583,10 @@ function showRoutePopup(pinId, tr, latlng) {
           if (routingLayer) {
             routingLayer.clearLayers();
           }
+          const startInput = document.getElementById('routeStart');
+          const endInput = document.getElementById('routeEnd');
+          if (startInput) startInput.value = '';
+          if (endInput) endInput.value = '';
           updateRouteClearButton();
         });
       }
