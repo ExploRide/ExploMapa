@@ -4061,10 +4061,16 @@ toggleBtn.style.verticalAlign = "top";
     document.getElementById('exportKML').addEventListener('click', exportPinsToKML);
 
   document.addEventListener("DOMContentLoaded", () => {
-    twemoji.parse(document.body, {
-      folder: "svg",
-      ext: ".svg"
-    });
+    if (window.twemoji && typeof window.twemoji.parse === 'function') {
+      try {
+        window.twemoji.parse(document.body, {
+          folder: "svg",
+          ext: ".svg"
+        });
+      } catch (err) {
+        console.warn('twemoji.parse failed', err);
+      }
+    }
     const modal = document.getElementById('photoModal');
     if (modal) {
       modal.addEventListener('click', e => {
