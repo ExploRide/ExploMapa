@@ -97,6 +97,33 @@
       font-size: 18px;
       line-height: 1;
     }
+    .route-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .route-actions button {
+      background: #2b2b2b;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #f0f0f0;
+      cursor: pointer;
+      padding: 6px 10px;
+      font-size: 14px;
+      flex: 1;
+    }
+    .route-actions button.route-clear {
+      width: 34px;
+      font-size: 18px;
+      line-height: 1;
+      padding: 4px 0;
+      flex: 0;
+    }
+    .route-actions button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .route-mode-options {
       margin: 6px 0 10px;
       display: flex;
@@ -805,7 +832,10 @@ img.emoji {
         <label><input type="radio" name="routeMode" value="driving" checked> Trasa samochodowa</label>
         <label><input type="radio" name="routeMode" value="walking"> Trasa piesza</label>
       </div>
-      <button id="routeCalculate">Pokaż trasę</button>
+      <div class="route-actions">
+        <button id="routeCalculate" type="button">Pokaż trasę</button>
+        <button id="routeClear" type="button" class="route-clear" title="Usuń wyznaczoną trasę">X</button>
+      </div>
     </div>
     <h3>Historia edycji</h3>
     <div id="history-log"></div>
@@ -3529,6 +3559,22 @@ function showRoutePopup(pinId, tr, latlng) {
     function initRouteSearch() {
       const btn = document.getElementById('routeCalculate');
       const useCurrent = document.getElementById('routeUseCurrent');
+      const clearBtn = document.getElementById('routeClear');
+
+      function updateRouteClearButton() {
+        if (!clearBtn) return;
+        const hasRoute = routingLayer && routingLayer.getLayers().length > 0;
+        clearBtn.disabled = !hasRoute;
+      }
+
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          if (routingLayer) {
+            routingLayer.clearLayers();
+          }
+          updateRouteClearButton();
+        });
+      }
       if (useCurrent) {
         useCurrent.addEventListener('click', () => {
           if (!navigator.geolocation) {
@@ -3552,6 +3598,7 @@ function showRoutePopup(pinId, tr, latlng) {
           });
         });
       }
+      updateRouteClearButton();
       if (!btn) return;
       btn.addEventListener('click', async () => {
         const start = document.getElementById('routeStart').value.trim();
@@ -3562,6 +3609,7 @@ function showRoutePopup(pinId, tr, latlng) {
         }
         const mode = document.querySelector('input[name="routeMode"]:checked')?.value || 'driving';
         await showRoute(start, end, mode);
+        updateRouteClearButton();
       });
     }
 
@@ -3589,6 +3637,8 @@ function showRoutePopup(pinId, tr, latlng) {
           routingLayer.clearLayers();
           const line = L.polyline(pts, {color: '#ff0000', weight: 4, className: 'route-line'}).addTo(routingLayer);
           map.fitBounds(line.getBounds());
+          const clearBtn = document.getElementById('routeClear');
+          if (clearBtn) clearBtn.disabled = false;
         } else {
           const [sLat, sLon] = startCoords || await geocodeAddress(startAddr);
           const [eLat, eLon] = endCoords || await geocodeAddress(endAddr);
@@ -3601,10 +3651,16 @@ function showRoutePopup(pinId, tr, latlng) {
           routingLayer.clearLayers();
           const line = L.polyline(coords, {color: '#ff0000', weight: 4, className: 'route-line'}).addTo(routingLayer);
           map.fitBounds(line.getBounds());
+          const clearBtn = document.getElementById('routeClear');
+          if (clearBtn) clearBtn.disabled = false;
         }
       } catch (err) {
         console.error('Route error', err);
         alert('Nie udało się wyznaczyć trasy');
+        const clearBtn = document.getElementById('routeClear');
+        if (clearBtn && routingLayer && routingLayer.getLayers().length === 0) {
+          clearBtn.disabled = true;
+        }
       }
     }
 
