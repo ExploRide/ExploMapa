@@ -4075,9 +4075,18 @@ toggleBtn.style.verticalAlign = "top";
     }
 
     const delModal = document.getElementById('deleteModal');
-    if (delModal) {
-      document.getElementById('deleteConfirmYes').addEventListener('click', () => deletePinLocal(deletePinId));
-      document.getElementById('deleteConfirmNo').addEventListener('click', closeDeleteModal);
+    const deleteYesBtn = document.getElementById('deleteConfirmYes');
+    const deleteNoBtn = document.getElementById('deleteConfirmNo');
+    if (delModal && deleteYesBtn && deleteNoBtn) {
+      deleteYesBtn.addEventListener('click', () => {
+        const targetId = delModal.dataset.pinId;
+        if (targetId) {
+          deletePinLocal(targetId);
+        } else {
+          closeDeleteModal();
+        }
+      });
+      deleteNoBtn.addEventListener('click', closeDeleteModal);
       delModal.addEventListener('click', e => {
         if (e.target === delModal) closeDeleteModal();
       });
@@ -4198,11 +4207,10 @@ toggleBtn.style.verticalAlign = "top";
     return finalPhotos;
   }
 
-  let deletePinId = null;
   function openDeleteModal(id) {
-    deletePinId = id;
     const modal = document.getElementById('deleteModal');
     if (modal) {
+      modal.dataset.pinId = id;
       const txt = modal.querySelector('#deleteModalContent div');
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (txt && p) txt.textContent = `Czy na pewno chcesz usunąć pinezkę ${p.nazwa}?`;
@@ -4211,14 +4219,19 @@ toggleBtn.style.verticalAlign = "top";
   }
 
   function closeDeleteModal() {
-    deletePinId = null;
     const modal = document.getElementById('deleteModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) {
+      delete modal.dataset.pinId;
+      modal.style.display = 'none';
+    }
   }
 
   function deletePinLocal(id, record = true) {
-    const p = wszystkiePinezki.find(pp => pp.id === id);
-    if (!p) return;
+    const p = wszystkiePinezki.find(pp => String(pp.id) === String(id));
+    if (!p) {
+      closeDeleteModal();
+      return;
+    }
     const layerName = p.warstwa || 'Inne';
     const backup = {
       pin: p,
