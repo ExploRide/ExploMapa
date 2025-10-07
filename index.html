@@ -1263,6 +1263,7 @@ function slugify(str) {
         Object.keys(warstwy).forEach(n => {
           warstwy[n].collapsed = allLayersCollapsed;
         });
+        persistAllLayerCollapseStates();
         collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń wszystkie warstwy' : 'Zwiń wszystkie warstwy';
         generujListeWarstw();
       });
@@ -2857,6 +2858,42 @@ function zaladujPinezkiZFirestore() {
       }
     }
 
+    function loadLayerCollapseStates() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('warstwaCollapsed'));
+        if (stored && typeof stored === 'object') {
+          return stored;
+        }
+      } catch (e) {}
+      return {};
+    }
+
+    function saveLayerCollapseStates(states) {
+      localStorage.setItem('warstwaCollapsed', JSON.stringify(states));
+    }
+
+    function setLayerCollapseState(name, collapsed) {
+      const states = loadLayerCollapseStates();
+      states[name] = !!collapsed;
+      saveLayerCollapseStates(states);
+    }
+
+    function removeLayerCollapseState(name) {
+      const states = loadLayerCollapseStates();
+      if (name in states) {
+        delete states[name];
+        saveLayerCollapseStates(states);
+      }
+    }
+
+    function persistAllLayerCollapseStates() {
+      const states = {};
+      Object.keys(warstwy).forEach(name => {
+        states[name] = !!warstwy[name].collapsed;
+      });
+      saveLayerCollapseStates(states);
+    }
+
     function saveLayerOrder() {
       const order = Array.from(document.querySelectorAll('#lista-warstw .warstwa'))
         .map(el => el.dataset.nazwa)
@@ -3125,6 +3162,7 @@ function zaladujPinezkiZFirestore() {
       const prevLayersToAdd = layersToAdd.slice();
       const prevOrder = loadLayerOrder();
       warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+      setLayerCollapseState(name, true);
       layersToAdd.push(name);
       const order = prevOrder.slice();
       order.unshift(name);
@@ -3140,6 +3178,7 @@ function zaladujPinezkiZFirestore() {
             }
             layersToAdd = prevLayersToAdd;
             localStorage.setItem('warstwaOrder', JSON.stringify(prevOrder));
+            removeLayerCollapseState(name);
             generujListeWarstw();
             updateSaveButton();
           },
@@ -3149,6 +3188,7 @@ function zaladujPinezkiZFirestore() {
             const o = prevOrder.slice();
             o.unshift(name);
             localStorage.setItem('warstwaOrder', JSON.stringify(o));
+            setLayerCollapseState(name, true);
             generujListeWarstw();
             updateSaveButton();
           }
@@ -3176,6 +3216,7 @@ function zaladujPinezkiZFirestore() {
       wszystkiePinezki = wszystkiePinezki.filter(pp => pp.warstwa !== name);
       map.removeLayer(layerData.layer);
       delete warstwy[name];
+      removeLayerCollapseState(name);
       layersToDelete.push(name);
       const order = loadLayerOrder().filter(n => n !== name);
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
@@ -3194,6 +3235,7 @@ function zaladujPinezkiZFirestore() {
             zmianyDoZapisania = Object.assign({}, prevZmiany);
             nowePinezki = prevNowe;
             localStorage.setItem('warstwaOrder', JSON.stringify(prevOrder));
+            setLayerCollapseState(name, layerData.collapsed);
             generujListeWarstw();
             updateSaveButton();
           },
@@ -3299,6 +3341,12 @@ function zaladujPinezkiZFirestore() {
       if (!layersToDelete.includes(oldName) && (layerDocs[oldName] || layersToAdd.includes(oldName))) layersToDelete.push(oldName);
       const order = loadLayerOrder().map(n => n === oldName ? newName : n);
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      const collapseStates = loadLayerCollapseStates();
+      if (collapseStates.hasOwnProperty(oldName)) {
+        collapseStates[newName] = collapseStates[oldName];
+        delete collapseStates[oldName];
+        saveLayerCollapseStates(collapseStates);
+      }
     }
 
     function reorderLayer(name, newPos) {
@@ -3824,6 +3872,7 @@ function showRoutePopup(pinId, tr, latlng) {
       const lista = document.getElementById("lista-warstw");
       lista.innerHTML = "";
       const saved = loadLayerOrder();
+      const collapseStates = loadLayerCollapseStates();
       const nazwy = [...saved.filter(n => warstwy[n]), ...Object.keys(warstwy).filter(n => !saved.includes(n))];
       const tempLayers = nazwy.filter(n => warstwy[n].temporary);
       const regularLayers = nazwy.filter(n => !warstwy[n].temporary);
@@ -3863,6 +3912,9 @@ function showRoutePopup(pinId, tr, latlng) {
         left.appendChild(checkbox);
         left.appendChild(numberSpan);
         left.appendChild(label);
+        if (collapseStates.hasOwnProperty(nazwa)) {
+          warstwy[nazwa].collapsed = collapseStates[nazwa];
+        }
         const toggleBtn = document.createElement("span");
         toggleBtn.textContent = warstwy[nazwa].collapsed ? "▶️" : "🔽";
        toggleBtn.style.cursor = "pointer";
@@ -3966,6 +4018,7 @@ toggleBtn.style.verticalAlign = "top";
           warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
           listaP.classList.toggle("ukryta");
           toggleBtn.textContent = listaP.classList.contains("ukryta") ? "▶️" : "🔽";
+          setLayerCollapseState(nazwa, warstwy[nazwa].collapsed);
         };
 
         div.appendChild(listaP);
