@@ -1263,6 +1263,7 @@ function slugify(str) {
         Object.keys(warstwy).forEach(n => {
           warstwy[n].collapsed = allLayersCollapsed;
         });
+        persistAllLayerCollapseStates();
         collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń wszystkie warstwy' : 'Zwiń wszystkie warstwy';
         generujListeWarstw();
       });
@@ -1279,6 +1280,7 @@ function slugify(str) {
           }
         });
         toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
+        persistAllLayerVisibilityStates();
         generujListeWarstw();
       });
     }
@@ -2294,7 +2296,7 @@ function emojiHtml(str) {
           if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: data.emoji || '', loaded: false, loading: false };
+            warstwy[data.name] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: data.emoji || '', loaded: false, loading: false, visible: true };
           } else if (data.emoji) {
             warstwy[data.name].emoji = data.emoji;
           }
@@ -2377,7 +2379,8 @@ function zaladujPinezkiZFirestore() {
           lista: [],
           layer: L.layerGroup(),
           collapsed: true,
-          emoji: ''
+          emoji: '',
+          visible: true
         };
       }
 
@@ -2558,7 +2561,7 @@ function zaladujPinezkiZFirestore() {
       Object.assign(p, data);
       const nowaWarstwa = p.warstwa || "Inne";
       if (!warstwy[nowaWarstwa]) {
-        warstwy[nowaWarstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+        warstwy[nowaWarstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', visible: true };
       }
       if (staraWarstwa !== nowaWarstwa) {
         const idx = warstwy[staraWarstwa].lista.indexOf(p);
@@ -2790,7 +2793,7 @@ function zaladujPinezkiZFirestore() {
         const warstwaN = data.warstwa || "Inne";
         data.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, visible: true };
         }
         data.marker = marker;
         const iconEmoji = warstwy[warstwaN].emoji || data.emoji;
@@ -2857,6 +2860,83 @@ function zaladujPinezkiZFirestore() {
       }
     }
 
+    function loadLayerCollapseStates() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('warstwaCollapsed'));
+        if (stored && typeof stored === 'object') {
+          return stored;
+        }
+      } catch (e) {}
+      return {};
+    }
+
+    function saveLayerCollapseStates(states) {
+      localStorage.setItem('warstwaCollapsed', JSON.stringify(states));
+    }
+
+    function setLayerCollapseState(name, collapsed) {
+      const states = loadLayerCollapseStates();
+      states[name] = !!collapsed;
+      saveLayerCollapseStates(states);
+    }
+
+    function removeLayerCollapseState(name) {
+      const states = loadLayerCollapseStates();
+      if (name in states) {
+        delete states[name];
+        saveLayerCollapseStates(states);
+      }
+    }
+
+    function persistAllLayerCollapseStates() {
+      const states = {};
+      Object.keys(warstwy).forEach(name => {
+        states[name] = !!warstwy[name].collapsed;
+      });
+      saveLayerCollapseStates(states);
+    }
+
+    function loadLayerVisibilityStates() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('warstwaVisible'));
+        if (stored && typeof stored === 'object') {
+          return stored;
+        }
+      } catch (e) {}
+      return {};
+    }
+
+    function saveLayerVisibilityStates(states) {
+      localStorage.setItem('warstwaVisible', JSON.stringify(states));
+    }
+
+    function setLayerVisibilityState(name, visible) {
+      if (warstwy[name] && warstwy[name].temporary) {
+        removeLayerVisibilityState(name);
+        return;
+      }
+      const states = loadLayerVisibilityStates();
+      states[name] = !!visible;
+      saveLayerVisibilityStates(states);
+    }
+
+    function removeLayerVisibilityState(name) {
+      const states = loadLayerVisibilityStates();
+      if (name in states) {
+        delete states[name];
+        saveLayerVisibilityStates(states);
+      }
+    }
+
+    function persistAllLayerVisibilityStates() {
+      const states = {};
+      Object.keys(warstwy).forEach(name => {
+        if (warstwy[name] && warstwy[name].temporary) return;
+        states[name] = !!warstwy[name].visible;
+      });
+      saveLayerVisibilityStates(states);
+    }
+
     function saveLayerOrder() {
       const order = Array.from(document.querySelectorAll('#lista-warstw .warstwa'))
         .map(el => el.dataset.nazwa)
@@ -2903,7 +2983,7 @@ function zaladujPinezkiZFirestore() {
         const warstwaN = p.warstwa || 'Inne';
         p.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, visible: true };
         }
         const iconEmoji = warstwy[warstwaN].emoji || p.emoji;
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[warstwaN].layer);
@@ -3124,7 +3204,9 @@ function zaladujPinezkiZFirestore() {
       if (!name || warstwy[name]) return;
       const prevLayersToAdd = layersToAdd.slice();
       const prevOrder = loadLayerOrder();
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', visible: true };
+      setLayerCollapseState(name, true);
+      setLayerVisibilityState(name, true);
       layersToAdd.push(name);
       const order = prevOrder.slice();
       order.unshift(name);
@@ -3140,15 +3222,19 @@ function zaladujPinezkiZFirestore() {
             }
             layersToAdd = prevLayersToAdd;
             localStorage.setItem('warstwaOrder', JSON.stringify(prevOrder));
+            removeLayerCollapseState(name);
+            removeLayerVisibilityState(name);
             generujListeWarstw();
             updateSaveButton();
           },
           redo: () => {
-            warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+            warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', visible: true };
             layersToAdd = prevLayersToAdd.concat(name);
             const o = prevOrder.slice();
             o.unshift(name);
             localStorage.setItem('warstwaOrder', JSON.stringify(o));
+            setLayerCollapseState(name, true);
+            setLayerVisibilityState(name, true);
             generujListeWarstw();
             updateSaveButton();
           }
@@ -3159,6 +3245,7 @@ function zaladujPinezkiZFirestore() {
     function deleteLayer(name, record = true) {
       if (!warstwy[name]) return;
       const layerData = warstwy[name];
+      layerData.visible = layerData.visible !== undefined ? !!layerData.visible : map.hasLayer(layerData.layer);
       const pins = layerData.lista.slice();
       const prevOrder = loadLayerOrder();
       const prevLayersToDelete = layersToDelete.slice();
@@ -3176,6 +3263,8 @@ function zaladujPinezkiZFirestore() {
       wszystkiePinezki = wszystkiePinezki.filter(pp => pp.warstwa !== name);
       map.removeLayer(layerData.layer);
       delete warstwy[name];
+      removeLayerCollapseState(name);
+      removeLayerVisibilityState(name);
       layersToDelete.push(name);
       const order = loadLayerOrder().filter(n => n !== name);
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
@@ -3194,6 +3283,8 @@ function zaladujPinezkiZFirestore() {
             zmianyDoZapisania = Object.assign({}, prevZmiany);
             nowePinezki = prevNowe;
             localStorage.setItem('warstwaOrder', JSON.stringify(prevOrder));
+            setLayerCollapseState(name, layerData.collapsed);
+            setLayerVisibilityState(name, layerData.visible !== false);
             generujListeWarstw();
             updateSaveButton();
           },
@@ -3299,6 +3390,18 @@ function zaladujPinezkiZFirestore() {
       if (!layersToDelete.includes(oldName) && (layerDocs[oldName] || layersToAdd.includes(oldName))) layersToDelete.push(oldName);
       const order = loadLayerOrder().map(n => n === oldName ? newName : n);
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      const collapseStates = loadLayerCollapseStates();
+      if (collapseStates.hasOwnProperty(oldName)) {
+        collapseStates[newName] = collapseStates[oldName];
+        delete collapseStates[oldName];
+        saveLayerCollapseStates(collapseStates);
+      }
+      const visibilityStates = loadLayerVisibilityStates();
+      if (visibilityStates.hasOwnProperty(oldName)) {
+        visibilityStates[newName] = visibilityStates[oldName];
+        delete visibilityStates[oldName];
+        saveLayerVisibilityStates(visibilityStates);
+      }
     }
 
     function reorderLayer(name, newPos) {
@@ -3443,10 +3546,11 @@ function showRoutePopup(pinId, tr, latlng) {
       if (searchLayer) {
         map.removeLayer(searchLayer.layer);
         delete warstwy['wyszukane'];
+        removeLayerVisibilityState('wyszukane');
         searchLayer = null;
         searchMarker = null;
       }
-      searchLayer = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', temporary: true };
+      searchLayer = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', temporary: true, visible: true };
       warstwy['wyszukane'] = searchLayer;
       const latlng = L.latLng(lat, lng);
       searchMarker = L.marker(latlng, {icon: greenIcon}).addTo(searchLayer.layer);
@@ -3458,6 +3562,7 @@ function showRoutePopup(pinId, tr, latlng) {
         if (searchLayer) {
           map.removeLayer(searchLayer.layer);
           delete warstwy['wyszukane'];
+          removeLayerVisibilityState('wyszukane');
           searchLayer = null;
           searchMarker = null;
           generujListeWarstw();
@@ -3824,6 +3929,8 @@ function showRoutePopup(pinId, tr, latlng) {
       const lista = document.getElementById("lista-warstw");
       lista.innerHTML = "";
       const saved = loadLayerOrder();
+      const collapseStates = loadLayerCollapseStates();
+      const visibilityStates = loadLayerVisibilityStates();
       const nazwy = [...saved.filter(n => warstwy[n]), ...Object.keys(warstwy).filter(n => !saved.includes(n))];
       const tempLayers = nazwy.filter(n => warstwy[n].temporary);
       const regularLayers = nazwy.filter(n => !warstwy[n].temporary);
@@ -3841,6 +3948,18 @@ function showRoutePopup(pinId, tr, latlng) {
         const h3 = document.createElement("h3");
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
+        if (visibilityStates.hasOwnProperty(nazwa) && !(warstwy[nazwa] && warstwy[nazwa].temporary)) {
+          warstwy[nazwa].visible = !!visibilityStates[nazwa];
+          if (warstwy[nazwa].visible) {
+            if (!map.hasLayer(warstwy[nazwa].layer)) {
+              warstwy[nazwa].layer.addTo(map);
+            }
+          } else {
+            map.removeLayer(warstwy[nazwa].layer);
+          }
+        } else if (warstwy[nazwa] && warstwy[nazwa].temporary) {
+          removeLayerVisibilityState(nazwa);
+        }
         if (warstwy[nazwa].visible === undefined) {
           warstwy[nazwa].visible = map.hasLayer(warstwy[nazwa].layer);
         }
@@ -3856,6 +3975,7 @@ function showRoutePopup(pinId, tr, latlng) {
           } else {
             map.removeLayer(warstwy[nazwa].layer);
           }
+          setLayerVisibilityState(nazwa, warstwy[nazwa].visible);
         };
         const label = document.createElement("span");
         label.textContent = `${nazwa} (${warstwy[nazwa].lista.length})`;
@@ -3863,6 +3983,9 @@ function showRoutePopup(pinId, tr, latlng) {
         left.appendChild(checkbox);
         left.appendChild(numberSpan);
         left.appendChild(label);
+        if (collapseStates.hasOwnProperty(nazwa)) {
+          warstwy[nazwa].collapsed = collapseStates[nazwa];
+        }
         const toggleBtn = document.createElement("span");
         toggleBtn.textContent = warstwy[nazwa].collapsed ? "▶️" : "🔽";
        toggleBtn.style.cursor = "pointer";
@@ -3966,6 +4089,7 @@ toggleBtn.style.verticalAlign = "top";
           warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
           listaP.classList.toggle("ukryta");
           toggleBtn.textContent = listaP.classList.contains("ukryta") ? "▶️" : "🔽";
+          setLayerCollapseState(nazwa, warstwy[nazwa].collapsed);
         };
 
         div.appendChild(listaP);
@@ -4468,7 +4592,7 @@ function confirmLayerDelete() {
     layerDocs[name] = movingLayerId;
     layerNamesById[movingLayerId] = name;
     if (!warstwy[name]) {
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', visible: true };
     }
     generujListeWarstw();
   }
@@ -4482,6 +4606,7 @@ function confirmLayerDelete() {
     if (warstwy['Tryb w ruchu']) {
       warstwy['Tryb w ruchu'].visible = true;
       warstwy['Tryb w ruchu'].layer.addTo(map);
+      setLayerVisibilityState('Tryb w ruchu', true);
     }
     const suffix = generateSuffix();
     const firebaseId = `${sanitize(name)}_${suffix}`;
@@ -4560,7 +4685,7 @@ function confirmLayerDelete() {
     const warstwaN = data.warstwa || 'Inne';
     data.warstwaId = layerDocs[warstwaN] || null;
     if (!warstwy[warstwaN]) {
-      warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
+      warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, visible: true };
     }
     const marker = L.marker(latlng, {icon: createEmojiIcon(warstwy[warstwaN].emoji || data.emoji, data.warstwaId, 32, data)}).addTo(warstwy[warstwaN].layer);
     applyInactiveStyle(data);
