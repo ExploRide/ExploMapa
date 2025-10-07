@@ -1278,8 +1278,12 @@ function slugify(str) {
           } else {
             map.removeLayer(warstwy[n].layer);
           }
+          if (!warstwy[n].temporary) {
+            setLayerVisibilityState(n, warstwy[n].visible);
+          }
         });
         toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
+        persistAllLayerVisibilityStates();
         generujListeWarstw();
       });
     }
@@ -2894,6 +2898,46 @@ function zaladujPinezkiZFirestore() {
       saveLayerCollapseStates(states);
     }
 
+    function loadLayerVisibilityStates() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('warstwaVisibility'));
+        if (stored && typeof stored === 'object') {
+          return stored;
+        }
+      } catch (e) {}
+      return {};
+    }
+
+    function saveLayerVisibilityStates(states) {
+      localStorage.setItem('warstwaVisibility', JSON.stringify(states));
+    }
+
+    function setLayerVisibilityState(name, visible) {
+      if (!name) return;
+      const states = loadLayerVisibilityStates();
+      states[name] = !!visible;
+      saveLayerVisibilityStates(states);
+    }
+
+    function removeLayerVisibilityState(name) {
+      if (!name) return;
+      const states = loadLayerVisibilityStates();
+      if (name in states) {
+        delete states[name];
+        saveLayerVisibilityStates(states);
+      }
+    }
+
+    function persistAllLayerVisibilityStates() {
+      const states = {};
+      Object.keys(warstwy).forEach(name => {
+        if (!warstwy[name].temporary) {
+          states[name] = !!warstwy[name].visible;
+        }
+      });
+      saveLayerVisibilityStates(states);
+    }
+
     function saveLayerOrder() {
       const order = Array.from(document.querySelectorAll('#lista-warstw .warstwa'))
         .map(el => el.dataset.nazwa)
@@ -3162,7 +3206,9 @@ function zaladujPinezkiZFirestore() {
       const prevLayersToAdd = layersToAdd.slice();
       const prevOrder = loadLayerOrder();
       warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+      warstwy[name].visible = true;
       setLayerCollapseState(name, true);
+      setLayerVisibilityState(name, true);
       layersToAdd.push(name);
       const order = prevOrder.slice();
       order.unshift(name);
@@ -3179,16 +3225,19 @@ function zaladujPinezkiZFirestore() {
             layersToAdd = prevLayersToAdd;
             localStorage.setItem('warstwaOrder', JSON.stringify(prevOrder));
             removeLayerCollapseState(name);
+            removeLayerVisibilityState(name);
             generujListeWarstw();
             updateSaveButton();
           },
           redo: () => {
             warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+            warstwy[name].visible = true;
             layersToAdd = prevLayersToAdd.concat(name);
             const o = prevOrder.slice();
             o.unshift(name);
             localStorage.setItem('warstwaOrder', JSON.stringify(o));
             setLayerCollapseState(name, true);
+            setLayerVisibilityState(name, true);
             generujListeWarstw();
             updateSaveButton();
           }
@@ -3217,6 +3266,7 @@ function zaladujPinezkiZFirestore() {
       map.removeLayer(layerData.layer);
       delete warstwy[name];
       removeLayerCollapseState(name);
+      removeLayerVisibilityState(name);
       layersToDelete.push(name);
       const order = loadLayerOrder().filter(n => n !== name);
       localStorage.setItem('warstwaOrder', JSON.stringify(order));
@@ -3226,7 +3276,11 @@ function zaladujPinezkiZFirestore() {
         pushAction({
           undo: () => {
             warstwy[name] = layerData;
-            layerData.layer.addTo(map);
+            const wasVisible = layerData.visible !== false;
+            warstwy[name].visible = wasVisible;
+            if (wasVisible) {
+              layerData.layer.addTo(map);
+            }
             warstwy[name].lista.forEach(p => { if (p.marker) p.marker.addTo(layerData.layer); });
             wszystkiePinezki.push(...pins);
             layersToDelete = prevLayersToDelete;
@@ -3236,6 +3290,7 @@ function zaladujPinezkiZFirestore() {
             nowePinezki = prevNowe;
             localStorage.setItem('warstwaOrder', JSON.stringify(prevOrder));
             setLayerCollapseState(name, layerData.collapsed);
+            setLayerVisibilityState(name, wasVisible);
             generujListeWarstw();
             updateSaveButton();
           },
@@ -3346,6 +3401,12 @@ function zaladujPinezkiZFirestore() {
         collapseStates[newName] = collapseStates[oldName];
         delete collapseStates[oldName];
         saveLayerCollapseStates(collapseStates);
+      }
+      const visibilityStates = loadLayerVisibilityStates();
+      if (visibilityStates.hasOwnProperty(oldName)) {
+        visibilityStates[newName] = visibilityStates[oldName];
+        delete visibilityStates[oldName];
+        saveLayerVisibilityStates(visibilityStates);
       }
     }
 
@@ -3873,6 +3934,7 @@ function showRoutePopup(pinId, tr, latlng) {
       lista.innerHTML = "";
       const saved = loadLayerOrder();
       const collapseStates = loadLayerCollapseStates();
+      const visibilityStates = loadLayerVisibilityStates();
       const nazwy = [...saved.filter(n => warstwy[n]), ...Object.keys(warstwy).filter(n => !saved.includes(n))];
       const tempLayers = nazwy.filter(n => warstwy[n].temporary);
       const regularLayers = nazwy.filter(n => !warstwy[n].temporary);
@@ -3890,10 +3952,21 @@ function showRoutePopup(pinId, tr, latlng) {
         const h3 = document.createElement("h3");
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
+        const hasStoredVisibility = !warstwy[nazwa].temporary && visibilityStates.hasOwnProperty(nazwa);
+        if (hasStoredVisibility) {
+          warstwy[nazwa].visible = !!visibilityStates[nazwa];
+          if (warstwy[nazwa].visible) {
+            if (!map.hasLayer(warstwy[nazwa].layer)) {
+              warstwy[nazwa].layer.addTo(map);
+            }
+          } else {
+            map.removeLayer(warstwy[nazwa].layer);
+          }
+        }
         if (warstwy[nazwa].visible === undefined) {
           warstwy[nazwa].visible = map.hasLayer(warstwy[nazwa].layer);
         }
-        if (window.innerWidth <= 700 && !initialLayerVisibilitySet) {
+        if (!hasStoredVisibility && window.innerWidth <= 700 && !initialLayerVisibilitySet) {
           warstwy[nazwa].visible = false;
           map.removeLayer(warstwy[nazwa].layer);
         }
@@ -3904,6 +3977,13 @@ function showRoutePopup(pinId, tr, latlng) {
             warstwy[nazwa].layer.addTo(map);
           } else {
             map.removeLayer(warstwy[nazwa].layer);
+          }
+          if (!warstwy[nazwa].temporary) {
+            setLayerVisibilityState(nazwa, checkbox.checked);
+          }
+          allLayersVisible = Object.values(warstwy).every(w => w.visible);
+          if (toggleVisibilityBtn) {
+            toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
           }
         };
         const label = document.createElement("span");
@@ -4039,6 +4119,7 @@ toggleBtn.style.verticalAlign = "top";
       if (toggleVisibilityBtn) {
         toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
       }
+      persistAllLayerVisibilityStates();
     }
 
     async function zapiszZmiany() {
