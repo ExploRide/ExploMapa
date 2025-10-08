@@ -1091,6 +1091,22 @@ function slugify(str) {
       el.style.display = 'block';
       setTimeout(() => { el.style.display = 'none'; }, 3000);
     }
+    const LAYER_ORDER_STORAGE_KEY = 'warstwaOrder';
+    const LAYER_COLLAPSE_STORAGE_KEY = 'warstwaCollapsed';
+    const LAYER_VISIBILITY_STORAGE_KEY = 'warstwaVisibility';
+    const LAYER_STATE_PRESERVE_FLAG_KEY = 'warstwaPreserveStateOnce';
+
+    const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
+    // When the page is opened normally we want layer visibility/collapse to reset.
+    // We only restore the stored state immediately after a save-triggered reload.
+    let shouldIgnoreStoredLayerState = !shouldRestoreLayerState;
+    if (shouldRestoreLayerState) {
+      localStorage.removeItem(LAYER_STATE_PRESERVE_FLAG_KEY);
+    } else {
+      localStorage.removeItem(LAYER_COLLAPSE_STORAGE_KEY);
+      localStorage.removeItem(LAYER_VISIBILITY_STORAGE_KEY);
+    }
+
     const warstwy = {};
     let wszystkiePinezki = [];
     let draggedLayer = null;
@@ -2304,7 +2320,7 @@ function emojiHtml(str) {
           }
         });
         if (order.length > 0) {
-          localStorage.setItem('warstwaOrder', JSON.stringify(order));
+          localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
           initialLayerOrder = [...order];
           layerOrderChanged = false;
         }
@@ -2855,7 +2871,7 @@ function zaladujPinezkiZFirestore() {
 
     function loadLayerOrder() {
       try {
-        return JSON.parse(localStorage.getItem('warstwaOrder')) || [];
+        return JSON.parse(localStorage.getItem(LAYER_ORDER_STORAGE_KEY)) || [];
       } catch (e) {
         return [];
       }
@@ -2863,7 +2879,7 @@ function zaladujPinezkiZFirestore() {
 
     function loadLayerCollapseStates() {
       try {
-        const stored = JSON.parse(localStorage.getItem('warstwaCollapsed'));
+        const stored = JSON.parse(localStorage.getItem(LAYER_COLLAPSE_STORAGE_KEY));
         if (stored && typeof stored === 'object') {
           return stored;
         }
@@ -2872,7 +2888,7 @@ function zaladujPinezkiZFirestore() {
     }
 
     function saveLayerCollapseStates(states) {
-      localStorage.setItem('warstwaCollapsed', JSON.stringify(states));
+      localStorage.setItem(LAYER_COLLAPSE_STORAGE_KEY, JSON.stringify(states));
     }
 
     function setLayerCollapseState(name, collapsed) {
@@ -2899,7 +2915,7 @@ function zaladujPinezkiZFirestore() {
 
     function loadLayerVisibilityStates() {
       try {
-        const stored = JSON.parse(localStorage.getItem('warstwaVisibility'));
+        const stored = JSON.parse(localStorage.getItem(LAYER_VISIBILITY_STORAGE_KEY));
         if (stored && typeof stored === 'object') {
           return stored;
         }
@@ -2908,7 +2924,7 @@ function zaladujPinezkiZFirestore() {
     }
 
     function saveLayerVisibilityStates(states) {
-      localStorage.setItem('warstwaVisibility', JSON.stringify(states));
+      localStorage.setItem(LAYER_VISIBILITY_STORAGE_KEY, JSON.stringify(states));
     }
 
     function setLayerVisibilityState(name, visible) {
@@ -2942,7 +2958,7 @@ function zaladujPinezkiZFirestore() {
         .map(el => el.dataset.nazwa)
         .filter(n => !warstwy[n] || !warstwy[n].temporary);
       const prev = loadLayerOrder();
-      localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
       if (JSON.stringify(prev) !== JSON.stringify(order)) {
         layerOrderChanged = JSON.stringify(order) !== JSON.stringify(initialLayerOrder);
         updateSaveButton();
@@ -3211,7 +3227,7 @@ function zaladujPinezkiZFirestore() {
       layersToAdd.push(name);
       const order = prevOrder.slice();
       order.unshift(name);
-      localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
       generujListeWarstw();
       updateSaveButton();
       if (record) {
@@ -3222,7 +3238,7 @@ function zaladujPinezkiZFirestore() {
               delete warstwy[name];
             }
             layersToAdd = prevLayersToAdd;
-            localStorage.setItem('warstwaOrder', JSON.stringify(prevOrder));
+            localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(prevOrder));
             removeLayerCollapseState(name);
             removeLayerVisibilityState(name);
             generujListeWarstw();
@@ -3234,7 +3250,7 @@ function zaladujPinezkiZFirestore() {
             layersToAdd = prevLayersToAdd.concat(name);
             const o = prevOrder.slice();
             o.unshift(name);
-            localStorage.setItem('warstwaOrder', JSON.stringify(o));
+            localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(o));
             setLayerCollapseState(name, true);
             setLayerVisibilityState(name, true);
             generujListeWarstw();
@@ -3268,7 +3284,7 @@ function zaladujPinezkiZFirestore() {
       removeLayerVisibilityState(name);
       layersToDelete.push(name);
       const order = loadLayerOrder().filter(n => n !== name);
-      localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
       generujListeWarstw();
       updateSaveButton();
       if (record) {
@@ -3287,7 +3303,7 @@ function zaladujPinezkiZFirestore() {
             pinsToDelete = prevPinsToDelete;
             zmianyDoZapisania = Object.assign({}, prevZmiany);
             nowePinezki = prevNowe;
-            localStorage.setItem('warstwaOrder', JSON.stringify(prevOrder));
+            localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(prevOrder));
             setLayerCollapseState(name, layerData.collapsed);
             setLayerVisibilityState(name, wasVisible);
             generujListeWarstw();
@@ -3394,7 +3410,7 @@ function zaladujPinezkiZFirestore() {
       if (!layersToAdd.includes(newName) && !layerDocs[newName]) layersToAdd.push(newName);
       if (!layersToDelete.includes(oldName) && (layerDocs[oldName] || layersToAdd.includes(oldName))) layersToDelete.push(oldName);
       const order = loadLayerOrder().map(n => n === oldName ? newName : n);
-      localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
       const collapseStates = loadLayerCollapseStates();
       if (collapseStates.hasOwnProperty(oldName)) {
         collapseStates[newName] = collapseStates[oldName];
@@ -3413,7 +3429,7 @@ function zaladujPinezkiZFirestore() {
       let order = loadLayerOrder().filter(n => n !== name);
       newPos = Math.max(1, Math.min(newPos, order.length + 1));
       order.splice(newPos - 1, 0, name);
-      localStorage.setItem('warstwaOrder', JSON.stringify(order));
+      localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
       layerOrderChanged = JSON.stringify(order) !== JSON.stringify(initialLayerOrder);
       updateSaveButton();
     }
@@ -3932,8 +3948,8 @@ function showRoutePopup(pinId, tr, latlng) {
       const lista = document.getElementById("lista-warstw");
       lista.innerHTML = "";
       const saved = loadLayerOrder();
-      const collapseStates = loadLayerCollapseStates();
-      const visibilityStates = loadLayerVisibilityStates();
+      const collapseStates = shouldIgnoreStoredLayerState ? {} : loadLayerCollapseStates();
+      const visibilityStates = shouldIgnoreStoredLayerState ? {} : loadLayerVisibilityStates();
       const nazwy = [...saved.filter(n => warstwy[n]), ...Object.keys(warstwy).filter(n => !saved.includes(n))];
       const tempLayers = nazwy.filter(n => warstwy[n].temporary);
       const regularLayers = nazwy.filter(n => !warstwy[n].temporary);
@@ -4119,6 +4135,7 @@ toggleBtn.style.verticalAlign = "top";
         toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
       }
       persistAllLayerVisibilityStates();
+      shouldIgnoreStoredLayerState = false;
     }
 
     async function zapiszZmiany() {
@@ -4226,6 +4243,9 @@ toggleBtn.style.verticalAlign = "top";
         localStorage.removeItem('nowePinezki');
         shouldWarnBeforeUnload = false;
         btn.textContent = 'Zapisano ✔';
+        persistAllLayerCollapseStates();
+        persistAllLayerVisibilityStates();
+        localStorage.setItem(LAYER_STATE_PRESERVE_FLAG_KEY, '1');
         location.reload();
       } catch (err) {
         console.error(err);
