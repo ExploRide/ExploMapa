@@ -3229,11 +3229,15 @@ function zaladujPinezkiZFirestore() {
         }, 3000);
       };
 
-      const cancelHandler = () => {
-        clearTimer();
-        if (!state.draggingStarted) {
-          stopLongPress();
+      const cancelHandler = e => {
+        if (state.active) {
+          if (e && e.type === 'touchcancel') {
+            stopLongPress();
+          }
+          return;
         }
+        clearTimer();
+        stopLongPress();
       };
 
       const endHandler = () => {
