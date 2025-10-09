@@ -44,8 +44,16 @@
   }
 
 .emoji-picker {
-  position: relative;
-  display: inline-block;
+    position: relative;
+    display: inline-block;
+    border-width: 2px;
+    border-style: solid;
+    border-color: buttonborder;
+    border-image: initial;
+    padding-right: 4px;
+    padding-top: 2px;
+    padding-bottom: 3px;
+  background-color: #444;
 }
 
   .emoji-picker-grid {
