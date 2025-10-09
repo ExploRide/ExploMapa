@@ -17,6 +17,12 @@
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background-color: #1e1e1e; color: #f0f0f0;}
     #map, #sidebar, #basemap-switcher, #layer-editor, #route-editor { display: none; }
     #map { position: absolute; top: 0; left: 300px; right: 225px; bottom: 0; }
+    #map.pin-reposition,
+    .leaflet-container.pin-reposition,
+    #map.pin-reposition *,
+    .leaflet-container.pin-reposition * {
+      cursor: crosshair !important;
+    }
     #sidebar {
       position: absolute;
       top: 0;
@@ -1076,6 +1082,7 @@ function slugify(str) {
     });
 
     let map, baseLayer, routingLayer, roadsLayer, baseTileErrorHandler, waymarkedErrorHandler;
+    let pinRepositionState = null;
     let currentBase = 'sat';
     let loadingCount = 0;
     function showLoading() {
@@ -2466,6 +2473,189 @@ function zaladujPinezkiZFirestore() {
       `;
     }
 
+    function captureEditDraft(pin, container) {
+      if (!pin || !container) return;
+      const draft = {};
+      const nameInput = container.querySelector('#enazwa');
+      if (nameInput) draft.nazwa = nameInput.value;
+      const opisInput = container.querySelector('#eopis');
+      if (opisInput) draft.opis = opisInput.value;
+      const odKogoInput = container.querySelector('#eodKogo');
+      if (odKogoInput) draft.odKogo = odKogoInput.value;
+      const warstwaInput = container.querySelector('#ewarstwa');
+      if (warstwaInput) draft.warstwa = warstwaInput.value;
+      const kategoriaInput = container.querySelector('#ekategoria');
+      if (kategoriaInput) draft.kategoria = kategoriaInput.value;
+      const trudInput = container.querySelector('#etrudnosc');
+      if (trudInput) draft.trudnosc = trudInput.value;
+      const status = {};
+      const setStatus = (key, selector) => {
+        const el = container.querySelector(selector);
+        if (el) status[key] = el.checked;
+      };
+      setStatus('nieaktywne', '#enieaktywne');
+      setStatus('zamkniete', '#ezamkniete');
+      setStatus('tajne', '#etajne');
+      setStatus('doSprawdzenia', '#edoSprawdzenia');
+      setStatus('zdewastowane', '#ezdewastowane');
+      setStatus('zwiedzone', '#ezwiedzone');
+      setStatus('wyroznione', '#ewyroznione');
+      draft.status = status;
+      pin._editDraft = draft;
+    }
+
+    function applyEditDraft(pin, container) {
+      if (!pin || !container || !pin._editDraft) return;
+      const draft = pin._editDraft;
+      const setValue = (selector, value) => {
+        if (value === undefined) return;
+        const el = container.querySelector(selector);
+        if (el) el.value = value;
+      };
+      setValue('#enazwa', draft.nazwa);
+      setValue('#eopis', draft.opis);
+      setValue('#eodKogo', draft.odKogo);
+      setValue('#ewarstwa', draft.warstwa);
+      setValue('#ekategoria', draft.kategoria);
+      setValue('#etrudnosc', draft.trudnosc);
+      const trudInput = container.querySelector('#etrudnosc');
+      if (trudInput && draft.trudnosc !== undefined) {
+        trudInput.value = draft.trudnosc;
+        const label = container.querySelector('#etrudnoscLabel');
+        if (label) {
+          label.textContent = trudnoscText(trudInput.value);
+          label.style.color = trudnoscColor(trudInput.value);
+        }
+      }
+      const status = draft.status || {};
+      const setChecked = (selector, value) => {
+        if (value === undefined) return;
+        const el = container.querySelector(selector);
+        if (el) el.checked = value;
+      };
+      setChecked('#enieaktywne', status.nieaktywne);
+      setChecked('#ezamkniete', status.zamkniete);
+      setChecked('#etajne', status.tajne);
+      setChecked('#edoSprawdzenia', status.doSprawdzenia);
+      setChecked('#ezdewastowane', status.zdewastowane);
+      setChecked('#ezwiedzone', status.zwiedzone);
+      setChecked('#ewyroznione', status.wyroznione);
+      delete pin._editDraft;
+    }
+
+    function startPinReposition(pin, container) {
+      if (!map || !pin || !pin.marker) return;
+      if (pinRepositionState) {
+        finishPinReposition(false);
+      }
+      captureEditDraft(pin, container);
+      const marker = pin.marker;
+      if (marker._editCloseHandler) {
+        marker.off('popupclose', marker._editCloseHandler);
+      }
+      marker.closePopup();
+      const originalLatLng = marker.getLatLng();
+      const existing = zmianyDoZapisania[pin.id];
+      const previousPending = existing ? { lat: existing.lat, lng: existing.lng } : null;
+      const moveHandler = e => {
+        marker.setLatLng(e.latlng);
+      };
+      const confirmHandler = e => {
+        if (e.originalEvent) {
+          L.DomEvent.stop(e.originalEvent);
+        }
+        finishPinReposition(true, e.latlng);
+      };
+      const keyHandler = e => {
+        if (e.key === 'Escape') {
+          finishPinReposition(false);
+        }
+      };
+      pinRepositionState = {
+        pin,
+        marker,
+        originalLatLng,
+        moveHandler,
+        confirmHandler,
+        keyHandler,
+        previousPending
+      };
+      map.on('mousemove', moveHandler);
+      map.on('click', confirmHandler);
+      document.addEventListener('keydown', keyHandler);
+      const mapContainer = map.getContainer();
+      if (mapContainer) mapContainer.classList.add('pin-reposition');
+      showToast('Wskaż nowe miejsce pinezki i kliknij, aby zatwierdzić. Naciśnij Esc, aby anulować.');
+    }
+
+    function finishPinReposition(confirmed, latlng) {
+      if (!pinRepositionState) return;
+      const { pin, marker, originalLatLng, moveHandler, confirmHandler, keyHandler, previousPending } = pinRepositionState;
+      pinRepositionState = null;
+      map.off('mousemove', moveHandler);
+      map.off('click', confirmHandler);
+      document.removeEventListener('keydown', keyHandler);
+      const mapContainer = map.getContainer();
+      if (mapContainer) mapContainer.classList.remove('pin-reposition');
+      if (confirmed && latlng) {
+        const newLatLng = L.latLng(latlng.lat, latlng.lng);
+        marker.setLatLng(newLatLng);
+        pin.lat = newLatLng.lat;
+        pin.lng = newLatLng.lng;
+        markPinUnsaved(pin.slug);
+        pin.unsaved = true;
+        const pending = zmianyDoZapisania[pin.id] || {};
+        pending.lat = pin.lat;
+        pending.lng = pin.lng;
+        zmianyDoZapisania[pin.id] = pending;
+        const prevLatLng = L.latLng(originalLatLng.lat, originalLatLng.lng);
+        pushAction({
+          undo: () => {
+            marker.setLatLng(prevLatLng);
+            pin.lat = prevLatLng.lat;
+            pin.lng = prevLatLng.lng;
+            const data = zmianyDoZapisania[pin.id] || {};
+            if (previousPending && previousPending.lat !== undefined && previousPending.lng !== undefined) {
+              data.lat = previousPending.lat;
+              data.lng = previousPending.lng;
+              zmianyDoZapisania[pin.id] = data;
+            } else {
+              delete data.lat;
+              delete data.lng;
+              if (Object.keys(data).length === 0) {
+                delete zmianyDoZapisania[pin.id];
+              } else {
+                zmianyDoZapisania[pin.id] = data;
+              }
+            }
+            generujListeWarstw();
+            updateSaveButton();
+          },
+          redo: () => {
+            marker.setLatLng(newLatLng);
+            pin.lat = newLatLng.lat;
+            pin.lng = newLatLng.lng;
+            const data = zmianyDoZapisania[pin.id] || {};
+            data.lat = newLatLng.lat;
+            data.lng = newLatLng.lng;
+            zmianyDoZapisania[pin.id] = data;
+            generujListeWarstw();
+            updateSaveButton();
+          }
+        }, 'Przeniesiono pinezkę');
+        generujListeWarstw();
+        updateSaveButton();
+        setTimeout(() => edytuj(pin.id, pin.lat, pin.lng), 0);
+        showToast('Nowe położenie pinezki ustawione. Pamiętaj o zapisaniu zmian.');
+      } else {
+        marker.setLatLng(originalLatLng);
+        pin.lat = originalLatLng.lat;
+        pin.lng = originalLatLng.lng;
+        setTimeout(() => edytuj(pin.id, pin.lat, pin.lng), 0);
+        showToast('Przenoszenie pinezki anulowane.');
+      }
+    }
+
     function edytuj(id, lat, lng) {
      /* console.log('Wywołano edytuj dla id:', id, 'lat:', lat, 'lng:', lng); // <-- dodane */
       const p = wszystkiePinezki.find(pp => pp.id === id);
@@ -2490,14 +2680,17 @@ function zaladujPinezkiZFirestore() {
           <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 3)}">${trudnoscText(p.trudnosc ?? 3)}</div>
         </div>
         ${buildStatusGrid('e', '', p)}
+        <button id="movePinBtn-${id}">📍 Zmień położenie</button>
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
         <div id="emojiPicker-${id}" class="emoji-picker"></div>
       `;
+      L.DomEvent.disableClickPropagation(container);
       const eOpisInput = container.querySelector('#eopis');
       if (eOpisInput) {
         eOpisInput.value = (p.opis || '').replace(/<br\s*\/?>/gi, '\n');
       }
+      applyEditDraft(p, container);
       setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p);
       setupGallery(container.querySelector('.photo-gallery'));
       setupDropdownInput(container.querySelector('#ewarstwa'), () => Object.keys(warstwy));
@@ -2568,18 +2761,34 @@ function zaladujPinezkiZFirestore() {
           openDeleteModal(id);
         });
       }
+      const moveBtn = container.querySelector('#movePinBtn-' + id);
+      if (moveBtn) {
+        moveBtn.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          startPinReposition(p, container);
+        });
+      }
       const marker = p.marker || findMarkerByLatLng(lat, lng);
       if (marker) {
         p.marker = marker;
-        marker.bindPopup(container, {maxWidth: 400, minWidth: 400}).openPopup();
-        marker.once('popupclose', () => {
+        if (marker._editCloseHandler) {
+          marker.off('popupclose', marker._editCloseHandler);
+        }
+        const onClose = () => {
+          delete p._editDraft;
           const popupDiv = document.createElement('div');
           popupDiv.className = 'popup-container';
           popupDiv.innerHTML = createPopupHtml(p);
           marker.bindPopup(popupDiv);
           attachPopupHandlers(marker, p);
           attachMarkerLongPress(marker, p);
-        });
+          marker.off('popupclose', onClose);
+          marker._editCloseHandler = null;
+        };
+        marker._editCloseHandler = onClose;
+        marker.bindPopup(container, {maxWidth: 400, minWidth: 400}).openPopup();
+        marker.on('popupclose', onClose);
       }
     }
 
@@ -2626,6 +2835,7 @@ function zaladujPinezkiZFirestore() {
       const catVal = document.getElementById("ekategoria").value.trim();
       if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
       const p = wszystkiePinezki.find(pp => pp.id === id);
+      if (p && p._editDraft) delete p._editDraft;
       const oldData = p ? {
         nazwa: p.nazwa,
         opis: p.opis,
