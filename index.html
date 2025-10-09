@@ -852,6 +852,9 @@ img.emoji {
     <input type="text" id="routeEditName" placeholder="Nazwa trasy"><br>
     <textarea id="routeEditDesc" placeholder="Opis trasy" style="width:100%"></textarea><br>
     <input type="color" id="routeEditColor"><br>
+    <label for="routeEditOpacity">Przezroczystość trasy</label><br>
+    <input type="range" id="routeEditOpacity" min="0" max="100" value="100" step="5">
+    <span id="routeEditOpacityValue">100%</span><br>
     <button id="routeEditDelete">Usuń trasę</button>
     <button id="routeEditClose" onclick="closeRouteEditor()">Zamknij</button>
     <button id="routeEditApply" onclick="applyRouteEdits()">Zastosuj</button>
@@ -871,6 +874,9 @@ img.emoji {
   <script src="https://cdn.jsdelivr.net/npm/leaflet-tilelayer-wmts@1.0.2/leaflet-tilelayer-wmts.js"></script>
 
   <script>
+    const DEFAULT_ROUTE_COLOR = '#00ccff';
+    const DEFAULT_ROUTE_OPACITY = 1;
+
     const emojiList = window.emojiList = [];
     const emojiMap = window.emojiMap = {};
     let emojiListResolver;
@@ -2405,8 +2411,10 @@ function zaladujPinezkiZFirestore() {
       const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p) }).addTo(warstwy[warstwaNazwa].layer);
       if (p.trasy) {
         p.trasy.forEach(tr => {
-          const color = tr.kolor || '#00ccff';
-          const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color, weight:4, className:'route-line'}).addTo(rysowaneTrasy);
+          const color = tr.kolor || DEFAULT_ROUTE_COLOR;
+          const opacity = getRouteOpacity(tr);
+          tr.przezroczystosc = opacity;
+          const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color, weight:4, className:'route-line', opacity}).addTo(rysowaneTrasy);
           tr.layer = layer;
           layer.on('click', e => showRoutePopup(p.id, tr, e.latlng));
         });
@@ -2418,6 +2426,7 @@ function zaladujPinezkiZFirestore() {
       popupDiv.innerHTML = createPopupHtml(p);
       marker.bindPopup(popupDiv);
       attachPopupHandlers(marker, p);
+      attachMarkerLongPress(marker, p);
       attachHighlight(marker, null);
 
       p.marker = marker;
@@ -2569,6 +2578,7 @@ function zaladujPinezkiZFirestore() {
           popupDiv.innerHTML = createPopupHtml(p);
           marker.bindPopup(popupDiv);
           attachPopupHandlers(marker, p);
+          attachMarkerLongPress(marker, p);
         });
       }
     }
@@ -2587,10 +2597,14 @@ function zaladujPinezkiZFirestore() {
         if (p.marker) p.marker.remove();
         const iconEmoji = warstwy[nowaWarstwa].emoji || p.emoji;
         p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[nowaWarstwa].layer);
+        attachMarkerLongPress(p.marker, p);
         attachHighlight(p.marker, p.el);
       } else {
         const iconEmoji = warstwy[nowaWarstwa].emoji || p.emoji;
         if (p.marker) p.marker.setIcon(createEmojiIcon(iconEmoji, p.warstwaId, 32, p));
+      }
+      if (p.marker) {
+        p.marker.setLatLng([p.lat, p.lng]);
       }
       applyInactiveStyle(p);
       const popupDiv = document.createElement("div");
@@ -2598,6 +2612,7 @@ function zaladujPinezkiZFirestore() {
       popupDiv.innerHTML = createPopupHtml(p);
       p.marker.bindPopup(popupDiv);
       attachPopupHandlers(p.marker, p);
+      attachMarkerLongPress(p.marker, p);
     }
 
     function zapiszLokalnie(id) {
@@ -2627,7 +2642,9 @@ function zaladujPinezkiZFirestore() {
         zdewastowane: p.zdewastowane,
         zwiedzone: p.zwiedzone,
         wyroznione: p.wyroznione,
-        slug: p.slug
+        slug: p.slug,
+        lat: p.lat,
+        lng: p.lng
       } : null;
       const emojiVal = p && p.noweEmoji !== undefined ? p.noweEmoji : (p ? p.emoji : '');
       const nowa = {
@@ -2647,6 +2664,10 @@ function zaladujPinezkiZFirestore() {
         zwiedzone: document.getElementById("ezwiedzone").checked,
         wyroznione: document.getElementById("ewyroznione").checked
       };
+      if (p) {
+        nowa.lat = p.lat;
+        nowa.lng = p.lng;
+      }
       zmianyDoZapisania[id] = nowa;
       if (p) {
         const oldSlug = p.slug;
@@ -2833,6 +2854,7 @@ function zaladujPinezkiZFirestore() {
         popupDiv.innerHTML = createPopupHtml(data);
         marker.bindPopup(popupDiv);
         attachPopupHandlers(marker, data);
+        attachMarkerLongPress(marker, data);
 
         nowePinezki.push(data);
         localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
@@ -3005,8 +3027,10 @@ function zaladujPinezkiZFirestore() {
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[warstwaN].layer);
         if (p.trasy) {
           p.trasy.forEach(tr => {
-            const color = tr.kolor || '#00ccff';
-            const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color, weight:4, className:'route-line'}).addTo(rysowaneTrasy);
+            const color = tr.kolor || DEFAULT_ROUTE_COLOR;
+            const opacity = getRouteOpacity(tr);
+            tr.przezroczystosc = opacity;
+            const layer = L.polyline(tr.punkty.map(pt => [pt.lat, pt.lng]), {color, weight:4, className:'route-line', opacity}).addTo(rysowaneTrasy);
             tr.layer = layer;
             layer.on('click', e => showRoutePopup(p.id, tr, e.latlng));
           });
@@ -3018,6 +3042,8 @@ function zaladujPinezkiZFirestore() {
         popupDiv.innerHTML = createPopupHtml(p);
         marker.bindPopup(popupDiv);
         attachPopupHandlers(marker, p);
+        attachMarkerLongPress(marker, p);
+        attachHighlight(marker, null);
         p.marker = marker;
         applyInactiveStyle(p);
         warstwy[warstwaN].lista.push(p);
@@ -3148,6 +3174,131 @@ function zaladujPinezkiZFirestore() {
       marker.on('remove', marker._highlightRemoveHandler);
     }
 
+    function attachMarkerLongPress(marker, pin) {
+      if (!marker || !pin) return;
+      if (marker._longPressHandlers) {
+        const { start, cancel, end, dragEnd, dragStart } = marker._longPressHandlers;
+        marker.off('mousedown', start);
+        marker.off('touchstart', start);
+        marker.off('mouseup', end);
+        marker.off('touchend', end);
+        marker.off('mouseout', cancel);
+        marker.off('touchcancel', cancel);
+        marker.off('dragend', dragEnd);
+        marker.off('dragstart', dragStart);
+      }
+
+      const state = {
+        timer: null,
+        active: false,
+        draggingStarted: false,
+        originalEvent: null
+      };
+
+      const clearTimer = () => {
+        if (state.timer) {
+          clearTimeout(state.timer);
+          state.timer = null;
+        }
+      };
+
+      const stopLongPress = () => {
+        if (marker.dragging && typeof marker.dragging.enabled === 'function' && marker.dragging.enabled()) {
+          marker.dragging.disable();
+        }
+        state.active = false;
+        state.draggingStarted = false;
+        state.originalEvent = null;
+      };
+
+      const startHandler = e => {
+        if (drawingRoute) return;
+        state.originalEvent = e.originalEvent;
+        clearTimer();
+        state.timer = setTimeout(() => {
+          state.timer = null;
+          state.active = true;
+          state.draggingStarted = false;
+          if (marker.dragging && typeof marker.dragging.enable === 'function') {
+            marker.dragging.enable();
+            if (state.originalEvent && marker.dragging._draggable && marker.dragging._draggable._onDown) {
+              if (state.originalEvent.preventDefault) state.originalEvent.preventDefault();
+              marker.dragging._draggable._onDown(state.originalEvent);
+            }
+          }
+        }, 3000);
+      };
+
+      const cancelHandler = () => {
+        clearTimer();
+        if (!state.draggingStarted) {
+          stopLongPress();
+        }
+      };
+
+      const endHandler = () => {
+        if (!state.active) {
+          clearTimer();
+          return;
+        }
+        if (!state.draggingStarted) {
+          stopLongPress();
+        }
+      };
+
+      const dragStartHandler = () => {
+        state.draggingStarted = true;
+      };
+
+      const dragEndHandler = () => {
+        clearTimer();
+        if (!state.active) {
+          stopLongPress();
+          return;
+        }
+        const moved = state.draggingStarted;
+        stopLongPress();
+        if (!moved) return;
+        const { lat, lng } = marker.getLatLng();
+        pin.lat = lat;
+        pin.lng = lng;
+        markPinUnsaved(pin.slug);
+        const cur = zmianyDoZapisania[pin.id] || {};
+        cur.lat = lat;
+        cur.lng = lng;
+        zmianyDoZapisania[pin.id] = cur;
+        if (!pin.firebaseId) {
+          localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(np => {
+            const { marker: npMarker, ...rest } = np;
+            return rest;
+          })));
+        }
+        const popupDiv = document.createElement('div');
+        popupDiv.className = 'popup-container';
+        popupDiv.innerHTML = createPopupHtml(pin);
+        marker.bindPopup(popupDiv);
+        attachPopupHandlers(marker, pin);
+        updateSaveButton();
+      };
+
+      marker.on('mousedown', startHandler);
+      marker.on('touchstart', startHandler);
+      marker.on('mouseout', cancelHandler);
+      marker.on('touchcancel', cancelHandler);
+      marker.on('mouseup', endHandler);
+      marker.on('touchend', endHandler);
+      marker.on('dragstart', dragStartHandler);
+      marker.on('dragend', dragEndHandler);
+
+      marker._longPressHandlers = {
+        start: startHandler,
+        cancel: cancelHandler,
+        end: endHandler,
+        dragEnd: dragEndHandler,
+        dragStart: dragStartHandler
+      };
+    }
+
     function applyInactiveStyle(p) {
       if (p.marker) {
         p.marker.setOpacity(1);
@@ -3166,7 +3317,7 @@ function zaladujPinezkiZFirestore() {
     function startRouteDrawing(pin) {
       drawingRoute = true;
       activeRoutePin = pin;
-      const opts = {shapeOptions: {color: '#00ccff', weight: 4, className: 'route-line'}};
+      const opts = {shapeOptions: {color: DEFAULT_ROUTE_COLOR, weight: 4, className: 'route-line', opacity: DEFAULT_ROUTE_OPACITY}};
       const dh = new L.Draw.Polyline(map, opts);
       dh.enable();
     }
@@ -3178,12 +3329,13 @@ function zaladujPinezkiZFirestore() {
       const latlngs = layer.getLatLngs().map(pt => ({lat: pt.lat, lng: pt.lng}));
       if (!activeRoutePin.trasy) activeRoutePin.trasy = [];
       const name = 'trasa ' + (activeRoutePin.trasy.length + 1);
-      const tr = {nazwa: name, opis: '', kolor: '#00ccff', punkty: latlngs, layer};
+      const tr = {nazwa: name, opis: '', kolor: DEFAULT_ROUTE_COLOR, punkty: latlngs, przezroczystosc: DEFAULT_ROUTE_OPACITY, layer};
+      layer.setStyle({color: tr.kolor || DEFAULT_ROUTE_COLOR, opacity: getRouteOpacity(tr)});
       activeRoutePin.trasy.push(tr);
       layer.on('click', ev => showRoutePopup(activeRoutePin.id, tr, ev.latlng));
       window.localTrasy.push({action: 'add', pinId: activeRoutePin.id});
       zmianyDoZapisania[activeRoutePin.id] = Object.assign(zmianyDoZapisania[activeRoutePin.id] || {}, {
-        trasy: activeRoutePin.trasy.map(t => ({nazwa: t.nazwa, opis:t.opis||'', kolor:t.kolor||'#00ccff', punkty: t.punkty}))
+        trasy: activeRoutePin.trasy.map(t => serializeRoute(t))
       });
       updateSaveButton();
       generujListeWarstw();
@@ -3481,6 +3633,34 @@ function zaladujPinezkiZFirestore() {
     }
 
     let editedRoute = null;
+
+    function normalizeRouteOpacity(value) {
+      const num = typeof value === 'string' ? parseFloat(value) : value;
+      if (Number.isNaN(num)) return DEFAULT_ROUTE_OPACITY;
+      return Math.min(1, Math.max(0, num));
+    }
+
+    function getRouteOpacity(tr) {
+      if (!tr) return DEFAULT_ROUTE_OPACITY;
+      return normalizeRouteOpacity(tr.przezroczystosc !== undefined ? tr.przezroczystosc : DEFAULT_ROUTE_OPACITY);
+    }
+
+    function serializeRoute(tr) {
+      return {
+        nazwa: tr.nazwa,
+        opis: tr.opis || '',
+        kolor: tr.kolor || DEFAULT_ROUTE_COLOR,
+        punkty: tr.punkty,
+        przezroczystosc: getRouteOpacity(tr)
+      };
+    }
+
+    function updateRouteOpacityLabel(value) {
+      const label = document.getElementById('routeEditOpacityValue');
+      if (!label) return;
+      const percent = Math.round(value);
+      label.textContent = `${percent}%`;
+    }
     function showRouteEditor(pinId, idx) {
       const panel = document.getElementById('route-editor');
       if (!panel) return;
@@ -3489,7 +3669,13 @@ function zaladujPinezkiZFirestore() {
       editedRoute = {pinId, idx};
       document.getElementById('routeEditName').value = pin.trasy[idx].nazwa;
       document.getElementById('routeEditDesc').value = pin.trasy[idx].opis || '';
-      document.getElementById('routeEditColor').value = pin.trasy[idx].kolor || '#00ccff';
+      document.getElementById('routeEditColor').value = pin.trasy[idx].kolor || DEFAULT_ROUTE_COLOR;
+      const opacityInput = document.getElementById('routeEditOpacity');
+      if (opacityInput) {
+        const opacityValue = Math.round(getRouteOpacity(pin.trasy[idx]) * 100);
+        opacityInput.value = opacityValue;
+        updateRouteOpacityLabel(opacityValue);
+      }
       panel.style.display = 'block';
     }
 
@@ -3514,7 +3700,7 @@ function showRoutePopup(pinId, tr, latlng) {
       if (idx > -1) {
         pin.trasy.splice(idx,1);
         if (tr.layer) rysowaneTrasy.removeLayer(tr.layer);
-        zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => ({nazwa:t.nazwa, opis:t.opis||'', kolor:t.kolor||'#00ccff', punkty:t.punkty}))});
+        zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => serializeRoute(t))});
         window.localTrasy.push({action:'delete', pinId: pin.id});
         generujListeWarstw();
         updateSaveButton();
@@ -3530,19 +3716,28 @@ function showRoutePopup(pinId, tr, latlng) {
       if (!pin || !pin.trasy || !pin.trasy[editedRoute.idx]) return;
       const name = document.getElementById('routeEditName').value.trim() || pin.trasy[editedRoute.idx].nazwa;
       const desc = document.getElementById('routeEditDesc').value.trim();
-      const color = document.getElementById('routeEditColor').value || '#00ccff';
+      const color = document.getElementById('routeEditColor').value || DEFAULT_ROUTE_COLOR;
+      const opacityInput = document.getElementById('routeEditOpacity');
+      const opacityPercent = opacityInput ? parseFloat(opacityInput.value) : 100;
+      const opacity = normalizeRouteOpacity(Number.isNaN(opacityPercent) ? DEFAULT_ROUTE_OPACITY : opacityPercent / 100);
       pin.trasy[editedRoute.idx].nazwa = name;
       pin.trasy[editedRoute.idx].opis = desc;
       pin.trasy[editedRoute.idx].kolor = color;
+      pin.trasy[editedRoute.idx].przezroczystosc = opacity;
       if (pin.trasy[editedRoute.idx].layer) {
-        pin.trasy[editedRoute.idx].layer.setStyle({color});
+        pin.trasy[editedRoute.idx].layer.setStyle({color, opacity});
       }
       pin.trasy[editedRoute.idx].unsaved = true;
-      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => ({nazwa:t.nazwa, opis:t.opis||'', kolor:t.kolor||'#00ccff', punkty:t.punkty}))});
+      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => serializeRoute(t))});
       window.localTrasy.push({action:'update', pinId: pin.id});
       generujListeWarstw();
       updateSaveButton();
       closeRouteEditor();
+    }
+
+    const routeOpacityInputEl = document.getElementById('routeEditOpacity');
+    if (routeOpacityInputEl) {
+      routeOpacityInputEl.addEventListener('input', () => updateRouteOpacityLabel(parseFloat(routeOpacityInputEl.value)));
     }
 
     document.getElementById('routeEditDelete').addEventListener('click', function(){
@@ -3551,7 +3746,7 @@ function showRoutePopup(pinId, tr, latlng) {
       if (!pin || !pin.trasy || !pin.trasy[editedRoute.idx]) return;
       const tr = pin.trasy.splice(editedRoute.idx,1)[0];
       if (tr && tr.layer) rysowaneTrasy.removeLayer(tr.layer);
-      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => ({nazwa:t.nazwa, opis:t.opis||'', kolor:t.kolor||'#00ccff', punkty:t.punkty}))});
+      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, {trasy: pin.trasy.map(t => serializeRoute(t))});
       window.localTrasy.push({action:'delete', pinId: pin.id});
       generujListeWarstw();
       updateSaveButton();
@@ -4085,7 +4280,7 @@ toggleBtn.style.verticalAlign = "top";
             tEl.className = 'trasa-item';
             tEl.textContent = tr.nazwa;
             tEl.title = tr.opis || '';
-            tEl.style.borderLeft = `4px solid ${tr.kolor || '#00ccff'}`;
+            tEl.style.borderLeft = `4px solid ${tr.kolor || DEFAULT_ROUTE_COLOR}`;
             if (tr.unsaved) tEl.classList.add('unsaved');
             tEl.onclick = (e) => {
               e.stopPropagation();
@@ -4195,7 +4390,7 @@ toggleBtn.style.verticalAlign = "top";
             dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
             IDpinezki: p.id,
             odKogo: p.odKogo || '',
-            trasy: (p.trasy || []).map(t => ({nazwa: t.nazwa, opis: t.opis || '', kolor: t.kolor || '#00ccff', punkty: t.punkty}))
+            trasy: (p.trasy || []).map(t => serializeRoute(t))
           };
           if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
           await db.collection('pinezki2').doc(firebaseId).set(payload);
