@@ -407,6 +407,9 @@ body, #sidebar, #basemap-switcher {
   bottom: 0;
   right: 0;
 }
+.popup-route-btn {
+  margin-top: 5px;
+}
 .popup-photo {
   width: 100%;
   max-height: 150px;
@@ -418,6 +421,9 @@ body, #sidebar, #basemap-switcher {
   overflow-x: auto;
   gap: 2px;
   margin-bottom: 4px;
+}
+.popup-info-item {
+  margin-bottom: 5px;
 }
 .photo-item {
   position: relative;
@@ -1646,12 +1652,12 @@ function emojiHtml(str) {
         <div class="popup-description${p.opis && p.opis.length > 100 ? ' scrollable' : ''}">${linkify(p.opis)}</div>
         <div style="height:4px;"></div>
         <div style="border-top:1px solid #444;"></div>
-        <div>Warstwa: ${p.warstwa || 'Inne'}</div>
-        ${p.kategoria ? `<div>Kategoria: ${p.kategoria}</div>` : ''}
-        ${p.odKogo ? `<div>Od kogo: ${p.odKogo}</div>` : ''}
-        <div>Data dodania: ${formatDate(p.dataDodania)}</div>
-        <div>${formatCoords(p.lat, p.lng)}</div>
-        <div><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
+        <div class="popup-info-item">Warstwa: ${p.warstwa || 'Inne'}</div>
+        ${p.kategoria ? `<div class="popup-info-item">Kategoria: ${p.kategoria}</div>` : ''}
+        ${p.odKogo ? `<div class="popup-info-item">Od kogo: ${p.odKogo}</div>` : ''}
+        <div class="popup-info-item">Data dodania: ${formatDate(p.dataDodania)}</div>
+        <div class="popup-info-item">${formatCoords(p.lat, p.lng)}</div>
+        <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
         <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
         <button class="popup-route-btn" id="routeBtn-${p.id}">Dodaj trasę</button>
       `;
