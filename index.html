@@ -1385,10 +1385,23 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       }
     });
 
-    function linkify(text) {
+    function sanitizeOpis(text) {
       if (!text) return '';
-      const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
       return text
+        .replace(/<img[^>]*mymaps\.usercontent[^>]*>/gi, '')
+        .replace(/https?:\/\/mymaps\.usercontent\.google\.com[^"'\s><]*/gi, '')
+        .replace(/mymaps\.usercontent\.google\.com[^"'\s><]*/gi, '')
+        .replace(/\s*height\s*=\s*['"]?200['"]?\s*width\s*=\s*['"]?auto['"]?\s*\/?\s*>?/gi, '')
+        .replace(/\bsrc\s*=\s*['"][^"']*mymaps\.usercontent[^"']*['"]/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    }
+
+    function linkify(text) {
+      const cleaned = sanitizeOpis(text);
+      if (!cleaned) return '';
+      const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+      return cleaned
         .replace(urlRegex, url => {
           const href = url.startsWith('http') ? url : `https://${url}`;
           let display;
@@ -1650,7 +1663,11 @@ function emojiHtml(str) {
         ${statusHtml}
         <div style="border-top:1px solid #444;"></div>
         <div style="height:4px;"></div>
-        <div class="popup-description${p.opis && p.opis.length > 100 ? ' scrollable' : ''}">${linkify(p.opis)}</div>
+        ${(() => {
+          const sanitized = sanitizeOpis(p.opis);
+          const shouldScroll = sanitized && sanitized.length > 100;
+          return `<div class="popup-description${shouldScroll ? ' scrollable' : ''}">${linkify(p.opis)}</div>`;
+        })()}
         <div style="height:4px;"></div>
         <div style="border-top:1px solid #444;"></div>
         <div class="popup-info-item">Warstwa: ${p.warstwa || 'Inne'}</div>
