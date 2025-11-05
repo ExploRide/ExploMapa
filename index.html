@@ -1176,6 +1176,8 @@ function slugify(str) {
     const mapEl = document.getElementById("map");
     let searchLayer = null;
     let searchMarker = null;
+    const addressCache = new Map();
+    const addressPromises = new Map();
     let layerDomRefs = {};
     let currentSearchTerm = '';
 
@@ -1417,6 +1419,71 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
 
     function formatCoords(lat, lng) {
       return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+    }
+
+    function resolveAddress(lat, lng) {
+      const key = `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
+      if (addressCache.has(key)) {
+        return Promise.resolve(addressCache.get(key));
+      }
+      if (addressPromises.has(key)) {
+        return addressPromises.get(key);
+      }
+
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&accept-language=pl`;
+      const request = fetch(url)
+        .then(resp => {
+          if (!resp.ok) {
+            throw new Error(`Reverse geocoding error: ${resp.status}`);
+          }
+          return resp.json();
+        })
+        .then(data => {
+          const address = data && data.address ? data.address : {};
+          const locality = address.city || address.town || address.village || address.municipality || address.hamlet || address.locality;
+          const road = address.road || address.pedestrian || address.footway || address.path || address.cycleway || address.residential;
+          const houseNumber = address.house_number || address.house;
+          let formatted = '';
+          if (road && houseNumber && locality) {
+            formatted = `${locality}, ${road} ${houseNumber}`;
+          } else if (road && locality) {
+            formatted = `${locality}, ${road}`;
+          } else if (locality) {
+            formatted = locality;
+          } else if (data && data.display_name) {
+            const segments = data.display_name.split(',').map(s => s.trim()).filter(Boolean);
+            formatted = segments.slice(0, 3).join(', ');
+          }
+          addressCache.set(key, formatted || null);
+          return formatted || null;
+        })
+        .catch(err => {
+          console.error('Failed to fetch address', err);
+          addressCache.set(key, null);
+          return null;
+        })
+        .finally(() => {
+          addressPromises.delete(key);
+        });
+
+      addressPromises.set(key, request);
+      return request;
+    }
+
+    function updatePopupAddress(container, lat, lng) {
+      const el = container ? container.querySelector('.popup-address') : null;
+      if (!el) return;
+      const targetLat = lat ?? parseFloat(el.dataset.lat);
+      const targetLng = lng ?? parseFloat(el.dataset.lng);
+      if (!Number.isFinite(targetLat) || !Number.isFinite(targetLng)) {
+        el.textContent = 'Adres: brak danych';
+        return;
+      }
+
+      el.textContent = 'Adres: wyszukiwanie...';
+      resolveAddress(targetLat, targetLng).then(result => {
+        el.textContent = result ? `Adres: ${result}` : 'Adres: brak danych';
+      });
     }
 
     function formatDate(ts) {
@@ -1674,6 +1741,7 @@ function emojiHtml(str) {
         ${p.kategoria ? `<div class="popup-info-item">Kategoria: ${p.kategoria}</div>` : ''}
         ${p.odKogo ? `<div class="popup-info-item">Od kogo: ${p.odKogo}</div>` : ''}
         <div class="popup-info-item">Data dodania: ${formatDate(p.dataDodania)}</div>
+        <div class="popup-info-item popup-address" data-lat="${p.lat}" data-lng="${p.lng}">Adres: wyszukiwanie...</div>
         <div class="popup-info-item">${formatCoords(p.lat, p.lng)}</div>
         <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
         <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
@@ -1702,6 +1770,7 @@ function emojiHtml(str) {
             startRouteDrawing(p);
           });
         }
+        updatePopupAddress(container, p.lat, p.lng);
         const range = container.querySelector(`#trudnoscRange-${p.id}`);
         const label = container.querySelector(`#trudnoscLabel-${p.id}`);
         if (range && label) {
