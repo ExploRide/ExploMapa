@@ -156,6 +156,19 @@
     .trasa-item { font-size: 12px; cursor: pointer; padding-left: 4px; }
     .route-line { stroke-width: 4; }
     .route-line:hover { filter: drop-shadow(0 0 3px black); }
+    .route-time-tooltip.leaflet-tooltip {
+      background: rgba(43, 43, 43, 0.92);
+      border: 1px solid #444;
+      color: #f0f0f0;
+      font-size: 12px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+    }
+
+    .route-time-tooltip.leaflet-tooltip::before {
+      display: none;
+    }
     .layer-separator {
       border-bottom: 1px solid #555;
       margin: 5px 0;
@@ -407,8 +420,24 @@ body, #sidebar, #basemap-switcher {
   bottom: 0;
   right: 0;
 }
-.popup-route-btn {
+.popup-route-actions {
+  display: flex;
+  gap: 6px;
   margin-top: 5px;
+}
+
+.popup-route-btn,
+.popup-direct-route-btn {
+  flex: 1;
+}
+
+.popup-direct-route-btn {
+  background: #2b2b2b;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #f0f0f0;
+  cursor: pointer;
+  padding: 6px 8px;
 }
 .popup-photo {
   width: 100%;
@@ -1745,7 +1774,10 @@ function emojiHtml(str) {
         <div class="popup-info-item">${formatCoords(p.lat, p.lng)}</div>
         <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
         <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
-        <button class="popup-route-btn" id="routeBtn-${p.id}">Dodaj trasę</button>
+        <div class="popup-route-actions">
+          <button class="popup-route-btn" id="routeBtn-${p.id}">Dodaj trasę</button>
+          <button class="popup-direct-route-btn" id="routeDirectBtn-${p.id}">Wyznacz trasę do</button>
+        </div>
       `;
     }
 
@@ -1768,6 +1800,14 @@ function emojiHtml(str) {
             ev.stopPropagation();
             map.closePopup();
             startRouteDrawing(p);
+          });
+        }
+        const directBtn = container.querySelector(`#routeDirectBtn-${p.id}`);
+        if (directBtn) {
+          directBtn.addEventListener('click', ev => {
+            ev.stopPropagation();
+            map.closePopup();
+            routeToPin(p, directBtn);
           });
         }
         updatePopupAddress(container, p.lat, p.lng);
@@ -4193,6 +4233,34 @@ function showRoutePopup(pinId, tr, latlng) {
       return [lat, lon];
     }
 
+    function formatRouteDuration(seconds) {
+      if (!Number.isFinite(seconds)) return null;
+      const minutes = Math.round(seconds / 60);
+      if (minutes <= 0) {
+        return '<1 min';
+      }
+      return `${minutes} min`;
+    }
+
+    async function fetchOsrmRoute(profile, sLat, sLon, eLat, eLon) {
+      const url = `https://router.project-osrm.org/route/v1/${profile}/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`OSRM ${profile} request failed`);
+      }
+      const json = await response.json();
+      if (!json.routes || !json.routes[0]) {
+        throw new Error('Brak trasy');
+      }
+      return json.routes[0];
+    }
+
+    async function resolveAddressToCoords(value) {
+      const coords = parseCoordinateInput(value);
+      if (coords) return coords;
+      return geocodeAddress(value);
+    }
+
     function initRouteSearch() {
       const btn = document.getElementById('routeCalculate');
       const useCurrent = document.getElementById('routeUseCurrent');
@@ -4284,42 +4352,112 @@ function showRoutePopup(pinId, tr, latlng) {
 
     async function showRoute(startAddr, endAddr, mode = 'driving') {
       try {
-        const startCoords = parseCoordinateInput(startAddr);
-        const endCoords = parseCoordinateInput(endAddr);
-        if (window.google && google.maps && google.maps.DirectionsService) {
-          const directionsService = new google.maps.DirectionsService();
-          const res = await directionsService.route({
-            origin: startCoords ? { lat: startCoords[0], lng: startCoords[1] } : startAddr,
-            destination: endCoords ? { lat: endCoords[0], lng: endCoords[1] } : endAddr,
-            travelMode: mode === 'walking' ? google.maps.TravelMode.WALKING : google.maps.TravelMode.DRIVING
-          });
-          const pts = res.routes[0].overview_path.map(p => [p.lat(), p.lng()]);
-          routingLayer.clearLayers();
-          const line = L.polyline(pts, {color: '#ff0000', weight: 4, className: 'route-line'}).addTo(routingLayer);
-          map.fitBounds(line.getBounds());
-          const clearBtn = document.getElementById('routeClear');
-          if (clearBtn) clearBtn.disabled = false;
-        } else {
-          const [sLat, sLon] = startCoords || await geocodeAddress(startAddr);
-          const [eLat, eLon] = endCoords || await geocodeAddress(endAddr);
-          const osrmProfile = mode === 'walking' ? 'walking' : 'driving';
-          const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${sLon},${sLat};${eLon},${eLat}?overview=full&geometries=geojson`;
-          const r = await fetch(url);
-          const json = await r.json();
-          if (!json.routes || !json.routes[0]) throw new Error('Brak trasy');
-          const coords = json.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-          routingLayer.clearLayers();
-          const line = L.polyline(coords, {color: '#ff0000', weight: 4, className: 'route-line'}).addTo(routingLayer);
-          map.fitBounds(line.getBounds());
-          const clearBtn = document.getElementById('routeClear');
-          if (clearBtn) clearBtn.disabled = false;
+        const [sLat, sLon] = await resolveAddressToCoords(startAddr);
+        const [eLat, eLon] = await resolveAddressToCoords(endAddr);
+
+        const routes = {};
+        const profiles = ['driving', 'walking'];
+        for (const profile of profiles) {
+          try {
+            routes[profile] = await fetchOsrmRoute(profile, sLat, sLon, eLat, eLon);
+          } catch (profileErr) {
+            console.warn(`Route calculation failed for ${profile}`, profileErr);
+          }
         }
+
+        const activeRoute = routes[mode] || routes.driving || routes.walking;
+        if (!activeRoute) {
+          throw new Error('Brak trasy');
+        }
+
+        routingLayer.clearLayers();
+        const coords = activeRoute.geometry.coordinates.map(c => [c[1], c[0]]);
+        const line = L.polyline(coords, {color: '#ff0000', weight: 4, className: 'route-line'}).addTo(routingLayer);
+        map.fitBounds(line.getBounds());
+
+        const drivingDuration = routes.driving?.duration;
+        const walkingDuration = routes.walking?.duration;
+        const tooltipParts = [];
+        if (drivingDuration !== undefined) {
+          const formatted = formatRouteDuration(drivingDuration);
+          if (formatted) tooltipParts.push(`🚗 ${formatted}`);
+        }
+        if (walkingDuration !== undefined) {
+          const formatted = formatRouteDuration(walkingDuration);
+          if (formatted) tooltipParts.push(`🚶‍♂️ ${formatted}`);
+        }
+        if (tooltipParts.length > 0) {
+          line.bindTooltip(tooltipParts.join('<br>'), {
+            permanent: true,
+            direction: 'center',
+            className: 'route-time-tooltip'
+          }).openTooltip();
+        }
+
+        const clearBtn = document.getElementById('routeClear');
+        if (clearBtn) clearBtn.disabled = false;
+        return true;
       } catch (err) {
         console.error('Route error', err);
         alert('Nie udało się wyznaczyć trasy');
         const clearBtn = document.getElementById('routeClear');
         if (clearBtn && routingLayer && routingLayer.getLayers().length === 0) {
           clearBtn.disabled = true;
+        }
+        return false;
+      }
+    }
+
+    function getCurrentPositionAsync(options = {}) {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolokalizacja niedostępna'));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, options);
+      });
+    }
+
+    async function routeToPin(pin, button) {
+      if (!pin) return;
+      const originalText = button?.textContent;
+      try {
+        if (button) {
+          button.disabled = true;
+          button.textContent = '…';
+        }
+        const position = await getCurrentPositionAsync({ enableHighAccuracy: true, timeout: 15000 });
+        const { latitude, longitude } = position.coords;
+        const startValue = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        const endValue = `${pin.lat.toFixed(6)}, ${pin.lng.toFixed(6)}`;
+
+        const startInput = document.getElementById('routeStart');
+        const endInput = document.getElementById('routeEnd');
+        if (startInput) startInput.value = startValue;
+        if (endInput) endInput.value = endValue;
+
+        const mode = document.querySelector('input[name="routeMode"]:checked')?.value || 'driving';
+        const success = await showRoute(startValue, endValue, mode);
+        if (!success) {
+          return;
+        }
+      } catch (err) {
+        console.error('Route to pin error', err);
+        if (err.code === 1) {
+          alert('Brak zgody na dostęp do lokalizacji.');
+        } else if (err.code === 2) {
+          alert('Nie udało się ustalić Twojej lokalizacji.');
+        } else if (err.code === 3) {
+          alert('Przekroczono czas oczekiwania na lokalizację.');
+        } else if (err.message === 'Geolokalizacja niedostępna') {
+          alert('Twoja przeglądarka nie wspiera geolokalizacji.');
+        } else {
+          alert('Nie udało się wyznaczyć trasy do tej pinezki.');
+        }
+      } finally {
+        if (button) {
+          button.textContent = originalText || 'Wyznacz trasę do';
+          button.disabled = false;
         }
       }
     }
