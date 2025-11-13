@@ -4106,6 +4106,8 @@ function showRoutePopup(pinId, tr, latlng) {
         const btn = document.getElementById('gpsFollowBtn');
         if (btn) btn.style.display = 'block';
       }
+      const latNum = typeof lat === 'string' ? parseFloat(lat) : lat;
+      const lngNum = typeof lng === 'string' ? parseFloat(lng) : lng;
       if (searchLayer) {
         map.removeLayer(searchLayer.layer);
         delete warstwy['wyszukane'];
@@ -4114,11 +4116,17 @@ function showRoutePopup(pinId, tr, latlng) {
       }
       searchLayer = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', temporary: true };
       warstwy['wyszukane'] = searchLayer;
-      const latlng = L.latLng(lat, lng);
+      const latlng = L.latLng(latNum, lngNum);
       searchMarker = L.marker(latlng, {icon: greenIcon}).addTo(searchLayer.layer);
-      const coordsDisplay = formatCoords(lat, lng);
+      const coordsDisplay = formatCoords(latNum, lngNum);
       const container = document.createElement('div');
-      container.innerHTML = `${label}<br>${coordsDisplay}<br><button id="addSearchPin">dodaj pinezkę</button>`;
+      container.innerHTML = `
+        <div>${label}</div>
+        <div>${coordsDisplay}</div>
+        <div class="popup-route-actions">
+          <button class="popup-direct-route-btn" id="routeSearchBtn">Wyznacz trasę do</button>
+          <button class="popup-route-btn" id="addSearchPin">dodaj pinezkę</button>
+        </div>`;
       searchMarker.bindPopup(container).openPopup();
       container.querySelector('#addSearchPin').addEventListener('click', () => {
         if (searchLayer) {
@@ -4130,7 +4138,14 @@ function showRoutePopup(pinId, tr, latlng) {
         }
         openNewPinPopup(latlng);
       });
-      searchLayer.lista.push({ id: 'search', nazwa: label, marker: searchMarker, lat, lng });
+      const routeBtn = container.querySelector('#routeSearchBtn');
+      if (routeBtn) {
+        routeBtn.addEventListener('click', () => {
+          map.closePopup();
+          routeToPin({ lat: latNum, lng: lngNum }, routeBtn);
+        });
+      }
+      searchLayer.lista.push({ id: 'search', nazwa: label, marker: searchMarker, lat: latNum, lng: lngNum });
       generujListeWarstw();
     }
 
