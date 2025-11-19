@@ -1528,23 +1528,25 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
 
     function trudnoscText(val) {
       switch (parseInt(val, 10)) {
+        case 0: return 'Nieznany';
         case 1: return 'Bardzo łatwy';
         case 2: return 'Łatwy';
         case 3: return 'Średni';
         case 4: return 'Trudny';
         case 5: return 'Bardzo trudny';
-        default: return '';
+        default: return 'Nieznany';
       }
     }
 
     function trudnoscColor(val) {
       switch (parseInt(val, 10)) {
+        case 0: return '#555555';
         case 1: return 'green';
         case 2: return 'limegreen';
         case 3: return 'yellow';
         case 4: return 'orange';
         case 5: return 'red';
-        default: return '';
+        default: return '#555555';
       }
     }
 
@@ -2884,11 +2886,11 @@ function zaladujPinezkiZFirestore() {
         <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
-          <input type="range" id="etrudnosc" class="trudnosc-range" min="1" max="5" step="1" value="${p.trudnosc ?? 3}">
+          <input type="range" id="etrudnosc" class="trudnosc-range" min="0" max="5" step="1" value="${p.trudnosc ?? 0}">
           <div class="trudnosc-labels">
-            <span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
+            <span>Nieznany</span><span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
           </div>
-          <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 3)}">${trudnoscText(p.trudnosc ?? 3)}</div>
+          <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 0)}">${trudnoscText(p.trudnosc ?? 0)}</div>
         </div>
         ${buildStatusGrid('e', '', p)}
         <button id="movePinBtn-${id}">📍 Zmień położenie</button>
@@ -3130,7 +3132,7 @@ function zaladujPinezkiZFirestore() {
         id: newId,
         slug: `tmp-${newId}`,
         emoji: defaultEmoji,
-        trudnosc: 3
+        trudnosc: 0
       };
       const container = document.createElement("div");
       container.className = "popup-container edit-popup";
@@ -3147,11 +3149,11 @@ function zaladujPinezkiZFirestore() {
         <input id="kategoriaNew" placeholder="Kategoria" style="width: 102%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
-          <input type="range" id="trudnoscNew" class="trudnosc-range" min="1" max="5" step="1" value="3">
+          <input type="range" id="trudnoscNew" class="trudnosc-range" min="0" max="5" step="1" value="0">
           <div class="trudnosc-labels">
-            <span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
+            <span>Nieznany</span><span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
           </div>
-          <div class="trudnosc-value" id="trudnoscNewLabel" style="color:${trudnoscColor(3)}">${trudnoscText(3)}</div>
+          <div class="trudnosc-value" id="trudnoscNewLabel" style="color:${trudnoscColor(0)}">${trudnoscText(0)}</div>
         </div>
         ${buildStatusGrid('', 'New')}
         <button id="saveNew">💾 Zapisz</button>
@@ -5379,7 +5381,7 @@ function confirmLayerDelete() {
         warstwaId: movingLayerId,
         kategoria: '',
         emoji: '',
-        trudnosc: 3,
+        trudnosc: 0,
         lat: currentLocation[0],
         lng: currentLocation[1],
         dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
@@ -5395,7 +5397,7 @@ function confirmLayerDelete() {
         warstwaId: movingLayerId,
         kategoria: '',
         emoji: '',
-        trudnosc: 3,
+        trudnosc: 0,
         lat: currentLocation[0],
         lng: currentLocation[1],
         dataDodania: Date.now(),
@@ -5579,7 +5581,7 @@ function confirmLayerDelete() {
         fromInput.style.display = '';
         fromInput.value = '';
         trudWrapper.style.display = '';
-        trudInput.value = 3;
+        trudInput.value = 0;
         trudInput.dispatchEvent(new Event('input'));
         modal.style.display = 'flex';
         refreshMobileEmojiPicker();
@@ -5689,9 +5691,9 @@ function confirmLayerDelete() {
       </div>
       <div class="trudnosc-wrapper" id="mobileTrudnoscWrapper">
         <div class="trudnosc-title">Poziom trudności</div>
-        <input type="range" id="mobilePinTrudnosc" class="trudnosc-range" min="1" max="5" step="1" value="3">
+        <input type="range" id="mobilePinTrudnosc" class="trudnosc-range" min="0" max="5" step="1" value="0">
         <div class="trudnosc-labels">
-          <span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
+          <span>Nieznany</span><span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
         </div>
         <div class="trudnosc-value" id="mobilePinTrudnoscLabel"></div>
       </div>
