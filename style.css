@@ -393,15 +393,17 @@
   border-radius: 5px;
   background: repeating-linear-gradient(
     to right,
-    green 0%,
-    green 20%,
-    limegreen 20%,
-    limegreen 40%,
-    yellow 40%,
-    yellow 60%,
-    orange 60%,
-    orange 80%,
-    red 80%,
+    #555555 0%,
+    #555555 16.66%,
+    green 16.66%,
+    green 33.32%,
+    limegreen 33.32%,
+    limegreen 49.98%,
+    yellow 49.98%,
+    yellow 66.64%,
+    orange 66.64%,
+    orange 83.3%,
+    red 83.3%,
     red 100%
   );
   outline: none;
