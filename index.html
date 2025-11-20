@@ -1410,7 +1410,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     selectTool("hand");
 
     window.addEventListener('beforeunload', e => {
-      if (shouldWarnBeforeUnload) {
+      if (hasUnsavedChanges()) {
         e.preventDefault();
         e.returnValue = 'Masz niezapisane zmiany. Czy na pewno chcesz wyjść?';
       }
