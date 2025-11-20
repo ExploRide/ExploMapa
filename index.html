@@ -58,8 +58,34 @@
       color: #f0f0f0;
       border-left: 1px solid #ccc;
       padding: 10px;
-      overflow-y: auto;
       font-size: 12px !important;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      gap: 10px;
+      overflow: hidden;
+    }
+    #basemap-content {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    #basemap-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: auto;
+    }
+    #basemap-actions button {
+      width: 100%;
+      background: #2b2b2b;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #f0f0f0;
+      cursor: pointer;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-weight: 600;
     }
     #history-log {
       border-top: 1px solid #444;
@@ -321,10 +347,11 @@ width: 15px;
     }
     #exportKML {
       background-color: #007bff;
-      position: fixed;
-      bottom: 70px;
-      right: 45px;
-      z-index: 1000;
+      border-color: #0068d7;
+    }
+    #saveChanges {
+      background-color: #28a745;
+      border-color: #218838;
     }
     #map.pin-cursor {
       cursor: url('https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2.png') 13 43, auto !important;
@@ -820,66 +847,72 @@ img.emoji {
   <button id="toggleLayers">☰ Warstwy</button>
   <button id="toggleBasemaps">☰ Mapy</button>
   <div id="basemap-switcher">
-    <h3>Rodzaj mapy</h3>
-    <div id="map-date-controls"><span id="map-date-badge"></span><select id="map-year-select" style="display:none;"></select></div>
-    <details>
-      <summary><strong>Bazy</strong></summary>
-      <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
-      <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
-      <label><input type="radio" name="basemap" value="hill"> Cieniowanie</label><br>
-      <label><input type="radio" name="basemap" value="orto-wmts-std"> Orto (WMTS – Standard)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
-      <label><input type="radio" name="basemap" value="orto-wmts-hi"> Orto HighRes (WMTS – HighResolution)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
-      <label><input type="radio" name="basemap" value="orto-wms-std"> Orto (WMS – Standard)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
-      <label><input type="radio" name="basemap" value="orto-wms-hi"> Orto HighRes (WMS – HighResolution)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
-      <label><input type="radio" name="basemap" value="orto-wms-std-time"> Orto archiwalne (WMS Time – Standard)</label><br>
-      <label><input type="radio" name="basemap" value="orto-wms-hi-time"> Orto archiwalne (WMS Time – HighRes)</label><br>
-      <label><input type="radio" name="basemap" value="true-orto"> True Ortho (WMS)<button type="button" class="info-btn" data-info="TrueOrtho – brak zniekształceń od wysokości">i</button></label><br>
-      <label><input type="radio" name="basemap" value="otm-trails"> OpenTopoMap + Szlaki (Waymarked)</label><br>
-    </details>
-    <div class="layer-separator"></div>
-    <details>
-      <summary><strong>Nakładki</strong></summary>
-      <div class="overlay-item">
-        <label><input type="checkbox" id="overlay-arch-std"> Orto Archiwalne – Standard (WMS)
-          <button type="button" class="opacity-btn" data-target="archStd">⚙</button>
-          <button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button>
-        </label><br>
-        <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archStd">
-      </div>
-      <div class="overlay-item">
-        <label><input type="checkbox" id="overlay-arch-hi"> Orto Archiwalne – HighRes (WMS)
-          <button type="button" class="opacity-btn" data-target="archHi">⚙</button>
-          <button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button>
-        </label><br>
-        <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archHi">
-      </div>
-    </details>
+    <div id="basemap-content">
+      <h3>Rodzaj mapy</h3>
+      <div id="map-date-controls"><span id="map-date-badge"></span><select id="map-year-select" style="display:none;"></select></div>
+      <details>
+        <summary><strong>Bazy</strong></summary>
+        <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
+        <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
+        <label><input type="radio" name="basemap" value="hill"> Cieniowanie</label><br>
+        <label><input type="radio" name="basemap" value="orto-wmts-std"> Orto (WMTS – Standard)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
+        <label><input type="radio" name="basemap" value="orto-wmts-hi"> Orto HighRes (WMTS – HighResolution)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
+        <label><input type="radio" name="basemap" value="orto-wms-std"> Orto (WMS – Standard)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
+        <label><input type="radio" name="basemap" value="orto-wms-hi"> Orto HighRes (WMS – HighResolution)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
+        <label><input type="radio" name="basemap" value="orto-wms-std-time"> Orto archiwalne (WMS Time – Standard)</label><br>
+        <label><input type="radio" name="basemap" value="orto-wms-hi-time"> Orto archiwalne (WMS Time – HighRes)</label><br>
+        <label><input type="radio" name="basemap" value="true-orto"> True Ortho (WMS)<button type="button" class="info-btn" data-info="TrueOrtho – brak zniekształceń od wysokości">i</button></label><br>
+        <label><input type="radio" name="basemap" value="otm-trails"> OpenTopoMap + Szlaki (Waymarked)</label><br>
+      </details>
+      <div class="layer-separator"></div>
+      <details>
+        <summary><strong>Nakładki</strong></summary>
+        <div class="overlay-item">
+          <label><input type="checkbox" id="overlay-arch-std"> Orto Archiwalne – Standard (WMS)
+            <button type="button" class="opacity-btn" data-target="archStd">⚙</button>
+            <button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button>
+          </label><br>
+          <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archStd">
+        </div>
+        <div class="overlay-item">
+          <label><input type="checkbox" id="overlay-arch-hi"> Orto Archiwalne – HighRes (WMS)
+            <button type="button" class="opacity-btn" data-target="archHi">⚙</button>
+            <button type="button" class="info-btn" data-info="Archiwum – historyczne ujęcia">i</button>
+          </label><br>
+          <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archHi">
+        </div>
+      </details>
 
-    <h3>Widok ulic</h3>
-    <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
-    <label><input type="radio" name="streets" value="main"> Tylko główne trasy</label><br>
-    <label><input type="radio" name="streets" value="none"> Brak ulic</label><br>
+      <h3>Widok ulic</h3>
+      <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
+      <label><input type="radio" name="streets" value="main"> Tylko główne trasy</label><br>
+      <label><input type="radio" name="streets" value="none"> Brak ulic</label><br>
 
-    <div id="route-controls">
-      <h3>Wyznacz trasę</h3>
-      <div class="route-input-group">
-        <input type="text" id="routeStart" placeholder="Punkt początkowy">
-        <button id="routeUseCurrent" type="button" title="Ustaw moją lokalizację">📍</button>
+      <div id="route-controls">
+        <h3>Wyznacz trasę</h3>
+        <div class="route-input-group">
+          <input type="text" id="routeStart" placeholder="Punkt początkowy">
+          <button id="routeUseCurrent" type="button" title="Ustaw moją lokalizację">📍</button>
+        </div>
+        <div class="route-input-group">
+          <input type="text" id="routeEnd" placeholder="Punkt końcowy">
+        </div>
+        <div class="route-mode-options">
+          <label><input type="radio" name="routeMode" value="driving" checked> Trasa samochodowa</label>
+          <label><input type="radio" name="routeMode" value="walking"> Trasa piesza</label>
+        </div>
+        <div class="route-actions">
+          <button id="routeCalculate" type="button">Pokaż trasę</button>
+          <button id="routeClear" type="button" class="route-clear" title="Usuń wyznaczoną trasę">X</button>
+        </div>
       </div>
-      <div class="route-input-group">
-        <input type="text" id="routeEnd" placeholder="Punkt końcowy">
-      </div>
-      <div class="route-mode-options">
-        <label><input type="radio" name="routeMode" value="driving" checked> Trasa samochodowa</label>
-        <label><input type="radio" name="routeMode" value="walking"> Trasa piesza</label>
-      </div>
-      <div class="route-actions">
-        <button id="routeCalculate" type="button">Pokaż trasę</button>
-        <button id="routeClear" type="button" class="route-clear" title="Usuń wyznaczoną trasę">X</button>
-      </div>
+      <h3>Historia edycji</h3>
+      <div id="history-log"></div>
     </div>
-    <h3>Historia edycji</h3>
-    <div id="history-log"></div>
+    <div id="basemap-actions">
+      <button id="saveChanges">Zapisz edycję mapy</button>
+      <button id="exportKML">Zapisz do .KML</button>
+    </div>
   </div>
   <div id="layer-editor">
     <h3>Edycja warstwy</h3>
@@ -901,8 +934,6 @@ img.emoji {
     <button id="routeEditClose" onclick="closeRouteEditor()">Zamknij</button>
     <button id="routeEditApply" onclick="applyRouteEdits()">Zastosuj</button>
   </div>
-  <button id="exportKML">Zapisz do .KML</button>
-  <button id="saveChanges">Zapisz edycję mapy</button>
   <button id="gpsFollowBtn">GPS</button>
 
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
