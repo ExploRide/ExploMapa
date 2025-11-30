@@ -182,6 +182,45 @@
     .trasa-item { font-size: 12px; cursor: pointer; padding-left: 4px; }
     .route-line { stroke-width: 4; }
     .route-line:hover { filter: drop-shadow(0 0 3px black); }
+    .plan-item { font-size: 12px; cursor: pointer; padding-left: 4px; display: flex; align-items: center; gap: 6px; }
+    .plan-item .plan-name { flex: 1; text-decoration: underline; }
+    .plan-item .plan-visibility { flex-shrink: 0; }
+    .plan-option-panel {
+      position: absolute;
+      background: #2b2b2b;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 10px;
+      z-index: 5000;
+      color: #f0f0f0;
+      width: 240px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+    }
+    .plan-option-panel h4 { margin: 0 0 6px 0; font-size: 14px; }
+    .plan-option-panel .row { margin-bottom: 8px; display: flex; gap: 6px; align-items: center; }
+    .plan-option-panel label { font-size: 12px; }
+    .plan-option-panel input[type="text"] { width: 100%; }
+    .plan-option-panel input[type="range"] { width: 100%; }
+    .plan-option-panel button { width: 100%; margin-top: 4px; }
+    .plan-editor-panel {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #2b2b2b;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 10px;
+      z-index: 4500;
+      color: #f0f0f0;
+      min-width: 280px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+    }
+    .plan-editor-panel h4 { margin: 0 0 6px 0; }
+    .plan-editor-panel .row { margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+    .plan-editor-panel input[type="text"] { flex: 1; }
+    .plan-editor-panel .hint { font-size: 12px; opacity: 0.8; }
+    .plan-editor-panel .actions { display: flex; gap: 6px; }
     .route-time-tooltip.leaflet-tooltip {
       background: rgba(43, 43, 43, 0.92);
       border: 1px solid #444;
@@ -844,6 +883,24 @@ img.emoji {
     <button id="redoBtn" class="tool-btn" title="Ponów">➡️</button>
   </div>
   <div id="map"></div>
+  <div id="planEditor" class="plan-editor-panel" style="display:none;">
+    <h4>Dodawanie planu</h4>
+    <div class="row"><input type="text" id="planNameInput" placeholder="Nazwa planu"></div>
+    <div class="row">
+      <label for="planScale">Skala</label>
+      <input type="range" id="planScale" min="25" max="300" value="100">
+    </div>
+    <div class="row">
+      <label for="planOpacity">Przezroczystość</label>
+      <input type="range" id="planOpacity" min="20" max="100" value="100">
+    </div>
+    <div class="hint">Kliknij na mapie, aby przesunąć plan w wybrane miejsce.</div>
+    <div class="actions">
+      <button id="planCancel">Anuluj</button>
+      <button id="planConfirm">Zatwierdź</button>
+    </div>
+  </div>
+  <div id="planOptions" class="plan-option-panel" style="display:none;"></div>
   <button id="toggleLayers">☰ Warstwy</button>
   <button id="toggleBasemaps">☰ Mapy</button>
   <div id="basemap-switcher">
@@ -1221,6 +1278,9 @@ function slugify(str) {
     let layersToAdd = [];
     let layersToDelete = [];
     let pinsToDelete = [];
+    const planLayers = {};
+    let activePlanPlacement = null;
+    let planOptionsState = null;
     let initialLayerOrder = [];
     let layerOrderChanged = false;
     let currentTool = "hand";
@@ -1771,6 +1831,318 @@ function emojiHtml(str) {
       });
     }
 
+    function ensurePlanDefaults(plan, pin) {
+      if (!plan) return null;
+      if (!plan.id) plan.id = 'plan_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+      if (!plan.pozycja) {
+        const pos = pin ? L.latLng(pin.lat, pin.lng) : map.getCenter();
+        plan.pozycja = { lat: pos.lat, lng: pos.lng };
+      }
+      if (!plan.szerokosc) plan.szerokosc = 120;
+      if (!plan.wysokosc) plan.wysokosc = plan.szerokosc;
+      if (!plan.proporcja) plan.proporcja = plan.szerokosc && plan.wysokosc ? (plan.szerokosc / plan.wysokosc) : 1;
+      if (!plan.bazowaSzerokosc) plan.bazowaSzerokosc = plan.szerokosc;
+      if (!plan.skala) plan.skala = 100;
+      if (plan.przezroczystosc === undefined || plan.przezroczystosc === null) plan.przezroczystosc = 1;
+      if (plan.widoczny === undefined) plan.widoczny = true;
+      if (!plan.nazwa) {
+        const total = pin && pin.plany ? pin.plany.length : 0;
+        plan.nazwa = `Plan ${total + 1}`;
+      }
+      return plan;
+    }
+
+    function getPlanBounds(plan) {
+      const center = L.latLng(plan.pozycja.lat, plan.pozycja.lng);
+      const halfWm = (plan.szerokosc || 120) / 2;
+      const ratio = plan.proporcja || 1;
+      const halfHm = (plan.wysokosc || (plan.szerokosc || 120) / (ratio || 1)) / 2;
+      const latDelta = halfHm / 111320;
+      const lngDelta = halfWm / (111320 * Math.cos(center.lat * Math.PI / 180));
+      return L.latLngBounds([
+        [center.lat - latDelta, center.lng - lngDelta],
+        [center.lat + latDelta, center.lng + lngDelta]
+      ]);
+    }
+
+    function shouldPlanBeVisible(pin, plan) {
+      const layerVisible = pin && pin.warstwa && warstwy[pin.warstwa] ? warstwy[pin.warstwa].visible !== false : true;
+      const pinVisible = (selectedCategories.size === 0 || selectedCategories.has(pin.kategoria || '')) && pinMatchesStatus(pin);
+      return (plan.widoczny !== false) && layerVisible && pinVisible;
+    }
+
+    function ensurePlanOverlay(pin, plan) {
+      ensurePlanDefaults(plan, pin);
+      let overlay = planLayers[plan.id];
+      const bounds = getPlanBounds(plan);
+      if (!overlay) {
+        overlay = L.imageOverlay(plan.url, bounds, { opacity: plan.przezroczystosc || 1, interactive: true });
+        planLayers[plan.id] = overlay;
+        plan.layer = overlay;
+      } else {
+        overlay.setBounds(bounds);
+        overlay.setOpacity(plan.przezroczystosc || 1);
+      }
+      if (shouldPlanBeVisible(pin, plan)) {
+        overlay.addTo(map);
+      } else {
+        map.removeLayer(overlay);
+      }
+      return overlay;
+    }
+
+    function updatePlanOverlay(pin, plan) {
+      if (!plan) return;
+      ensurePlanDefaults(plan, pin);
+      if (!planLayers[plan.id]) return ensurePlanOverlay(pin, plan);
+      const overlay = planLayers[plan.id];
+      overlay.setBounds(getPlanBounds(plan));
+      overlay.setOpacity(plan.przezroczystosc || 1);
+      if (shouldPlanBeVisible(pin, plan)) {
+        overlay.addTo(map);
+      } else {
+        map.removeLayer(overlay);
+      }
+      return overlay;
+    }
+
+    function removePlanOverlay(plan) {
+      if (!plan) return;
+      const overlay = planLayers[plan.id];
+      if (overlay) {
+        map.removeLayer(overlay);
+        delete planLayers[plan.id];
+      }
+      delete plan.layer;
+    }
+
+    function updatePlanVisibilityForPin(pin) {
+      if (!pin || !pin.plany) return;
+      pin.plany.forEach(pl => updatePlanOverlay(pin, pl));
+    }
+
+    function markPlanChange(pin) {
+      markPinUnsaved(pin.slug);
+      zmianyDoZapisania[pin.id] = Object.assign(zmianyDoZapisania[pin.id] || {}, { plany: serializePlans(pin) });
+      updateSaveButton();
+    }
+
+    function serializePlans(pin) {
+      return (pin.plany || []).map(pl => {
+        const copy = { ...pl };
+        ensurePlanDefaults(copy, pin);
+        return {
+          id: copy.id,
+          nazwa: copy.nazwa,
+          url: copy.url,
+          path: copy.path || null,
+          pozycja: copy.pozycja,
+          szerokosc: copy.szerokosc,
+          wysokosc: copy.wysokosc,
+          proporcja: copy.proporcja,
+          bazowaSzerokosc: copy.bazowaSzerokosc,
+          skala: copy.skala,
+          przezroczystosc: copy.przezroczystosc,
+          widoczny: copy.widoczny !== false
+        };
+      });
+    }
+
+    function openPlanEditor(pin, plan, mode = 'new') {
+      const editor = document.getElementById('planEditor');
+      if (!editor) return;
+      ensurePlanDefaults(plan, pin);
+      activePlanPlacement = { pin, plan, mode, original: mode === 'edit' ? JSON.parse(JSON.stringify(plan)) : null };
+      ensurePlanOverlay(pin, plan);
+      const nameInput = document.getElementById('planNameInput');
+      const scaleInput = document.getElementById('planScale');
+      const opacityInput = document.getElementById('planOpacity');
+      if (nameInput) nameInput.value = plan.nazwa || '';
+      if (scaleInput) scaleInput.value = plan.skala || 100;
+      if (opacityInput) opacityInput.value = Math.round((plan.przezroczystosc || 1) * 100);
+      editor.style.display = 'block';
+      map.on('click', onPlanMapClick);
+    }
+
+    function closePlanEditor(cancelled = false) {
+      const editor = document.getElementById('planEditor');
+      if (!editor) return;
+      editor.style.display = 'none';
+      map.off('click', onPlanMapClick);
+      if (activePlanPlacement && cancelled) {
+        if (activePlanPlacement.mode === 'new') {
+          removePlanOverlay(activePlanPlacement.plan);
+        } else if (activePlanPlacement.original) {
+          Object.assign(activePlanPlacement.plan, activePlanPlacement.original);
+          updatePlanOverlay(activePlanPlacement.pin, activePlanPlacement.plan);
+        }
+      }
+      activePlanPlacement = null;
+    }
+
+    function onPlanMapClick(e) {
+      if (!activePlanPlacement) return;
+      activePlanPlacement.plan.pozycja = { lat: e.latlng.lat, lng: e.latlng.lng };
+      updatePlanOverlay(activePlanPlacement.pin, activePlanPlacement.plan);
+    }
+
+    function planScaleChanged(value) {
+      if (!activePlanPlacement) return;
+      const plan = activePlanPlacement.plan;
+      plan.skala = parseInt(value, 10) || 100;
+      plan.szerokosc = (plan.bazowaSzerokosc || plan.szerokosc) * (plan.skala / 100);
+      plan.wysokosc = plan.szerokosc / (plan.proporcja || 1);
+      updatePlanOverlay(activePlanPlacement.pin, plan);
+    }
+
+    function planOpacityChanged(value) {
+      if (!activePlanPlacement) return;
+      const plan = activePlanPlacement.plan;
+      plan.przezroczystosc = (parseInt(value, 10) || 100) / 100;
+      updatePlanOverlay(activePlanPlacement.pin, plan);
+    }
+
+    function confirmPlanPlacement() {
+      if (!activePlanPlacement) return;
+      const { pin, plan, mode } = activePlanPlacement;
+      ensurePlanDefaults(plan, pin);
+      const nameInput = document.getElementById('planNameInput');
+      if (nameInput && nameInput.value.trim()) plan.nazwa = nameInput.value.trim();
+      if (!pin.plany) pin.plany = [];
+      if (mode === 'new') {
+        pin.plany.push(plan);
+      }
+      plan.unsaved = true;
+      updatePlanOverlay(pin, plan);
+      markPlanChange(pin);
+      closePlanEditor(false);
+      generujListeWarstw();
+    }
+
+    function startPlanUpload(pin) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.addEventListener('change', () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          const dataUrl = ev.target.result;
+          const img = new Image();
+          img.onload = () => {
+            const plan = {
+              url: dataUrl,
+              szerokosc: 140,
+              wysokosc: 140 * (img.height ? img.height / img.width : 1),
+              proporcja: img.width ? img.width / img.height : 1,
+              bazowaSzerokosc: 140,
+              skala: 100,
+              przezroczystosc: 0.8
+            };
+            ensurePlanDefaults(plan, pin);
+            openPlanEditor(pin, plan, 'new');
+          };
+          img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+      });
+      input.click();
+    }
+
+    function openPlanOptions(pin, plan, anchor) {
+      const panel = document.getElementById('planOptions');
+      if (!panel) return;
+      planOptionsState = { pin, plan };
+      panel.innerHTML = '';
+      const rect = anchor.getBoundingClientRect();
+      panel.style.top = `${rect.bottom + window.scrollY + 6}px`;
+      panel.style.left = `${rect.left + window.scrollX}px`;
+      const title = document.createElement('h4');
+      title.textContent = 'Plan';
+      const nameRow = document.createElement('div');
+      nameRow.className = 'row';
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.value = plan.nazwa || '';
+      nameInput.addEventListener('input', () => {
+        plan.nazwa = nameInput.value;
+        plan.unsaved = true;
+        generujListeWarstw();
+        markPlanChange(pin);
+      });
+      nameRow.appendChild(nameInput);
+
+      const opacityRow = document.createElement('div');
+      opacityRow.className = 'row';
+      const opLabel = document.createElement('label');
+      opLabel.textContent = 'Przezroczystość';
+      const opSlider = document.createElement('input');
+      opSlider.type = 'range';
+      opSlider.min = 20; opSlider.max = 100;
+      opSlider.value = Math.round((plan.przezroczystosc || 1) * 100);
+      opSlider.addEventListener('input', () => {
+        plan.przezroczystosc = (parseInt(opSlider.value, 10) || 100) / 100;
+        plan.unsaved = true;
+        updatePlanOverlay(pin, plan);
+        markPlanChange(pin);
+      });
+      opacityRow.appendChild(opLabel);
+      opacityRow.appendChild(opSlider);
+
+      const scaleRow = document.createElement('div');
+      scaleRow.className = 'row';
+      const scLabel = document.createElement('label');
+      scLabel.textContent = 'Skala';
+      const scSlider = document.createElement('input');
+      scSlider.type = 'range'; scSlider.min = 25; scSlider.max = 300;
+      scSlider.value = plan.skala || 100;
+      scSlider.addEventListener('input', () => {
+        plan.skala = parseInt(scSlider.value, 10) || 100;
+        plan.szerokosc = (plan.bazowaSzerokosc || plan.szerokosc) * (plan.skala / 100);
+        plan.wysokosc = plan.szerokosc / (plan.proporcja || 1);
+        plan.unsaved = true;
+        updatePlanOverlay(pin, plan);
+        markPlanChange(pin);
+      });
+      scaleRow.appendChild(scLabel);
+      scaleRow.appendChild(scSlider);
+
+      const repositionBtn = document.createElement('button');
+      repositionBtn.textContent = 'Zmień pozycję na mapie';
+      repositionBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        panel.style.display = 'none';
+        openPlanEditor(pin, plan, 'edit');
+      });
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Usuń plan';
+      deleteBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        pin.plany = (pin.plany || []).filter(pl => pl !== plan);
+        removePlanOverlay(plan);
+        markPlanChange(pin);
+        panel.style.display = 'none';
+        generujListeWarstw();
+      });
+
+      panel.appendChild(title);
+      panel.appendChild(nameRow);
+      panel.appendChild(opacityRow);
+      panel.appendChild(scaleRow);
+      panel.appendChild(repositionBtn);
+      panel.appendChild(deleteBtn);
+      panel.style.display = 'block';
+    }
+
+    document.addEventListener('click', e => {
+      const panel = document.getElementById('planOptions');
+      if (panel && panel.style.display === 'block' && !panel.contains(e.target)) {
+        panel.style.display = 'none';
+      }
+    });
+
     function createPopupHtml(p) {
       const slug = p.slug || slugify(p.nazwa || '');
       const trudHtml = p.trudnosc !== undefined ?
@@ -1810,6 +2182,7 @@ function emojiHtml(str) {
         <div class="popup-route-actions">
           <button class="popup-route-btn" id="routeBtn-${p.id}">Dodaj trasę</button>
           <button class="popup-direct-route-btn" id="routeDirectBtn-${p.id}">Wyznacz trasę do</button>
+          <button class="popup-route-btn" id="planBtn-${p.id}">Dodaj plan</button>
         </div>
       `;
     }
@@ -1841,6 +2214,14 @@ function emojiHtml(str) {
             ev.stopPropagation();
             map.closePopup();
             routeToPin(p, directBtn);
+          });
+        }
+        const planBtn = container.querySelector(`#planBtn-${p.id}`);
+        if (planBtn) {
+          planBtn.addEventListener('click', ev => {
+            ev.stopPropagation();
+            map.closePopup();
+            startPlanUpload(p);
           });
         }
         updatePopupAddress(container, p.lat, p.lng);
@@ -2672,6 +3053,15 @@ function zaladujPinezkiZFirestore() {
       } else {
         p.trasy = [];
       }
+      if (Array.isArray(p.plany)) {
+        p.plany.forEach(pl => {
+          ensurePlanDefaults(pl, p);
+          ensurePlanOverlay(p, pl);
+        });
+      } else {
+        p.plany = [];
+      }
+      p.savedPlans = serializePlans(p);
       const popupDiv = document.createElement("div");
       popupDiv.className = "popup-container";
       popupDiv.innerHTML = createPopupHtml(p);
@@ -3066,6 +3456,9 @@ function zaladujPinezkiZFirestore() {
       p.marker.bindPopup(popupDiv);
       attachPopupHandlers(p.marker, p);
       attachMarkerLongPress(p.marker, p);
+      if (p.plany) {
+        p.plany.forEach(pl => updatePlanOverlay(p, pl));
+      }
     }
 
     function zapiszLokalnie(id) {
@@ -4704,6 +5097,7 @@ function showRoutePopup(pinId, tr, latlng) {
               w.layer.removeLayer(p.marker);
             }
           }
+          updatePlanVisibilityForPin(p);
         });
       });
     }
@@ -4865,6 +5259,43 @@ toggleBtn.style.verticalAlign = "top";
             trList.appendChild(tEl);
           });
           el.appendChild(trList);
+
+          if ((p.plany || []).length) {
+            const plansWrapper = document.createElement('div');
+            plansWrapper.className = 'trasy-lista';
+            const plansHeader = document.createElement('div');
+            plansHeader.style.fontSize = '12px';
+            plansHeader.style.margin = '4px 0';
+            plansHeader.textContent = 'Plany:';
+            plansWrapper.appendChild(plansHeader);
+            (p.plany || []).forEach(pl => {
+              const row = document.createElement('div');
+              row.className = 'plan-item';
+              if (pl.unsaved) row.classList.add('unsaved');
+              const chk = document.createElement('input');
+              chk.type = 'checkbox';
+              chk.className = 'plan-visibility';
+              chk.checked = pl.widoczny !== false;
+              chk.addEventListener('click', ev => ev.stopPropagation());
+              chk.addEventListener('change', () => {
+                pl.widoczny = chk.checked;
+                pl.unsaved = true;
+                updatePlanOverlay(p, pl);
+                markPlanChange(p);
+              });
+              const nameSpan = document.createElement('span');
+              nameSpan.className = 'plan-name';
+              nameSpan.textContent = pl.nazwa || 'Plan';
+              nameSpan.addEventListener('click', ev => {
+                ev.stopPropagation();
+                openPlanOptions(p, pl, nameSpan);
+              });
+              row.appendChild(chk);
+              row.appendChild(nameSpan);
+              plansWrapper.appendChild(row);
+            });
+            el.appendChild(plansWrapper);
+          }
         });
 
         layerDomRefs[nazwa] = {
@@ -4916,10 +5347,12 @@ toggleBtn.style.verticalAlign = "top";
           if (!p || !p.firebaseId) return;
           const lp = getStoredPhotos(p.slug) || [];
           lp.forEach(ph => { if (!ph.path) totalAll++; });
+          (p.plany || []).forEach(pl => { if (!pl.path) totalAll++; });
         });
         nowePinezki.forEach(p => {
           const lp = getStoredPhotos(p.slug) || [];
           lp.forEach(ph => { if (!ph.path) totalAll++; });
+          (p.plany || []).forEach(pl => { if (!pl.path) totalAll++; });
         });
         let doneAll = 0;
         const onProgress = () => {
@@ -4935,6 +5368,8 @@ toggleBtn.style.verticalAlign = "top";
           }
           const localPhotos = getStoredPhotos(p.slug);
           p.photos = await savePhotosForPin(p.firebaseId, p.slug, localPhotos, p.photos || [], onProgress);
+          p.plany = await savePlansForPin(p.firebaseId, p.slug, p.plany || [], p.savedPlans || [], onProgress);
+          p.savedPlans = serializePlans(p);
           delete p.unsaved;
         });
 
@@ -4961,12 +5396,15 @@ toggleBtn.style.verticalAlign = "top";
             dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
             IDpinezki: p.id,
             odKogo: p.odKogo || '',
-            trasy: (p.trasy || []).map(t => serializeRoute(t))
+            trasy: (p.trasy || []).map(t => serializeRoute(t)),
+            plany: serializePlans(p)
           };
           if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
           await db.collection('pinezki2').doc(firebaseId).set(payload);
           const localPhotos = getStoredPhotos(p.slug);
           p.photos = await savePhotosForPin(firebaseId, p.slug, localPhotos, [], onProgress);
+          p.plany = await savePlansForPin(firebaseId, p.slug, p.plany || [], [], onProgress);
+          p.savedPlans = serializePlans(p);
         });
 
         const deletePinPromises = pinsToDelete.map(info => {
@@ -5115,6 +5553,15 @@ toggleBtn.style.verticalAlign = "top";
         if (e.target === layerDelModal) closeLayerDeleteModal();
       });
     }
+
+    const planScaleInput = document.getElementById('planScale');
+    if (planScaleInput) planScaleInput.addEventListener('input', e => planScaleChanged(e.target.value));
+    const planOpacityInput = document.getElementById('planOpacity');
+    if (planOpacityInput) planOpacityInput.addEventListener('input', e => planOpacityChanged(e.target.value));
+    const planCancelBtn = document.getElementById('planCancel');
+    if (planCancelBtn) planCancelBtn.addEventListener('click', () => closePlanEditor(true));
+    const planConfirmBtn = document.getElementById('planConfirm');
+    if (planConfirmBtn) planConfirmBtn.addEventListener('click', confirmPlanPlacement);
     initLayerEditor();
 
     setupMobile();
@@ -5156,6 +5603,57 @@ toggleBtn.style.verticalAlign = "top";
     modalSlug = null; modalIndex = null;
     const modal = document.getElementById('photoModal');
     if (modal) modal.style.display = 'none';
+  }
+
+  async function savePlansForPin(id, slug, localPlans, remotePlans, onProgress) {
+    const finalPlans = [];
+    const remoteMap = {};
+    (remotePlans || []).forEach(pl => { if (pl && pl.path) remoteMap[pl.path] = pl; });
+    let totalNew = 0;
+    for (const pl of (localPlans || [])) { if (pl && !pl.path) totalNew++; }
+    let doneNew = 0;
+
+    for (const pl of (localPlans || [])) {
+      if (!pl) continue;
+      if (pl.path) {
+        finalPlans.push({ ...pl });
+        delete remoteMap[pl.path];
+        continue;
+      }
+      const compressed = await compressDataUrl(pl.url);
+      const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+      const path = `plans/${id}/${fileName}`;
+      const ref = storage.ref().child(path);
+      await ref.putString(compressed, 'data_url');
+      const url = await ref.getDownloadURL();
+      finalPlans.push({ ...pl, url, path });
+      doneNew++;
+      if (typeof onProgress === 'function') onProgress(doneNew, totalNew);
+    }
+
+    const toDelete = Object.keys(remoteMap);
+    for (const path of toDelete) {
+      try { await storage.ref().child(path).delete(); } catch (e) {}
+    }
+
+    await db.collection('pinezki2').doc(id).update({
+      plany: finalPlans.map(pl => ({
+        id: pl.id,
+        nazwa: pl.nazwa,
+        url: pl.url,
+        path: pl.path || null,
+        pozycja: pl.pozycja,
+        szerokosc: pl.szerokosc,
+        wysokosc: pl.wysokosc,
+        proporcja: pl.proporcja,
+        bazowaSzerokosc: pl.bazowaSzerokosc,
+        skala: pl.skala,
+        przezroczystosc: pl.przezroczystosc,
+        widoczny: pl.widoczny !== false
+      })
+    });
+
+    return finalPlans;
   }
 
   // === [CODEx REPLACED] Upload i zapis listy zdjęć z kompresją ===
@@ -5261,6 +5759,7 @@ toggleBtn.style.verticalAlign = "top";
     if (idxN > -1) nowePinezki.splice(idxN, 1);
     delete zmianyDoZapisania[p.id];
     if (p.marker) map.removeLayer(p.marker);
+    if (p.plany) p.plany.forEach(pl => removePlanOverlay(pl));
     const layer = warstwy[layerName];
     if (layer) {
       const idx = layer.lista.indexOf(p);
@@ -5275,6 +5774,7 @@ toggleBtn.style.verticalAlign = "top";
           wszystkiePinezki = backup.prevAll;
           if (backup.pin.marker) backup.pin.marker.addTo(warstwy[backup.layerName].layer);
           warstwy[backup.layerName].lista.push(backup.pin);
+          if (backup.pin.plany) backup.pin.plany.forEach(pl => ensurePlanOverlay(backup.pin, pl));
           pinsToDelete = backup.prevPinsToDelete;
           nowePinezki = backup.prevNowe;
           zmianyDoZapisania = Object.assign({}, backup.prevZmiany);
