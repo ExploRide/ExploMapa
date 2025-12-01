@@ -997,6 +997,13 @@ img.emoji {
           </label><br>
           <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-archHi">
         </div>
+        <div class="overlay-item">
+          <label><input type="checkbox" id="overlay-shade"> Cieniowanie (Geoportal WMTS)
+            <button type="button" class="opacity-btn" data-target="shade">⚙</button>
+            <button type="button" class="info-btn" data-info="Cieniowanie terenu z Geoportalu">i</button>
+          </label><br>
+          <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-shade">
+        </div>
       </details>
 
       <h3>Widok ulic</h3>
@@ -2308,9 +2315,10 @@ function emojiHtml(str) {
         });
       }
 
-      function changeActivePlanImage() {
-        if (!activePlanPlacement) return;
-        const { pin, plan } = activePlanPlacement;
+      function changeActivePlanImage(targetPin = null, targetPlan = null) {
+        const context = activePlanPlacement || (targetPin && targetPlan ? { pin: targetPin, plan: targetPlan } : null);
+        if (!context) return;
+        const { pin, plan } = context;
         const baseWidth = plan.bazowaSzerokosc || (plan.szerokosc ? plan.szerokosc * 100 / (plan.skala || 100) : 140);
         const scale = plan.skala || 100;
 
@@ -2324,6 +2332,7 @@ function emojiHtml(str) {
           plan.unsaved = true;
           updatePlanOverlay(pin, plan);
           ensurePlanTransformControls(pin, plan);
+          markPlanChange(pin);
         });
       }
 
@@ -2385,6 +2394,13 @@ function emojiHtml(str) {
       scaleRow.appendChild(scLabel);
       scaleRow.appendChild(scSlider);
 
+      const changeImgBtn = document.createElement('button');
+      changeImgBtn.textContent = 'Zmień obraz';
+      changeImgBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        changeActivePlanImage(pin, plan);
+      });
+
       const repositionBtn = document.createElement('button');
       repositionBtn.textContent = 'Zmień pozycję na mapie';
       repositionBtn.addEventListener('click', e => {
@@ -2408,6 +2424,7 @@ function emojiHtml(str) {
       panel.appendChild(nameRow);
       panel.appendChild(opacityRow);
       panel.appendChild(scaleRow);
+      panel.appendChild(changeImgBtn);
       panel.appendChild(repositionBtn);
       panel.appendChild(deleteBtn);
       panel.style.display = 'block';
@@ -2837,10 +2854,7 @@ function emojiHtml(str) {
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri'
       });
-      const hill = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Esri',
-        className: 'hillshade-dark'
-      });
+      const hill = shadedReliefLayer();
       const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
       });
@@ -2861,9 +2875,11 @@ function emojiHtml(str) {
       const OTM_ATTR = '© OpenTopoMap (CC BY-SA), © waymarkedtrails.org, © OpenStreetMap (CC BY-SA)';
 
       const ORTO_ATTR = '© GUGiK – Orto.';
+      const SHADED_RELIEF_ATTR = '© GUGiK – Cieniowanie';
       // WMTS GetCapabilities: https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution?Service=WMTS&Request=GetCapabilities
       const WMTS_STD_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution';
       const WMTS_HI_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/HighResolution';
+      const WMTS_SHADED_RELIEF_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WMTS/ShadedRelief';
       // WMS GetCapabilities: https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution?service=WMS&request=GetCapabilities&version=1.3.0
       const WMS_STD_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution';
       const WMS_HI_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/HighResolution';
@@ -2881,6 +2897,17 @@ function emojiHtml(str) {
           format: 'image/jpeg',
           style: 'default',
           attribution: ORTO_ATTR
+        });
+      }
+
+      function shadedReliefLayer() {
+        if (!L.tileLayer.wmts) throw new Error('Brak wtyczki WMTS');
+        return L.tileLayer.wmts(WMTS_SHADED_RELIEF_URL, {
+          layer: 'Relief',
+          tilematrixSet: 'EPSG:3857',
+          format: 'image/png',
+          style: 'default',
+          attribution: SHADED_RELIEF_ATTR
         });
       }
 
@@ -2914,10 +2941,12 @@ function emojiHtml(str) {
 
       const overlays = {
         archStd: wmsLayer(WMS_ARCH_STD_URL),
-        archHi: wmsLayer(WMS_ARCH_HI_URL)
+        archHi: wmsLayer(WMS_ARCH_HI_URL),
+        shade: shadedReliefLayer()
       };
       overlays.archStd.on('tileerror', () => showToast('Sprawdź parametry warstwy (layers/CRS/format).'));
       overlays.archHi.on('tileerror', () => showToast('Sprawdź parametry warstwy (layers/CRS/format).'));
+      overlays.shade.on('tileerror', () => showToast('Nie udało się załadować cieniowania (Geoportal).'));
 
       const mapDateBadgeEl = document.getElementById('map-date-badge');
       const mapYearSelect = document.getElementById('map-year-select');
@@ -3141,24 +3170,26 @@ function emojiHtml(str) {
         radio.addEventListener('change', () => switchBaseLayer(radio.value));
       });
 
-      document.getElementById('overlay-arch-std').addEventListener('change', e => {
-        if (e.target.checked) overlays.archStd.addTo(map);
-        else map.removeLayer(overlays.archStd);
-      });
-      document.getElementById('overlay-arch-hi').addEventListener('change', e => {
-        if (e.target.checked) overlays.archHi.addTo(map);
-        else map.removeLayer(overlays.archHi);
-      });
+      const overlayCheckboxIds = { archStd: 'overlay-arch-std', archHi: 'overlay-arch-hi', shade: 'overlay-shade' };
+      ['archStd','archHi','shade'].forEach(key => {
+        const checkbox = document.getElementById(overlayCheckboxIds[key]);
+        if (checkbox) {
+          checkbox.addEventListener('change', e => {
+            if (e.target.checked) overlays[key].addTo(map);
+            else map.removeLayer(overlays[key]);
+          });
+        }
 
-      ['archStd','archHi'].forEach(key => {
         const btn = document.querySelector(`.opacity-btn[data-target="${key}"]`);
         const slider = document.getElementById(`opacity-${key}`);
-        btn.addEventListener('click', () => {
-          slider.classList.toggle('ukryta');
-        });
-        slider.addEventListener('input', ev => {
-          overlays[key].setOpacity(ev.target.value / 100);
-        });
+        if (btn && slider) {
+          btn.addEventListener('click', () => {
+            slider.classList.toggle('ukryta');
+          });
+          slider.addEventListener('input', ev => {
+            overlays[key].setOpacity(ev.target.value / 100);
+          });
+        }
       });
 
       document.querySelectorAll('.info-btn').forEach(btn => {
