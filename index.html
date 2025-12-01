@@ -944,6 +944,7 @@ img.emoji {
   <div id="planEditor" class="plan-editor-panel" style="display:none;">
     <h4>Dodawanie planu</h4>
     <div class="row"><input type="text" id="planNameInput" placeholder="Nazwa planu"></div>
+    <div class="row"><button id="planChangeImage">Zmień obraz</button></div>
     <div class="row">
       <label for="planScale">Skala</label>
       <input type="range" id="planScale" min="25" max="300" value="100">
@@ -1989,6 +1990,9 @@ function emojiHtml(str) {
       ensurePlanDefaults(plan, pin);
       if (!planLayers[plan.id]) return ensurePlanOverlay(pin, plan);
       const overlay = planLayers[plan.id];
+      if (overlay.setUrl && overlay._url !== plan.url) {
+        overlay.setUrl(plan.url);
+      }
       overlay.setBounds(getPlanBounds(plan));
       overlay.setOpacity(plan.przezroczystosc || 1);
       overlay._planRef = plan;
@@ -2252,53 +2256,76 @@ function emojiHtml(str) {
       updatePlanOverlay(activePlanPlacement.pin, plan);
     }
 
-    function confirmPlanPlacement() {
-      if (!activePlanPlacement) return;
-      const { pin, plan, mode } = activePlanPlacement;
-      ensurePlanDefaults(plan, pin);
-      const nameInput = document.getElementById('planNameInput');
-      if (nameInput && nameInput.value.trim()) plan.nazwa = nameInput.value.trim();
-      if (!pin.plany) pin.plany = [];
-      if (mode === 'new') {
-        pin.plany.push(plan);
+      function confirmPlanPlacement() {
+        if (!activePlanPlacement) return;
+        const { pin, plan, mode } = activePlanPlacement;
+        ensurePlanDefaults(plan, pin);
+        const nameInput = document.getElementById('planNameInput');
+        if (nameInput && nameInput.value.trim()) plan.nazwa = nameInput.value.trim();
+        if (!pin.plany) pin.plany = [];
+        if (mode === 'new') {
+          pin.plany.push(plan);
+        }
+        plan.unsaved = true;
+        updatePlanOverlay(pin, plan);
+        markPlanChange(pin);
+        closePlanEditor(false);
+        generujListeWarstw();
       }
-      plan.unsaved = true;
-      updatePlanOverlay(pin, plan);
-      markPlanChange(pin);
-      closePlanEditor(false);
-      generujListeWarstw();
-    }
 
-    function startPlanUpload(pin) {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.addEventListener('change', () => {
-        const file = input.files && input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = ev => {
-          const dataUrl = ev.target.result;
-          const img = new Image();
-          img.onload = () => {
-            const plan = {
-              url: dataUrl,
-              szerokosc: 140,
-              wysokosc: 140 * (img.height ? img.height / img.width : 1),
-              proporcja: img.width ? img.width / img.height : 1,
-              bazowaSzerokosc: 140,
-              skala: 100,
-              przezroczystosc: 0.8
-            };
-            ensurePlanDefaults(plan, pin);
-            openPlanEditor(pin, plan, 'new');
+      function pickPlanImageFile(onLoad) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.addEventListener('change', () => {
+          const file = input.files && input.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = ev => {
+            const dataUrl = ev.target.result;
+            const img = new Image();
+            img.onload = () => onLoad(dataUrl, img);
+            img.src = dataUrl;
           };
-          img.src = dataUrl;
-        };
-        reader.readAsDataURL(file);
-      });
-      input.click();
-    }
+          reader.readAsDataURL(file);
+        });
+        input.click();
+      }
+
+      function startPlanUpload(pin) {
+        pickPlanImageFile((dataUrl, img) => {
+          const plan = {
+            url: dataUrl,
+            szerokosc: 140,
+            wysokosc: 140 * (img.height ? img.height / img.width : 1),
+            proporcja: img.width ? img.width / img.height : 1,
+            bazowaSzerokosc: 140,
+            skala: 100,
+            przezroczystosc: 0.8
+          };
+          ensurePlanDefaults(plan, pin);
+          openPlanEditor(pin, plan, 'new');
+        });
+      }
+
+      function changeActivePlanImage() {
+        if (!activePlanPlacement) return;
+        const { pin, plan } = activePlanPlacement;
+        const baseWidth = plan.bazowaSzerokosc || (plan.szerokosc ? plan.szerokosc * 100 / (plan.skala || 100) : 140);
+        const scale = plan.skala || 100;
+
+        pickPlanImageFile((dataUrl, img) => {
+          plan.url = dataUrl;
+          plan.proporcja = img.width ? img.width / img.height : 1;
+          plan.bazowaSzerokosc = baseWidth;
+          plan.skala = scale;
+          plan.szerokosc = (plan.bazowaSzerokosc || baseWidth) * (plan.skala / 100);
+          plan.wysokosc = plan.szerokosc / (plan.proporcja || 1);
+          plan.unsaved = true;
+          updatePlanOverlay(pin, plan);
+          ensurePlanTransformControls(pin, plan);
+        });
+      }
 
     function openPlanOptions(pin, plan, anchor) {
       const panel = document.getElementById('planOptions');
@@ -5613,8 +5640,9 @@ toggleBtn.style.verticalAlign = "top";
         const updatePromises = Object.entries(zmianyDoZapisania).map(async ([id, data]) => {
           const p = wszystkiePinezki.find(pp => pp.id === id);
           if (!p || !p.firebaseId) return;
-          if (Object.keys(data).length > 0) {
-            await db.collection('pinezki2').doc(p.firebaseId).update(data);
+          const { plany: _pendingPlans, ...rest } = data || {};
+          if (Object.keys(rest).length > 0) {
+            await db.collection('pinezki2').doc(p.firebaseId).update(rest);
           }
           const localPhotos = getStoredPhotos(p.slug);
           p.photos = await savePhotosForPin(p.firebaseId, p.slug, localPhotos, p.photos || [], onProgress);
@@ -5647,7 +5675,7 @@ toggleBtn.style.verticalAlign = "top";
             IDpinezki: p.id,
             odKogo: p.odKogo || '',
             trasy: (p.trasy || []).map(t => serializeRoute(t)),
-            plany: serializePlans(p)
+            plany: []
           };
           if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
           await db.collection('pinezki2').doc(firebaseId).set(payload);
@@ -5808,6 +5836,8 @@ toggleBtn.style.verticalAlign = "top";
     if (planScaleInput) planScaleInput.addEventListener('input', e => planScaleChanged(e.target.value));
     const planOpacityInput = document.getElementById('planOpacity');
     if (planOpacityInput) planOpacityInput.addEventListener('input', e => planOpacityChanged(e.target.value));
+    const planChangeImageBtn = document.getElementById('planChangeImage');
+    if (planChangeImageBtn) planChangeImageBtn.addEventListener('click', () => changeActivePlanImage());
     const planCancelBtn = document.getElementById('planCancel');
     if (planCancelBtn) planCancelBtn.addEventListener('click', () => closePlanEditor(true));
     const planConfirmBtn = document.getElementById('planConfirm');
