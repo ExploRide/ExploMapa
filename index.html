@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
-  <script src="https://twemoji.maxcdn.com/v/latest/twemoji.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
   <style>
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background-color: #1e1e1e; color: #f0f0f0;}
     #map, #sidebar, #basemap-switcher, #layer-editor, #route-editor { display: none; }
@@ -5636,22 +5636,22 @@ toggleBtn.style.verticalAlign = "top";
       try { await storage.ref().child(path).delete(); } catch (e) {}
     }
 
-    await db.collection('pinezki2').doc(id).update({
-      plany: finalPlans.map(pl => ({
-        id: pl.id,
-        nazwa: pl.nazwa,
-        url: pl.url,
+      await db.collection('pinezki2').doc(id).update({
+        plany: finalPlans.map(pl => ({
+          id: pl.id,
+          nazwa: pl.nazwa,
+          url: pl.url,
         path: pl.path || null,
         pozycja: pl.pozycja,
         szerokosc: pl.szerokosc,
         wysokosc: pl.wysokosc,
         proporcja: pl.proporcja,
-        bazowaSzerokosc: pl.bazowaSzerokosc,
-        skala: pl.skala,
-        przezroczystosc: pl.przezroczystosc,
-        widoczny: pl.widoczny !== false
-      })
-    });
+          bazowaSzerokosc: pl.bazowaSzerokosc,
+          skala: pl.skala,
+          przezroczystosc: pl.przezroczystosc,
+          widoczny: pl.widoczny !== false
+        }))
+      });
 
     return finalPlans;
   }
