@@ -1275,6 +1275,10 @@ function slugify(str) {
     let pinRepositionState = null;
     let currentBase = 'sat';
     let loadingCount = 0;
+    let baseLayerLoadToken = 0;
+    let baseLayerLoadingCount = 0;
+    let baseLayerLoadingHandler = null;
+    let baseLayerLoadedHandler = null;
     function showLoading() {
       const el = document.getElementById('loading');
       if (loadingCount === 0 && el) el.style.display = 'block';
@@ -1285,6 +1289,12 @@ function slugify(str) {
       if (loadingCount === 0) {
         const el = document.getElementById('loading');
         if (el) el.style.display = 'none';
+      }
+    }
+    function resetBaseLayerLoading() {
+      if (baseLayerLoadingCount > 0) {
+        for (let i = 0; i < baseLayerLoadingCount; i++) hideLoading();
+        baseLayerLoadingCount = 0;
       }
     }
     function showToast(msg) {
@@ -3090,6 +3100,9 @@ function emojiHtml(str) {
       }
 
       function switchBaseLayer(key, isFallback = false) {
+        baseLayerLoadToken++;
+        const loadToken = baseLayerLoadToken;
+        resetBaseLayerLoading();
         const def = baseLayerDefs[key] || baseLayerDefs['osm'];
         if (currentBase === 'otm-trails') {
           if (waymarkedErrorHandler) {
@@ -3102,8 +3115,8 @@ function emojiHtml(str) {
           map.attributionControl.removeAttribution(OTM_ATTR);
         }
         if (baseLayer) {
-          baseLayer.off('loading', showLoading);
-          baseLayer.off('load', hideLoading);
+          if (baseLayerLoadingHandler) baseLayer.off('loading', baseLayerLoadingHandler);
+          if (baseLayerLoadedHandler) baseLayer.off('load', baseLayerLoadedHandler);
           if (baseTileErrorHandler) baseLayer.off('tileerror', baseTileErrorHandler);
           if (baseLayer._abortLoading) baseLayer._abortLoading();
           map.removeLayer(baseLayer);
@@ -3135,9 +3148,21 @@ function emojiHtml(str) {
             }
           };
         }
+        baseLayerLoadingHandler = () => {
+          if (loadToken !== baseLayerLoadToken) return;
+          baseLayerLoadingCount++;
+          showLoading();
+        };
+        baseLayerLoadedHandler = () => {
+          if (loadToken !== baseLayerLoadToken) return;
+          if (baseLayerLoadingCount > 0) {
+            baseLayerLoadingCount--;
+            hideLoading();
+          }
+        };
         baseLayer.on('tileerror', baseTileErrorHandler);
-        baseLayer.on('loading', showLoading);
-        baseLayer.on('load', hideLoading);
+        baseLayer.on('loading', baseLayerLoadingHandler);
+        baseLayer.on('load', baseLayerLoadedHandler);
         baseLayer.addTo(map);
         if (key === 'otm-trails') {
           baseOpenTopoPlusTrails.overlay.addTo(map);
