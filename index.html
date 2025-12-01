@@ -196,6 +196,64 @@
       width: 240px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.45);
     }
+    .plan-transform-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+      z-index: 4000;
+    }
+    .plan-handle {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: rgba(30, 136, 229, 0.9);
+      border: 1px solid #e3f2fd;
+      border-radius: 3px;
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0d47a1;
+      font-size: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+      opacity: 0.95;
+    }
+    .plan-handle:hover {
+      background: #90caf9;
+    }
+    .plan-handle::after {
+      content: '⤡';
+      pointer-events: none;
+    }
+    .plan-handle.nw { top: -8px; left: -8px; cursor: nwse-resize; }
+    .plan-handle.ne { top: -8px; right: -8px; cursor: nesw-resize; }
+    .plan-handle.sw { bottom: -8px; left: -8px; cursor: nesw-resize; }
+    .plan-handle.se { bottom: -8px; right: -8px; cursor: nwse-resize; }
+    .plan-rotate {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(245, 245, 245, 0.9);
+      border: 1px solid #607d8b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0d47a1;
+      font-size: 14px;
+      pointer-events: auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    }
+    .plan-rotate:hover {
+      background: #cfd8dc;
+    }
+    .plan-rotate::after {
+      content: '⟳';
+      pointer-events: none;
+    }
     .plan-option-panel h4 { margin: 0 0 6px 0; font-size: 14px; }
     .plan-option-panel .row { margin-bottom: 8px; display: flex; gap: 6px; align-items: center; }
     .plan-option-panel label { font-size: 12px; }
@@ -894,7 +952,7 @@ img.emoji {
       <label for="planOpacity">Przezroczystość</label>
       <input type="range" id="planOpacity" min="20" max="100" value="100">
     </div>
-    <div class="hint">Kliknij na mapie, aby przesunąć plan w wybrane miejsce.</div>
+      <div class="hint">Przytrzymaj i przeciągnij plan, aby zmienić jego pozycję. Złap za narożnik, aby skalować, lub za zewnętrzną okrągłą strzałkę, aby obrócić obraz.</div>
     <div class="actions">
       <button id="planCancel">Anuluj</button>
       <button id="planConfirm">Zatwierdź</button>
@@ -1278,9 +1336,10 @@ function slugify(str) {
     let layersToAdd = [];
     let layersToDelete = [];
     let pinsToDelete = [];
-    const planLayers = {};
-    let activePlanPlacement = null;
-    let planOptionsState = null;
+      const planLayers = {};
+      let activePlanPlacement = null;
+      let planOptionsState = null;
+      let planTransformState = null;
     let initialLayerOrder = [];
     let layerOrderChanged = false;
     let currentTool = "hand";
@@ -1845,6 +1904,7 @@ function emojiHtml(str) {
       if (!plan.skala) plan.skala = 100;
       if (plan.przezroczystosc === undefined || plan.przezroczystosc === null) plan.przezroczystosc = 1;
       if (plan.widoczny === undefined) plan.widoczny = true;
+      if (plan.obrot === undefined || plan.obrot === null) plan.obrot = 0;
       if (!plan.nazwa) {
         const total = pin && pin.plany ? pin.plany.length : 0;
         plan.nazwa = `Plan ${total + 1}`;
@@ -1865,6 +1925,30 @@ function emojiHtml(str) {
       ]);
     }
 
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function syncPlanTransformOverlay(overlay) {
+      if (!overlay || !overlay._image || !overlay._planControls) return;
+      const img = overlay._image;
+      const ctrl = overlay._planControls;
+      ctrl.style.width = img.style.width || `${img.offsetWidth}px`;
+      ctrl.style.height = img.style.height || `${img.offsetHeight}px`;
+      ctrl.style.transformOrigin = img.style.transformOrigin || 'center center';
+      ctrl.style.transform = img.style.transform;
+    }
+
+    function applyPlanRotation(overlay, plan) {
+      if (!overlay || !overlay._image) return;
+      const img = overlay._image;
+      const base = img.style.transform || '';
+      const cleaned = base.replace(/ rotate\([^)]*\)/, '');
+      img.style.transform = `${cleaned} rotate(${(plan && plan.obrot) || 0}deg)`;
+      img.style.transformOrigin = 'center center';
+      syncPlanTransformOverlay(overlay);
+    }
+
     function shouldPlanBeVisible(pin, plan) {
       const layerVisible = pin && pin.warstwa && warstwy[pin.warstwa] ? warstwy[pin.warstwa].visible !== false : true;
       const pinVisible = (selectedCategories.size === 0 || selectedCategories.has(pin.kategoria || '')) && pinMatchesStatus(pin);
@@ -1879,10 +1963,19 @@ function emojiHtml(str) {
         overlay = L.imageOverlay(plan.url, bounds, { opacity: plan.przezroczystosc || 1, interactive: true });
         planLayers[plan.id] = overlay;
         plan.layer = overlay;
+        if (!overlay._originalReset) {
+          overlay._originalReset = overlay._reset.bind(overlay);
+          overlay._reset = function() {
+            overlay._originalReset();
+            applyPlanRotation(overlay, overlay._planRef || plan);
+          };
+        }
       } else {
         overlay.setBounds(bounds);
         overlay.setOpacity(plan.przezroczystosc || 1);
       }
+      overlay._planRef = plan;
+      applyPlanRotation(overlay, plan);
       if (shouldPlanBeVisible(pin, plan)) {
         overlay.addTo(map);
       } else {
@@ -1898,6 +1991,8 @@ function emojiHtml(str) {
       const overlay = planLayers[plan.id];
       overlay.setBounds(getPlanBounds(plan));
       overlay.setOpacity(plan.przezroczystosc || 1);
+      overlay._planRef = plan;
+      applyPlanRotation(overlay, plan);
       if (shouldPlanBeVisible(pin, plan)) {
         overlay.addTo(map);
       } else {
@@ -1910,6 +2005,7 @@ function emojiHtml(str) {
       if (!plan) return;
       const overlay = planLayers[plan.id];
       if (overlay) {
+        cleanupPlanTransformOverlay(overlay);
         map.removeLayer(overlay);
         delete planLayers[plan.id];
       }
@@ -1919,6 +2015,164 @@ function emojiHtml(str) {
     function updatePlanVisibilityForPin(pin) {
       if (!pin || !pin.plany) return;
       pin.plany.forEach(pl => updatePlanOverlay(pin, pl));
+    }
+
+    function cleanupPlanTransformOverlay(overlay) {
+      if (!overlay) return;
+      if (overlay._planTransformRefresh) {
+        map.off('zoom', overlay._planTransformRefresh);
+        map.off('move', overlay._planTransformRefresh);
+        map.off('resize', overlay._planTransformRefresh);
+        overlay._planTransformRefresh = null;
+      }
+      if (overlay._planControls && overlay._planControls.parentElement) {
+        overlay._planControls.parentElement.removeChild(overlay._planControls);
+      }
+      overlay._planControls = null;
+    }
+
+    function destroyPlanTransformControls() {
+      document.removeEventListener('mousemove', onPlanPointerMove);
+      document.removeEventListener('mouseup', stopPlanPointerInteraction);
+      if (map && map.dragging) map.dragging.enable();
+      planTransformState = null;
+      if (activePlanPlacement && activePlanPlacement.plan && activePlanPlacement.plan.layer) {
+        cleanupPlanTransformOverlay(activePlanPlacement.plan.layer);
+      }
+    }
+
+    function startPlanMove(e, overlay) {
+      if (!activePlanPlacement || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const plan = activePlanPlacement.plan;
+      planTransformState = {
+        mode: 'move',
+        overlay,
+        startMouse: { x: e.clientX, y: e.clientY },
+        startPoint: map.latLngToContainerPoint(plan.pozycja)
+      };
+      if (overlay && overlay._image) overlay._image.style.cursor = 'grabbing';
+      if (map && map.dragging) map.dragging.disable();
+      document.addEventListener('mousemove', onPlanPointerMove);
+      document.addEventListener('mouseup', stopPlanPointerInteraction);
+    }
+
+    function startPlanScale(e, overlay, corner) {
+      if (!activePlanPlacement || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = overlay._image.getBoundingClientRect();
+      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      const startVec = { x: e.clientX - center.x, y: e.clientY - center.y };
+      const startDist = Math.hypot(startVec.x, startVec.y) || 1;
+      const plan = activePlanPlacement.plan;
+      planTransformState = {
+        mode: 'scale',
+        overlay,
+        center,
+        startDist,
+        startScale: plan.skala || 100,
+        startWidth: plan.szerokosc || 120,
+        corner
+      };
+      if (map && map.dragging) map.dragging.disable();
+      document.addEventListener('mousemove', onPlanPointerMove);
+      document.addEventListener('mouseup', stopPlanPointerInteraction);
+    }
+
+    function startPlanRotate(e, overlay) {
+      if (!activePlanPlacement || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = overlay._image.getBoundingClientRect();
+      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      const plan = activePlanPlacement.plan;
+      planTransformState = {
+        mode: 'rotate',
+        overlay,
+        center,
+        startAngle: Math.atan2(e.clientY - center.y, e.clientX - center.x),
+        startRotation: plan.obrot || 0
+      };
+      if (map && map.dragging) map.dragging.disable();
+      document.addEventListener('mousemove', onPlanPointerMove);
+      document.addEventListener('mouseup', stopPlanPointerInteraction);
+    }
+
+    function onPlanPointerMove(e) {
+      if (!planTransformState || !activePlanPlacement) return;
+      const plan = activePlanPlacement.plan;
+      if (planTransformState.mode === 'move') {
+        const dx = e.clientX - planTransformState.startMouse.x;
+        const dy = e.clientY - planTransformState.startMouse.y;
+        const newPoint = planTransformState.startPoint.add(L.point(dx, dy));
+        plan.pozycja = map.containerPointToLatLng(newPoint);
+      } else if (planTransformState.mode === 'scale') {
+        const curVec = { x: e.clientX - planTransformState.center.x, y: e.clientY - planTransformState.center.y };
+        const curDist = Math.hypot(curVec.x, curVec.y) || 1;
+        const factor = clamp(curDist / planTransformState.startDist, 0.25, 3);
+        const newScale = clamp(Math.round((planTransformState.startScale || 100) * factor), 25, 300);
+        plan.skala = newScale;
+        plan.szerokosc = (plan.bazowaSzerokosc || planTransformState.startWidth) * (plan.skala / 100);
+        plan.wysokosc = plan.szerokosc / (plan.proporcja || 1);
+      } else if (planTransformState.mode === 'rotate') {
+        const angle = Math.atan2(e.clientY - planTransformState.center.y, e.clientX - planTransformState.center.x);
+        const delta = (angle - planTransformState.startAngle) * 180 / Math.PI;
+        let rotation = planTransformState.startRotation + delta;
+        rotation = ((rotation % 360) + 360) % 360;
+        plan.obrot = rotation;
+      }
+      plan.unsaved = true;
+      updatePlanOverlay(activePlanPlacement.pin, plan);
+      ensurePlanTransformControls(activePlanPlacement.pin, plan);
+    }
+
+    function stopPlanPointerInteraction() {
+      document.removeEventListener('mousemove', onPlanPointerMove);
+      document.removeEventListener('mouseup', stopPlanPointerInteraction);
+      if (map && map.dragging) map.dragging.enable();
+      if (planTransformState && planTransformState.overlay && planTransformState.overlay._image) {
+        planTransformState.overlay._image.style.cursor = 'grab';
+      }
+      planTransformState = null;
+    }
+
+    function ensurePlanTransformControls(pin, plan) {
+      if (!activePlanPlacement || activePlanPlacement.plan !== plan) return;
+      const overlay = ensurePlanOverlay(pin, plan);
+      if (!overlay || !overlay._image) return;
+      overlay._planRef = plan;
+      if (!overlay._planControls) {
+        const ctrl = document.createElement('div');
+        ctrl.className = 'plan-transform-overlay';
+        ctrl.style.pointerEvents = 'none';
+        const corners = ['nw', 'ne', 'sw', 'se'];
+        corners.forEach(corner => {
+          const handle = document.createElement('div');
+          handle.className = `plan-handle ${corner}`;
+          handle.addEventListener('mousedown', ev => startPlanScale(ev, overlay, corner));
+          ctrl.appendChild(handle);
+          const rot = document.createElement('div');
+          rot.className = 'plan-rotate';
+          if (corner.includes('n')) rot.style.top = '-26px'; else rot.style.bottom = '-26px';
+          if (corner.includes('w')) rot.style.left = '-26px'; else rot.style.right = '-26px';
+          rot.addEventListener('mousedown', ev => startPlanRotate(ev, overlay));
+          ctrl.appendChild(rot);
+        });
+        overlay._planControls = ctrl;
+        if (overlay._image.parentElement) overlay._image.parentElement.appendChild(ctrl);
+        overlay._planTransformRefresh = () => syncPlanTransformOverlay(overlay);
+        map.on('zoom', overlay._planTransformRefresh);
+        map.on('move', overlay._planTransformRefresh);
+        map.on('resize', overlay._planTransformRefresh);
+      }
+      if (!overlay._planMoveBound) {
+        overlay._image.addEventListener('mousedown', ev => startPlanMove(ev, overlay));
+        overlay._planMoveBound = true;
+      }
+      overlay._image.style.cursor = 'grab';
+      syncPlanTransformOverlay(overlay);
     }
 
     function markPlanChange(pin) {
@@ -1943,6 +2197,7 @@ function emojiHtml(str) {
           bazowaSzerokosc: copy.bazowaSzerokosc,
           skala: copy.skala,
           przezroczystosc: copy.przezroczystosc,
+          obrot: copy.obrot || 0,
           widoczny: copy.widoczny !== false
         };
       });
@@ -1951,9 +2206,11 @@ function emojiHtml(str) {
     function openPlanEditor(pin, plan, mode = 'new') {
       const editor = document.getElementById('planEditor');
       if (!editor) return;
+      destroyPlanTransformControls();
       ensurePlanDefaults(plan, pin);
       activePlanPlacement = { pin, plan, mode, original: mode === 'edit' ? JSON.parse(JSON.stringify(plan)) : null };
       ensurePlanOverlay(pin, plan);
+      ensurePlanTransformControls(pin, plan);
       const nameInput = document.getElementById('planNameInput');
       const scaleInput = document.getElementById('planScale');
       const opacityInput = document.getElementById('planOpacity');
@@ -1961,14 +2218,13 @@ function emojiHtml(str) {
       if (scaleInput) scaleInput.value = plan.skala || 100;
       if (opacityInput) opacityInput.value = Math.round((plan.przezroczystosc || 1) * 100);
       editor.style.display = 'block';
-      map.on('click', onPlanMapClick);
     }
 
     function closePlanEditor(cancelled = false) {
       const editor = document.getElementById('planEditor');
       if (!editor) return;
       editor.style.display = 'none';
-      map.off('click', onPlanMapClick);
+      destroyPlanTransformControls();
       if (activePlanPlacement && cancelled) {
         if (activePlanPlacement.mode === 'new') {
           removePlanOverlay(activePlanPlacement.plan);
@@ -1978,12 +2234,6 @@ function emojiHtml(str) {
         }
       }
       activePlanPlacement = null;
-    }
-
-    function onPlanMapClick(e) {
-      if (!activePlanPlacement) return;
-      activePlanPlacement.plan.pozycja = { lat: e.latlng.lat, lng: e.latlng.lng };
-      updatePlanOverlay(activePlanPlacement.pin, activePlanPlacement.plan);
     }
 
     function planScaleChanged(value) {
@@ -5649,6 +5899,7 @@ toggleBtn.style.verticalAlign = "top";
           bazowaSzerokosc: pl.bazowaSzerokosc,
           skala: pl.skala,
           przezroczystosc: pl.przezroczystosc,
+          obrot: pl.obrot || 0,
           widoczny: pl.widoczny !== false
         }))
       });
