@@ -2225,12 +2225,20 @@ function emojiHtml(str) {
       });
     }
 
+    function clonePlanWithoutRuntime(plan) {
+      if (!plan) return null;
+      const plain = { ...plan };
+      delete plain.layer;
+      delete plain._planRef;
+      return JSON.parse(JSON.stringify(plain));
+    }
+
     function openPlanEditor(pin, plan, mode = 'new') {
       const editor = document.getElementById('planEditor');
       if (!editor) return;
       destroyPlanTransformControls();
       ensurePlanDefaults(plan, pin);
-      activePlanPlacement = { pin, plan, mode, original: mode === 'edit' ? JSON.parse(JSON.stringify(plan)) : null };
+      activePlanPlacement = { pin, plan, mode, original: mode === 'edit' ? clonePlanWithoutRuntime(plan) : null };
       ensurePlanOverlay(pin, plan);
       ensurePlanTransformControls(pin, plan);
       const nameInput = document.getElementById('planNameInput');
