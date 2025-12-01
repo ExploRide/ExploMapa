@@ -1968,6 +1968,7 @@ function emojiHtml(str) {
     }
 
     function shouldPlanBeVisible(pin, plan) {
+      if (activePlanPlacement && activePlanPlacement.plan === plan) return true;
       const layerVisible = pin && pin.warstwa && warstwy[pin.warstwa] ? warstwy[pin.warstwa].visible !== false : true;
       const pinVisible = (selectedCategories.size === 0 || selectedCategories.has(pin.kategoria || '')) && pinMatchesStatus(pin);
       return (plan.widoczny !== false) && layerVisible && pinVisible;
