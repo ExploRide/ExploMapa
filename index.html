@@ -5126,11 +5126,60 @@ function showRoutePopup(pinId, tr, latlng) {
 
     function parseCoordinateInput(value) {
       if (!value) return null;
-      const match = value.match(/^\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]+\s*(-?\d+(?:[.,]\d+)?)\s*$/);
-      if (!match) return null;
-      const lat = parseFloat(match[1].replace(',', '.'));
-      const lon = parseFloat(match[2].replace(',', '.'));
-      if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
+      const simpleMatch = value.match(/^\s*(-?\d+(?:[.,]\d+)?)\s*[,;\s]+\s*(-?\d+(?:[.,]\d+)?)\s*$/);
+      if (simpleMatch && !/[NSEW]/i.test(value) && !/°/.test(value)) {
+        const lat = parseFloat(simpleMatch[1].replace(',', '.'));
+        const lon = parseFloat(simpleMatch[2].replace(',', '.'));
+        if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
+        return [lat, lon];
+      }
+
+      const hasDirectionalHints = /[NSEW]/i.test(value) || /°/.test(value);
+      if (!hasDirectionalHints) return null;
+
+      const parseDirectionalPart = (part) => {
+        if (!part) return null;
+        let cleaned = part.trim().replace(/[°]/g, '').replace(/\.+$/g, '');
+        let dir = null;
+        const leadingDir = cleaned.match(/^[NSEW]\b/i);
+        if (leadingDir) {
+          dir = leadingDir[0];
+          cleaned = cleaned.replace(/^[NSEW]\b/i, '').trim();
+        }
+        const trailingDir = cleaned.match(/\b[NSEW]\b/i);
+        if (trailingDir) {
+          dir = dir || trailingDir[0];
+          cleaned = cleaned.replace(/\b[NSEW]\b/i, '').trim();
+        }
+        const numberMatch = cleaned.match(/-?\d+(?:[.,]\d+)?/);
+        if (!numberMatch) return null;
+        let num = parseFloat(numberMatch[0].replace(',', '.'));
+        if (Number.isNaN(num)) return null;
+        if (dir) {
+          if (/[SW]/i.test(dir)) {
+            num = -Math.abs(num);
+          } else {
+            num = Math.abs(num);
+          }
+        }
+        return num;
+      };
+
+      const parts = value.split(/[,;]/).map(part => part.trim()).filter(Boolean);
+      let lat = null;
+      let lon = null;
+      if (parts.length >= 2) {
+        lat = parseDirectionalPart(parts[0]);
+        lon = parseDirectionalPart(parts[1]);
+      } else {
+        const tokens = value.match(/[NSEW]?\s*-?\d+(?:[.,]\d+)?\s*°?\s*[NSEW]?/ig);
+        if (tokens && tokens.length >= 2) {
+          lat = parseDirectionalPart(tokens[0]);
+          lon = parseDirectionalPart(tokens[1]);
+        }
+      }
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
       return [lat, lon];
     }
 
