@@ -3092,6 +3092,8 @@ function emojiHtml(str) {
         }
       }
 
+      const isTouchDevice = 'ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+
       function updateMapDateUI(key) {
         resetMapDateControls();
         if (key === 'orto-wms-std-time') {
@@ -3101,8 +3103,12 @@ function emojiHtml(str) {
         } else if (['orto-wmts-std','orto-wmts-hi','orto-wms-std','orto-wms-hi','true-orto'].includes(key)) {
           setBadge('Orto: mozaika (brak jednego roku)');
         } else if (key === 'sat') {
-          setBadge('Esri: kliknij prawym przyciskiem, aby sprawdzić datę');
-          map.on('contextmenu', handleEsriIdentify);
+          if (isTouchDevice) {
+            setBadge('Esri: przytrzymaj, aby dodać pinezkę');
+          } else {
+            setBadge('Esri: kliknij prawym przyciskiem, aby sprawdzić datę');
+            map.on('contextmenu', handleEsriIdentify);
+          }
         } else if (key === 'otm-trails') {
           setBadge('Topo (OSM): brak daty');
         }
