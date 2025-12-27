@@ -355,7 +355,7 @@
 }
 
 @media (max-width: 700px) {
-  #geosearch { top: 70px; left: 10px; right: 10px; }
+  #geosearch-container { top: 52px; left: 10px; right: 10px; z-index: 900; }
   #gpsFollowBtn {
     position: fixed;
     bottom: 20px;
@@ -368,7 +368,7 @@
     border-radius: 4px;
     display: none;
   }
-  #narzedzia { top: 120px; left: 10px; }
+  #narzedzia { top: 104px; left: 10px; z-index: 900; }
   #saveChanges {
     top: 10px;
     left: 50%;
