@@ -1383,6 +1383,8 @@ function slugify(str) {
     const LAYER_COLLAPSE_STORAGE_KEY = 'warstwaCollapsed';
     const LAYER_VISIBILITY_STORAGE_KEY = 'warstwaVisibility';
     const LAYER_STATE_PRESERVE_FLAG_KEY = 'warstwaPreserveStateOnce';
+    const PINTEREST_LAYER_NAME = 'pinterest_diane_g';
+    const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
     // When the page is opened normally we want layer visibility/collapse to reset.
@@ -3516,6 +3518,36 @@ function emojiHtml(str) {
 
     }
 
+    async function ensureLayerEntry(layerName, orderList = []) {
+      if (!layerName) return;
+      if (layerDocs[layerName]) {
+        if (Array.isArray(orderList) && !orderList.includes(layerName)) {
+          orderList.push(layerName);
+        }
+        if (!warstwy[layerName]) {
+          warstwy[layerName] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
+        }
+        return;
+      }
+      try {
+        const payload = { name: layerName, order: Array.isArray(orderList) ? orderList.length : Object.keys(layerDocs).length };
+        const docRef = await db.collection('layers').add(payload);
+        layerDocs[layerName] = docRef.id;
+        layerNamesById[docRef.id] = layerName;
+        if (Array.isArray(orderList) && !orderList.includes(layerName)) {
+          orderList.push(layerName);
+        }
+        if (!warstwy[layerName]) {
+          warstwy[layerName] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
+        }
+      } catch (e) {
+        console.error('Błąd dodawania warstwy do Firestore', e);
+        if (!warstwy[layerName]) {
+          warstwy[layerName] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
+        }
+      }
+    }
+
     async function loadLayersFromFirestore() {
       try {
         const snap = await db.collection('layers').orderBy('order').get();
@@ -3541,6 +3573,7 @@ function emojiHtml(str) {
             }
           }
         });
+        await ensureLayerEntry(PINTEREST_LAYER_NAME, order);
         if (order.length > 0) {
           localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
           initialLayerOrder = [...order];
@@ -3554,13 +3587,19 @@ function emojiHtml(str) {
     
 function zaladujPinezkiZFirestore() {
   showLoading();
-  Promise.all([
-    db.collection("pinezki2").get(),
-    db.collection("Pinterest_Diane_G").get()
-  ]).then(([snap1, snap2]) => {
-    ;[snap1, snap2].forEach(snapshot => {
+  const pinSources = [
+    { collection: "pinezki2", layerOverride: null },
+    { collection: PINTEREST_PINS_COLLECTION, layerOverride: PINTEREST_LAYER_NAME }
+  ];
+  Promise.all(pinSources.map(source => db.collection(source.collection).get()))
+  .then(snaps => {
+    snaps.forEach((snapshot, idx) => {
+      const source = pinSources[idx];
       snapshot.forEach(doc => {
       const p = doc.data();
+      if (source.layerOverride) {
+        p.warstwa = source.layerOverride;
+      }
       if (p.dataDodania && p.dataDodania.seconds !== undefined) {
         p.dataDodania = p.dataDodania.seconds * 1000;
       } else if (typeof p.dataDodania === 'string' || p.dataDodania instanceof Date) {
