@@ -1111,8 +1111,16 @@ img.emoji {
 
     const emojiList = window.emojiList = [];
     const emojiMap = window.emojiMap = {};
+    const emojiListListeners = new Set();
     let emojiListResolver;
     const emojiListReady = new Promise(res => (emojiListResolver = res));
+    function notifyEmojiListUpdated() {
+      emojiListListeners.forEach(listener => listener(emojiList));
+    }
+    function subscribeEmojiList(listener) {
+      emojiListListeners.add(listener);
+      return () => emojiListListeners.delete(listener);
+    }
     db.collection('emoji-list').onSnapshot(snapshot => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       docs.sort((a, b) => {
@@ -1124,6 +1132,7 @@ img.emoji {
       Object.keys(emojiMap).forEach(k => delete emojiMap[k]);
       docs.forEach(e => { emojiList.push(e); emojiMap[e.id] = e.url; });
       if (emojiListResolver) { emojiListResolver(); emojiListResolver = null; }
+      notifyEmojiListUpdated();
     }, err => {
       console.error('❌ Błąd pobierania emoji-list:', err);
       if (emojiListResolver) { emojiListResolver(); emojiListResolver = null; }
@@ -2794,22 +2803,26 @@ function emojiHtml(str) {
         }
       }
 
-      emojiList.forEach(({id, url, info}) => {
-        const img = document.createElement('img');
-        img.src = url;
-        if (info) { img.title = info; img.dataset.info = info; }
-        img.width = 24;
-        img.height = 24;
-        img.style.cursor = 'pointer';
-        img.style.margin = '2px';
-        img.addEventListener('mousedown', e => {
-          e.preventDefault();
-          input.value = id;
-          updatePreview();
-          list.style.display = 'none';
+      function renderList() {
+        list.querySelectorAll('img[data-emoji-item="true"]').forEach(el => el.remove());
+        emojiList.forEach(({id, url, info}) => {
+          const img = document.createElement('img');
+          img.dataset.emojiItem = 'true';
+          img.src = url;
+          if (info) { img.title = info; img.dataset.info = info; }
+          img.width = 24;
+          img.height = 24;
+          img.style.cursor = 'pointer';
+          img.style.margin = '2px';
+          img.addEventListener('mousedown', e => {
+            e.preventDefault();
+            input.value = id;
+            updatePreview();
+            list.style.display = 'none';
+          });
+          list.insertBefore(img, addBtn);
         });
-        list.appendChild(img);
-      });
+      }
 
       const addBtn = document.createElement('button');
       addBtn.textContent = '+';
@@ -2820,20 +2833,6 @@ function emojiHtml(str) {
         if (url) {
           const info = prompt('Nazwa nowego emoji:') || '';
           const id = await addEmojiToList(url, info);
-          const img = document.createElement('img');
-          img.src = url;
-          if (info) { img.title = info; img.dataset.info = info; }
-          img.width = 24;
-          img.height = 24;
-          img.style.cursor = 'pointer';
-          img.style.margin = '2px';
-          img.addEventListener('mousedown', ev => {
-            ev.preventDefault();
-            input.value = id;
-            updatePreview();
-            list.style.display = 'none';
-          });
-          list.insertBefore(img, addBtn);
           input.value = id;
           updatePreview();
           list.style.display = 'none';
@@ -2841,6 +2840,8 @@ function emojiHtml(str) {
       });
       list.appendChild(addBtn);
       document.body.appendChild(list);
+      renderList();
+      subscribeEmojiList(renderList);
 
       function show() {
         const r = input.getBoundingClientRect();
@@ -2877,18 +2878,6 @@ function emojiHtml(str) {
 
       const grid = document.createElement('div');
       grid.className = 'emoji-picker-grid';
-      emojiList.forEach(({id, url, info}) => {
-        const img = document.createElement('img');
-        img.src = url;
-        if (info) { img.title = info; img.dataset.info = info; }
-        img.addEventListener('click', e => {
-          e.stopPropagation();
-          preview.src = url;
-          pin.noweEmoji = id;
-          grid.style.display = 'none';
-        });
-        grid.appendChild(img);
-      });
       const addBtn = document.createElement('button');
       addBtn.textContent = '+';
       addBtn.className = 'emoji-add-btn';
@@ -2898,22 +2887,30 @@ function emojiHtml(str) {
         if (url) {
           const info = prompt('Nazwa nowego emoji:') || '';
           const id = await addEmojiToList(url, info);
-          const img = document.createElement('img');
-          img.src = url;
-          if (info) { img.title = info; img.dataset.info = info; }
-          img.addEventListener('click', ev => {
-            ev.stopPropagation();
-            preview.src = url;
-            pin.noweEmoji = id;
-            grid.style.display = 'none';
-          });
-          grid.insertBefore(img, addBtn);
           preview.src = url;
           pin.noweEmoji = id;
           grid.style.display = 'none';
         }
       });
       grid.appendChild(addBtn);
+      function renderGrid() {
+        grid.querySelectorAll('img[data-emoji-item="true"]').forEach(el => el.remove());
+        emojiList.forEach(({id, url, info}) => {
+          const img = document.createElement('img');
+          img.dataset.emojiItem = 'true';
+          img.src = url;
+          if (info) { img.title = info; img.dataset.info = info; }
+          img.addEventListener('click', e => {
+            e.stopPropagation();
+            preview.src = url;
+            pin.noweEmoji = id;
+            grid.style.display = 'none';
+          });
+          grid.insertBefore(img, addBtn);
+        });
+      }
+      renderGrid();
+      subscribeEmojiList(renderGrid);
       container.appendChild(grid);
 
       preview.addEventListener('click', e => {
@@ -2948,19 +2945,6 @@ function emojiHtml(str) {
         preview.src = currentUrl();
       }
 
-      emojiList.forEach(({id, url, info}) => {
-        const img = document.createElement('img');
-        img.src = url;
-        if (info) { img.title = info; img.dataset.info = info; }
-        img.addEventListener('click', e => {
-          e.stopPropagation();
-          input.value = id;
-          updatePreview();
-          grid.style.display = 'none';
-        });
-        grid.appendChild(img);
-      });
-
       const addBtn = document.createElement('button');
       addBtn.textContent = '+';
       addBtn.className = 'emoji-add-btn';
@@ -2970,22 +2954,30 @@ function emojiHtml(str) {
         if (url) {
           const info = prompt('Nazwa nowego emoji:') || '';
           const id = await addEmojiToList(url, info);
-          const img = document.createElement('img');
-          img.src = url;
-          if (info) { img.title = info; img.dataset.info = info; }
-          img.addEventListener('click', ev => {
-            ev.stopPropagation();
-            input.value = id;
-            updatePreview();
-            grid.style.display = 'none';
-          });
-          grid.insertBefore(img, addBtn);
           input.value = id;
           updatePreview();
           grid.style.display = 'none';
         }
       });
       grid.appendChild(addBtn);
+      function renderGrid() {
+        grid.querySelectorAll('img[data-emoji-item="true"]').forEach(el => el.remove());
+        emojiList.forEach(({id, url, info}) => {
+          const img = document.createElement('img');
+          img.dataset.emojiItem = 'true';
+          img.src = url;
+          if (info) { img.title = info; img.dataset.info = info; }
+          img.addEventListener('click', e => {
+            e.stopPropagation();
+            input.value = id;
+            updatePreview();
+            grid.style.display = 'none';
+          });
+          grid.insertBefore(img, addBtn);
+        });
+      }
+      renderGrid();
+      subscribeEmojiList(renderGrid);
 
       container.appendChild(preview);
       container.appendChild(grid);
@@ -7074,18 +7066,6 @@ function confirmLayerDelete() {
     container.appendChild(preview);
     const grid = document.createElement('div');
     grid.className = 'emoji-picker-grid';
-    emojiList.forEach(({id, url, info}) => {
-      const img = document.createElement('img');
-      img.src = url;
-      if (info) { img.title = info; img.dataset.info = info; }
-      img.addEventListener('click', e => {
-        e.stopPropagation();
-        input.value = id;
-        preview.src = url;
-        grid.style.display = 'none';
-      });
-      grid.appendChild(img);
-    });
     const addBtn = document.createElement('button');
     addBtn.textContent = '+';
     addBtn.className = 'emoji-add-btn';
@@ -7095,22 +7075,30 @@ function confirmLayerDelete() {
       if (url) {
         const info = prompt('Nazwa nowego emoji:') || '';
         const id = await addEmojiToList(url, info, log);
-        const img = document.createElement('img');
-        img.src = url;
-        if (info) { img.title = info; img.dataset.info = info; }
-        img.addEventListener('click', ev => {
-          ev.stopPropagation();
-          input.value = id;
-          preview.src = url;
-          grid.style.display = 'none';
-        });
-        grid.insertBefore(img, addBtn);
         input.value = id;
         preview.src = url;
         grid.style.display = 'none';
       }
     });
     grid.appendChild(addBtn);
+    function renderGrid() {
+      grid.querySelectorAll('img[data-emoji-item="true"]').forEach(el => el.remove());
+      emojiList.forEach(({id, url, info}) => {
+        const img = document.createElement('img');
+        img.dataset.emojiItem = 'true';
+        img.src = url;
+        if (info) { img.title = info; img.dataset.info = info; }
+        img.addEventListener('click', e => {
+          e.stopPropagation();
+          input.value = id;
+          preview.src = url;
+          grid.style.display = 'none';
+        });
+        grid.insertBefore(img, addBtn);
+      });
+    }
+    renderGrid();
+    subscribeEmojiList(renderGrid);
     container.appendChild(grid);
     preview.addEventListener('click', e => {
       e.stopPropagation();
@@ -7131,6 +7119,7 @@ function confirmLayerDelete() {
     const data = { id: newId, url, info };
     emojiList.push(data);
     emojiMap[newId] = url;
+    notifyEmojiListUpdated();
     try {
       await db.collection('emoji-list').doc(newId).set(data);
       logger(`💾 Dodano ${newId} do Firebase`);
