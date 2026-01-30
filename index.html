@@ -1138,6 +1138,7 @@ img.emoji {
   <div id="layer-editor">
     <h3>Edycja warstwy</h3>
     <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
+    <div id="layerEditId" style="font-size:12px;color:#aaa;margin-top:4px;margin-bottom:8px;"></div>
     <input type="number" id="layerEditOrder" min="1" style="width:70px;"> <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button><br>
     <input id="layerEditEmoji" placeholder="Emoji warstwy" style="width:100%"><br>
     <div id="layerEditDefaultVisibility">
@@ -1387,7 +1388,8 @@ function slugify(str) {
           loadNewPinsFromLocal();
           generujListeWarstw();
         } else {
-          zaladujPinezkiZFirestore();
+          generujListeWarstw();
+          loadPinsForVisibleLayers();
         }
         initGeoSearch();
         setupMobile();
@@ -1401,7 +1403,8 @@ function slugify(str) {
               shouldIgnoreStoredLayerState = true;
               localStorage.removeItem(LAYER_COLLAPSE_STORAGE_KEY);
               localStorage.removeItem(LAYER_VISIBILITY_STORAGE_KEY);
-              zaladujPinezkiZFirestore();
+              generujListeWarstw();
+              loadPinsForVisibleLayers();
               loadBtn.style.display = 'none';
             }, { once: true });
           }
@@ -1910,6 +1913,7 @@ function slugify(str) {
           warstwy[n].visible = allLayersVisible;
           if (allLayersVisible) {
             warstwy[n].layer.addTo(map);
+            loadPinsForLayer(n);
           } else {
             map.removeLayer(warstwy[n].layer);
           }
@@ -3735,21 +3739,10 @@ function emojiHtml(str) {
       }
     }
 
-    
-function zaladujPinezkiZFirestore() {
-  showLoading();
-  const pinSources = [
-    { collection: "pinezki2", layerOverride: null },
-    { collection: PINTEREST_PINS_COLLECTION, layerOverride: PINTEREST_LAYER_NAME }
-  ];
-  Promise.all(pinSources.map(source => db.collection(source.collection).get()))
-  .then(snaps => {
-    snaps.forEach((snapshot, idx) => {
-      const source = pinSources[idx];
-      snapshot.forEach(doc => {
+    function addPinFromFirestoreDoc(doc, layerOverride) {
       const p = doc.data();
-      if (source.layerOverride) {
-        p.warstwa = source.layerOverride;
+      if (layerOverride) {
+        p.warstwa = layerOverride;
       }
       if (p.dataDodania && p.dataDodania.seconds !== undefined) {
         p.dataDodania = p.dataDodania.seconds * 1000;
@@ -3807,6 +3800,8 @@ function zaladujPinezkiZFirestore() {
           layer: L.layerGroup(),
           collapsed: true,
           emoji: '',
+          loaded: false,
+          loading: false,
           defaultVisible: true
         };
       }
@@ -3845,25 +3840,73 @@ function zaladujPinezkiZFirestore() {
       p.marker = marker;
       applyInactiveStyle(p);
       warstwy[warstwaNazwa].lista.push(p);
-      warstwy[warstwaNazwa].loaded = true;
       wszystkiePinezki.push(p);
-    });
-    });
-    if (!localPinsLoaded) loadNewPinsFromLocal();
-    updateCategoryFilter();
-    updateStatusFilter();
-    generujListeWarstw();
-  })
-  .catch(err => {
-    console.error("Błąd pobierania pinezek:", err);
-    if (!localPinsLoaded) loadNewPinsFromLocal();
-    updateCategoryFilter();
-    updateStatusFilter();
-    generujListeWarstw();
-  }).finally(() => {
-    hideLoading();
-  });
-}
+    }
+
+    async function loadPinsForLayer(layerName, { refreshUI = true } = {}) {
+      const layer = warstwy[layerName];
+      if (!layer || layer.loading || layer.loaded || layer.temporary) return 0;
+      layer.loading = true;
+      showLoading();
+      const existingFirebaseIds = new Set(wszystkiePinezki.map(p => p.firebaseId).filter(Boolean));
+      const dedupInLoad = new Set();
+      let addedCount = 0;
+      try {
+        if (layerName === PINTEREST_LAYER_NAME) {
+          const snapshot = await db.collection(PINTEREST_PINS_COLLECTION).get();
+          snapshot.forEach(doc => {
+            if (existingFirebaseIds.has(doc.id) || dedupInLoad.has(doc.id)) return;
+            dedupInLoad.add(doc.id);
+            addPinFromFirestoreDoc(doc, PINTEREST_LAYER_NAME);
+            addedCount++;
+          });
+        } else {
+          const layerId = layerDocs[layerName];
+          const queries = [];
+          if (layerId) {
+            queries.push(db.collection('pinezki2').where('warstwaId', '==', layerId).get());
+          }
+          queries.push(db.collection('pinezki2').where('warstwa', '==', layerName).get());
+          const snapshots = await Promise.all(queries);
+          snapshots.forEach(snapshot => {
+            snapshot.forEach(doc => {
+              if (existingFirebaseIds.has(doc.id) || dedupInLoad.has(doc.id)) return;
+              dedupInLoad.add(doc.id);
+              addPinFromFirestoreDoc(doc, null);
+              addedCount++;
+            });
+          });
+        }
+        layer.loaded = true;
+      } catch (err) {
+        console.error("Błąd pobierania pinezek:", err);
+      } finally {
+        layer.loading = false;
+        hideLoading();
+        if (refreshUI) {
+          if (!localPinsLoaded) loadNewPinsFromLocal();
+          updateCategoryFilter();
+          updateStatusFilter();
+          generujListeWarstw();
+        }
+      }
+      return addedCount;
+    }
+
+    async function loadPinsForVisibleLayers() {
+      const visibleLayers = Object.keys(warstwy).filter(name => {
+        const layer = warstwy[name];
+        return layer && !layer.temporary && layer.visible;
+      });
+      try {
+        await Promise.all(visibleLayers.map(name => loadPinsForLayer(name, { refreshUI: false })));
+      } finally {
+        if (!localPinsLoaded) loadNewPinsFromLocal();
+        updateCategoryFilter();
+        updateStatusFilter();
+        generujListeWarstw();
+      }
+    }
 
     function buildStatusGrid(prefix = '', suffix = '', status = {}) {
       return `
@@ -5177,6 +5220,11 @@ function zaladujPinezkiZFirestore() {
         defaultVisibleInput.checked = defaultVisible;
         defaultHiddenInput.checked = !defaultVisible;
       }
+      const idEl = document.getElementById('layerEditId');
+      if (idEl) {
+        const layerId = layerDocs[name];
+        idEl.textContent = `ID warstwy: ${layerId || 'brak'}`;
+      }
       panel.style.display = 'block';
     }
 
@@ -6103,6 +6151,7 @@ function showRoutePopup(pinId, tr, latlng) {
           warstwy[nazwa].visible = checkbox.checked;
           if (checkbox.checked) {
             warstwy[nazwa].layer.addTo(map);
+            loadPinsForLayer(nazwa);
           } else {
             map.removeLayer(warstwy[nazwa].layer);
           }
