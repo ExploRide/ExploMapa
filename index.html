@@ -3148,16 +3148,7 @@ function emojiHtml(str) {
       // Undo/redo should ignore map view changes, so no actions are
       // recorded for map movements.
 
-      // Ensure popups are fully visible by centering the map on them
-      map.on('popupopen', e => {
-        const mapRect = map.getContainer().getBoundingClientRect();
-        const popupRect = e.popup._container.getBoundingClientRect();
-        const offset = [
-          popupRect.left + popupRect.width / 2 - (mapRect.left + mapRect.width / 2),
-          popupRect.top + popupRect.height / 2 - (mapRect.top + mapRect.height / 2)
-        ];
-        map.panBy(offset, { animate: true });
-      });
+      // Leaflet handles popup autopan; avoid manual centering to prevent double-pan lag.
 
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri'
