@@ -568,9 +568,13 @@ body, #sidebar, #basemap-switcher {
   min-width: 300px;
 }
 .popup-edit-btn {
-  position: absolute;
-  top: 0;
-  right: 0;
+  position: static;
+  margin-left: auto;
+}
+.popup-edit-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
 }
 .popup-route-actions {
   display: flex;
@@ -2743,7 +2747,9 @@ function emojiHtml(str) {
         <div class="popup-info-item popup-address" data-lat="${p.lat}" data-lng="${p.lng}">Adres: wyszukiwanie...</div>
         <div class="popup-info-item">${formatCoords(p.lat, p.lng)}</div>
         <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
-        <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
+        <div class="popup-edit-row">
+          <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
+        </div>
         <div class="popup-route-actions">
           <button class="popup-route-btn" id="routeBtn-${p.id}">Dodaj trasę</button>
           <button class="popup-direct-route-btn" id="routeDirectBtn-${p.id}">Wyznacz trasę do</button>
