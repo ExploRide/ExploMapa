@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ExploRide – Migracja warstw (nazwa → ID)</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 16px; background:#0b0e14; color:#e6e6e6; }
+    h1 { font-size: 18px; margin: 0 0 8px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; margin: 12px 0; }
+    button { padding: 10px 14px; border: 0; border-radius: 10px; background:#2a6df4; color:#fff; cursor:pointer; font-weight:600; }
+    button[disabled] { opacity: .5; cursor:not-allowed; }
+    .card { background:#121826; border:1px solid #1e2a44; border-radius: 14px; padding: 12px; }
+    .small { font-size: 12px; color:#aeb6c2; line-height: 1.4; }
+    pre { white-space: pre-wrap; word-break: break-word; background:#070a10; border:1px solid #1e2a44; border-radius: 12px; padding: 12px; max-height: 55vh; overflow:auto; }
+    input[type="text"], input[type="number"]{
+      width: 100%; max-width: 520px; padding: 10px 12px; border-radius: 10px;
+      border:1px solid #1e2a44; background:#0b0e14; color:#e6e6e6;
+    }
+    label { display:block; margin: 10px 0 6px; font-size: 12px; color:#aeb6c2; }
+    .ok { color:#6ee7b7; }
+    .warn { color:#fbbf24; }
+    .err { color:#fb7185; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    details summary { cursor:pointer; color:#aeb6c2; }
+    a { color:#93c5fd; }
+  </style>
+</head>
+<body>
+  <h1>ExploRide – Migracja warstw (Firestore)</h1>
+  <div class="card small">
+    <div>To narzędzie zamienia w kolekcji <span class="mono">pinezki2</span> pole <span class="mono">warstwa</span> z nazwy (np. <span class="mono">"Sztosy"</span>) na ID dokumentu z <span class="mono">layers</span> (np. <span class="mono">"6qq6xyfo5aTivNCwpi2O"</span>).</div>
+    <div class="warn" style="margin-top:8px;">
+      Ważne: uruchom to z <b>http://localhost</b> albo hostingu (nie z <span class="mono">file://</span>), inaczej logowanie może nie działać.
+    </div>
+    <div style="margin-top:8px;">
+      Jeśli zobaczysz błąd <span class="mono">auth/unauthorized-domain</span> → dodaj <span class="mono">localhost</span> w Firebase Console → Authentication → Settings → Authorized domains.
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <label>Kolekcja warstw</label>
+    <input id="layersCol" type="text" value="layers" class="mono" />
+
+    <label>Kolekcja pinezek</label>
+    <input id="pinsCol" type="text" value="pinezki2" class="mono" />
+
+    <label>Pole warstwy w pinezkach</label>
+    <input id="layerField" type="text" value="warstwa" class="mono" />
+
+    <label>Tryb</label>
+    <div class="row">
+      <button id="loginBtn">Zaloguj Google</button>
+      <button id="dryBtn" disabled>Dry-run (tylko pokaż)</button>
+      <button id="runBtn" disabled>MIGRUJ (zapis do Firestore)</button>
+      <button id="clearBtn">Wyczyść log</button>
+    </div>
+
+    <details>
+      <summary>Konfiguracja Firebase (wbudowana)</summary>
+      <pre class="mono" id="cfg"></pre>
+    </details>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <div class="small">Log:</div>
+    <pre id="log" class="mono"></pre>
+  </div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getFirestore, collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+  // === TWOJA KONFIGURACJA ===
+  const firebaseConfig = {
+    apiKey: "AIzaSyBj8xPy81NaxFwHmBL3ni_UVjYKFZflyv0",
+    authDomain: "exploridemap.firebaseapp.com",
+    projectId: "exploridemap",
+    storageBucket: "exploridemap.firebasestorage.app",
+    messagingSenderId: "1074659589759",
+    appId: "1:1074659589759:web:f8bdffc15d41d47ac8094a",
+    measurementId: "G-2JHQZ6HXTM"
+  };
+
+  // UI helpers
+  const logEl = document.getElementById("log");
+  const cfgEl = document.getElementById("cfg");
+  cfgEl.textContent = JSON.stringify(firebaseConfig, null, 2);
+
+  function log(msg, cls="") {
+    const line = msg + "\n";
+    if (!cls) {
+      logEl.textContent += line;
+    } else {
+      // simple class markers in text (keeps copy-paste friendly)
+      logEl.textContent += `[${cls.toUpperCase()}] ` + line;
+    }
+    logEl.scrollTop = logEl.scrollHeight;
+    console.log(msg);
+  }
+
+  function norm(s) {
+    return (typeof s === "string") ? s.trim().toLowerCase() : null;
+  }
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  const loginBtn = document.getElementById("loginBtn");
+  const dryBtn = document.getElementById("dryBtn");
+  const runBtn = document.getElementById("runBtn");
+  const clearBtn = document.getElementById("clearBtn");
+
+  clearBtn.onclick = () => { logEl.textContent = ""; };
+
+  async function ensureLoggedIn() {
+    if (!auth.currentUser) {
+      throw new Error("Nie jesteś zalogowany. Kliknij 'Zaloguj Google'.");
+    }
+    return auth.currentUser;
+  }
+
+  loginBtn.onclick = async () => {
+    try {
+      log("Logowanie przez Google…");
+      const provider = new GoogleAuthProvider();
+      const res = await signInWithPopup(auth, provider);
+      log(`Zalogowano jako: ${res.user.email}`, "ok");
+      dryBtn.disabled = false;
+      runBtn.disabled = false;
+    } catch (e) {
+      log(`Błąd logowania: ${e?.code || ""} ${e?.message || e}`, "err");
+      log("Jeśli to auth/unauthorized-domain: dodaj localhost w Authorized domains.", "warn");
+    }
+  };
+
+  async function loadLayerMap(layersCol) {
+    log(`Czytam warstwy z kolekcji '${layersCol}'…`);
+    const layersSnap = await getDocs(collection(db, layersCol));
+    const nameToId = new Map(); // normalized name -> id
+    const duplicates = new Map(); // name -> [ids]
+
+    layersSnap.forEach(d => {
+      const data = d.data() || {};
+      const raw = (data.name ?? data.nazwa ?? data.nazwа ?? "").toString(); // last one just in case of typo
+      const key = norm(raw);
+      if (!key) return;
+
+      if (nameToId.has(key)) {
+        const first = nameToId.get(key);
+        duplicates.set(key, Array.from(new Set([first, ...(duplicates.get(key) || []), d.id])));
+      } else {
+        nameToId.set(key, d.id);
+      }
+    });
+
+    log(`Wczytano warstw: ${nameToId.size}`, "ok");
+
+    if (duplicates.size) {
+      log("Uwaga: duplikaty nazw warstw (może być niejednoznacznie):", "warn");
+      for (const [k, ids] of duplicates.entries()) log(`- '${k}' => ${ids.join(", ")}`, "warn");
+      log("Dla duplikatów użyję pierwszego ID, które wpadło do mapy.", "warn");
+    }
+
+    return { nameToId };
+  }
+
+  async function migrate(doWrite) {
+    const user = await ensureLoggedIn();
+
+    const layersCol = document.getElementById("layersCol").value.trim();
+    const pinsCol = document.getElementById("pinsCol").value.trim();
+    const layerField = document.getElementById("layerField").value.trim();
+
+    log(`--- START (${doWrite ? "ZAPIS" : "DRY-RUN"}) ---`);
+    log(`Użytkownik: ${user.email}`);
+    log(`layers: ${layersCol}, pinezki: ${pinsCol}, pole: ${layerField}`);
+
+    const { nameToId } = await loadLayerMap(layersCol);
+
+    log(`Czytam pinezki z kolekcji '${pinsCol}'…`);
+    const pinsSnap = await getDocs(collection(db, pinsCol));
+    log(`Liczba pinezek: ${pinsSnap.size}`, "ok");
+
+    // cache layer IDs for quick "already id" check
+    const layerIds = new Set(Array.from(nameToId.values()));
+
+    let updated = 0, already = 0, unmatched = 0, bad = 0;
+
+    for (const pin of pinsSnap.docs) {
+      const data = pin.data() || {};
+      const current = data[layerField];
+
+      if (typeof current !== "string") { bad++; continue; }
+
+      // already an id?
+      if (layerIds.has(current)) { already++; continue; }
+
+      const key = norm(current);
+      if (!key) { bad++; continue; }
+
+      const targetId = nameToId.get(key);
+      if (!targetId) { unmatched++; continue; }
+
+      if (!doWrite) {
+        updated++;
+        if (updated <= 30) log(`(dry) ${pin.id}: '${current}' -> '${targetId}'`);
+        else if (updated === 31) log("… (kolejne zmiany ukryte w logu, ale policzę je w podsumowaniu)");
+        continue;
+      }
+
+      await updateDoc(doc(db, pinsCol, pin.id), { [layerField]: targetId });
+      updated++;
+      if (updated % 50 === 0) log(`Zaktualizowano: ${updated}…`, "ok");
+    }
+
+    log(`--- KONIEC (${doWrite ? "ZAPIS" : "DRY-RUN"}) ---`, "ok");
+    log(`Zmienione: ${updated}`, "ok");
+    log(`Pominięte (już ID): ${already}`);
+    log(`Nie dopasowano warstwy: ${unmatched}`, unmatched ? "warn" : "");
+    log(`Brak/nie-string w polu '${layerField}': ${bad}`, bad ? "warn" : "");
+    log("Jeśli 'Nie dopasowano' > 0, to znaczy że w pinezkach są nazwy nieistniejące w layers (literówka, spacja, itp.).", "warn");
+  }
+
+  dryBtn.onclick = async () => {
+    try { await migrate(false); }
+    catch (e) { log(`Błąd: ${e?.code || ""} ${e?.message || e}`, "err"); }
+  };
+
+  runBtn.onclick = async () => {
+    try {
+      const ok = confirm("Na pewno chcesz WPROWADZIĆ ZMIANY w Firestore? (To nadpisze pole 'warstwa' na ID warstwy)");
+      if (!ok) return;
+      await migrate(true);
+    } catch (e) {
+      log(`Błąd: ${e?.code || ""} ${e?.message || e}`, "err");
+      if ((e?.message || "").includes("insufficient permissions")) {
+        log("Brak uprawnień: sprawdź reguły Firestore (czy email/UID ma update do pinezki2).", "warn");
+      }
+    }
+  };
+
+  // quick hint if opened via file://
+  if (location.protocol === "file:") {
+    log("Wykryto file:// — uruchom stronę przez http://localhost (np. python -m http.server 8080).", "warn");
+  } else {
+    log("OK: uruchomione przez HTTP/HTTPS.", "ok");
+  }
+</script>
+</body>
+</html>
