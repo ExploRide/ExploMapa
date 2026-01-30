@@ -1143,6 +1143,27 @@ img.emoji {
       return emojiMap[val] || val;
     }
 
+    async function addEmojiToList(url, info = '', logger = console.log) {
+      await emojiListReady;
+      const nextNum = emojiList.reduce((m, e) => {
+        const n = parseInt(String(e.id).replace('emoji', '')) || 0;
+        return Math.max(m, n);
+      }, 0) + 1;
+      const newId = `emoji${nextNum}`;
+      const data = { id: newId, url, info };
+      emojiList.push(data);
+      emojiMap[newId] = url;
+      notifyEmojiListUpdated();
+      try {
+        await db.collection('emoji-list').doc(newId).set(data);
+        logger(`💾 Dodano ${newId} do Firebase`);
+      } catch (e) {
+        logger(`❌ Błąd zapisu do Firebase: ${e.message}`);
+      }
+      return newId;
+    }
+    window.addEmojiToList = addEmojiToList;
+
 function slugify(str) {
   return str
     .normalize("NFKD")
