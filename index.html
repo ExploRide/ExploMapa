@@ -3130,6 +3130,7 @@ function emojiHtml(str) {
       }
 
       L.Popup.prototype.options.maxWidth = 800;
+      L.Popup.prototype.options.autoPan = false;
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
       map.on('zoomend', () => {
         if (!highlightedMarker || !pinHighlightCircle) return;
@@ -3148,15 +3149,29 @@ function emojiHtml(str) {
       // Undo/redo should ignore map view changes, so no actions are
       // recorded for map movements.
 
-      // Ensure popups are fully visible by centering the map on them
+      // Keep popups within view without animated panning to avoid edge-click lag.
       map.on('popupopen', e => {
-        const mapRect = map.getContainer().getBoundingClientRect();
-        const popupRect = e.popup._container.getBoundingClientRect();
-        const offset = [
-          popupRect.left + popupRect.width / 2 - (mapRect.left + mapRect.width / 2),
-          popupRect.top + popupRect.height / 2 - (mapRect.top + mapRect.height / 2)
-        ];
-        map.panBy(offset, { animate: true });
+        const popupEl = e.popup && e.popup._container;
+        const mapEl = map.getContainer();
+        if (!popupEl || !mapEl) return;
+        const mapRect = mapEl.getBoundingClientRect();
+        const popupRect = popupEl.getBoundingClientRect();
+        const padding = 16;
+        let dx = 0;
+        let dy = 0;
+        if (popupRect.left < mapRect.left + padding) {
+          dx = mapRect.left + padding - popupRect.left;
+        } else if (popupRect.right > mapRect.right - padding) {
+          dx = mapRect.right - padding - popupRect.right;
+        }
+        if (popupRect.top < mapRect.top + padding) {
+          dy = mapRect.top + padding - popupRect.top;
+        } else if (popupRect.bottom > mapRect.bottom - padding) {
+          dy = mapRect.bottom - padding - popupRect.bottom;
+        }
+        if (dx || dy) {
+          map.panBy([dx, dy], { animate: false });
+        }
       });
 
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
