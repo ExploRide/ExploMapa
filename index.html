@@ -375,10 +375,10 @@
     }
     .hillshade-dark { filter: grayscale(100%) brightness(60%); }
     .emoji-marker { background: none; border: none; }
-        .emoji-sztosy {
+    .emoji-sztosy {
   font-family: 'Noto Color Emoji', sans-serif;
-  font-size: 28px;
-  line-height: 32px;
+  font-size: 22.4px;
+  line-height: 25.6px;
   position: relative;
   color: inherit;
   text-shadow:
@@ -399,8 +399,8 @@
 }
   .emoji-marker span {
   font-family: 'Noto Color Emoji', sans-serif;
- /* font-size: 28px; */
-  line-height: 32px;
+  font-size: 22.4px;
+  line-height: 25.6px;
 }
 
     .emoji-marker span:not(.emoji-sztosy) {
@@ -473,6 +473,10 @@ width: 15px;
     #saveChanges {
       background-color: #28a745;
       border-color: #218838;
+    }
+    #saveChanges.unsaved {
+      background-color: #dc3545;
+      border-color: #b02a37;
     }
     #map.pin-cursor {
       cursor: url('https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2.png') 13 43, auto !important;
@@ -1064,8 +1068,8 @@ img.emoji {
       <div id="history-log"></div>
     </div>
     <div id="basemap-actions">
-      <button id="saveChanges">Zapisz edycję mapy</button>
       <button id="exportKML">Zapisz do .KML</button>
+      <button id="saveChanges">Zapisz edycję mapy</button>
     </div>
   </div>
   <div id="layer-editor">
@@ -1782,6 +1786,7 @@ function slugify(str) {
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
       btn.style.display = pending ? 'block' : 'none';
+      btn.classList.toggle('unsaved', pending);
     }
 
     function markPinUnsaved(slug) {
@@ -1959,29 +1964,33 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
 
     function createEmojiIcon(emojiOrUrl, warstwaId, size = 32, status = {}) {
       emojiOrUrl = resolveEmoji(emojiOrUrl);
+      const markerScale = 0.8;
+      const scaledSize = size * markerScale;
+      const overlaySize = (20 * markerScale).toFixed(1);
+      const imageSize = (28 * markerScale).toFixed(1);
       const isVisitedLayer = warstwaId && warstwaId === visitedId;
       const isSztosy = warstwaId && warstwaId === sztosyId;
       const isHighlighted = isSztosy || status.wyroznione;
       if (warstwaId && warstwaId === orangeLayerId) {
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png',
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size]
+          iconSize: [scaledSize, scaledSize],
+          iconAnchor: [scaledSize / 2, scaledSize]
         });
       }
       if (warstwaId && warstwaId === movingLayerId) {
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png',
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size]
+          iconSize: [scaledSize, scaledSize],
+          iconAnchor: [scaledSize / 2, scaledSize]
         });
       }
 
       if (!emojiOrUrl || String(emojiOrUrl).trim() === "" || emojiOrUrl === "undefined") {
         return L.icon({
           iconUrl: 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png',
-          iconSize: [size * 0.56, size * 0.9],
-          iconAnchor: [size * 0.28, size * 0.9]
+          iconSize: [scaledSize * 0.56, scaledSize * 0.9],
+          iconAnchor: [scaledSize * 0.28, scaledSize * 0.9]
         });
       }
 
@@ -1998,7 +2007,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
               : status.zdewastowane
                 ? `<span class="${statusClass}">💥</span>`
                 : (status.zwiedzone || isVisitedLayer)
-                  ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="20" height="20" class="${statusClass} checkmark-obrys">`
+                  ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="${overlaySize}" height="${overlaySize}" class="${statusClass} checkmark-obrys">`
                 : '';
       const overlay = `${isHighlighted ? '<span class="sztosy-gwiazda">⭐</span>' : ''}${statusIcon}`;
 
@@ -2008,11 +2017,11 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
           className: 'emoji-marker',
           html: `
             <div style="position: relative; display: inline-block;">
-              <img src="${emojiOrUrl}" class="${cls}" width="28" height="28">
+              <img src="${emojiOrUrl}" class="${cls}" width="${imageSize}" height="${imageSize}">
               ${overlay}
             </div>`,
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size]
+          iconSize: [scaledSize, scaledSize],
+          iconAnchor: [scaledSize / 2, scaledSize]
         });
       }
 
@@ -2025,8 +2034,8 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
             <span class="${cls}">${emojiOrUrl}</span>
             ${overlay}
           </div>`,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size]
+        iconSize: [scaledSize, scaledSize],
+        iconAnchor: [scaledSize / 2, scaledSize]
       });
     }
 
