@@ -110,6 +110,48 @@
       z-index: 1550;
       pointer-events: auto;
     }
+    #bulk-pin-panel {
+      position: absolute;
+      top: 0;
+      left: 300px;
+      width: 220px;
+      background-color: #2b2b2b;
+      border-left: 1px solid #ccc;
+      border-color: #444;
+      color: #f0f0f0;
+      padding: 10px;
+      z-index: 1560;
+      display: none;
+      box-sizing: border-box;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    }
+    #bulk-pin-panel h4 {
+      margin: 0 0 6px;
+      font-size: 14px;
+    }
+    #bulk-pin-panel .bulk-pin-count {
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    #bulk-pin-panel .bulk-pin-hint {
+      font-size: 11px;
+      color: #c7c7c7;
+      margin: 6px 0 10px;
+    }
+    #bulk-pin-panel .bulk-actions {
+      display: flex;
+      gap: 6px;
+    }
+    #bulk-pin-panel button {
+      width: 100%;
+      background: #2b2b2b;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #f0f0f0;
+      cursor: pointer;
+      padding: 6px 8px;
+      font-size: 12px;
+    }
     .route-input-group {
       display: flex;
       align-items: center;
@@ -303,6 +345,11 @@
       border-bottom: 1px solid #444;
       margin-bottom: 6px;
              }
+    .pinezka.selected {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      padding-left: 4px;
+    }
     #narzedzia {
       margin-bottom: 10px;
     flex-shrink: 0;
@@ -966,6 +1013,15 @@ img.emoji {
       <button id="syncBtn">Synchronizuj (<span id="syncCount">0</span>)</button>
     </div>
   </div>
+  <div id="bulk-pin-panel">
+    <h4>Masowa zmiana warstwy</h4>
+    <div class="bulk-pin-count">Zaznaczone: 0</div>
+    <input type="text" id="bulkLayerInput" placeholder="Wybierz warstwę" style="width: 100%">
+    <div class="bulk-pin-hint">Shift wybiera zakres, Ctrl/⌘ dodaje/usuwa z zaznaczenia.</div>
+    <div class="bulk-actions">
+      <button id="bulkClearSelection">Wyczyść zaznaczenie</button>
+    </div>
+  </div>
   <div id="geosearch-container">
     <input type="text" id="geosearch" placeholder="Szukaj adresu lub współrzędnych...">
     <button id="geosearchBtn" class="tool-btn" title="Szukaj">🔍</button>
@@ -1462,6 +1518,83 @@ function slugify(str) {
     const addressPromises = new Map();
     let layerDomRefs = {};
     let currentSearchTerm = '';
+    const selectedPinIds = new Set();
+    let lastSelectedPinId = null;
+
+    const bulkPanel = document.getElementById('bulk-pin-panel');
+    const bulkLayerInput = document.getElementById('bulkLayerInput');
+    const bulkClearSelectionBtn = document.getElementById('bulkClearSelection');
+    const bulkCountEl = bulkPanel ? bulkPanel.querySelector('.bulk-pin-count') : null;
+
+    function updateBulkPanel() {
+      if (!bulkPanel) return;
+      const count = selectedPinIds.size;
+      bulkPanel.style.display = count ? 'block' : 'none';
+      if (bulkCountEl) bulkCountEl.textContent = `Zaznaczone: ${count}`;
+    }
+
+    function updateSelectionStyles() {
+      document.querySelectorAll('#lista-warstw .pinezka').forEach(el => {
+        const pinId = el.dataset.pinId;
+        if (pinId && selectedPinIds.has(pinId)) {
+          el.classList.add('selected');
+        } else {
+          el.classList.remove('selected');
+        }
+      });
+    }
+
+    function clearBulkSelection() {
+      selectedPinIds.clear();
+      lastSelectedPinId = null;
+      updateSelectionStyles();
+      updateBulkPanel();
+    }
+
+    function handleBulkLayerSelection() {
+      if (!bulkLayerInput) return;
+      const layerName = bulkLayerInput.value.trim();
+      if (!layerName) {
+        showToast('Wybierz warstwę dla zaznaczonych pinezek.');
+        return;
+      }
+      if (selectedPinIds.size === 0) {
+        showToast('Najpierw zaznacz pinezki na liście.');
+        return;
+      }
+      if (!warstwy[layerName]) {
+        addLayer(layerName);
+      }
+      const updatedLayerId = layerDocs[layerName] || null;
+      const pins = Array.from(selectedPinIds)
+        .map(id => wszystkiePinezki.find(p => String(p.id) === id))
+        .filter(Boolean);
+      pins.forEach(pin => {
+        markPinUnsaved(pin.slug);
+        const pending = zmianyDoZapisania[pin.id] || {};
+        pending.warstwa = layerName;
+        pending.warstwaId = updatedLayerId;
+        zmianyDoZapisania[pin.id] = pending;
+        applyPinData(pin, { warstwa: layerName, warstwaId: updatedLayerId });
+      });
+      generujListeWarstw();
+      updateSaveButton();
+      showToast(`Przeniesiono ${pins.length} pinezek do warstwy "${layerName}".`);
+    }
+
+    if (bulkClearSelectionBtn) {
+      bulkClearSelectionBtn.addEventListener('click', () => clearBulkSelection());
+    }
+    if (bulkLayerInput) {
+      setupDropdownInput(bulkLayerInput, () => Object.keys(warstwy));
+      bulkLayerInput.addEventListener('change', handleBulkLayerSelection);
+      bulkLayerInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleBulkLayerSelection();
+        }
+      });
+    }
 
     function resolveLayerInfo(layerValue, layerIdValue) {
       const idFromValue = layerValue && layerNamesById[layerValue] ? layerValue : null;
@@ -4583,6 +4716,50 @@ function zaladujPinezkiZFirestore() {
       });
     }
 
+    function handlePinSelectionClick(event, pin, el) {
+      const isShift = event.shiftKey;
+      const isToggle = event.ctrlKey || event.metaKey;
+      const pinId = String(pin.id);
+      if (isShift || isToggle) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (isShift && lastSelectedPinId) {
+        const allItems = Array.from(document.querySelectorAll('#lista-warstw .pinezka'));
+        const currentIndex = allItems.indexOf(el);
+        const lastIndex = allItems.findIndex(item => item.dataset.pinId === lastSelectedPinId);
+        if (currentIndex !== -1 && lastIndex !== -1) {
+          if (!isToggle) selectedPinIds.clear();
+          const [start, end] = currentIndex < lastIndex ? [currentIndex, lastIndex] : [lastIndex, currentIndex];
+          for (let i = start; i <= end; i++) {
+            const itemId = allItems[i].dataset.pinId;
+            if (itemId) selectedPinIds.add(itemId);
+          }
+          lastSelectedPinId = pinId;
+          updateSelectionStyles();
+          updateBulkPanel();
+          return true;
+        }
+      }
+      if (isToggle) {
+        if (selectedPinIds.has(pinId)) {
+          selectedPinIds.delete(pinId);
+        } else {
+          selectedPinIds.add(pinId);
+        }
+        lastSelectedPinId = pinId;
+        updateSelectionStyles();
+        updateBulkPanel();
+        return true;
+      }
+      selectedPinIds.clear();
+      selectedPinIds.add(pinId);
+      lastSelectedPinId = pinId;
+      updateSelectionStyles();
+      updateBulkPanel();
+      return false;
+    }
+
     function highlightListItem(el) {
       if (highlightedItem) {
         highlightedItem.classList.remove('active');
@@ -5996,10 +6173,16 @@ toggleBtn.style.verticalAlign = "top";
         sorted.forEach(p => {
           const el = document.createElement("div");
           el.className = "pinezka";
+          el.dataset.pinId = String(p.id);
           const dispEmoji = warstwy[nazwa].emoji || p.emoji;
           el.innerHTML = (dispEmoji ? emojiHtml(dispEmoji) + ' ' : '') + p.nazwa;
           if (p.unsaved) el.classList.add('unsaved');
-          el.onclick = () => {
+          if (selectedPinIds.has(String(p.id))) {
+            el.classList.add('selected');
+          }
+          el.addEventListener('click', e => {
+            const selectionHandled = handlePinSelectionClick(e, p, el);
+            if (selectionHandled) return;
             if (isMobile && followGps) {
               followGps = false;
               const gpsBtn = document.getElementById('gpsFollowBtn');
@@ -6008,7 +6191,7 @@ toggleBtn.style.verticalAlign = "top";
             map.setView([p.lat, p.lng], 16);
             p.marker.openPopup();
             highlightListItem(el);
-          };
+          });
           if (p.marker) {
             attachHighlight(p.marker, el);
           }
@@ -6099,6 +6282,8 @@ toggleBtn.style.verticalAlign = "top";
       });
       saveLayerOrder({ markChange: false });
       updateLayerNumbers();
+      updateSelectionStyles();
+      updateBulkPanel();
 
       if (window.innerWidth <= 700) {
         initialLayerVisibilitySet = true;
