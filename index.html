@@ -4473,13 +4473,13 @@ function zaladujPinezkiZFirestore() {
       }
     }
 
-    function saveLayerOrder() {
+    function saveLayerOrder({ markChange = true } = {}) {
       const order = Array.from(document.querySelectorAll('#lista-warstw .warstwa'))
         .map(el => el.dataset.nazwa)
         .filter(n => !warstwy[n] || !warstwy[n].temporary);
       const prev = loadLayerOrder();
       localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
-      if (JSON.stringify(prev) !== JSON.stringify(order)) {
+      if (markChange && JSON.stringify(prev) !== JSON.stringify(order)) {
         layerOrderChanged = JSON.stringify(order) !== JSON.stringify(initialLayerOrder);
         updateSaveButton();
       }
@@ -6091,7 +6091,7 @@ toggleBtn.style.verticalAlign = "top";
         sep.className = 'layer-separator';
         lista.appendChild(sep);
       });
-      saveLayerOrder();
+      saveLayerOrder({ markChange: false });
       updateLayerNumbers();
 
       if (window.innerWidth <= 700) {
