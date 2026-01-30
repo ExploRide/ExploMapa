@@ -1042,6 +1042,11 @@ img.emoji {
     <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
     <input type="number" id="layerEditOrder" min="1" style="width:70px;"> <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button><br>
     <input id="layerEditEmoji" placeholder="Emoji warstwy" style="width:100%"><br>
+    <div id="layerEditDefaultVisibility">
+      <div>Domyślna widoczność:</div>
+      <label><input type="radio" name="layerDefaultVisibility" id="layerDefaultVisible" value="visible"> Domyślnie pokazana</label><br>
+      <label><input type="radio" name="layerDefaultVisibility" id="layerDefaultHidden" value="hidden"> Domyślnie ukryta</label>
+    </div>
     <button id="layerEditDelete">Usuń warstwę</button>
     <button id="layerEditClose" onclick="closeLayerEditor()">Zamknij</button>
   </div>
@@ -1263,6 +1268,11 @@ function slugify(str) {
           const loadBtn = document.getElementById('loadPinsBtn');
           if (loadBtn) {
             loadBtn.addEventListener('click', () => {
+              shouldApplyDefaultLayerState = true;
+              initialLayerVisibilitySet = true;
+              shouldIgnoreStoredLayerState = true;
+              localStorage.removeItem(LAYER_COLLAPSE_STORAGE_KEY);
+              localStorage.removeItem(LAYER_VISIBILITY_STORAGE_KEY);
               zaladujPinezkiZFirestore();
               loadBtn.style.display = 'none';
             }, { once: true });
@@ -1351,6 +1361,7 @@ function slugify(str) {
     let movingLayerId = null;
     const orangeLayerId = 'Pwgv6ssxu9sTvrjTaB43';
     let layerEmojiChanges = {};
+    let layerDefaultVisibilityChanges = {};
     let layersToAdd = [];
     let layersToDelete = [];
     let pinsToDelete = [];
@@ -1362,6 +1373,7 @@ function slugify(str) {
     let layerOrderChanged = false;
     let currentTool = "hand";
     let initialLayerVisibilitySet = false;
+    let shouldApplyDefaultLayerState = window.innerWidth > 700;
     const rysowaneTrasy = new L.FeatureGroup();
     window.localTrasy = [];
     let drawingRoute = false;
@@ -1527,7 +1539,8 @@ function slugify(str) {
         layersToAdd.length > 0 ||
         layersToDelete.length > 0 ||
         layerOrderChanged ||
-        Object.keys(layerEmojiChanges).length > 0;
+        Object.keys(layerEmojiChanges).length > 0 ||
+        Object.keys(layerDefaultVisibilityChanges).length > 0;
       const routeChanges = window.localTrasy.length > 0;
       return (
         Object.keys(zmianyDoZapisania).length > 0 ||
@@ -3298,9 +3311,16 @@ function emojiHtml(str) {
           if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: data.emoji || '', loaded: false, loading: false };
-          } else if (data.emoji) {
-            warstwy[data.name].emoji = data.emoji;
+            warstwy[data.name] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: data.emoji || '', loaded: false, loading: false, defaultVisible: data.defaultVisible !== undefined ? !!data.defaultVisible : true };
+          } else {
+            if (data.emoji) {
+              warstwy[data.name].emoji = data.emoji;
+            }
+            if (data.defaultVisible !== undefined) {
+              warstwy[data.name].defaultVisible = !!data.defaultVisible;
+            } else if (warstwy[data.name].defaultVisible === undefined) {
+              warstwy[data.name].defaultVisible = true;
+            }
           }
         });
         if (order.length > 0) {
@@ -3381,7 +3401,8 @@ function zaladujPinezkiZFirestore() {
           lista: [],
           layer: L.layerGroup(),
           collapsed: true,
-          emoji: ''
+          emoji: '',
+          defaultVisible: true
         };
       }
 
@@ -3777,7 +3798,7 @@ function zaladujPinezkiZFirestore() {
       Object.assign(p, data);
       const nowaWarstwa = p.warstwa || "Inne";
       if (!warstwy[nowaWarstwa]) {
-        warstwy[nowaWarstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+        warstwy[nowaWarstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
       }
       if (staraWarstwa !== nowaWarstwa) {
         const idx = warstwy[staraWarstwa].lista.indexOf(p);
@@ -4024,7 +4045,7 @@ function zaladujPinezkiZFirestore() {
         const warstwaN = data.warstwa || "Inne";
         data.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
         }
         data.marker = marker;
         const iconEmoji = warstwy[warstwaN].emoji || data.emoji;
@@ -4168,6 +4189,25 @@ function zaladujPinezkiZFirestore() {
       saveLayerVisibilityStates(states);
     }
 
+    function getLayerDefaultVisible(name) {
+      const layer = warstwy[name];
+      if (!layer) return true;
+      if (layer.defaultVisible === undefined || layer.defaultVisible === null) return true;
+      return !!layer.defaultVisible;
+    }
+
+    function applyLayerDefaultState(name) {
+      if (!warstwy[name]) return;
+      const defaultVisible = getLayerDefaultVisible(name);
+      warstwy[name].visible = defaultVisible;
+      warstwy[name].collapsed = !defaultVisible;
+      if (defaultVisible) {
+        warstwy[name].layer.addTo(map);
+      } else {
+        map.removeLayer(warstwy[name].layer);
+      }
+    }
+
     function saveLayerOrder() {
       const order = Array.from(document.querySelectorAll('#lista-warstw .warstwa'))
         .map(el => el.dataset.nazwa)
@@ -4214,7 +4254,7 @@ function zaladujPinezkiZFirestore() {
         const warstwaN = p.warstwa || 'Inne';
         p.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
+          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
         }
         const iconEmoji = warstwy[warstwaN].emoji || p.emoji;
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[warstwaN].layer);
@@ -4569,7 +4609,7 @@ function zaladujPinezkiZFirestore() {
       if (!name || warstwy[name]) return;
       const prevLayersToAdd = layersToAdd.slice();
       const prevOrder = loadLayerOrder();
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
       warstwy[name].visible = true;
       setLayerCollapseState(name, true);
       setLayerVisibilityState(name, true);
@@ -4594,7 +4634,7 @@ function zaladujPinezkiZFirestore() {
             updateSaveButton();
           },
           redo: () => {
-            warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+            warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
             warstwy[name].visible = true;
             layersToAdd = prevLayersToAdd.concat(name);
             const o = prevOrder.slice();
@@ -4678,6 +4718,13 @@ function zaladujPinezkiZFirestore() {
       const idx = order.indexOf(name);
       document.getElementById('layerEditOrder').value = idx >= 0 ? idx + 1 : (order.length + 1);
       document.getElementById('layerEditEmoji').value = warstwy[name].emoji || '';
+      const defaultVisible = getLayerDefaultVisible(name);
+      const defaultVisibleInput = document.getElementById('layerDefaultVisible');
+      const defaultHiddenInput = document.getElementById('layerDefaultHidden');
+      if (defaultVisibleInput && defaultHiddenInput) {
+        defaultVisibleInput.checked = defaultVisible;
+        defaultHiddenInput.checked = !defaultVisible;
+      }
       panel.style.display = 'block';
     }
 
@@ -4690,11 +4737,19 @@ function zaladujPinezkiZFirestore() {
       const oldState = {
         name: editedLayer,
         order: loadLayerOrder(),
-        emoji: warstwy[editedLayer].emoji || ''
+        emoji: warstwy[editedLayer].emoji || '',
+        defaultVisible: getLayerDefaultVisible(editedLayer)
       };
       const newName = document.getElementById('layerEditName').value.trim();
       const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
       const newEmoji = document.getElementById('layerEditEmoji').value.trim();
+      const defaultVisibleInput = document.getElementById('layerDefaultVisible');
+      const defaultHiddenInput = document.getElementById('layerDefaultHidden');
+      if (!defaultVisibleInput || !defaultHiddenInput || (!defaultVisibleInput.checked && !defaultHiddenInput.checked)) {
+        showToast('Wybierz domyślną widoczność warstwy.');
+        return;
+      }
+      const newDefaultVisible = defaultVisibleInput.checked;
       if (newName && newName !== editedLayer) {
         applyRenameLayer(editedLayer, newName);
         editedLayer = newName;
@@ -4705,13 +4760,18 @@ function zaladujPinezkiZFirestore() {
         layerEmojiChanges[editedLayer] = newEmoji;
         updateMarkersForLayer(editedLayer);
       }
+      if (getLayerDefaultVisible(editedLayer) !== newDefaultVisible) {
+        warstwy[editedLayer].defaultVisible = newDefaultVisible;
+        layerDefaultVisibilityChanges[editedLayer] = newDefaultVisible;
+      }
       generujListeWarstw();
       updateSaveButton();
       closeLayerEditor();
       const newState = {
         name: editedLayer,
         order: loadLayerOrder(),
-        emoji: warstwy[editedLayer].emoji || ''
+        emoji: warstwy[editedLayer].emoji || '',
+        defaultVisible: getLayerDefaultVisible(editedLayer)
       };
       pushAction({
         undo: () => {
@@ -4721,6 +4781,7 @@ function zaladujPinezkiZFirestore() {
             warstwy[oldState.name].emoji = oldState.emoji;
             updateMarkersForLayer(oldState.name);
           }
+          warstwy[oldState.name].defaultVisible = oldState.defaultVisible;
           generujListeWarstw();
           updateSaveButton();
         },
@@ -4731,6 +4792,7 @@ function zaladujPinezkiZFirestore() {
             warstwy[newState.name].emoji = newState.emoji;
             updateMarkersForLayer(newState.name);
           }
+          warstwy[newState.name].defaultVisible = newState.defaultVisible;
           generujListeWarstw();
           updateSaveButton();
         }
@@ -5574,11 +5636,13 @@ function showRoutePopup(pinId, tr, latlng) {
           } else {
             map.removeLayer(warstwy[nazwa].layer);
           }
+        } else if (shouldApplyDefaultLayerState && !warstwy[nazwa].temporary) {
+          applyLayerDefaultState(nazwa);
         }
         if (warstwy[nazwa].visible === undefined) {
           warstwy[nazwa].visible = map.hasLayer(warstwy[nazwa].layer);
         }
-        if (!hasStoredVisibility && window.innerWidth <= 700 && !initialLayerVisibilitySet) {
+        if (!hasStoredVisibility && window.innerWidth <= 700 && !initialLayerVisibilitySet && !shouldApplyDefaultLayerState) {
           warstwy[nazwa].visible = false;
           map.removeLayer(warstwy[nazwa].layer);
         }
@@ -5606,6 +5670,8 @@ function showRoutePopup(pinId, tr, latlng) {
         left.appendChild(label);
         if (collapseStates.hasOwnProperty(nazwa)) {
           warstwy[nazwa].collapsed = collapseStates[nazwa];
+        } else if (shouldApplyDefaultLayerState && !warstwy[nazwa].temporary) {
+          warstwy[nazwa].collapsed = !getLayerDefaultVisible(nazwa);
         }
         const toggleBtn = document.createElement("span");
         toggleBtn.textContent = warstwy[nazwa].collapsed ? "▶️" : "🔽";
@@ -5859,7 +5925,7 @@ toggleBtn.style.verticalAlign = "top";
         const layerUpdates = Object.keys(warstwy).map(name => {
           const order = orderList.indexOf(name);
           const docId = layerDocs[name];
-          const payload = {name, order, emoji: warstwy[name].emoji || ''};
+          const payload = {name, order, emoji: warstwy[name].emoji || '', defaultVisible: getLayerDefaultVisible(name)};
           if (docId) {
             return db.collection('layers').doc(docId).set(payload);
           } else if (layersToAdd.includes(name)) {
@@ -5880,6 +5946,7 @@ toggleBtn.style.verticalAlign = "top";
         layersToAdd = [];
         layersToDelete = [];
         layerEmojiChanges = {};
+        layerDefaultVisibilityChanges = {};
         pinsToDelete = [];
         window.localTrasy = [];
         localStorage.removeItem('nowePinezki');
@@ -6328,7 +6395,7 @@ function confirmLayerDelete() {
     layerDocs[name] = movingLayerId;
     layerNamesById[movingLayerId] = name;
     if (!warstwy[name]) {
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '' };
+      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
     }
     generujListeWarstw();
   }
@@ -6420,7 +6487,7 @@ function confirmLayerDelete() {
     const warstwaN = data.warstwa || 'Inne';
     data.warstwaId = layerDocs[warstwaN] || null;
     if (!warstwy[warstwaN]) {
-      warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false };
+      warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
     }
     const marker = L.marker(latlng, {icon: createEmojiIcon(warstwy[warstwaN].emoji || data.emoji, data.warstwaId, 32, data)}).addTo(warstwy[warstwaN].layer);
     applyInactiveStyle(data);
