@@ -1463,6 +1463,19 @@ function slugify(str) {
     let layerDomRefs = {};
     let currentSearchTerm = '';
 
+    function resolveLayerInfo(layerValue, layerIdValue) {
+      const idFromValue = layerValue && layerNamesById[layerValue] ? layerValue : null;
+      const idFromName = layerValue && layerDocs[layerValue] ? layerDocs[layerValue] : null;
+      const resolvedId = layerIdValue || idFromValue || idFromName || null;
+      let resolvedName = layerValue || 'Inne';
+      if (resolvedId && layerNamesById[resolvedId]) {
+        resolvedName = layerNamesById[resolvedId];
+      } else if (!layerValue) {
+        resolvedName = 'Inne';
+      }
+      return { warstwaId: resolvedId, warstwaName: resolvedName };
+    }
+
     function applySearchFilter() {
       const query = currentSearchTerm;
       Object.values(layerDomRefs).forEach(info => {
@@ -1663,11 +1676,12 @@ function slugify(str) {
         const suffix = generateSuffix();
         const firebaseId = `${sanitize(p.nazwa)}_${suffix}`;
         p.firebaseId = firebaseId;
+        const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
         const payload = {
           nazwa: p.nazwa,
           opis: p.opis,
-          warstwa: p.warstwa,
-          warstwaId: p.warstwaId || null,
+          warstwa: layerInfo.warstwaId || null,
+          warstwaId: layerInfo.warstwaId || null,
           kategoria: p.kategoria,
           emoji: p.emoji,
           nieaktywne: p.nieaktywne || false,
@@ -2714,6 +2728,7 @@ function emojiHtml(str) {
 
     function createPopupHtml(p) {
       const slug = p.slug || slugify(p.nazwa || '');
+      const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId).warstwaName || 'Inne';
       const trudHtml = p.trudnosc !== undefined ?
         `<div class="trudnosc-wrapper">
           <div class="trudnosc-text" id="trudnoscLabel-${p.id}" style="color:${trudnoscColor(p.trudnosc)}">Poziom trudności: ${trudnoscText(p.trudnosc)}</div>
@@ -2740,7 +2755,7 @@ function emojiHtml(str) {
         })()}
         <div style="height:4px;"></div>
         <div style="border-top:1px solid #444;"></div>
-        <div class="popup-info-item">Warstwa: ${p.warstwa || 'Inne'}</div>
+        <div class="popup-info-item">Warstwa: ${layerLabel}</div>
         ${p.kategoria ? `<div class="popup-info-item">Kategoria: ${p.kategoria}</div>` : ''}
         ${p.odKogo ? `<div class="popup-info-item">Od kogo: ${p.odKogo}</div>` : ''}
         <div class="popup-info-item">Data dodania: ${formatDate(p.dataDodania)}</div>
@@ -3645,13 +3660,10 @@ function zaladujPinezkiZFirestore() {
         storePhotos(p.slug, dedup);
       }
       categories.add(p.kategoria || '');
-      let warstwaNazwa = p.warstwa || "Inne";
-      let warstwaId = layerDocs[warstwaNazwa];
-      if (!warstwaId && layerNamesById[p.warstwa]) {
-        warstwaId = p.warstwa;
-        warstwaNazwa = layerNamesById[p.warstwa];
-      }
-      p.warstwaId = warstwaId || null;
+      const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
+      p.warstwaId = layerInfo.warstwaId || null;
+      p.warstwa = layerInfo.warstwaName;
+      const warstwaNazwa = p.warstwa || "Inne";
       if (!warstwy[warstwaNazwa]) {
         warstwy[warstwaNazwa] = {
           lista: [],
@@ -3917,6 +3929,7 @@ function zaladujPinezkiZFirestore() {
      /* console.log('Wywołano edytuj dla id:', id, 'lat:', lat, 'lng:', lng); // <-- dodane */
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (!p) return;
+      const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId).warstwaName || '';
       delete p.noweEmoji;
       const container = document.createElement("div");
       container.className = "popup-container edit-popup";
@@ -3926,7 +3939,7 @@ function zaladujPinezkiZFirestore() {
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
         <textarea id="eopis" style="width: 100%; height: 50px"></textarea><br>
         <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo" style="width: 100%"><br>
-        <input id="ewarstwa" value="${p.warstwa || ''}" placeholder="Warstwa" style="width: 100%"><br>
+        <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa" style="width: 100%"><br>
         <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
@@ -4507,8 +4520,10 @@ function zaladujPinezkiZFirestore() {
         if (!p.dataDodania) p.dataDodania = Date.now();
         categories.add(p.kategoria || '');
         selectedCategories.add(p.kategoria || '');
+        const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
+        p.warstwaId = layerInfo.warstwaId || null;
+        p.warstwa = layerInfo.warstwaName;
         const warstwaN = p.warstwa || 'Inne';
-        p.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
           warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
         }
@@ -6128,6 +6143,16 @@ toggleBtn.style.verticalAlign = "top";
           if (!p || !p.firebaseId) return;
           const { plany: _pendingPlans, ...rest } = data || {};
           if (Object.keys(rest).length > 0) {
+            if (rest.warstwa !== undefined || rest.warstwaId !== undefined) {
+              const layerInfo = resolveLayerInfo(rest.warstwa, rest.warstwaId);
+              if (layerInfo.warstwaId) {
+                rest.warstwa = layerInfo.warstwaId;
+                rest.warstwaId = layerInfo.warstwaId;
+              } else {
+                rest.warstwa = null;
+                rest.warstwaId = null;
+              }
+            }
             await db.collection('pinezki2').doc(p.firebaseId).update(rest);
           }
           const localPhotos = getStoredPhotos(p.slug);
@@ -6141,11 +6166,12 @@ toggleBtn.style.verticalAlign = "top";
           const suffix = generateSuffix();
           const firebaseId = `${sanitize(p.nazwa)}_${suffix}`;
           p.firebaseId = firebaseId;
+          const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
           const payload = {
             nazwa: p.nazwa,
             opis: p.opis,
-            warstwa: p.warstwa,
-            warstwaId: p.warstwaId || null,
+            warstwa: layerInfo.warstwaId || null,
+            warstwaId: layerInfo.warstwaId || null,
             kategoria: p.kategoria,
             emoji: p.emoji,
             nieaktywne: p.nieaktywne || false,
@@ -6676,7 +6702,7 @@ function confirmLayerDelete() {
       await db.collection('pinezki2').doc(firebaseId).set({
         nazwa: name,
         opis: '',
-        warstwa: 'Tryb w ruchu',
+        warstwa: movingLayerId,
         warstwaId: movingLayerId,
         kategoria: '',
         emoji: '',
