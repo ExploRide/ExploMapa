@@ -5888,8 +5888,12 @@ function showRoutePopup(pinId, tr, latlng) {
         left.appendChild(label);
         if (collapseStates.hasOwnProperty(nazwa)) {
           warstwy[nazwa].collapsed = collapseStates[nazwa];
-        } else if (shouldApplyDefaultLayerState && !warstwy[nazwa].temporary) {
-          warstwy[nazwa].collapsed = !getLayerDefaultVisible(nazwa);
+        } else if (!warstwy[nazwa].temporary) {
+          if (shouldIgnoreStoredLayerState) {
+            warstwy[nazwa].collapsed = true;
+          } else if (shouldApplyDefaultLayerState) {
+            warstwy[nazwa].collapsed = !getLayerDefaultVisible(nazwa);
+          }
         }
         const toggleBtn = document.createElement("span");
         toggleBtn.textContent = warstwy[nazwa].collapsed ? "▶️" : "🔽";
