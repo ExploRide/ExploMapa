@@ -330,6 +330,30 @@
     .layer-number { margin-right: 5px; color: #bbb; cursor: move; user-select: none; font-size: 12px}
     .layer-number.dragging { opacity: 0.5; }
     .pinezki-lista { margin-left: 10px; display: block; }
+    .new-layer-controls { margin-top: 5px; }
+    .new-layer-row { display: flex; align-items: center; gap: 6px; }
+    #newLayerInput { flex: 1; min-width: 0; }
+    .new-layer-cancel {
+      background: transparent;
+      border: 1px solid #555;
+      color: #f0f0f0;
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .kml-import-btn {
+      margin-top: 4px;
+      background: none;
+      border: none;
+      padding: 0;
+      color: #7fbaff;
+      text-decoration: underline;
+      cursor: pointer;
+      font-size: 12px;
+      text-align: left;
+    }
     .ukryta { display: none; }
     .opacity-slider { width: 100%; }
     #ekran-logowania {
@@ -916,7 +940,14 @@ img.emoji {
         <div id="status-lista"></div>
       </details>
       <button id="addLayerBtn">+ Nowa warstwa</button>
-      <input type="text" id="newLayerInput" style="display:none;width:90%;margin-top:5px;" placeholder="Nazwa warstwy">
+      <div id="newLayerControls" class="new-layer-controls" style="display:none;">
+        <div class="new-layer-row">
+          <input type="text" id="newLayerInput" placeholder="Nazwa warstwy">
+          <button type="button" id="cancelNewLayer" class="new-layer-cancel" aria-label="Anuluj wprowadzanie warstwy">✖</button>
+        </div>
+        <button type="button" id="importKmlBtn" class="kml-import-btn">importuj z .kml</button>
+        <input type="file" id="importKmlInput" accept=".kml" style="display:none;">
+      </div>
         <button id="collapseAllLayers">Rozwiń wszystkie warstwy</button>
       <button id="toggleVisibility">Ukryj wszystkie warstwy</button>
       <button id="loadPinsBtn">Załaduj pinezki</button>
@@ -1482,24 +1513,189 @@ function slugify(str) {
       });
     }
     const addLayerBtn = document.getElementById('addLayerBtn');
+    const newLayerControls = document.getElementById('newLayerControls');
     const newLayerInput = document.getElementById('newLayerInput');
+    const cancelNewLayerBtn = document.getElementById('cancelNewLayer');
+    const importKmlBtn = document.getElementById('importKmlBtn');
+    const importKmlInput = document.getElementById('importKmlInput');
     const collapseAllBtn = document.getElementById('collapseAllLayers');
     const toggleVisibilityBtn = document.getElementById('toggleVisibility');
     let allLayersCollapsed = true;
     let allLayersVisible = true;
-    if (addLayerBtn && newLayerInput) {
+    const hideNewLayerControls = () => {
+      if (!newLayerControls) return;
+      newLayerControls.style.display = 'none';
+      if (newLayerInput) newLayerInput.value = '';
+      if (importKmlInput) importKmlInput.value = '';
+    };
+    const showNewLayerControls = () => {
+      if (!newLayerControls) return;
+      newLayerControls.style.display = 'block';
+      if (newLayerInput) newLayerInput.focus();
+    };
+    const ensureLayerExists = (name) => {
+      if (!name) return false;
+      if (!warstwy[name]) addLayer(name);
+      return true;
+    };
+    const parseKmlContent = (content) => {
+      const parser = new DOMParser();
+      const xml = parser.parseFromString(content, 'application/xml');
+      if (xml.querySelector('parsererror')) {
+        throw new Error('Nieprawidłowy plik KML');
+      }
+      const docNameEl = xml.querySelector('Document > name') || xml.querySelector('Folder > name');
+      const layerName = docNameEl ? docNameEl.textContent.trim() : '';
+      const placemarks = Array.from(xml.getElementsByTagName('Placemark'));
+      const pins = placemarks.map((placemark, idx) => {
+        const coordsEl = placemark.querySelector('Point > coordinates');
+        if (!coordsEl) return null;
+        const coords = coordsEl.textContent.trim().split(/\s+/)[0] || '';
+        const [lngRaw, latRaw] = coords.split(',');
+        const lat = parseFloat(latRaw);
+        const lng = parseFloat(lngRaw);
+        if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+        const name = (placemark.querySelector('name')?.textContent || '').trim();
+        const desc = (placemark.querySelector('description')?.textContent || '').trim();
+        return {
+          nazwa: name || `Pinezka ${idx + 1}`,
+          opis: desc,
+          lat,
+          lng
+        };
+      }).filter(Boolean);
+      return { layerName, pins };
+    };
+    const addImportedPinsToMap = async (pins, layerName) => {
+      const createdPins = pins.map(pin => {
+        const id = crypto.randomUUID();
+        const data = {
+          id,
+          IDpinezki: id,
+          nazwa: pin.nazwa,
+          opis: pin.opis ? pin.opis.replace(/\n/g, '<br>') : '',
+          warstwa: layerName,
+          kategoria: '',
+          emoji: '',
+          nieaktywne: false,
+          zamkniete: false,
+          tajne: false,
+          doSprawdzenia: false,
+          zdewastowane: false,
+          zwiedzone: false,
+          wyroznione: false,
+          odKogo: '',
+          lat: pin.lat,
+          lng: pin.lng,
+          dataDodania: Date.now(),
+          trasy: [],
+          plany: []
+        };
+        data.slug = slugify(data.nazwa);
+        if (!photosMap[data.slug]) {
+          storePhotos(data.slug, []);
+        }
+        categories.add(data.kategoria || '');
+        data.warstwaId = layerDocs[layerName] || null;
+        if (!warstwy[layerName]) {
+          warstwy[layerName] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+        }
+        const iconEmoji = warstwy[layerName].emoji || data.emoji;
+        const marker = L.marker([data.lat, data.lng], { icon: createEmojiIcon(iconEmoji, data.warstwaId, 32, data) }).addTo(warstwy[layerName].layer);
+        const popupDiv = document.createElement("div");
+        popupDiv.className = "popup-container";
+        popupDiv.innerHTML = createPopupHtml(data);
+        marker.bindPopup(popupDiv);
+        attachPopupHandlers(marker, data);
+        attachMarkerLongPress(marker, data);
+        attachHighlight(marker, null);
+        data.marker = marker;
+        applyInactiveStyle(data);
+        warstwy[layerName].lista.push(data);
+        warstwy[layerName].loaded = true;
+        wszystkiePinezki.push(data);
+        return data;
+      });
+      generujListeWarstw();
+      const savePromises = createdPins.map(async p => {
+        const suffix = generateSuffix();
+        const firebaseId = `${sanitize(p.nazwa)}_${suffix}`;
+        p.firebaseId = firebaseId;
+        const payload = {
+          nazwa: p.nazwa,
+          opis: p.opis,
+          warstwa: p.warstwa,
+          warstwaId: p.warstwaId || null,
+          kategoria: p.kategoria,
+          emoji: p.emoji,
+          nieaktywne: p.nieaktywne || false,
+          zamkniete: p.zamkniete || false,
+          tajne: p.tajne || false,
+          doSprawdzenia: p.doSprawdzenia || false,
+          zdewastowane: p.zdewastowane || false,
+          zwiedzone: p.zwiedzone || false,
+          wyroznione: p.wyroznione || false,
+          lat: p.lat,
+          lng: p.lng,
+          dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
+          IDpinezki: p.id,
+          odKogo: p.odKogo || '',
+          trasy: [],
+          plany: []
+        };
+        await db.collection('pinezki2').doc(firebaseId).set(payload);
+      });
+      await Promise.all(savePromises);
+      return createdPins.length;
+    };
+    if (addLayerBtn && newLayerControls && newLayerInput) {
       addLayerBtn.addEventListener('click', () => {
-        newLayerInput.style.display = 'block';
-        newLayerInput.focus();
+        showNewLayerControls();
       });
       newLayerInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
-          addLayer(e.target.value.trim());
-          e.target.value = '';
-          e.target.style.display = 'none';
+          const name = e.target.value.trim();
+          if (ensureLayerExists(name)) {
+            e.target.value = '';
+            hideNewLayerControls();
+          }
         } else if (e.key === 'Escape') {
-          e.target.value = '';
-          e.target.style.display = 'none';
+          hideNewLayerControls();
+        }
+      });
+    }
+    if (cancelNewLayerBtn) {
+      cancelNewLayerBtn.addEventListener('click', () => {
+        hideNewLayerControls();
+      });
+    }
+    if (importKmlBtn && importKmlInput) {
+      importKmlBtn.addEventListener('click', () => {
+        importKmlInput.click();
+      });
+      importKmlInput.addEventListener('change', async (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        try {
+          const content = await file.text();
+          const { layerName, pins } = parseKmlContent(content);
+          if (!pins.length) {
+            showToast('Brak pinezek do importu w pliku KML.');
+            return;
+          }
+          if (layerName && newLayerInput && !newLayerInput.value.trim()) {
+            newLayerInput.value = layerName;
+          }
+          const finalLayerName = (newLayerInput && newLayerInput.value.trim()) || layerName || 'Inne';
+          ensureLayerExists(finalLayerName);
+          const count = await addImportedPinsToMap(pins, finalLayerName);
+          showToast(`Zaimportowano ${count} pinezek.`);
+          hideNewLayerControls();
+        } catch (err) {
+          console.error('Błąd importu KML', err);
+          showToast('Nie udało się zaimportować pliku KML.');
+        } finally {
+          importKmlInput.value = '';
         }
       });
     }
