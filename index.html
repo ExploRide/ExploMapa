@@ -1019,6 +1019,7 @@ img.emoji {
     <input type="text" id="bulkLayerInput" placeholder="Wybierz warstwę" style="width: 100%">
     <div class="bulk-pin-hint">Shift wybiera zakres, Ctrl/⌘ dodaje/usuwa z zaznaczenia.</div>
     <div class="bulk-actions">
+      <button id="bulkApplyLayer">Zatwierdź zmianę warstwy</button>
       <button id="bulkClearSelection">Wyczyść zaznaczenie</button>
     </div>
   </div>
@@ -1523,13 +1524,14 @@ function slugify(str) {
 
     const bulkPanel = document.getElementById('bulk-pin-panel');
     const bulkLayerInput = document.getElementById('bulkLayerInput');
+    const bulkApplyLayerBtn = document.getElementById('bulkApplyLayer');
     const bulkClearSelectionBtn = document.getElementById('bulkClearSelection');
     const bulkCountEl = bulkPanel ? bulkPanel.querySelector('.bulk-pin-count') : null;
 
     function updateBulkPanel() {
       if (!bulkPanel) return;
       const count = selectedPinIds.size;
-      bulkPanel.style.display = count ? 'block' : 'none';
+      bulkPanel.style.display = count > 1 ? 'block' : 'none';
       if (bulkCountEl) bulkCountEl.textContent = `Zaznaczone: ${count}`;
     }
 
@@ -1585,9 +1587,11 @@ function slugify(str) {
     if (bulkClearSelectionBtn) {
       bulkClearSelectionBtn.addEventListener('click', () => clearBulkSelection());
     }
+    if (bulkApplyLayerBtn) {
+      bulkApplyLayerBtn.addEventListener('click', () => handleBulkLayerSelection());
+    }
     if (bulkLayerInput) {
       setupDropdownInput(bulkLayerInput, () => Object.keys(warstwy));
-      bulkLayerInput.addEventListener('change', handleBulkLayerSelection);
       bulkLayerInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
           e.preventDefault();
