@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ExploRide – Kopiuj Pinterest Diane G → pinezki2</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:0; padding:16px; background:#0b0e14; color:#e6e6e6;}
+    h1 { font-size:18px; margin:0 0 10px; }
+    .card { background:#121826; border:1px solid #1e2a44; border-radius: 14px; padding:12px; margin:12px 0; }
+    button { padding:10px 14px; border:0; border-radius:10px; background:#2a6df4; color:#fff; cursor:pointer; font-weight:600; }
+    button[disabled]{ opacity:.5; cursor:not-allowed; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    pre { white-space: pre-wrap; word-break: break-word; background:#070a10; border:1px solid #1e2a44; border-radius: 12px; padding: 12px; max-height: 55vh; overflow:auto; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
+    .small { font-size:12px; color:#aeb6c2; line-height:1.45; }
+  </style>
+</head>
+<body>
+  <h1>ExploRide – Kopiuj „Pinterest Diane G” → „pinezki2”</h1>
+
+  <div class="card small">
+    <div><b>Źródło:</b> <span class="mono">Pinterest Diane G</span></div>
+    <div><b>Cel:</b> <span class="mono">pinezki2</span></div>
+    <div><b>Ustaw w kopii:</b> <span class="mono">warstwa = "FunJoFgC9DGvmQMjtnlS"</span></div>
+    <div style="margin-top:8px;">
+      Jeśli popup logowania nie działa na localhost: Firebase Console → Authentication → Settings → Authorized domains → dodaj <span class="mono">localhost</span>.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <button id="loginBtn">Zaloguj Google</button>
+      <button id="dryBtn" disabled>Dry-run (policz + pokaż przykłady)</button>
+      <button id="runBtn" disabled>KOPIUJ (zapis do Firestore)</button>
+      <button id="clearBtn">Wyczyść log</button>
+    </div>
+
+    <div class="small" style="margin-top:10px;">
+      <label><input type="checkbox" id="overwrite" /> Nadpisuj istniejące dokumenty w <span class="mono">pinezki2</span> (domyślnie: NIE)</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="small">Log:</div>
+    <pre id="log" class="mono"></pre>
+  </div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import {
+    getFirestore, collection, getDocs, doc, getDoc,
+    setDoc
+  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+  // === Twoja konfiguracja Firebase ===
+  const firebaseConfig = {
+    apiKey: "AIzaSyBj8xPy81NaxFwHmBL3ni_UVjYKFZflyv0",
+    authDomain: "exploridemap.firebaseapp.com",
+    projectId: "exploridemap",
+    storageBucket: "exploridemap.firebasestorage.app",
+    messagingSenderId: "1074659589759",
+    appId: "1:1074659589759:web:f8bdffc15d41d47ac8094a",
+    measurementId: "G-2JHQZ6HXTM"
+  };
+
+  // === USTAWIENIA AKCJI ===
+  const SOURCE_COL = "Pinterest Diane G";
+  const TARGET_COL = "pinezki2";
+  const TARGET_LAYER_ID = "FunJoFgC9DGvmQMjtnlS";
+  const LAYER_FIELD = "warstwa";
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  const logEl = document.getElementById("log");
+  const log = (msg) => {
+    logEl.textContent += msg + "\\n";
+    logEl.scrollTop = logEl.scrollHeight;
+    console.log(msg);
+  };
+
+  document.getElementById("clearBtn").onclick = () => logEl.textContent = "";
+
+  const loginBtn = document.getElementById("loginBtn");
+  const dryBtn = document.getElementById("dryBtn");
+  const runBtn = document.getElementById("runBtn");
+
+  loginBtn.onclick = async () => {
+    try {
+      log("Logowanie Google…");
+      const res = await signInWithPopup(auth, new GoogleAuthProvider());
+      log("Zalogowano jako: " + res.user.email);
+      dryBtn.disabled = false;
+      runBtn.disabled = false;
+    } catch (e) {
+      log("BŁĄD LOGOWANIA: " + (e?.code || "") + " " + (e?.message || e));
+      log("Jeśli auth/unauthorized-domain: dodaj localhost w Authorized domains.");
+    }
+  };
+
+  async function ensureLoggedIn() {
+    if (!auth.currentUser) throw new Error("Nie jesteś zalogowany.");
+  }
+
+  async function action(doWrite) {
+    await ensureLoggedIn();
+
+    const overwrite = document.getElementById("overwrite").checked;
+
+    log(`--- START: ${doWrite ? "KOPIUJ (ZAPIS)" : "DRY-RUN"} ---`);
+    log(`Źródło: ${SOURCE_COL}`);
+    log(`Cel: ${TARGET_COL}`);
+    log(`Ustawiam ${LAYER_FIELD} = ${TARGET_LAYER_ID}`);
+    log(`Nadpisywanie: ${overwrite ? "TAK" : "NIE"}`);
+
+    log("Czytam źródłową kolekcję…");
+    const srcSnap = await getDocs(collection(db, SOURCE_COL));
+    log("Znaleziono dokumentów w źródle: " + srcSnap.size);
+
+    let wouldCopy = 0;
+    let skippedExists = 0;
+    let copied = 0;
+
+    let shown = 0;
+
+    for (const d of srcSnap.docs) {
+      const id = d.id;
+      const data = d.data() || {};
+
+      // docelowe dane = źródłowe + wymuszenie warstwy
+      const newData = { ...data, [LAYER_FIELD]: TARGET_LAYER_ID };
+
+      if (!overwrite) {
+        const tgtRef = doc(db, TARGET_COL, id);
+        const tgtSnap = await getDoc(tgtRef);
+        if (tgtSnap.exists()) {
+          skippedExists++;
+          continue;
+        }
+      }
+
+      if (!doWrite) {
+        wouldCopy++;
+        if (shown < 20) {
+          log(`(dry) ${id}: ${LAYER_FIELD} -> ${TARGET_LAYER_ID}`);
+          shown++;
+        } else if (shown === 20) {
+          log("(dry) ... (kolejne pominięte w logu, ale policzone)");
+          shown++;
+        }
+        continue;
+      }
+
+      // zapis
+      const tgtRef = doc(db, TARGET_COL, id);
+      await setDoc(tgtRef, newData, { merge: overwrite }); // merge true przy overwrite = nadpisuj/scala
+      copied++;
+
+      if (copied % 50 === 0) log(`Zapisano: ${copied}…`);
+    }
+
+    log(`--- KONIEC ---`);
+    if (!doWrite) {
+      log(`Dry-run: skopiowałbym: ${wouldCopy}`);
+      log(`Dry-run: pominąłbym (już istnieją w ${TARGET_COL}): ${skippedExists}`);
+    } else {
+      log(`Skopiowano: ${copied}`);
+      log(`Pominięto (już istnieją w ${TARGET_COL}): ${skippedExists}`);
+    }
+  }
+
+  dryBtn.onclick = async () => {
+    try { await action(false); }
+    catch (e) { log("BŁĄD: " + (e?.message || e)); }
+  };
+
+  runBtn.onclick = async () => {
+    try {
+      const ok = confirm("Na pewno skopiować dokumenty do pinezki2 i ustawić warstwę na ID?");
+      if (!ok) return;
+      await action(true);
+    } catch (e) {
+      log("BŁĄD: " + (e?.code || "") + " " + (e?.message || e));
+      if ((e?.message || "").includes("insufficient permissions")) {
+        log("Brak uprawnień: sprawdź reguły Firestore (update/set na pinezki2).");
+      }
+    }
+  };
+
+  if (location.protocol === "file:") {
+    log("UWAGA: uruchomione z file:// — odpal przez HTTP (Live Server / localhost).");
+  }
+</script>
+</body>
+</html>
