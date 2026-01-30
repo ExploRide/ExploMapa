@@ -3724,7 +3724,6 @@ function emojiHtml(str) {
             }
           }
         });
-        await ensureLayerEntry(PINTEREST_LAYER_NAME, order);
         if (order.length > 0) {
           localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
           initialLayerOrder = [...order];
@@ -3738,10 +3737,10 @@ function emojiHtml(str) {
     
 function zaladujPinezkiZFirestore() {
   showLoading();
-  const pinSources = [
-    { collection: "pinezki2", layerOverride: null },
-    { collection: PINTEREST_PINS_COLLECTION, layerOverride: PINTEREST_LAYER_NAME }
-  ];
+  const pinSources = [{ collection: "pinezki2", layerOverride: null }];
+  if (warstwy[PINTEREST_LAYER_NAME] || layerDocs[PINTEREST_LAYER_NAME]) {
+    pinSources.push({ collection: PINTEREST_PINS_COLLECTION, layerOverride: PINTEREST_LAYER_NAME });
+  }
   Promise.all(pinSources.map(source => db.collection(source.collection).get()))
   .then(snaps => {
     snaps.forEach((snapshot, idx) => {
@@ -3801,6 +3800,9 @@ function zaladujPinezkiZFirestore() {
       p.warstwaId = layerInfo.warstwaId || null;
       p.warstwa = layerInfo.warstwaName;
       const warstwaNazwa = p.warstwa || "Inne";
+      if (warstwaNazwa === PINTEREST_LAYER_NAME && !warstwy[warstwaNazwa]) {
+        return;
+      }
       if (!warstwy[warstwaNazwa]) {
         warstwy[warstwaNazwa] = {
           lista: [],
