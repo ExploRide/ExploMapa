@@ -347,11 +347,6 @@
 }
 
 #saveChanges {
-  background-color: red;
-  position: fixed;
-  bottom: 30px;
-  right: 45px;
-  z-index: 1000;
   display: none;
 }
 
@@ -371,11 +366,13 @@
   }
   #narzedzia { top: 104px; left: 10px; z-index: 900; }
   #saveChanges {
+    position: fixed;
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
     bottom: auto;
     right: auto;
+    z-index: 1000;
   }
   #exportKML { display: none; }
 }
