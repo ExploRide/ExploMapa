@@ -3340,48 +3340,123 @@ function emojiHtml(str) {
       // We pan manually right after popup render, so popup appears first.
       L.Popup.prototype.options.autoPan = false;
 
-      function panMapAfterPopupOpen(popup) {
+      const popupAutoPanState = {
+        throttleMs: 180,
+        maxAnimatedDistance: 220,
+        padding: { top: 16, right: 16, bottom: 16, left: 16 },
+        lastRunTs: 0,
+        openSeq: 0,
+        rafId: 0,
+        timeoutId: 0,
+        pendingPopup: null,
+        pendingToken: 0,
+        duringAutoPan: false
+      };
+
+      function stopActiveMapPan() {
+        // Stop current movement first, so rapid popup switches do not queue pans.
+        if (map && map._panAnim && map._panAnim._inProgress) map._panAnim.stop();
+        if (map && map._stop) map._stop();
+      }
+
+      function schedulePopupAutopan(popup, token) {
         if (!map || !popup) return;
-        const raf = window.requestAnimationFrame || ((cb) => setTimeout(cb, 16));
-        raf(() => {
-          raf(() => {
-            if (!popup.isOpen()) return;
-            const popupEl = popup.getElement();
-            const mapEl = map.getContainer();
-            if (!popupEl || !mapEl) return;
+        popupAutoPanState.pendingPopup = popup;
+        popupAutoPanState.pendingToken = token;
 
-            const mapRect = mapEl.getBoundingClientRect();
-            const popupRect = popupEl.getBoundingClientRect();
-            const padding = { top: 16, right: 16, bottom: 16, left: 16 };
+        if (popupAutoPanState.rafId) {
+          cancelAnimationFrame(popupAutoPanState.rafId);
+          popupAutoPanState.rafId = 0;
+        }
 
-            let dx = 0;
-            let dy = 0;
+        if (popupAutoPanState.timeoutId) {
+          clearTimeout(popupAutoPanState.timeoutId);
+          popupAutoPanState.timeoutId = 0;
+        }
 
-            if (popupRect.left < mapRect.left + padding.left) {
-              dx = popupRect.left - (mapRect.left + padding.left);
-            } else if (popupRect.right > mapRect.right - padding.right) {
-              dx = popupRect.right - (mapRect.right - padding.right);
-            }
-
-            if (popupRect.top < mapRect.top + padding.top) {
-              dy = popupRect.top - (mapRect.top + padding.top);
-            } else if (popupRect.bottom > mapRect.bottom - padding.bottom) {
-              dy = popupRect.bottom - (mapRect.bottom - padding.bottom);
-            }
-
-            if (dx || dy) {
-              map.panBy([dx, dy], {
-                animate: true,
-                duration: 0.25,
-                easeLinearity: 0.25
-              });
-            }
+        const now = Date.now();
+        const wait = popupAutoPanState.throttleMs - (now - popupAutoPanState.lastRunTs);
+        const start = () => {
+          popupAutoPanState.rafId = requestAnimationFrame(() => {
+            popupAutoPanState.rafId = 0;
+            panMapAfterPopupOpen(popupAutoPanState.pendingPopup, popupAutoPanState.pendingToken);
           });
+        };
+
+        if (wait > 0) {
+          popupAutoPanState.timeoutId = setTimeout(() => {
+            popupAutoPanState.timeoutId = 0;
+            start();
+          }, wait);
+          return;
+        }
+
+        start();
+      }
+
+      function panMapAfterPopupOpen(popup, token) {
+        if (!map || !popup) return;
+        if (popup._autoPanHandledToken === token) return;
+        if (!popup.isOpen()) return;
+
+        const popupEl = popup.getElement();
+        const mapEl = map.getContainer();
+        if (!popupEl || !mapEl) return;
+
+        const mapRect = mapEl.getBoundingClientRect();
+        const popupRect = popupEl.getBoundingClientRect();
+        const padding = popupAutoPanState.padding;
+
+        let dx = 0;
+        let dy = 0;
+
+        if (popupRect.left < mapRect.left + padding.left) {
+          dx = popupRect.left - (mapRect.left + padding.left);
+        } else if (popupRect.right > mapRect.right - padding.right) {
+          dx = popupRect.right - (mapRect.right - padding.right);
+        }
+
+        if (popupRect.top < mapRect.top + padding.top) {
+          dy = popupRect.top - (mapRect.top + padding.top);
+        } else if (popupRect.bottom > mapRect.bottom - padding.bottom) {
+          dy = popupRect.bottom - (mapRect.bottom - padding.bottom);
+        }
+
+        popup._autoPanHandledToken = token;
+        popupAutoPanState.lastRunTs = Date.now();
+
+        if (!dx && !dy) return;
+
+        stopActiveMapPan();
+
+        const distance = Math.hypot(dx, dy);
+        const shouldAnimate = distance <= popupAutoPanState.maxAnimatedDistance;
+        popupAutoPanState.duringAutoPan = true;
+
+        map.once('moveend', () => {
+          popupAutoPanState.duringAutoPan = false;
         });
+
+        if (shouldAnimate) {
+          map.panBy([dx, dy], {
+            animate: true,
+            duration: 0.14,
+            easeLinearity: 0.25
+          });
+          return;
+        }
+
+        map.panBy([dx, dy], { animate: false });
+        popupAutoPanState.duringAutoPan = false;
       }
 
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
-      map.on('popupopen', (e) => panMapAfterPopupOpen(e.popup));
+      map.on('popupopen', (e) => {
+        if (!e || !e.popup) return;
+        const token = ++popupAutoPanState.openSeq;
+        e.popup._autoPanHandledToken = 0;
+        schedulePopupAutopan(e.popup, token);
+      });
       map.on('zoomend', () => {
         if (!highlightedMarker || !pinHighlightCircle) return;
         setMarkerHighlight(highlightedMarker);
