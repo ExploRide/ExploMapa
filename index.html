@@ -3336,7 +3336,52 @@ function emojiHtml(str) {
       }
 
       L.Popup.prototype.options.maxWidth = 800;
+      // Disable Leaflet auto-pan during open (it can jank when map has to move).
+      // We pan manually right after popup render, so popup appears first.
+      L.Popup.prototype.options.autoPan = false;
+
+      function panMapAfterPopupOpen(popup) {
+        if (!map || !popup) return;
+        const raf = window.requestAnimationFrame || ((cb) => setTimeout(cb, 16));
+        raf(() => {
+          raf(() => {
+            if (!popup.isOpen()) return;
+            const popupEl = popup.getElement();
+            const mapEl = map.getContainer();
+            if (!popupEl || !mapEl) return;
+
+            const mapRect = mapEl.getBoundingClientRect();
+            const popupRect = popupEl.getBoundingClientRect();
+            const padding = { top: 16, right: 16, bottom: 16, left: 16 };
+
+            let dx = 0;
+            let dy = 0;
+
+            if (popupRect.left < mapRect.left + padding.left) {
+              dx = popupRect.left - (mapRect.left + padding.left);
+            } else if (popupRect.right > mapRect.right - padding.right) {
+              dx = popupRect.right - (mapRect.right - padding.right);
+            }
+
+            if (popupRect.top < mapRect.top + padding.top) {
+              dy = popupRect.top - (mapRect.top + padding.top);
+            } else if (popupRect.bottom > mapRect.bottom - padding.bottom) {
+              dy = popupRect.bottom - (mapRect.bottom - padding.bottom);
+            }
+
+            if (dx || dy) {
+              map.panBy([dx, dy], {
+                animate: true,
+                duration: 0.25,
+                easeLinearity: 0.25
+              });
+            }
+          });
+        });
+      }
+
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
+      map.on('popupopen', (e) => panMapAfterPopupOpen(e.popup));
       map.on('zoomend', () => {
         if (!highlightedMarker || !pinHighlightCircle) return;
         setMarkerHighlight(highlightedMarker);
@@ -3354,7 +3399,7 @@ function emojiHtml(str) {
       // Undo/redo should ignore map view changes, so no actions are
       // recorded for map movements.
 
-      // Leaflet handles popup autopan; avoid manual centering to prevent double-pan lag.
+      // Popup pan is handled after render in popupopen (see panMapAfterPopupOpen).
 
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri'
