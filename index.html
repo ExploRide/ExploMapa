@@ -2502,7 +2502,7 @@ function emojiHtml(str) {
       if (!overlay) return;
       if (overlay._planTransformRefresh) {
         map.off('zoom', overlay._planTransformRefresh);
-        map.off('move', overlay._planTransformRefresh);
+        map.off('moveend', overlay._planTransformRefresh);
         map.off('resize', overlay._planTransformRefresh);
         overlay._planTransformRefresh = null;
       }
@@ -2645,7 +2645,9 @@ function emojiHtml(str) {
         if (overlay._image.parentElement) overlay._image.parentElement.appendChild(ctrl);
         overlay._planTransformRefresh = () => syncPlanTransformOverlay(overlay);
         map.on('zoom', overlay._planTransformRefresh);
-        map.on('move', overlay._planTransformRefresh);
+        // moveend zamiast move: ogranicza koszt aktualizacji kontrolek podczas auto-pan popupu
+        // i zapobiega przycinaniu animacji przesunięcia mapy.
+        map.on('moveend', overlay._planTransformRefresh);
         map.on('resize', overlay._planTransformRefresh);
       }
       if (!overlay._planMoveBound) {
@@ -3334,9 +3336,6 @@ function emojiHtml(str) {
       }
 
       L.Popup.prototype.options.maxWidth = 800;
-      // Wyłączenie auto-pan animacji Leaflet eliminuje przycinanie przy otwieraniu popupu
-      // dla pinezek blisko krawędzi mapy.
-      L.Popup.prototype.options.autoPan = false;
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
       map.on('zoomend', () => {
         if (!highlightedMarker || !pinHighlightCircle) return;
