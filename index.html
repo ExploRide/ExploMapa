@@ -3334,6 +3334,9 @@ function emojiHtml(str) {
       }
 
       L.Popup.prototype.options.maxWidth = 800;
+      // Wyłączenie auto-pan animacji Leaflet eliminuje przycinanie przy otwieraniu popupu
+      // dla pinezek blisko krawędzi mapy.
+      L.Popup.prototype.options.autoPan = false;
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
       map.on('zoomend', () => {
         if (!highlightedMarker || !pinHighlightCircle) return;
