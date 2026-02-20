@@ -3337,13 +3337,13 @@ function emojiHtml(str) {
 
       L.Popup.prototype.options.maxWidth = 800;
       // Disable Leaflet auto-pan during open (it can jank when map has to move).
-      // We pan manually right after popup render, so popup appears first.
+      // We pan manually after popup render, with a delay, so popup opens first.
       L.Popup.prototype.options.autoPan = false;
 
       function panMapAfterPopupOpen(popup) {
         if (!map || !popup) return;
         const raf = window.requestAnimationFrame || ((cb) => setTimeout(cb, 16));
-        raf(() => {
+        setTimeout(() => {
           raf(() => {
             if (!popup.isOpen()) return;
             const popupEl = popup.getElement();
@@ -3377,7 +3377,7 @@ function emojiHtml(str) {
               });
             }
           });
-        });
+        }, 1000);
       }
 
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
