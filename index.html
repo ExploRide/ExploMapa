@@ -338,7 +338,35 @@
       border-bottom: 1px solid #555;
       margin: 5px 0;
     }
-    #wyszukiwarka { width: 80%; margin-bottom: 10px; padding: 5px; flex-shrink: 0; }
+    .search-input-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    #wyszukiwarka {
+      width: 100%;
+      margin-bottom: 0;
+      padding: 5px;
+      flex: 1;
+      min-width: 0;
+    }
+    #clearWyszukiwarkaBtn {
+      width: 28px;
+      height: 28px;
+      border: 1px solid #444;
+      background: #2b2b2b;
+      color: #f0f0f0;
+      border-radius: 4px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0;
+    }
     .pinezka { 
       margin: 7px 0; cursor: pointer; color: #f0f0f0; font-size: 12px; 
       padding-bottom: 6px;
@@ -881,10 +909,15 @@ body, #sidebar, #basemap-switcher {
     display: none;
   }
   #exportKML { display: none; }
+  #syncBtn { display: block; }
   .leaflet-popup { z-index: 2147483600 !important; }
   .leaflet-control-zoom { left: 10px; }
   #toggleLayers { position: fixed; top: 10px; left: 10px; z-index: 1600; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block; }
   #toggleBasemaps { position: fixed; top: 10px; right: 10px; z-index: 1600; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block; }
+}
+
+@media (min-width: 701px) {
+  #syncBtn { display: none; }
 }
 
 /* --- FIX: normalny rozmiar ikon statusu na mobile i desktop --- */
@@ -981,7 +1014,10 @@ img.emoji {
   <div id="sidebar">
     <div id="sidebar-inner">
       <h2 id="logoNaglowek">ExploMapy</h2>
-      <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
+      <div class="search-input-row">
+        <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
+        <button id="clearWyszukiwarkaBtn" type="button" aria-label="Wyczyść wyszukiwarkę">✕</button>
+      </div>
       <select id="sortowanie">
         <option value="dateDesc">Sortuj wg daty – od najnowszych</option>
         <option value="dateAsc">Sortuj wg daty – od najstarszych</option>
@@ -1630,11 +1666,27 @@ function slugify(str) {
     }
 
     const searchInput = document.getElementById('wyszukiwarka');
+    const clearSearchBtn = document.getElementById('clearWyszukiwarkaBtn');
+    function updateClearSearchBtnVisibility() {
+      if (!searchInput || !clearSearchBtn) return;
+      clearSearchBtn.style.display = searchInput.value.trim() ? 'flex' : 'none';
+    }
     if (searchInput) {
       searchInput.addEventListener('input', e => {
         currentSearchTerm = e.target.value.trim().toLowerCase();
         applySearchFilter();
+        updateClearSearchBtnVisibility();
       });
+    }
+    if (clearSearchBtn && searchInput) {
+      clearSearchBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        currentSearchTerm = '';
+        applySearchFilter();
+        updateClearSearchBtnVisibility();
+        searchInput.focus();
+      });
+      updateClearSearchBtnVisibility();
     }
     const greenIcon = L.icon({
       iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
