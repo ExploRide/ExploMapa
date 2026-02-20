@@ -2502,7 +2502,7 @@ function emojiHtml(str) {
       if (!overlay) return;
       if (overlay._planTransformRefresh) {
         map.off('zoom', overlay._planTransformRefresh);
-        map.off('move', overlay._planTransformRefresh);
+        map.off('moveend', overlay._planTransformRefresh);
         map.off('resize', overlay._planTransformRefresh);
         overlay._planTransformRefresh = null;
       }
@@ -2645,7 +2645,9 @@ function emojiHtml(str) {
         if (overlay._image.parentElement) overlay._image.parentElement.appendChild(ctrl);
         overlay._planTransformRefresh = () => syncPlanTransformOverlay(overlay);
         map.on('zoom', overlay._planTransformRefresh);
-        map.on('move', overlay._planTransformRefresh);
+        // moveend zamiast move: ogranicza koszt aktualizacji kontrolek podczas auto-pan popupu
+        // i zapobiega przycinaniu animacji przesunięcia mapy.
+        map.on('moveend', overlay._planTransformRefresh);
         map.on('resize', overlay._planTransformRefresh);
       }
       if (!overlay._planMoveBound) {
