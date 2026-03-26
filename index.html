@@ -5787,9 +5787,72 @@ function showRoutePopup(pinId, tr, latlng) {
       return value.toUpperCase().replace(/\s+/g, '');
     }
 
-    function isLikelyPlusCode(value) {
+    function extractPlusCodeParts(value) {
+      if (!value) return null;
+      const match = value.trim().match(/([23456789CFGHJMPQRVWX0]{2,8}\+[23456789CFGHJMPQRVWX]{2,})(?:\s+(.+))?/i);
+      if (!match) return null;
+      return {
+        code: normalizePlusCode(match[1]),
+        localityHint: (match[2] || '').trim()
+      };
+    }
+
+    function isFullPlusCode(value) {
       const normalized = normalizePlusCode(value);
-      return /^[23456789CFGHJMPQRVWX0]{2,8}\+[23456789CFGHJMPQRVWX]{2,}$/i.test(normalized);
+      return /^[23456789CFGHJMPQRVWX]{8}\+[23456789CFGHJMPQRVWX]{2,}$/i.test(normalized);
+    }
+
+    function isLikelyPlusCode(value) {
+      const parts = extractPlusCodeParts(value);
+      return Boolean(parts?.code);
+    }
+
+    function recoverNearestPlusCode(shortCode, referenceLat, referenceLng) {
+      const normalized = normalizePlusCode(shortCode);
+      if (!normalized || isFullPlusCode(normalized)) return normalized;
+      if (!Number.isFinite(referenceLat) || !Number.isFinite(referenceLng)) return null;
+      const separatorIndex = normalized.indexOf(OLC_SEPARATOR);
+      if (separatorIndex < 0) return null;
+
+      const prefixLength = OLC_SEPARATOR_POSITION - separatorIndex;
+      if (prefixLength <= 0 || prefixLength > OLC_SEPARATOR_POSITION) return null;
+
+      const refCode = encodePlusCode(referenceLat, referenceLng, OLC_SEPARATOR_POSITION + 2);
+      if (!refCode) return null;
+      const recovered = `${refCode.slice(0, prefixLength)}${normalized}`;
+      const decoded = decodeFullPlusCode(recovered);
+      if (!decoded) return recovered;
+
+      const resolution = Math.pow(20, 2 - (prefixLength / 2));
+      let lat = decoded.latCenter;
+      let lng = decoded.lngCenter;
+      if (referenceLat + resolution / 2 < lat) lat -= resolution;
+      else if (referenceLat - resolution / 2 > lat) lat += resolution;
+      if (referenceLng + resolution / 2 < lng) lng -= resolution;
+      else if (referenceLng - resolution / 2 > lng) lng += resolution;
+      return encodePlusCode(lat, lng, recovered.length - 1);
+    }
+
+    function encodePlusCode(lat, lng, codeLength = 10) {
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      let latVal = Math.min(90 - 1e-12, Math.max(-90, lat)) + 90;
+      let lngVal = ((lng + 180) % 360 + 360) % 360;
+      let code = '';
+      let latPlace = 20;
+      let lngPlace = 20;
+
+      for (let i = 0; i < 5; i++) {
+        const latDigit = Math.floor(latVal / latPlace);
+        const lngDigit = Math.floor(lngVal / lngPlace);
+        code += OLC_ALPHABET.charAt(latDigit) + OLC_ALPHABET.charAt(lngDigit);
+        latVal -= latDigit * latPlace;
+        lngVal -= lngDigit * lngPlace;
+        latPlace /= 20;
+        lngPlace /= 20;
+      }
+
+      code = `${code.slice(0, OLC_SEPARATOR_POSITION)}${OLC_SEPARATOR}${code.slice(OLC_SEPARATOR_POSITION)}`;
+      return code.slice(0, Math.max(3, Math.min(codeLength + 1, code.length)));
     }
 
     function decodeFullPlusCode(code) {
@@ -5849,29 +5912,62 @@ function showRoutePopup(pinId, tr, latlng) {
       }
 
       if (isLikelyPlusCode(q)) {
-        const normalized = normalizePlusCode(q);
-        try {
-          const plusResponse = await fetch(`https://plus.codes/api?address=${encodeURIComponent(normalized)}`);
-          const plusData = await plusResponse.json();
-          const location = plusData?.geometry?.location;
-          if (Number.isFinite(location?.lat) && Number.isFinite(location?.lng)) {
-            return {
-              lat: location.lat,
-              lng: location.lng,
-              label: plusData?.plus_code?.compound_code || plusData?.plus_code?.global_code || normalized
-            };
+        const plusParts = extractPlusCodeParts(q);
+        const normalized = plusParts?.code || normalizePlusCode(q);
+        const hasLocalityHint = Boolean(plusParts?.localityHint);
+        const shortWithoutHint = !isFullPlusCode(normalized) && !hasLocalityHint;
+
+        if (!shortWithoutHint) {
+          try {
+            const plusResponse = await fetch(`https://plus.codes/api?address=${encodeURIComponent(q)}`);
+            const plusData = await plusResponse.json();
+            const location = plusData?.geometry?.location;
+            if (Number.isFinite(location?.lat) && Number.isFinite(location?.lng)) {
+              return {
+                lat: location.lat,
+                lng: location.lng,
+                label: plusData?.plus_code?.compound_code || plusData?.plus_code?.global_code || q
+              };
+            }
+          } catch (plusError) {
+            console.warn('Plus code API unavailable, fallback to local decode', plusError);
           }
-        } catch (plusError) {
-          console.warn('Plus code API unavailable, fallback to local decode', plusError);
         }
 
-        const decoded = decodeFullPlusCode(normalized);
-        if (decoded) {
-          return {
-            lat: decoded.latCenter,
-            lng: decoded.lngCenter,
-            label: normalized
-          };
+        if (hasLocalityHint && !isFullPlusCode(normalized)) {
+          try {
+            const hintResp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(plusParts.localityHint)}`);
+            const hintData = await hintResp.json();
+            const hint = hintData?.[0];
+            if (hint) {
+              const recoveredCode = recoverNearestPlusCode(normalized, parseFloat(hint.lat), parseFloat(hint.lon));
+              const recoveredDecoded = decodeFullPlusCode(recoveredCode);
+              if (recoveredDecoded) {
+                return {
+                  lat: recoveredDecoded.latCenter,
+                  lng: recoveredDecoded.lngCenter,
+                  label: `${normalized} ${plusParts.localityHint}`
+                };
+              }
+            }
+          } catch (hintError) {
+            console.warn('Plus code locality recovery failed', hintError);
+          }
+        }
+
+        if (isFullPlusCode(normalized)) {
+          const decoded = decodeFullPlusCode(normalized);
+          if (decoded) {
+            return {
+              lat: decoded.latCenter,
+              lng: decoded.lngCenter,
+              label: normalized
+            };
+          }
+        }
+
+        if (shortWithoutHint) {
+          return null;
         }
       }
 
