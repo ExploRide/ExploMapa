@@ -1059,11 +1059,11 @@ img.emoji {
       <button id="bulkClearSelection">Wyczyść zaznaczenie</button>
     </div>
   </div>
-  <div id="geosearch-container">
-    <input type="text" id="geosearch" placeholder="Szukaj adresu lub współrzędnych...">
-    <button id="geosearchBtn" class="tool-btn" title="Szukaj">🔍</button>
+  <form id="geosearch-container" onsubmit="return false;">
+    <input type="search" id="geosearch" placeholder="Szukaj adresu lub współrzędnych..." enterkeyhint="search">
+    <button id="geosearchBtn" class="tool-btn" title="Szukaj" type="submit">🔍</button>
     <div id="geosearch-suggestions"></div>
-  </div>
+  </form>
   <div id="narzedzia">
     <button id="handTool" class="tool-btn">
       <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f44b.svg" width="24" height="24" alt="hand">
@@ -5717,6 +5717,7 @@ function showRoutePopup(pinId, tr, latlng) {
     function initGeoSearch() {
       const input = document.getElementById('geosearch');
       const btn = document.getElementById('geosearchBtn');
+      const form = document.getElementById('geosearch-container');
       const suggestions = document.getElementById('geosearch-suggestions');
       if (!input) return;
 
@@ -5743,9 +5744,11 @@ function showRoutePopup(pinId, tr, latlng) {
         if (suggestions) suggestions.style.display = 'none';
       }
 
+      if (form) {
+        form.addEventListener('submit', handleSearch);
+      }
       if (btn) {
-        btn.addEventListener('click', handleSearch);
-        btn.addEventListener('touchend', handleSearch, { passive: false });
+        btn.addEventListener('pointerup', handleSearch);
       }
       input.addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(e); });
       input.addEventListener('search', handleSearch);
@@ -5782,8 +5785,7 @@ function showRoutePopup(pinId, tr, latlng) {
                   map.setView([item.lat, item.lon], 16);
                   showSearchMarker(item.lat, item.lon, item.display_name);
                 };
-                div.addEventListener('click', selectSuggestion);
-                div.addEventListener('touchend', selectSuggestion, { passive: false });
+                div.addEventListener('pointerup', selectSuggestion);
                 suggestions.appendChild(div);
               });
               suggestions.style.display = data.length ? 'block' : 'none';
@@ -6501,7 +6503,14 @@ toggleBtn.style.verticalAlign = "top";
           editBtn.style.marginRight = "5px";
           editBtn.style.display = "inline-block";
           editBtn.style.verticalAlign = "top";
-          editBtn.onclick = () => showLayerEditor(nazwa);
+          const openLayerEditor = (ev) => {
+            if (ev) {
+              ev.preventDefault();
+              ev.stopPropagation();
+            }
+            showLayerEditor(nazwa);
+          };
+          editBtn.addEventListener('pointerup', openLayerEditor);
           controls.appendChild(editBtn);
         }
         controls.appendChild(toggleBtn);
@@ -6632,12 +6641,17 @@ toggleBtn.style.verticalAlign = "top";
         };
 
         if (warstwy[nazwa].collapsed) listaP.classList.add("ukryta");
-        toggleBtn.onclick = () => {
+        const toggleLayerCollapse = (ev) => {
+          if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+          }
           warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
           listaP.classList.toggle("ukryta");
           toggleBtn.textContent = listaP.classList.contains("ukryta") ? "▶️" : "🔽";
           setLayerCollapseState(nazwa, warstwy[nazwa].collapsed);
         };
+        toggleBtn.addEventListener('pointerup', toggleLayerCollapse);
 
         div.appendChild(listaP);
         lista.appendChild(div);
