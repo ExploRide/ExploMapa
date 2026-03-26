@@ -1428,20 +1428,6 @@ function slugify(str) {
         initGeoSearch();
         setupMobile();
         initRouteSearch();
-        if (window.innerWidth <= 700) {
-          const loadBtn = document.getElementById('loadPinsBtn');
-          if (loadBtn) {
-            loadBtn.addEventListener('click', () => {
-              shouldApplyDefaultLayerState = true;
-              initialLayerVisibilitySet = true;
-              shouldIgnoreStoredLayerState = true;
-              localStorage.removeItem(LAYER_COLLAPSE_STORAGE_KEY);
-              localStorage.removeItem(LAYER_VISIBILITY_STORAGE_KEY);
-              zaladujPinezkiZFirestore();
-              loadBtn.style.display = 'none';
-            }, { once: true });
-          }
-        }
       });
     });
 
@@ -1557,6 +1543,7 @@ function slugify(str) {
     let currentSearchTerm = '';
     const selectedPinIds = new Set();
     let lastSelectedPinId = null;
+    let fullPinsLoaded = false;
 
     const bulkPanel = document.getElementById('bulk-pin-panel');
     const bulkLayerInput = document.getElementById('bulkLayerInput');
@@ -1662,7 +1649,45 @@ function slugify(str) {
         });
         const countToShow = query ? visibleCount : info.totalCount;
         info.label.textContent = `${info.name} (${countToShow})`;
+        if (info.listEl) {
+          if (query) {
+            const shouldShowList = visibleCount > 0;
+            info.listEl.classList.toggle('ukryta', !shouldShowList);
+            if (info.toggleBtn) {
+              info.toggleBtn.textContent = shouldShowList ? "🔽" : "▶️";
+            }
+          } else {
+            const collapsed = !!warstwy[info.name]?.collapsed;
+            info.listEl.classList.toggle('ukryta', collapsed);
+            if (info.toggleBtn) {
+              info.toggleBtn.textContent = collapsed ? "▶️" : "🔽";
+            }
+          }
+        }
       });
+    }
+
+    function handleLoadPinsFromButton(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (window.innerWidth > 700 || fullPinsLoaded) return;
+      shouldApplyDefaultLayerState = true;
+      initialLayerVisibilitySet = true;
+      shouldIgnoreStoredLayerState = true;
+      localStorage.removeItem(LAYER_COLLAPSE_STORAGE_KEY);
+      localStorage.removeItem(LAYER_VISIBILITY_STORAGE_KEY);
+      zaladujPinezkiZFirestore();
+      fullPinsLoaded = true;
+      const loadBtn = document.getElementById('loadPinsBtn');
+      if (loadBtn) loadBtn.style.display = 'none';
+    }
+
+    const loadPinsBtn = document.getElementById('loadPinsBtn');
+    if (loadPinsBtn) {
+      loadPinsBtn.addEventListener('click', handleLoadPinsFromButton);
+      loadPinsBtn.addEventListener('touchend', handleLoadPinsFromButton, { passive: false });
     }
 
     const searchInput = document.getElementById('wyszukiwarka');
@@ -6601,7 +6626,9 @@ toggleBtn.style.verticalAlign = "top";
           name: nazwa,
           label,
           totalCount: warstwy[nazwa].lista.length,
-          items: Array.from(listaP.querySelectorAll('.pinezka'))
+          items: Array.from(listaP.querySelectorAll('.pinezka')),
+          listEl: listaP,
+          toggleBtn
         };
 
         if (warstwy[nazwa].collapsed) listaP.classList.add("ukryta");
