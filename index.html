@@ -959,10 +959,25 @@ img.emoji {
 
 /* FIX: brak rozciągania w pickerze */
 .emoji-picker-grid img {
-  height: 1.8em !important;   /* możesz dać 1em, jeśli wolisz mniejsze */
-  width: auto !important;       /* klucz: zachowaj proporcje */
+  height: 1.8em !important;
+  width: 1.8em !important;
   object-fit: contain;
   vertical-align: -0.15em;
+}
+
+.emoji-picker-grid {
+  max-height: min(280px, 45vh);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 700px) {
+  .emoji-picker-grid {
+    bottom: auto;
+    top: 34px;
+    left: 0;
+    z-index: 2147483602;
+  }
 }
 
 /* podgląd przy przycisku z emoji (jeśli chcesz też go odchudzić) */
@@ -3170,6 +3185,10 @@ function emojiHtml(str) {
           const img = document.createElement('img');
           img.dataset.emojiItem = 'true';
           img.src = url;
+          img.onerror = () => {
+            img.onerror = null;
+            img.src = 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
+          };
           if (info) { img.title = info; img.dataset.info = info; }
           img.addEventListener('click', e => {
             e.stopPropagation();
@@ -3187,6 +3206,7 @@ function emojiHtml(str) {
       preview.addEventListener('click', e => {
         e.stopPropagation();
         grid.style.display = grid.style.display === 'grid' ? 'none' : 'grid';
+        positionEmojiGrid(preview, grid);
       });
       document.addEventListener('click', function hide(e) {
         if (!container.contains(e.target)) grid.style.display = 'none';
@@ -3237,6 +3257,10 @@ function emojiHtml(str) {
           const img = document.createElement('img');
           img.dataset.emojiItem = 'true';
           img.src = url;
+          img.onerror = () => {
+            img.onerror = null;
+            img.src = 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
+          };
           if (info) { img.title = info; img.dataset.info = info; }
           img.addEventListener('click', e => {
             e.stopPropagation();
@@ -3256,6 +3280,7 @@ function emojiHtml(str) {
       preview.addEventListener('click', e => {
         e.stopPropagation();
         grid.style.display = grid.style.display === 'grid' ? 'none' : 'grid';
+        positionEmojiGrid(preview, grid);
       });
 
       document.addEventListener('click', e => {
@@ -3264,6 +3289,25 @@ function emojiHtml(str) {
 
       input.addEventListener('input', updatePreview);
       updatePreview();
+    }
+
+    function positionEmojiGrid(preview, grid) {
+      if (!preview || !grid || grid.style.display !== 'grid') return;
+      const isMobile = window.matchMedia('(max-width: 700px)').matches;
+      if (!isMobile) {
+        grid.style.top = 'auto';
+        grid.style.bottom = '34px';
+        return;
+      }
+      const rect = preview.getBoundingClientRect();
+      const openDown = rect.bottom + 260 < window.innerHeight;
+      if (openDown) {
+        grid.style.top = '34px';
+        grid.style.bottom = 'auto';
+      } else {
+        grid.style.top = 'auto';
+        grid.style.bottom = '34px';
+      }
     }
 
     function setupDropdownInput(input, itemsFn) {
