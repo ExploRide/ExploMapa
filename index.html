@@ -438,6 +438,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      z-index: 5000;
     }
     #loginBtn {
       font-size: 18px;
@@ -885,8 +886,29 @@ body, #sidebar, #basemap-switcher {
   to { transform: rotate(360deg); }
 }
 
-#toggleLayers { display: none; }
+    #toggleLayers { display: none; }
 #toggleBasemaps { display: none; }
+
+body:not(.authenticated) #map,
+body:not(.authenticated) #sidebar,
+body:not(.authenticated) #basemap-switcher,
+body:not(.authenticated) #layer-editor,
+body:not(.authenticated) #route-editor,
+body:not(.authenticated) #narzedzia,
+body:not(.authenticated) #toggleLayers,
+body:not(.authenticated) #toggleBasemaps,
+body:not(.authenticated) #gpsFollowBtn,
+body:not(.authenticated) #geosearch-container {
+  display: none !important;
+}
+
+body:not(.authenticated) #ekran-logowania {
+  display: flex !important;
+}
+
+body.authenticated #ekran-logowania {
+  display: none !important;
+}
 
 @media (max-width: 700px) {
   #map { left: 0 !important; right: 0 !important; }
@@ -1417,21 +1439,23 @@ function slugify(str) {
       return out;
     }
 
-    document.getElementById("loginBtn").addEventListener("click", () => {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      firebase.auth().signInWithPopup(provider);
-    });
+    const ALLOWED_EMAILS = new Set(["eksplorajder@gmail.com"]);
+    let appInitialized = false;
 
-    firebase.auth().onAuthStateChanged(user => {
-      if (!user) return;
-      if (user.email !== "eksplorajder@gmail.com") {
-        alert("Brak dostępu.");
-        return;
-      }
-      document.getElementById("ekran-logowania").style.display = "none";
+    function showLoginScreen() {
+      document.body.classList.remove("authenticated");
+      document.getElementById("map").style.display = "none";
+      document.getElementById("sidebar").style.display = "none";
+      document.getElementById("basemap-switcher").style.display = "none";
+    }
+
+    function showAuthenticatedApp() {
+      document.body.classList.add("authenticated");
       document.getElementById("map").style.display = "block";
       document.getElementById("sidebar").style.display = "block";
       document.getElementById("basemap-switcher").style.display = "block";
+      if (appInitialized) return;
+      appInitialized = true;
       initMap();
       loadLayersFromFirestore().then(() => {
         if (window.innerWidth <= 700) {
@@ -1444,6 +1468,43 @@ function slugify(str) {
         setupMobile();
         initRouteSearch();
       });
+    }
+
+    function shouldUseRedirectSignIn() {
+      const ua = navigator.userAgent || "";
+      const isMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+      const isStandalonePwa = window.matchMedia("(display-mode: standalone)").matches;
+      return isMobileUa || isStandalonePwa;
+    }
+
+    document.getElementById("loginBtn").addEventListener("click", async () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      try {
+        if (shouldUseRedirectSignIn()) {
+          await firebase.auth().signInWithRedirect(provider);
+          return;
+        }
+        await firebase.auth().signInWithPopup(provider);
+      } catch (err) {
+        console.error("Błąd logowania:", err);
+        alert("Nie udało się uruchomić logowania Google. Spróbuj ponownie.");
+      }
+    });
+
+    firebase.auth().onAuthStateChanged(async user => {
+      if (!user) {
+        showLoginScreen();
+        return;
+      }
+      const email = (user.email || "").toLowerCase();
+      if (!ALLOWED_EMAILS.has(email)) {
+        alert(`Brak dostępu dla konta: ${user.email || "nieznane"}`);
+        await firebase.auth().signOut();
+        showLoginScreen();
+        return;
+      }
+      showAuthenticatedApp();
     });
 
     let map, baseLayer, routingLayer, roadsLayer, baseTileErrorHandler, waymarkedErrorHandler;
@@ -6965,7 +7026,9 @@ toggleBtn.style.verticalAlign = "top";
     if (planConfirmBtn) planConfirmBtn.addEventListener('click', confirmPlanPlacement);
     initLayerEditor();
 
-    setupMobile();
+    if (document.body.classList.contains('authenticated')) {
+      setupMobile();
+    }
 
   });
 
