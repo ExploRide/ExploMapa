@@ -910,6 +910,66 @@ body.authenticated #ekran-logowania {
   display: none !important;
 }
 
+body.mobile-layout #map { left: 0 !important; right: 0 !important; }
+body.mobile-layout #sidebar {
+  position: fixed;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  width: 260px;
+  z-index: 1500;
+}
+body.mobile-layout #sidebar.show { transform: translateX(0); }
+body.mobile-layout #basemap-switcher {
+  position: fixed;
+  top: 0;
+  right: 0;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  height: 100%;
+  z-index: 1500;
+}
+body.mobile-layout #basemap-switcher.show { transform: translateX(0); }
+body.mobile-layout #narzedzia { left: 10px; top: 104px; z-index: 900; }
+body.mobile-layout #geosearch-container { left: 10px; right: 10px; top: 52px; z-index: 900; }
+body.mobile-layout #gpsFollowBtn {
+  position: fixed;
+  bottom: 20px;
+  right: 15px;
+  z-index: 1000;
+  background: #2b2b2b;
+  color: #f0f0f0;
+  border: 1px solid #444;
+  padding: 8px 12px;
+  border-radius: 4px;
+  display: none;
+}
+body.mobile-layout #exportKML { display: none; }
+body.mobile-layout #syncBtn { display: block; }
+body.mobile-layout .leaflet-popup { z-index: 2147483600 !important; }
+body.mobile-layout .leaflet-control-zoom { left: 10px; }
+body.mobile-layout #toggleLayers {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 1600;
+  background: #2b2b2b;
+  color: #f0f0f0;
+  border: 1px solid #444;
+  padding: 5px 10px;
+  display: block;
+}
+body.mobile-layout #toggleBasemaps {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 1600;
+  background: #2b2b2b;
+  color: #f0f0f0;
+  border: 1px solid #444;
+  padding: 5px 10px;
+  display: block;
+}
+
 @media (max-width: 700px) {
   #map { left: 0 !important; right: 0 !important; }
   #sidebar { position: fixed; transform: translateX(-100%); transition: transform 0.3s ease; width: 260px; z-index: 1500; }
@@ -1442,6 +1502,16 @@ function slugify(str) {
     const ALLOWED_EMAILS = new Set(["eksplorajder@gmail.com"]);
     let appInitialized = false;
 
+    function shouldUseMobileLayout() {
+      const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+      const smallViewport = window.innerWidth <= 700;
+      return coarsePointer || smallViewport;
+    }
+
+    function applyResponsiveLayoutClass() {
+      document.body.classList.toggle("mobile-layout", shouldUseMobileLayout());
+    }
+
     function showLoginScreen() {
       document.body.classList.remove("authenticated");
       document.getElementById("map").style.display = "none";
@@ -1451,6 +1521,7 @@ function slugify(str) {
 
     function showAuthenticatedApp() {
       document.body.classList.add("authenticated");
+      applyResponsiveLayoutClass();
       document.getElementById("map").style.display = "block";
       document.getElementById("sidebar").style.display = "block";
       document.getElementById("basemap-switcher").style.display = "block";
@@ -3925,6 +3996,9 @@ function emojiHtml(str) {
           showToast(btn.dataset.info);
         });
       });
+
+      window.addEventListener("resize", applyResponsiveLayoutClass);
+      window.addEventListener("orientationchange", applyResponsiveLayoutClass);
 
       document.querySelectorAll('input[name="streets"]').forEach(radio => {
         radio.addEventListener('change', () => {
