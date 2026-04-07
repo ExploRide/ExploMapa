@@ -16,7 +16,7 @@
   <style>
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background-color: #1e1e1e; color: #f0f0f0;}
     #map, #sidebar, #basemap-switcher, #layer-editor, #route-editor { display: none; }
-    #map { position: absolute; top: 0; left: 300px; right: 225px; bottom: 0; }
+    #map { position: absolute; top: 0; left: 300px; right: 225px; bottom: 0; z-index: 1; }
     #map.pin-reposition,
     .leaflet-container.pin-reposition,
     #map.pin-reposition *,
@@ -29,6 +29,7 @@
       left: 0;
       bottom: 0;
       width: 280px;
+      z-index: 1600;
    border-color: #444;
     background: #2b2b2b;
     color: #f0f0f0;
@@ -53,6 +54,7 @@
       right: 0;
       width: 200px;
       height: 100%;
+      z-index: 1600;
       background-color: #2b2b2b;
       border-color: #444;
       color: #f0f0f0;
