@@ -7996,6 +7996,7 @@ function confirmLayerDelete() {
 
   // Auth UI
   onAuthStateChanged(auth, user => {
+    document.body.classList.toggle('authenticated', !!user);
     if (user) { els.user.textContent = `Zalogowany: ${user.email}`; els.login.textContent = 'Zmień konto'; }
     else { els.user.textContent = 'Niezalogowany'; els.login.textContent = 'Zaloguj Google'; }
   });
