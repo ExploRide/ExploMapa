@@ -512,5 +512,5 @@ bottom: 2px;
     font-size: 12px;
     font-size: 0.75rem;
     line-height: 1.5;
-    z-index: 21000000 !important;
+    z-index: 1 !important;
 }
