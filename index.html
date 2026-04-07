@@ -382,9 +382,9 @@
       margin-bottom: 10px;
     flex-shrink: 0;
     position: fixed !important;
-    top: 50px;
+    top: 56px;
     left: 315px;
-    z-index: 1000; 
+    z-index: 1700;
     }
     .tool-btn {
       font-size: 24px;
@@ -500,12 +500,13 @@ width: 15px;
     .hidden-text { display: none; }
 
     #geosearch-container {
-      position: absolute;
+      position: fixed;
       top: 10px;
       left: 310px;
-      right: 600px;
+      right: 235px;
+      min-width: 280px;
       padding: 5px;
-      z-index: 1000;
+      z-index: 1700;
       display: flex;
     }
     #geosearch {
@@ -1010,6 +1011,13 @@ body.mobile-layout #toggleBasemaps {
   .leaflet-control-zoom { left: 10px; }
   #toggleLayers { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 10px; z-index: 1600; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block !important; }
   #toggleBasemaps { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); right: 10px; z-index: 1600; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block !important; }
+}
+
+@media (max-width: 1200px) {
+  #geosearch-container {
+    right: 10px;
+    min-width: 0;
+  }
 }
 
 @media (min-width: 701px) {
