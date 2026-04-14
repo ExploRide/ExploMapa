@@ -1133,6 +1133,31 @@ img.emoji {
     #map-year-select {
       margin-left: 5px;
     }
+    .copernicus-time-control {
+      background: rgba(34, 34, 34, 0.92);
+      color: #f0f0f0;
+      border: 1px solid #4a4a4a;
+      border-radius: 8px;
+      padding: 8px 10px;
+      min-width: 200px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+      font-size: 12px;
+    }
+    .copernicus-time-control.disabled {
+      opacity: 0.55;
+    }
+    .copernicus-time-label {
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .copernicus-time-range {
+      width: 100%;
+      accent-color: #60a5fa;
+      cursor: pointer;
+    }
+    .copernicus-time-range:disabled {
+      cursor: not-allowed;
+    }
 
   </style>
 </head>
@@ -1243,6 +1268,7 @@ img.emoji {
         <label><input type="radio" name="basemap" value="orto-wms-std-time"> Orto archiwalne (WMS Time – Standard)</label><br>
         <label><input type="radio" name="basemap" value="orto-wms-hi-time"> Orto archiwalne (WMS Time – HighRes)</label><br>
         <label><input type="radio" name="basemap" value="true-orto"> True Ortho (WMS)<button type="button" class="info-btn" data-info="TrueOrtho – brak zniekształceń od wysokości">i</button></label><br>
+        <label><input type="radio" name="basemap" value="copernicus"> Copernicus (Sentinel-2 WMS)</label><br>
         <label><input type="radio" name="basemap" value="otm-trails"> OpenTopoMap + Szlaki (Waymarked)</label><br>
       </details>
       <div class="layer-separator"></div>
@@ -3538,6 +3564,12 @@ function emojiHtml(str) {
       const WMS_SHADED_RELIEF_URL = 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WMS/ShadedRelief';
       const WMS_STD_TIME_URL = WMS_ARCH_STD_URL;
       const WMS_HI_TIME_URL = WMS_ARCH_HI_URL;
+      const COPERNICUS_WMS_URL = 'https://sh.dataspace.copernicus.eu/ogc/wms/f387b61a-858d-459a-b9b0-77dab4fdbe79';
+      const COPERNICUS_MONTH_WINDOW = 24;
+      const COPERNICUS_MONTH_NAMES_PL = [
+        'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
+        'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
+      ];
 
       function wmtsLayer(url) {
         if (!L.tileLayer.wmts) throw new Error('Brak wtyczki WMTS');
@@ -3714,6 +3746,16 @@ function emojiHtml(str) {
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri'
       });
+      const copernicusLayer = L.tileLayer.wms(COPERNICUS_WMS_URL, {
+        layers: 'TRUE_COLOR',
+        format: 'image/png',
+        transparent: false,
+        version: '1.3.0',
+        uppercase: true,
+        crs: L.CRS.EPSG3857,
+        attribution: '© Copernicus Sentinel data',
+        maxZoom: 19
+      });
       const hill = wmsShadedReliefLayer();
       const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
@@ -3735,6 +3777,7 @@ function emojiHtml(str) {
 
       const baseLayerDefs = {
         sat: { create: () => sat },
+        copernicus: { create: () => copernicusLayer },
         hill: { create: () => hill },
         'otm-trails': { create: () => baseOpenTopoPlusTrails.base },
         osm: { create: () => osm },
@@ -3761,6 +3804,93 @@ function emojiHtml(str) {
       const mapDateBadgeEl = document.getElementById('map-date-badge');
       const mapYearSelect = document.getElementById('map-year-select');
       const timeLayerYears = {};
+      let copernicusTimeControl = null;
+      let copernicusTimeControlRoot = null;
+      let copernicusTimeLabel = null;
+      let copernicusTimeSlider = null;
+      let copernicusWarnOnTimeFailure = false;
+
+      function debounce(fn, wait = 250) {
+        let timerId = 0;
+        return (...args) => {
+          if (timerId) clearTimeout(timerId);
+          timerId = setTimeout(() => fn(...args), wait);
+        };
+      }
+
+      function formatIsoDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
+      function getCopernicusMonthRange(monthOffset = 0) {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const monthStart = new Date(year, month - monthOffset, 1);
+        const monthEnd = new Date(year, month - monthOffset + 1, 0);
+        return {
+          startDate: formatIsoDate(monthStart),
+          endDate: formatIsoDate(monthEnd),
+          monthLabel: `${COPERNICUS_MONTH_NAMES_PL[monthStart.getMonth()]} ${monthStart.getFullYear()}`
+        };
+      }
+
+      function setCopernicusTimeEnabled(enabled) {
+        if (!copernicusTimeControlRoot || !copernicusTimeSlider) return;
+        copernicusTimeSlider.disabled = !enabled;
+        copernicusTimeControlRoot.classList.toggle('disabled', !enabled);
+      }
+
+      function applyCopernicusTime(monthOffset) {
+        if (!copernicusLayer) return;
+        const range = getCopernicusMonthRange(monthOffset);
+        const timeValue = `${range.startDate}/${range.endDate}`;
+        if (copernicusTimeLabel) copernicusTimeLabel.textContent = range.monthLabel;
+        copernicusWarnOnTimeFailure = true;
+        copernicusLayer.setParams({ TIME: timeValue });
+        if (currentBase === 'copernicus') setBadge(`Copernicus: ${range.monthLabel}`);
+      }
+
+      function ensureCopernicusTimeControl() {
+        if (copernicusTimeControl) return;
+        copernicusTimeControl = L.control({ position: 'bottomleft' });
+        copernicusTimeControl.onAdd = () => {
+          const root = L.DomUtil.create('div', 'leaflet-control copernicus-time-control disabled');
+          root.innerHTML = `
+            <div class="copernicus-time-label">Bieżący miesiąc</div>
+            <input class="copernicus-time-range" type="range" min="0" max="${COPERNICUS_MONTH_WINDOW - 1}" step="1" value="0" />
+          `;
+          L.DomEvent.disableClickPropagation(root);
+          L.DomEvent.disableScrollPropagation(root);
+          copernicusTimeControlRoot = root;
+          copernicusTimeLabel = root.querySelector('.copernicus-time-label');
+          copernicusTimeSlider = root.querySelector('.copernicus-time-range');
+          const debouncedApply = debounce((value) => applyCopernicusTime(value), 250);
+          copernicusTimeSlider.addEventListener('input', (e) => {
+            const offset = parseInt(e.target.value, 10) || 0;
+            const preview = getCopernicusMonthRange(offset);
+            if (copernicusTimeLabel) copernicusTimeLabel.textContent = preview.monthLabel;
+            debouncedApply(offset);
+          });
+          return root;
+        };
+        copernicusTimeControl.addTo(map);
+        applyCopernicusTime(0);
+        setCopernicusTimeEnabled(false);
+      }
+
+      copernicusLayer.on('tileerror', () => {
+        if (copernicusWarnOnTimeFailure) {
+          console.warn('[Copernicus TIME] Nie udało się zastosować parametru TIME.');
+          copernicusWarnOnTimeFailure = false;
+        }
+      });
+      copernicusLayer.on('load', () => {
+        copernicusWarnOnTimeFailure = false;
+      });
 
       function to3857(latlng) {
         return L.CRS.EPSG3857.project(latlng);
@@ -3889,10 +4019,15 @@ function emojiHtml(str) {
 
       function updateMapDateUI(key) {
         resetMapDateControls();
+        ensureCopernicusTimeControl();
+        setCopernicusTimeEnabled(key === 'copernicus');
         if (key === 'orto-wms-std-time') {
           initGeoportalTime(key, WMS_STD_TIME_URL);
         } else if (key === 'orto-wms-hi-time') {
           initGeoportalTime(key, WMS_HI_TIME_URL);
+        } else if (key === 'copernicus') {
+          const offset = copernicusTimeSlider ? parseInt(copernicusTimeSlider.value, 10) || 0 : 0;
+          applyCopernicusTime(offset);
         } else if (['orto-wmts-std','orto-wmts-hi','orto-wms-std','orto-wms-hi','true-orto'].includes(key)) {
           setBadge('Orto: mozaika (brak jednego roku)');
         } else if (key === 'sat') {
