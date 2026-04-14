@@ -1260,6 +1260,7 @@ img.emoji {
         <summary><strong>Bazy</strong></summary>
         <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
         <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
+        <label><input type="radio" name="basemap" value="mapbox-satellite"> Mapbox Satellite</label><br>
         <label><input type="radio" name="basemap" value="hill"> Cieniowanie</label><br>
         <label><input type="radio" name="basemap" value="orto-wmts-std"> Orto (WMTS – Standard)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
         <label><input type="radio" name="basemap" value="orto-wmts-hi"> Orto HighRes (WMTS – HighResolution)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
@@ -3565,6 +3566,7 @@ function emojiHtml(str) {
       const WMS_STD_TIME_URL = WMS_ARCH_STD_URL;
       const WMS_HI_TIME_URL = WMS_ARCH_HI_URL;
       const COPERNICUS_WMS_URL = 'https://sh.dataspace.copernicus.eu/ogc/wms/f387b61a-858d-459a-b9b0-77dab4fdbe79';
+      const MAPBOX_ACCESS_TOKEN = "pk.eyJ1IjoiY3pyYnJ6IiwiYSI6ImNtbnlnZWs0NTAwZWcyb3NlYzNrdW53YmoifQ.rN_RTUqLtI5Fnk5tocolMA";
       const COPERNICUS_MONTH_WINDOW = 24;
       const COPERNICUS_MONTH_NAMES_PL = [
         'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
@@ -3746,6 +3748,15 @@ function emojiHtml(str) {
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri'
       });
+       const mapboxSatelliteLayer = L.tileLayer(
+        `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_ACCESS_TOKEN}`,
+        {
+          attribution: "© Mapbox © OpenStreetMap",
+          maxZoom: 19,
+          tileSize: 256
+        }
+      );
+      if (!MAPBOX_ACCESS_TOKEN) console.warn('Mapbox Satellite disabled: MAPBOX_ACCESS_TOKEN is empty.');
       const copernicusLayer = L.tileLayer.wms(COPERNICUS_WMS_URL, {
         layers: 'TRUE_COLOR',
         format: 'image/png',
@@ -3777,6 +3788,7 @@ function emojiHtml(str) {
 
       const baseLayerDefs = {
         sat: { create: () => sat },
+        'mapbox-satellite': { create: () => mapboxSatelliteLayer },
         copernicus: { create: () => copernicusLayer },
         hill: { create: () => hill },
         'otm-trails': { create: () => baseOpenTopoPlusTrails.base },
