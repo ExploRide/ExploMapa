@@ -1561,6 +1561,7 @@ function slugify(str) {
     }
 
     const ALLOWED_EMAILS = new Set(["eksplorajder@gmail.com"]);
+    const AUTH_REMEMBER_KEY = "exploMapaRememberedAuth";
     let appInitialized = false;
 
     function shouldUseMobileLayout() {
@@ -1634,6 +1635,12 @@ function slugify(str) {
       console.warn("Nie udało się ustawić trwałej sesji logowania:", err);
     });
 
+    const hadRememberedAuth = localStorage.getItem(AUTH_REMEMBER_KEY) === "1";
+    if (hadRememberedAuth) {
+      document.getElementById("loginBtn").textContent = "Sprawdzam zapisane logowanie...";
+      document.getElementById("loginBtn").disabled = true;
+    }
+
     document.getElementById("loginBtn").addEventListener("click", async () => {
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
@@ -1645,8 +1652,12 @@ function slugify(str) {
       }
     });
 
-    firebase.auth().onAuthStateChanged(async user => {
+    firebase.auth().onIdTokenChanged(async user => {
+      const loginBtn = document.getElementById("loginBtn");
       if (!user) {
+        localStorage.removeItem(AUTH_REMEMBER_KEY);
+        loginBtn.textContent = "Zaloguj się przez Google";
+        loginBtn.disabled = false;
         showLoginScreen();
         return;
       }
@@ -1654,9 +1665,15 @@ function slugify(str) {
       if (!ALLOWED_EMAILS.has(email)) {
         alert(`Brak dostępu dla konta: ${user.email || "nieznane"}`);
         await firebase.auth().signOut();
+        localStorage.removeItem(AUTH_REMEMBER_KEY);
+        loginBtn.textContent = "Zaloguj się przez Google";
+        loginBtn.disabled = false;
         showLoginScreen();
         return;
       }
+      localStorage.setItem(AUTH_REMEMBER_KEY, "1");
+      loginBtn.textContent = "Zaloguj się przez Google";
+      loginBtn.disabled = false;
       showAuthenticatedApp();
     });
 
