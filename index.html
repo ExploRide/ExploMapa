@@ -4903,9 +4903,60 @@ function zaladujPinezkiZFirestore() {
       if (saveBtnTmp) saveBtnTmp.style.display = 'block';
       const defaultEmoji = 'emoji38';
       const marker = L.marker(latlng, {icon: createEmojiIcon(defaultEmoji, null, 24)}).addTo(map);
+      let addedPin = null;
+      const syncNowePinezkiStorage = () => {
+        localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
+          const {marker, ...rest} = p;
+          return rest;
+        })));
+      };
+      const removeAddedPin = () => {
+        if (!addedPin) {
+          if (map.hasLayer(marker)) map.removeLayer(marker);
+          return;
+        }
+        if (addedPin.marker) map.removeLayer(addedPin.marker);
+        if (addedPin.plany) addedPin.plany.forEach(pl => removePlanOverlay(pl));
+        const idxN = nowePinezki.indexOf(addedPin);
+        if (idxN > -1) nowePinezki.splice(idxN, 1);
+        const layer = warstwy[addedPin.warstwa || 'Inne'];
+        if (layer) {
+          const idxL = layer.lista.indexOf(addedPin);
+          if (idxL > -1) layer.lista.splice(idxL, 1);
+        }
+        wszystkiePinezki = wszystkiePinezki.filter(pp => pp !== addedPin);
+        delete zmianyDoZapisania[addedPin.id];
+        syncNowePinezkiStorage();
+        refreshCountriesFromPins();
+      };
+      const restoreAddedPin = () => {
+        if (!addedPin) {
+          marker.addTo(map);
+          return;
+        }
+        const layerName = addedPin.warstwa || 'Inne';
+        if (!warstwy[layerName]) {
+          warstwy[layerName] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+        }
+        if (!warstwy[layerName].lista.includes(addedPin)) warstwy[layerName].lista.push(addedPin);
+        if (!wszystkiePinezki.includes(addedPin)) wszystkiePinezki.push(addedPin);
+        if (!nowePinezki.includes(addedPin)) nowePinezki.push(addedPin);
+        if (addedPin.marker && !map.hasLayer(addedPin.marker)) addedPin.marker.addTo(map);
+        if (addedPin.plany) addedPin.plany.forEach(pl => ensurePlanOverlay(addedPin, pl));
+        syncNowePinezkiStorage();
+        refreshCountriesFromPins();
+      };
       pushAction({
-        undo: () => map.removeLayer(marker),
-        redo: () => marker.addTo(map)
+        undo: () => {
+          removeAddedPin();
+          generujListeWarstw();
+          updateSaveButton();
+        },
+        redo: () => {
+          restoreAddedPin();
+          generujListeWarstw();
+          updateSaveButton();
+        }
       }, 'Dodano pinezkę');
       const newId = crypto.randomUUID();
       const tempPin = {
@@ -5061,11 +5112,9 @@ function zaladujPinezkiZFirestore() {
         attachPopupHandlers(marker, data);
         attachMarkerLongPress(marker, data);
 
+        addedPin = data;
         nowePinezki.push(data);
-        localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
-          const {marker, ...rest} = p;
-          return rest;
-        })));
+        syncNowePinezkiStorage();
         warstwy[warstwaN].lista.push(data);
         wszystkiePinezki.push(data);
         generujListeWarstw();
