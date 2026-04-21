@@ -1188,6 +1188,10 @@ img.emoji {
         <summary>Filtruj statusy</summary>
         <div id="status-lista"></div>
       </details>
+      <details id="filterKraje">
+        <summary>Filtruj kraje</summary>
+        <div id="kraje-lista"></div>
+      </details>
       <button id="addLayerBtn">+ Nowa warstwa</button>
       <div id="newLayerControls" class="new-layer-controls" style="display:none;">
         <div class="new-layer-row">
@@ -1742,6 +1746,9 @@ function slugify(str) {
     let sortMode = 'dateDesc';
     const categories = new Set();
     let selectedCategories = new Set();
+    const countries = new Set();
+    let selectedCountries = new Set();
+    const UNKNOWN_COUNTRY_LABEL = 'Nieznany kraj';
     const statusOptions = [
       {key: 'niedostepne', label: 'Niedostępne ⛔', matches: p => p.niedostepne || p.nieaktywne},
       {key: 'doSprawdzenia', label: 'Do sprawdzenia ❔', matches: p => p.doSprawdzenia},
@@ -1785,6 +1792,8 @@ function slugify(str) {
     let searchMarker = null;
     const addressCache = new Map();
     const addressPromises = new Map();
+    const countryCache = new Map();
+    const countryPromises = new Map();
     let layerDomRefs = {};
     let currentSearchTerm = '';
     const selectedPinIds = new Set();
@@ -2111,6 +2120,8 @@ function slugify(str) {
           storePhotos(data.slug, []);
         }
         categories.add(data.kategoria || '');
+        registerPinCountry(data);
+        fetchCountryForPin(data);
         data.warstwaId = layerDocs[layerName] || null;
         if (!warstwy[layerName]) {
           warstwy[layerName] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
@@ -2143,6 +2154,7 @@ function slugify(str) {
           warstwa: layerInfo.warstwaId || null,
           warstwaId: layerInfo.warstwaId || null,
           kategoria: p.kategoria,
+          kraj: p.kraj || '',
           emoji: p.emoji,
           nieaktywne: p.nieaktywne || false,
           zamkniete: p.zamkniete || false,
@@ -4393,6 +4405,8 @@ function zaladujPinezkiZFirestore() {
         storePhotos(p.slug, dedup);
       }
       categories.add(p.kategoria || '');
+      registerPinCountry(p);
+      fetchCountryForPin(p);
       const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
       p.warstwaId = layerInfo.warstwaId || null;
       p.warstwa = layerInfo.warstwaName;
@@ -4451,6 +4465,7 @@ function zaladujPinezkiZFirestore() {
     if (!localPinsLoaded) loadNewPinsFromLocal();
     updateCategoryFilter();
     updateStatusFilter();
+    refreshCountriesFromPins();
     generujListeWarstw();
   })
   .catch(err => {
@@ -4458,6 +4473,7 @@ function zaladujPinezkiZFirestore() {
     if (!localPinsLoaded) loadNewPinsFromLocal();
     updateCategoryFilter();
     updateStatusFilter();
+    refreshCountriesFromPins();
     generujListeWarstw();
   }).finally(() => {
     hideLoading();
@@ -5067,6 +5083,8 @@ function zaladujPinezkiZFirestore() {
         }
         categories.add(data.kategoria || '');
         selectedCategories.add(data.kategoria || '');
+        registerPinCountry(data);
+        fetchCountryForPin(data);
         updateCategoryFilter();
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
@@ -5256,6 +5274,8 @@ function zaladujPinezkiZFirestore() {
         if (!p.dataDodania) p.dataDodania = Date.now();
         categories.add(p.kategoria || '');
         selectedCategories.add(p.kategoria || '');
+        registerPinCountry(p);
+        fetchCountryForPin(p);
         const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
         p.warstwaId = layerInfo.warstwaId || null;
         p.warstwa = layerInfo.warstwaName;
@@ -5295,6 +5315,7 @@ function zaladujPinezkiZFirestore() {
       })));
       updateSaveButton();
       updateCategoryFilter();
+      refreshCountriesFromPins();
     }
 
     function setupDrag(div, handle) {
@@ -6703,6 +6724,100 @@ function showRoutePopup(pinId, tr, latlng) {
       }
     }
 
+    function getPinCountry(p) {
+      const value = (p?.kraj || p?.country || p?.panstwo || '').toString().trim();
+      return value || UNKNOWN_COUNTRY_LABEL;
+    }
+
+    function registerPinCountry(p) {
+      const country = getPinCountry(p);
+      if (!countries.has(country)) {
+        countries.add(country);
+        if (selectedCountries.size === 0 || selectedCountries.size === countries.size - 1) {
+          selectedCountries = new Set(countries);
+        } else {
+          selectedCountries.add(country);
+        }
+        updateCountryFilter();
+      }
+      return country;
+    }
+
+    async function fetchCountryForPin(p) {
+      if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return;
+      if (p.kraj || p.country || p.panstwo) {
+        registerPinCountry(p);
+        return;
+      }
+      const key = `${Number(p.lat).toFixed(6)},${Number(p.lng).toFixed(6)}`;
+      if (countryCache.has(key)) {
+        const cached = countryCache.get(key);
+        if (cached) {
+          p.kraj = cached;
+          const prevSize = countries.size;
+          registerPinCountry(p);
+          if (countries.size !== prevSize) generujListeWarstw();
+        }
+        return;
+      }
+      if (countryPromises.has(key)) {
+        const existing = countryPromises.get(key);
+        const country = await existing;
+        if (country) {
+          p.kraj = country;
+          const prevSize = countries.size;
+          registerPinCountry(p);
+          if (countries.size !== prevSize) generujListeWarstw();
+        }
+        return;
+      }
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(p.lat)}&lon=${encodeURIComponent(p.lng)}&accept-language=pl`;
+      const request = fetch(url, { headers: { Accept: 'application/json' } })
+        .then(resp => {
+          if (!resp.ok) throw new Error(`Country reverse geocoding error: ${resp.status}`);
+          return resp.json();
+        })
+        .then(data => {
+          const country = (data?.address?.country || '').trim();
+          countryCache.set(key, country || null);
+          return country || null;
+        })
+        .catch(err => {
+          console.error('Failed to fetch country', err);
+          countryCache.set(key, null);
+          return null;
+        })
+        .finally(() => {
+          countryPromises.delete(key);
+        });
+      countryPromises.set(key, request);
+      const country = await request;
+      if (!country) return;
+      p.kraj = country;
+      const prevSize = countries.size;
+      registerPinCountry(p);
+      if (countries.size !== prevSize) generujListeWarstw();
+    }
+
+    function refreshCountriesFromPins() {
+      countries.clear();
+      wszystkiePinezki.forEach(registerPinCountry);
+      if (selectedCountries.size === 0) {
+        selectedCountries = new Set(countries);
+      } else {
+        selectedCountries = new Set(Array.from(selectedCountries).filter(c => countries.has(c)));
+        if (selectedCountries.size === 0) {
+          selectedCountries = new Set(countries);
+        }
+      }
+      updateCountryFilter();
+    }
+
+    function pinMatchesCountry(p) {
+      if (selectedCountries.size === 0 || selectedCountries.size === countries.size) return true;
+      return selectedCountries.has(getPinCountry(p));
+    }
+
     function updateStatusFilter() {
       const container = document.getElementById('status-lista');
       if (!container) return;
@@ -6805,11 +6920,62 @@ function showRoutePopup(pinId, tr, latlng) {
       });
     }
 
+    function updateCountryFilter() {
+      const container = document.getElementById('kraje-lista');
+      if (!container) return;
+      container.innerHTML = '';
+      const countryList = Array.from(countries).sort((a, b) => a.localeCompare(b, 'pl'));
+      if (selectedCountries.size === 0) {
+        selectedCountries = new Set(countryList);
+      }
+      const allDiv = document.createElement('div');
+      const allChk = document.createElement('input');
+      allChk.type = 'checkbox';
+      allChk.id = 'kraje-all';
+      allChk.checked = selectedCountries.size === 0 || selectedCountries.size === countries.size;
+      const allLbl = document.createElement('label');
+      allLbl.textContent = 'Zaznacz wszystkie';
+      allDiv.appendChild(allChk);
+      allDiv.appendChild(allLbl);
+      container.appendChild(allDiv);
+      allChk.addEventListener('change', () => {
+        if (allChk.checked) {
+          selectedCountries = new Set(countries);
+          container.querySelectorAll('.country-item input').forEach(ch => ch.checked = true);
+        } else {
+          selectedCountries.clear();
+          container.querySelectorAll('.country-item input').forEach(ch => ch.checked = false);
+        }
+        generujListeWarstw();
+      });
+      countryList.forEach(country => {
+        const div = document.createElement('div');
+        div.className = 'country-item';
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.value = country;
+        chk.checked = selectedCountries.size === 0 || selectedCountries.has(country);
+        const lbl = document.createElement('label');
+        lbl.textContent = country;
+        div.appendChild(chk);
+        div.appendChild(lbl);
+        container.appendChild(div);
+        chk.addEventListener('change', () => {
+          selectedCountries = new Set(
+            Array.from(container.querySelectorAll('.country-item input')).filter(c => c.checked).map(c => c.value)
+          );
+          const all = document.getElementById('kraje-all');
+          if (all) all.checked = selectedCountries.size === countries.size;
+          generujListeWarstw();
+        });
+      });
+    }
+
     function updateMarkerVisibility() {
       Object.values(warstwy).forEach(w => {
         w.lista.forEach(p => {
           if (!p.marker) return;
-          const visible = (selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '')) && pinMatchesStatus(p);
+          const visible = (selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '')) && pinMatchesStatus(p) && pinMatchesCountry(p);
           if (visible) {
             if (!w.layer.hasLayer(p.marker)) {
               w.layer.addLayer(p.marker);
@@ -6934,7 +7100,7 @@ toggleBtn.style.verticalAlign = "top";
         listaP.className = "pinezki-lista";
 
         const sorted = warstwy[nazwa].lista.slice().filter(p => {
-          return (selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '')) && pinMatchesStatus(p);
+          return (selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '')) && pinMatchesStatus(p) && pinMatchesCountry(p);
         }).sort((a, b) => {
           const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
           const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
@@ -7147,6 +7313,7 @@ toggleBtn.style.verticalAlign = "top";
             warstwa: layerInfo.warstwaId || null,
             warstwaId: layerInfo.warstwaId || null,
             kategoria: p.kategoria,
+            kraj: p.kraj || '',
             emoji: p.emoji,
             nieaktywne: p.nieaktywne || false,
             zamkniete: p.zamkniete || false,
@@ -7536,6 +7703,7 @@ toggleBtn.style.verticalAlign = "top";
       if (idx > -1) layer.lista.splice(idx, 1);
     }
     wszystkiePinezki = wszystkiePinezki.filter(pp => pp !== p);
+    refreshCountriesFromPins();
     generujListeWarstw();
     updateSaveButton();
     if (record) {
@@ -7681,6 +7849,7 @@ function confirmLayerDelete() {
         warstwa: movingLayerId,
         warstwaId: movingLayerId,
         kategoria: '',
+        kraj: '',
         emoji: '',
         trudnosc: 0,
         lat: currentLocation[0],
@@ -7697,6 +7866,7 @@ function confirmLayerDelete() {
         warstwa: 'Tryb w ruchu',
         warstwaId: movingLayerId,
         kategoria: '',
+        kraj: '',
         emoji: '',
         trudnosc: 0,
         lat: currentLocation[0],
@@ -7760,6 +7930,8 @@ function confirmLayerDelete() {
     }
     categories.add(data.kategoria || '');
     selectedCategories.add(data.kategoria || '');
+    registerPinCountry(data);
+    fetchCountryForPin(data);
     updateCategoryFilter();
     const popupDiv = document.createElement('div');
     popupDiv.className = 'popup-container';
