@@ -1609,15 +1609,36 @@ function slugify(str) {
       return isMobileUa || isStandalonePwa;
     }
 
+    async function signInWithBestMethod(provider) {
+      const auth = firebase.auth();
+      const popupFallbackCodes = new Set([
+        "auth/popup-blocked",
+        "auth/popup-closed-by-user",
+        "auth/operation-not-supported-in-this-environment"
+      ]);
+      const preferRedirect = shouldUseRedirectSignIn();
+
+      if (!preferRedirect) {
+        return auth.signInWithPopup(provider);
+      }
+
+      try {
+        return await auth.signInWithPopup(provider);
+      } catch (popupErr) {
+        if (!popupFallbackCodes.has(popupErr?.code)) throw popupErr;
+        return auth.signInWithRedirect(provider);
+      }
+    }
+
+    firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => {
+      console.warn("Nie udało się ustawić trwałej sesji logowania:", err);
+    });
+
     document.getElementById("loginBtn").addEventListener("click", async () => {
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
       try {
-        if (shouldUseRedirectSignIn()) {
-          await firebase.auth().signInWithRedirect(provider);
-          return;
-        }
-        await firebase.auth().signInWithPopup(provider);
+        await signInWithBestMethod(provider);
       } catch (err) {
         console.error("Błąd logowania:", err);
         alert("Nie udało się uruchomić logowania Google. Spróbuj ponownie.");
