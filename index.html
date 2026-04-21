@@ -1748,7 +1748,6 @@ function slugify(str) {
     let selectedCategories = new Set();
     const countries = new Set();
     let selectedCountries = new Set();
-    const UNKNOWN_COUNTRY_LABEL = 'Nieznany kraj';
     const statusOptions = [
       {key: 'niedostepne', label: 'Niedostępne ⛔', matches: p => p.niedostepne || p.nieaktywne},
       {key: 'doSprawdzenia', label: 'Do sprawdzenia ❔', matches: p => p.doSprawdzenia},
@@ -1794,6 +1793,9 @@ function slugify(str) {
     const addressPromises = new Map();
     const countryCache = new Map();
     const countryPromises = new Map();
+    const countryLookupQueue = [];
+    const countryLookupQueuedKeys = new Set();
+    let countryLookupInProgress = false;
     let layerDomRefs = {};
     let currentSearchTerm = '';
     const selectedPinIds = new Set();
@@ -2121,7 +2123,7 @@ function slugify(str) {
         }
         categories.add(data.kategoria || '');
         registerPinCountry(data);
-        fetchCountryForPin(data);
+        enqueueCountryFetch(data);
         data.warstwaId = layerDocs[layerName] || null;
         if (!warstwy[layerName]) {
           warstwy[layerName] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
@@ -4353,7 +4355,7 @@ function zaladujPinezkiZFirestore() {
       }
       categories.add(p.kategoria || '');
       registerPinCountry(p);
-      fetchCountryForPin(p);
+      enqueueCountryFetch(p);
       const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
       p.warstwaId = layerInfo.warstwaId || null;
       p.warstwa = layerInfo.warstwaName;
@@ -5031,7 +5033,7 @@ function zaladujPinezkiZFirestore() {
         categories.add(data.kategoria || '');
         selectedCategories.add(data.kategoria || '');
         registerPinCountry(data);
-        fetchCountryForPin(data);
+        enqueueCountryFetch(data);
         updateCategoryFilter();
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
@@ -5222,7 +5224,7 @@ function zaladujPinezkiZFirestore() {
         categories.add(p.kategoria || '');
         selectedCategories.add(p.kategoria || '');
         registerPinCountry(p);
-        fetchCountryForPin(p);
+        enqueueCountryFetch(p);
         const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
         p.warstwaId = layerInfo.warstwaId || null;
         p.warstwa = layerInfo.warstwaName;
@@ -6672,12 +6674,12 @@ function showRoutePopup(pinId, tr, latlng) {
     }
 
     function getPinCountry(p) {
-      const value = (p?.kraj || p?.country || p?.panstwo || '').toString().trim();
-      return value || UNKNOWN_COUNTRY_LABEL;
+      return (p?.kraj || p?.country || p?.panstwo || '').toString().trim();
     }
 
     function registerPinCountry(p) {
       const country = getPinCountry(p);
+      if (!country) return '';
       if (!countries.has(country)) {
         countries.add(country);
         if (selectedCountries.size === 0 || selectedCountries.size === countries.size - 1) {
@@ -6690,13 +6692,35 @@ function showRoutePopup(pinId, tr, latlng) {
       return country;
     }
 
-    async function fetchCountryForPin(p) {
+    function enqueueCountryFetch(p) {
+      if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return;
+      const key = `${Number(p.lat).toFixed(6)},${Number(p.lng).toFixed(6)}`;
+      if (countryLookupQueuedKeys.has(key)) return;
+      countryLookupQueuedKeys.add(key);
+      countryLookupQueue.push({ key, pin: p });
+      processCountryLookupQueue();
+    }
+
+    async function processCountryLookupQueue() {
+      if (countryLookupInProgress) return;
+      countryLookupInProgress = true;
+      while (countryLookupQueue.length) {
+        const item = countryLookupQueue.shift();
+        if (!item) continue;
+        countryLookupQueuedKeys.delete(item.key);
+        await fetchCountryForPin(item.pin, item.key);
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      }
+      countryLookupInProgress = false;
+    }
+
+    async function fetchCountryForPin(p, keyOverride = '') {
       if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return;
       if (p.kraj || p.country || p.panstwo) {
         registerPinCountry(p);
         return;
       }
-      const key = `${Number(p.lat).toFixed(6)},${Number(p.lng).toFixed(6)}`;
+      const key = keyOverride || `${Number(p.lat).toFixed(6)},${Number(p.lng).toFixed(6)}`;
       if (countryCache.has(key)) {
         const cached = countryCache.get(key);
         if (cached) {
@@ -6718,10 +6742,20 @@ function showRoutePopup(pinId, tr, latlng) {
         }
         return;
       }
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(p.lat)}&lon=${encodeURIComponent(p.lng)}&accept-language=pl`;
-      const request = fetch(url, { headers: { Accept: 'application/json' } })
-        .then(resp => {
-          if (!resp.ok) throw new Error(`Country reverse geocoding error: ${resp.status}`);
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(p.lat)}&lon=${encodeURIComponent(p.lng)}&accept-language=pl&zoom=3`;
+      const request = fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'Accept-Language': 'pl'
+        }
+      })
+        .then(async resp => {
+          if (!resp.ok) {
+            if (resp.status === 429) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            throw new Error(`Country reverse geocoding error: ${resp.status}`);
+          }
           return resp.json();
         })
         .then(data => {
@@ -6748,7 +6782,10 @@ function showRoutePopup(pinId, tr, latlng) {
 
     function refreshCountriesFromPins() {
       countries.clear();
-      wszystkiePinezki.forEach(registerPinCountry);
+      wszystkiePinezki.forEach(p => {
+        if (registerPinCountry(p)) return;
+        enqueueCountryFetch(p);
+      });
       if (selectedCountries.size === 0) {
         selectedCountries = new Set(countries);
       } else {
@@ -6762,7 +6799,9 @@ function showRoutePopup(pinId, tr, latlng) {
 
     function pinMatchesCountry(p) {
       if (selectedCountries.size === 0 || selectedCountries.size === countries.size) return true;
-      return selectedCountries.has(getPinCountry(p));
+      const country = getPinCountry(p);
+      if (!country) return false;
+      return selectedCountries.has(country);
     }
 
     function updateStatusFilter() {
@@ -7878,7 +7917,7 @@ function confirmLayerDelete() {
     categories.add(data.kategoria || '');
     selectedCategories.add(data.kategoria || '');
     registerPinCountry(data);
-    fetchCountryForPin(data);
+    enqueueCountryFetch(data);
     updateCategoryFilter();
     const popupDiv = document.createElement('div');
     popupDiv.className = 'popup-container';
