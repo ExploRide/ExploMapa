@@ -6097,14 +6097,31 @@ function showRoutePopup(pinId, tr, latlng) {
 
     function initGeoSearch() {
       const input = document.getElementById('geosearch');
-      const btn = document.getElementById('geosearchBtn');
       const form = document.getElementById('geosearch-container');
       const suggestions = document.getElementById('geosearch-suggestions');
       if (!input) return;
 
+      async function fetchNominatimSuggestions(q, limit = 5) {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=${limit}&q=${encodeURIComponent(q)}`);
+        return response.json();
+      }
+
       async function executeSearch(q) {
         try {
-          const result = await geocodeQuery(q);
+          let result = null;
+          const topSuggestion = await fetchNominatimSuggestions(q, 1);
+          const firstSuggestion = topSuggestion?.[0];
+
+          if (firstSuggestion) {
+            result = {
+              lat: parseFloat(firstSuggestion.lat),
+              lng: parseFloat(firstSuggestion.lon),
+              label: firstSuggestion.display_name
+            };
+          } else {
+            result = await geocodeQuery(q);
+          }
+
           if (!result) {
             alert('Nie znaleziono adresu');
             return;
@@ -6128,10 +6145,6 @@ function showRoutePopup(pinId, tr, latlng) {
       if (form) {
         form.addEventListener('submit', handleSearch);
       }
-      if (btn) {
-        btn.addEventListener('pointerup', handleSearch);
-      }
-      input.addEventListener('keydown', e => { if (e.key === 'Enter') handleSearch(e); });
       input.addEventListener('search', handleSearch);
 
       input.addEventListener('focus', () => {
@@ -6152,8 +6165,7 @@ function showRoutePopup(pinId, tr, latlng) {
         if (!suggestions) return;
         if (!q) { suggestions.style.display = 'none'; return; }
         debounce = setTimeout(() => {
-          fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}`)
-            .then(r => r.json())
+          fetchNominatimSuggestions(q, 5)
             .then(data => {
               suggestions.innerHTML = '';
               data.forEach(item => {
