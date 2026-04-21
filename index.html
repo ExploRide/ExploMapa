@@ -894,6 +894,22 @@ body, #sidebar, #basemap-switcher {
   height: 60px;
   animation: spin 1s linear infinite;
 }
+.country-inline-loader {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #d8d8d8;
+  border-top-color: #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.country-filter-meta {
+  font-size: 12px;
+  color: #666;
+  margin: 6px 0;
+}
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -1190,6 +1206,7 @@ img.emoji {
       </details>
       <details id="filterKraje">
         <summary>Filtruj kraje</summary>
+        <div id="kraje-meta" class="country-filter-meta"></div>
         <div id="kraje-lista"></div>
       </details>
       <button id="addLayerBtn">+ Nowa warstwa</button>
@@ -1796,6 +1813,7 @@ function slugify(str) {
     const countryLookupQueue = [];
     const countryLookupQueuedKeys = new Set();
     let countryLookupInProgress = false;
+    let countryFilterTouched = false;
     let layerDomRefs = {};
     let currentSearchTerm = '';
     const selectedPinIds = new Set();
@@ -4316,6 +4334,7 @@ function zaladujPinezkiZFirestore() {
       const firebaseId = doc.id;
       const id = p.IDpinezki;
       p.firebaseId = firebaseId;
+      p.sourceCollection = source.collection;
       p.id = id;
       if (p.trudnosc !== undefined) {
         p.trudnosc = parseInt(p.trudnosc, 10);
@@ -6682,14 +6701,29 @@ function showRoutePopup(pinId, tr, latlng) {
       if (!country) return '';
       if (!countries.has(country)) {
         countries.add(country);
-        if (selectedCountries.size === 0 || selectedCountries.size === countries.size - 1) {
+        if (!countryFilterTouched || (selectedCountries.size > 0 && selectedCountries.size === countries.size - 1)) {
           selectedCountries = new Set(countries);
-        } else {
-          selectedCountries.add(country);
         }
         updateCountryFilter();
       }
       return country;
+    }
+
+    function isCountryListLoading() {
+      return countryLookupInProgress || countryLookupQueue.length > 0 || countryPromises.size > 0;
+    }
+
+    async function persistPinCountryInFirestore(p, country) {
+      if (!p || !country || !p.firebaseId) return;
+      const collectionName = p.sourceCollection || 'pinezki2';
+      if (p._persistedCountry === country) return;
+      p._persistedCountry = country;
+      try {
+        await db.collection(collectionName).doc(p.firebaseId).update({ kraj: country });
+      } catch (err) {
+        p._persistedCountry = '';
+        console.error('Nie udało się zapisać kraju pinezki do Firestore', err);
+      }
     }
 
     function enqueueCountryFetch(p) {
@@ -6698,6 +6732,7 @@ function showRoutePopup(pinId, tr, latlng) {
       if (countryLookupQueuedKeys.has(key)) return;
       countryLookupQueuedKeys.add(key);
       countryLookupQueue.push({ key, pin: p });
+      updateCountryFilterMeta();
       processCountryLookupQueue();
     }
 
@@ -6712,6 +6747,7 @@ function showRoutePopup(pinId, tr, latlng) {
         await new Promise(resolve => setTimeout(resolve, 1200));
       }
       countryLookupInProgress = false;
+      updateCountryFilterMeta();
     }
 
     async function fetchCountryForPin(p, keyOverride = '') {
@@ -6725,10 +6761,12 @@ function showRoutePopup(pinId, tr, latlng) {
         const cached = countryCache.get(key);
         if (cached) {
           p.kraj = cached;
+          persistPinCountryInFirestore(p, cached);
           const prevSize = countries.size;
           registerPinCountry(p);
           if (countries.size !== prevSize) generujListeWarstw();
         }
+        updateCountryFilterMeta();
         return;
       }
       if (countryPromises.has(key)) {
@@ -6736,10 +6774,12 @@ function showRoutePopup(pinId, tr, latlng) {
         const country = await existing;
         if (country) {
           p.kraj = country;
+          persistPinCountryInFirestore(p, country);
           const prevSize = countries.size;
           registerPinCountry(p);
           if (countries.size !== prevSize) generujListeWarstw();
         }
+        updateCountryFilterMeta();
         return;
       }
       const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(p.lat)}&lon=${encodeURIComponent(p.lng)}&accept-language=pl&zoom=3`;
@@ -6770,11 +6810,14 @@ function showRoutePopup(pinId, tr, latlng) {
         })
         .finally(() => {
           countryPromises.delete(key);
+          updateCountryFilterMeta();
         });
       countryPromises.set(key, request);
+      updateCountryFilterMeta();
       const country = await request;
       if (!country) return;
       p.kraj = country;
+      persistPinCountryInFirestore(p, country);
       const prevSize = countries.size;
       registerPinCountry(p);
       if (countries.size !== prevSize) generujListeWarstw();
@@ -6786,22 +6829,27 @@ function showRoutePopup(pinId, tr, latlng) {
         if (registerPinCountry(p)) return;
         enqueueCountryFetch(p);
       });
-      if (selectedCountries.size === 0) {
+      if (!countryFilterTouched) {
         selectedCountries = new Set(countries);
       } else {
         selectedCountries = new Set(Array.from(selectedCountries).filter(c => countries.has(c)));
-        if (selectedCountries.size === 0) {
-          selectedCountries = new Set(countries);
-        }
       }
       updateCountryFilter();
     }
 
     function pinMatchesCountry(p) {
-      if (selectedCountries.size === 0 || selectedCountries.size === countries.size) return true;
+      if (selectedCountries.size === 0) return false;
+      if (selectedCountries.size === countries.size && countries.size > 0) return true;
       const country = getPinCountry(p);
       if (!country) return false;
       return selectedCountries.has(country);
+    }
+
+    function updateCountryFilterMeta() {
+      const meta = document.getElementById('kraje-meta');
+      if (!meta) return;
+      const loading = isCountryListLoading();
+      meta.innerHTML = `Krajów łącznie: <strong>${countries.size}</strong>${loading ? '<span class="country-inline-loader" title="Wczytywanie krajów"></span>' : ''}`;
     }
 
     function updateStatusFilter() {
@@ -6910,21 +6958,23 @@ function showRoutePopup(pinId, tr, latlng) {
       const container = document.getElementById('kraje-lista');
       if (!container) return;
       container.innerHTML = '';
+      updateCountryFilterMeta();
       const countryList = Array.from(countries).sort((a, b) => a.localeCompare(b, 'pl'));
-      if (selectedCountries.size === 0) {
+      if (!countryFilterTouched && selectedCountries.size === 0) {
         selectedCountries = new Set(countryList);
       }
       const allDiv = document.createElement('div');
       const allChk = document.createElement('input');
       allChk.type = 'checkbox';
       allChk.id = 'kraje-all';
-      allChk.checked = selectedCountries.size === 0 || selectedCountries.size === countries.size;
+      allChk.checked = countryList.length > 0 && selectedCountries.size === countries.size;
       const allLbl = document.createElement('label');
       allLbl.textContent = 'Zaznacz wszystkie';
       allDiv.appendChild(allChk);
       allDiv.appendChild(allLbl);
       container.appendChild(allDiv);
       allChk.addEventListener('change', () => {
+        countryFilterTouched = true;
         if (allChk.checked) {
           selectedCountries = new Set(countries);
           container.querySelectorAll('.country-item input').forEach(ch => ch.checked = true);
@@ -6940,13 +6990,14 @@ function showRoutePopup(pinId, tr, latlng) {
         const chk = document.createElement('input');
         chk.type = 'checkbox';
         chk.value = country;
-        chk.checked = selectedCountries.size === 0 || selectedCountries.has(country);
+        chk.checked = selectedCountries.has(country);
         const lbl = document.createElement('label');
         lbl.textContent = country;
         div.appendChild(chk);
         div.appendChild(lbl);
         container.appendChild(div);
         chk.addEventListener('change', () => {
+          countryFilterTouched = true;
           selectedCountries = new Set(
             Array.from(container.querySelectorAll('.country-item input')).filter(c => c.checked).map(c => c.value)
           );
