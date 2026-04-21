@@ -1144,7 +1144,7 @@ img.emoji {
       font-size: 12px;
     }
     .copernicus-time-control.disabled {
-      opacity: 0.55;
+      display: none !important;
     }
     .copernicus-time-label {
       margin-bottom: 6px;
@@ -3954,18 +3954,6 @@ function emojiHtml(str) {
         copernicusWarnOnTimeFailure = false;
       });
 
-      function to3857(latlng) {
-        return L.CRS.EPSG3857.project(latlng);
-      }
-      function to4326(point) {
-        return L.CRS.EPSG3857.unproject(point);
-      }
-      function boundsToExtent4326(bounds) {
-        const sw = to4326(to3857(bounds.getSouthWest()));
-        const ne = to4326(to3857(bounds.getNorthEast()));
-        return [sw.lng, sw.lat, ne.lng, ne.lat].join(',');
-      }
-
       function resetMapDateControls() {
         if (mapYearSelect) {
           mapYearSelect.style.display = 'none';
@@ -3973,7 +3961,6 @@ function emojiHtml(str) {
           mapYearSelect.onchange = null;
         }
         if (mapDateBadgeEl) mapDateBadgeEl.textContent = '';
-        if (map) map.off('contextmenu', handleEsriIdentify);
       }
 
       function setBadge(text) {
@@ -4038,45 +4025,6 @@ function emojiHtml(str) {
         }
       }
 
-      async function handleEsriIdentify(e) {
-        if (e.originalEvent && typeof e.originalEvent.preventDefault === 'function') {
-          e.originalEvent.preventDefault();
-        }
-        const { lat, lng } = e.latlng;
-        const size = map.getSize();
-        const bounds = map.getBounds();
-        const params = new URLSearchParams({
-          f: 'json',
-          geometry: `${lng},${lat}`,
-          geometryType: 'esriGeometryPoint',
-          sr: 4326,
-          tolerance: 1,
-          mapExtent: boundsToExtent4326(bounds),
-          imageDisplay: `${size.x},${size.y},96`,
-          returnGeometry: false
-        });
-        try {
-          const res = await fetch(`https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/identify?${params.toString()}`);
-          if (!res.ok) throw new Error('id');
-          const data = await res.json();
-          let dateStr = null;
-          if (data.results && data.results.length && data.results[0].attributes) {
-            const attrs = data.results[0].attributes;
-            const field = ['AcquisitionDate','SRCDATE','SRC_DATE','Best','Captured','Date'].find(k => attrs[k]);
-            if (field) {
-              dateStr = attrs[field];
-              const d = new Date(dateStr);
-              if (!isNaN(d)) dateStr = d.toISOString().split('T')[0];
-            }
-          }
-          const content = dateStr ? `Esri – data pozyskania: ${dateStr}` : 'Esri – data pozyskania: brak metadanych';
-          L.popup().setLatLng(e.latlng).setContent(content).openOn(map);
-          setBadge(dateStr ? `Esri: ${dateStr}` : 'Esri: brak metadanych');
-        } catch (err) {
-          showToast('Nie udało się pobrać metadanych Esri dla tego punktu.');
-        }
-      }
-
       const isTouchDevice = 'ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
 
       function updateMapDateUI(key) {
@@ -4096,8 +4044,7 @@ function emojiHtml(str) {
           if (isTouchDevice) {
             setBadge('Esri: przytrzymaj, aby dodać pinezkę');
           } else {
-            setBadge('Esri: kliknij prawym przyciskiem, aby sprawdzić datę');
-            map.on('contextmenu', handleEsriIdentify);
+            setBadge('Esri');
           }
         } else if (key === 'otm-trails') {
           setBadge('Topo (OSM): brak daty');
