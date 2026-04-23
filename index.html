@@ -6905,6 +6905,18 @@ function showRoutePopup(pinId, tr, latlng) {
       meta.innerHTML = `Krajów łącznie: <strong>${countries.size}</strong>${loading ? '<span class="country-inline-loader" title="Wczytywanie krajów"></span>' : ''}`;
     }
 
+    function handleCtrlExclusiveToggle(event, checkboxes, onApply) {
+      const isExclusive = !!(event && (event.ctrlKey || event.metaKey));
+      if (!isExclusive) return false;
+      event.preventDefault();
+      event.stopPropagation();
+      checkboxes.forEach(ch => {
+        ch.checked = ch === event.currentTarget;
+      });
+      if (typeof onApply === 'function') onApply();
+      return true;
+    }
+
     function updateStatusFilter() {
       const container = document.getElementById('status-lista');
       if (!container) return;
@@ -6942,6 +6954,14 @@ function showRoutePopup(pinId, tr, latlng) {
         div.appendChild(chk);
         div.appendChild(lbl);
         container.appendChild(div);
+        chk.addEventListener('click', (event) => {
+          handleCtrlExclusiveToggle(event, Array.from(container.querySelectorAll('.status-item input')), () => {
+            selectedStatuses = new Set([s.key]);
+            const all = document.getElementById('status-all');
+            if (all) all.checked = false;
+            generujListeWarstw();
+          });
+        });
         chk.addEventListener('change', () => {
           selectedStatuses = new Set(Array.from(container.querySelectorAll('.status-item input')).filter(c => c.checked).map(c => c.value));
           const all = document.getElementById('status-all');
@@ -6996,6 +7016,14 @@ function showRoutePopup(pinId, tr, latlng) {
         div.appendChild(chk);
         div.appendChild(lbl);
         container.appendChild(div);
+        chk.addEventListener('click', (event) => {
+          handleCtrlExclusiveToggle(event, Array.from(container.querySelectorAll('.kat-item input')), () => {
+            selectedCategories = new Set([cat]);
+            const all = document.getElementById('kategorie-all');
+            if (all) all.checked = false;
+            generujListeWarstw();
+          });
+        });
         chk.addEventListener('change', () => {
           selectedCategories = new Set(
             Array.from(container.querySelectorAll('.kat-item input')).filter(c => c.checked).map(c => c.value)
@@ -7049,6 +7077,15 @@ function showRoutePopup(pinId, tr, latlng) {
         div.appendChild(chk);
         div.appendChild(lbl);
         container.appendChild(div);
+        chk.addEventListener('click', (event) => {
+          handleCtrlExclusiveToggle(event, Array.from(container.querySelectorAll('.country-item input')), () => {
+            countryFilterTouched = true;
+            selectedCountries = new Set([country]);
+            const all = document.getElementById('kraje-all');
+            if (all) all.checked = false;
+            generujListeWarstw();
+          });
+        });
         chk.addEventListener('change', () => {
           countryFilterTouched = true;
           selectedCountries = new Set(
@@ -7072,9 +7109,16 @@ function showRoutePopup(pinId, tr, latlng) {
     function scheduleMarkerVisibilityUpdate() {
       if (markerViewportUpdateScheduled) return;
       markerViewportUpdateScheduled = true;
+      showLoading();
       requestAnimationFrame(() => {
-        markerViewportUpdateScheduled = false;
-        updateMarkerVisibility();
+        requestAnimationFrame(() => {
+          markerViewportUpdateScheduled = false;
+          try {
+            updateMarkerVisibility();
+          } finally {
+            hideLoading();
+          }
+        });
       });
     }
 
@@ -7145,6 +7189,28 @@ function showRoutePopup(pinId, tr, latlng) {
           map.removeLayer(warstwy[nazwa].layer);
         }
         checkbox.checked = warstwy[nazwa].visible;
+        checkbox.addEventListener('click', (event) => {
+          const layerCheckboxes = Array.from(lista.querySelectorAll('.warstwa h3 > span:first-child > input[type="checkbox"]'));
+          handleCtrlExclusiveToggle(event, layerCheckboxes, () => {
+            layerCheckboxes.forEach(ch => {
+              const layerName = ch.closest('.warstwa')?.dataset?.nazwa;
+              if (!layerName || !warstwy[layerName]) return;
+              warstwy[layerName].visible = ch.checked;
+              if (ch.checked) {
+                warstwy[layerName].layer.addTo(map);
+              } else {
+                map.removeLayer(warstwy[layerName].layer);
+              }
+              if (!warstwy[layerName].temporary) {
+                setLayerVisibilityState(layerName, ch.checked);
+              }
+            });
+            allLayersVisible = Object.values(warstwy).every(w => w.visible);
+            if (toggleVisibilityBtn) {
+              toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
+            }
+          });
+        });
         checkbox.onchange = () => {
           warstwy[nazwa].visible = checkbox.checked;
           if (checkbox.checked) {
