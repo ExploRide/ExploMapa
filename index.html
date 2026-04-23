@@ -4211,6 +4211,8 @@ function emojiHtml(str) {
     map.on("click", e => { if (currentTool === "pin" && !drawingRoute && window.innerWidth > 800) onMapClick(e); });
     map.on(L.Draw.Event.CREATED, onRouteCreated);
     map.on('draw:drawstop', () => { drawingRoute = false; activeRoutePin = null; });
+    map.on('moveend', scheduleMarkerVisibilityUpdate);
+    map.on('zoomend', scheduleMarkerVisibilityUpdate);
 
     if (window.innerWidth <= 700) {
       let startLatLng = null;
@@ -7059,11 +7061,30 @@ function showRoutePopup(pinId, tr, latlng) {
       });
     }
 
+    let markerViewportUpdateScheduled = false;
+
+    function pinIsInViewport(pin, paddedBounds) {
+      if (!pin || typeof pin.lat !== 'number' || typeof pin.lng !== 'number') return false;
+      if (!map || !paddedBounds) return true;
+      return paddedBounds.contains([pin.lat, pin.lng]);
+    }
+
+    function scheduleMarkerVisibilityUpdate() {
+      if (markerViewportUpdateScheduled) return;
+      markerViewportUpdateScheduled = true;
+      requestAnimationFrame(() => {
+        markerViewportUpdateScheduled = false;
+        updateMarkerVisibility();
+      });
+    }
+
     function updateMarkerVisibility() {
+      const paddedBounds = map ? map.getBounds().pad(0.15) : null;
       Object.values(warstwy).forEach(w => {
         w.lista.forEach(p => {
           if (!p.marker) return;
-          const visible = (selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '')) && pinMatchesStatus(p) && pinMatchesCountry(p);
+          const visibleByFilters = (selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '')) && pinMatchesStatus(p) && pinMatchesCountry(p);
+          const visible = visibleByFilters && pinIsInViewport(p, paddedBounds);
           if (visible) {
             if (!w.layer.hasLayer(p.marker)) {
               w.layer.addLayer(p.marker);
@@ -7224,8 +7245,16 @@ toggleBtn.style.verticalAlign = "top";
               const gpsBtn = document.getElementById('gpsFollowBtn');
               if (gpsBtn) gpsBtn.style.display = 'block';
             }
+            const layerName = p.warstwa || "Inne";
+            const layerData = warstwy[layerName];
+            if (layerData && p.marker && !layerData.layer.hasLayer(p.marker)) {
+              layerData.layer.addLayer(p.marker);
+            }
             map.setView([p.lat, p.lng], 16);
-            p.marker.openPopup();
+            map.once('moveend', () => {
+              updateMarkerVisibility();
+              if (p.marker) p.marker.openPopup();
+            });
             highlightListItem(el);
           });
           if (p.marker) {
