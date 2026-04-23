@@ -18,7 +18,7 @@
   <style>
     html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background-color: #1e1e1e; color: #f0f0f0;}
     #map, #sidebar, #basemap-switcher, #layer-editor, #route-editor { display: none; }
-    #map { position: absolute; top: 0; left: 300px; right: 200px; bottom: 0; z-index: 1; }
+    #map { position: absolute; top: 0; left: 282px; right: 204px; bottom: 0; z-index: 1; }
     #map.pin-reposition,
     .leaflet-container.pin-reposition,
     #map.pin-reposition *,
@@ -40,13 +40,13 @@
       top: 0;
       left: 0;
       bottom: 0;
-      width: 280px;
+      width: 264px;
       z-index: 300;
    border-color: #444;
     background: #2b2b2b;
     color: #f0f0f0;
       border-right: 1px solid #ccc;
-      padding: 10px;
+      padding: 8px;
     }
     #sidebar-inner {
       display: flex;
@@ -64,19 +64,19 @@
       position: absolute;
       top: 0;
       right: 0;
-      width: 200px;
+      width: 188px;
       height: 100%;
       z-index: 300;
       background-color: #2b2b2b;
       border-color: #444;
       color: #f0f0f0;
       border-left: 1px solid #ccc;
-      padding: 10px;
+      padding: 8px;
       font-size: 12px !important;
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
-      gap: 10px;
+      gap: 8px;
       overflow: hidden;
     }
     #basemap-content {
@@ -112,14 +112,14 @@
     #layer-editor {
       position: absolute;
       top: 0;
-      left: 300px;
-      width: 200px;
+      left: 282px;
+      width: 188px;
       height: 100%;
       background-color: #2b2b2b;
       border-color: #444;
       color: #f0f0f0;
       border-left: 1px solid #ccc;
-      padding: 10px;
+      padding: 8px;
       overflow-y: auto;
       z-index: 1550;
       pointer-events: auto;
@@ -127,13 +127,13 @@
     #bulk-pin-panel {
       position: absolute;
       top: 0;
-      left: 300px;
+      left: 282px;
       width: 220px;
       background-color: #2b2b2b;
       border-left: 1px solid #ccc;
       border-color: #444;
       color: #f0f0f0;
-      padding: 10px;
+      padding: 8px;
       z-index: 1560;
       display: none;
       box-sizing: border-box;
@@ -221,14 +221,14 @@
     #route-editor {
       position: absolute;
       top: 0;
-      left: 300px;
-      width: 200px;
+      left: 282px;
+      width: 188px;
       height: 100%;
       background-color: #2b2b2b;
       border-color: #444;
       color: #f0f0f0;
       border-left: 1px solid #ccc;
-      padding: 10px;
+      padding: 8px;
       overflow-y: auto;
       z-index: 1550;
       pointer-events: auto;
@@ -356,7 +356,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       flex-shrink: 0;
     }
     #wyszukiwarka {
@@ -397,7 +397,7 @@
     flex-shrink: 0;
     position: fixed !important;
     top: 56px;
-    left: 315px;
+    left: 296px;
     z-index: 200;
     }
     .tool-btn {
@@ -528,19 +528,19 @@ width: 15px;
     #geosearch-container {
       position: fixed;
       top: 10px;
-      left: 310px;
-      right: 235px;
-      min-width: 280px;
-      padding: 5px;
+      left: 292px;
+      right: 220px;
+      min-width: 240px;
+      padding: 4px;
       z-index: 200;
       display: flex;
     }
     #geosearch {
       flex: 1;
-      padding: 5px;
+      padding: 4px 8px;
     }
     #geosearchBtn {
-      margin-left: 5px;
+      margin-left: 4px;
     }
     #geosearch-suggestions {
       position: absolute;
@@ -1202,9 +1202,9 @@ img.emoji {
       --ui-text-muted: #a9aeba;
       --ui-accent: #e53935;
       --ui-accent-strong: #ff4a46;
-      --ui-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
-      --ui-radius: 12px;
-      --ui-radius-sm: 9px;
+      --ui-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+      --ui-radius: 10px;
+      --ui-radius-sm: 7px;
       --ui-transition: 160ms ease;
     }
 
@@ -1212,7 +1212,7 @@ img.emoji {
       background: var(--ui-bg);
       color: var(--ui-text);
       font-family: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      line-height: 1.45;
+      line-height: 1.35;
     }
 
     #sidebar,
@@ -1229,20 +1229,20 @@ img.emoji {
 
     #sidebar,
     #basemap-switcher {
-      padding: 14px 12px;
+      padding: 10px 9px;
     }
 
     #logoNaglowek {
-      font-size: 21px;
+      font-size: 18px;
       letter-spacing: 0.02em;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
 
     #sidebar-inner,
     #basemap-content,
     #layer-editor,
     #route-editor {
-      gap: 8px;
+      gap: 6px;
     }
 
     input,
@@ -1271,8 +1271,8 @@ img.emoji {
       background: var(--ui-bg-soft);
       color: var(--ui-text);
       border: 1px solid var(--ui-border);
-      padding: 8px 10px;
-      min-height: 36px;
+      padding: 6px 9px;
+      min-height: 32px;
       box-sizing: border-box;
     }
 
@@ -1292,9 +1292,9 @@ img.emoji {
       background: #232733;
       color: var(--ui-text);
       border: 1px solid var(--ui-border);
-      min-height: 36px;
+      min-height: 32px;
       font-weight: 600;
-      padding: 8px 12px;
+      padding: 6px 10px;
       cursor: pointer;
     }
 
@@ -1320,7 +1320,7 @@ img.emoji {
     .tool-btn:focus-visible {
       outline: none;
       border-color: var(--ui-accent) !important;
-      box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.22);
+      box-shadow: 0 0 0 2px rgba(229, 57, 53, 0.22);
     }
 
     #saveChanges,
@@ -1347,14 +1347,14 @@ img.emoji {
     #history-log {
       background: rgba(0, 0, 0, 0.18);
       border-radius: var(--ui-radius-sm);
-      padding: 10px;
+      padding: 8px;
     }
 
     details {
       border: 1px solid var(--ui-border);
       border-radius: var(--ui-radius-sm);
       background: rgba(0, 0, 0, 0.14);
-      padding: 8px;
+      padding: 6px;
     }
 
     details + details,
@@ -1365,7 +1365,7 @@ img.emoji {
     #addLayerBtn,
     #collapseAllLayers,
     #toggleVisibility {
-      margin-top: 8px;
+      margin-top: 6px;
     }
 
     #collapseAllLayers,
@@ -1376,7 +1376,7 @@ img.emoji {
       color: var(--ui-text) !important;
       text-decoration: none;
       border-radius: var(--ui-radius-sm);
-      padding: 8px 10px;
+      padding: 6px 8px;
       width: 100%;
       text-align: center;
     }
@@ -1391,9 +1391,9 @@ img.emoji {
     .pinezka,
     .plan-item,
     .trasa-item {
-      border-radius: 8px;
-      padding: 8px 6px;
-      margin: 2px 0;
+      border-radius: 6px;
+      padding: 6px 5px;
+      margin: 1px 0;
       border: 1px solid transparent;
       text-decoration: none !important;
     }
@@ -1413,14 +1413,14 @@ img.emoji {
 
     #narzedzia,
     #geosearch-container {
-      gap: 8px;
+      gap: 6px;
     }
 
     #geosearch-container {
       background: rgba(16, 18, 22, 0.85);
       border: 1px solid var(--ui-border);
       border-radius: 999px;
-      padding: 6px;
+      padding: 4px;
       box-shadow: var(--ui-shadow);
       backdrop-filter: blur(4px);
     }
@@ -1428,8 +1428,8 @@ img.emoji {
     #geosearch,
     #wyszukiwarka {
       border-radius: 999px;
-      min-height: 38px;
-      padding-inline: 12px;
+      min-height: 34px;
+      padding-inline: 10px;
     }
 
     #geosearch-suggestions,
@@ -1486,8 +1486,46 @@ img.emoji {
     #toast {
       border: 1px solid var(--ui-border);
       box-shadow: var(--ui-shadow);
-      border-radius: 10px !important;
+      border-radius: 8px !important;
       backdrop-filter: blur(4px);
+    }
+
+    #mobileControlsToggle {
+      display: none;
+      width: 100%;
+      justify-content: space-between;
+      align-items: center;
+      text-align: left;
+    }
+
+    #sidebarTopControls {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+    }
+
+    @media (min-width: 701px) {
+      #sidebarTopControls {
+        display: grid;
+        gap: 6px;
+      }
+    }
+
+    @media (max-width: 700px) {
+      #mobileControlsToggle {
+        display: flex;
+        margin-bottom: 6px;
+      }
+
+      #sidebarTopControls {
+        display: none;
+        margin-bottom: 6px;
+      }
+
+      #sidebarTopControls.mobile-open {
+        display: flex;
+      }
     }
 
     ::-webkit-scrollbar-track { background: #111319; }
@@ -1505,6 +1543,10 @@ img.emoji {
   <div id="sidebar">
     <div id="sidebar-inner">
       <h2 id="logoNaglowek">ExploMapy</h2>
+      <button id="mobileControlsToggle" type="button" aria-expanded="false" aria-controls="sidebarTopControls">
+        Filtry i akcje <span class="mobile-controls-indicator">▼</span>
+      </button>
+      <div id="sidebarTopControls">
       <div class="search-input-row">
         <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
         <button id="clearWyszukiwarkaBtn" type="button" aria-label="Wyczyść wyszukiwarkę">✕</button>
@@ -1540,6 +1582,7 @@ img.emoji {
         <button id="collapseAllLayers">Rozwiń wszystkie warstwy</button>
       <button id="toggleVisibility">Ukryj wszystkie warstwy</button>
       <button id="loadPinsBtn">Załaduj pinezki</button>
+      </div>
       <div id="lista-warstw"></div>
       <button id="emojiToolBtn">Emoji Tool</button>
       <button id="syncBtn">Synchronizuj (<span id="syncCount">0</span>)</button>
@@ -1913,6 +1956,21 @@ function slugify(str) {
 
     function applyResponsiveLayoutClass() {
       document.body.classList.toggle("mobile-layout", shouldUseMobileLayout());
+      updateSidebarTopControlsLayout();
+    }
+
+    function updateSidebarTopControlsLayout() {
+      const controlsWrap = document.getElementById("sidebarTopControls");
+      const controlsToggle = document.getElementById("mobileControlsToggle");
+      if (!controlsWrap || !controlsToggle) return;
+      const indicator = controlsToggle.querySelector(".mobile-controls-indicator");
+      const mobileMode = document.body.classList.contains("mobile-layout");
+      if (!mobileMode) {
+        controlsWrap.classList.remove("mobile-open");
+      }
+      const isOpen = controlsWrap.classList.contains("mobile-open");
+      controlsToggle.setAttribute("aria-expanded", mobileMode ? String(isOpen) : "true");
+      if (indicator) indicator.textContent = mobileMode && isOpen ? "▲" : "▼";
     }
 
     function showLoginScreen() {
@@ -2404,6 +2462,15 @@ function slugify(str) {
       toggleBasemapsBtn.addEventListener("click", () => {
         basemapSwitcherEl.classList.toggle("show");
       });
+    }
+    const mobileControlsToggleBtn = document.getElementById("mobileControlsToggle");
+    const sidebarTopControlsEl = document.getElementById("sidebarTopControls");
+    if (mobileControlsToggleBtn && sidebarTopControlsEl) {
+      mobileControlsToggleBtn.addEventListener("click", () => {
+        sidebarTopControlsEl.classList.toggle("mobile-open");
+        updateSidebarTopControlsLayout();
+      });
+      updateSidebarTopControlsLayout();
     }
     const addLayerBtn = document.getElementById('addLayerBtn');
     const newLayerControls = document.getElementById('newLayerControls');
