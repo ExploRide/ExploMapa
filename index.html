@@ -506,17 +506,20 @@
           drop-shadow(0 0 1px black)
           drop-shadow(0 0 1px black);
 }
-    .marker-cluster,
-    .marker-cluster div {
-      background: rgba(24, 24, 24, 0.92);
-      border: 2px solid #7bd3ff;
+    .custom-cluster-icon {
+      background: rgba(128, 128, 128, 0.5);
+      border: 2px solid #ff2d2d;
+      border-radius: 50%;
       color: #fff;
       font-weight: 700;
-      box-shadow: 0 0 12px rgba(0, 0, 0, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
     }
-    .marker-cluster-large,
-    .marker-cluster-large div {
-      border-color: #ffb86c;
+    .custom-cluster-icon span {
+      color: #fff;
+      line-height: 1;
     }
     .emoji-inline {
 width: 15px;
@@ -2231,7 +2234,7 @@ function slugify(str) {
     const PINTEREST_LAYER_NAME = 'pinterest_diane_g';
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
     const CLUSTER_DISABLE_AT_ZOOM = 8; // skupiaj pinezki aż do średniego przybliżenia mapy
-    const CLUSTER_MIN_MARKERS = 50; // klastruj dopiero, gdy warstwa ma ponad 50 pinezek
+    const CLUSTER_MIN_MARKERS = 1; // klastruj już od małej liczby pinezek
     const BIG_CLUSTER_COUNT = 500;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
@@ -2324,16 +2327,15 @@ function slugify(str) {
       let clusterLayer = null;
       clusterLayer = L.markerClusterGroup({
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
-        maxClusterRadius: () => (clusterLayer && clusterLayer.getLayers().length > CLUSTER_MIN_MARKERS ? 55 : 1),
+        maxClusterRadius: () => (clusterLayer && clusterLayer.getLayers().length >= CLUSTER_MIN_MARKERS ? 75 : 1),
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         iconCreateFunction: cluster => {
           const count = cluster.getChildCount();
           const size = count >= BIG_CLUSTER_COUNT ? 56 : count >= 100 ? 46 : 38;
-          const className = count >= BIG_CLUSTER_COUNT ? 'marker-cluster marker-cluster-large' : 'marker-cluster marker-cluster-medium';
           return L.divIcon({
-            html: `<div><span>${count}</span></div>`,
-            className,
+            html: `<span>${count}</span>`,
+            className: 'custom-cluster-icon',
             iconSize: L.point(size, size)
           });
         }
