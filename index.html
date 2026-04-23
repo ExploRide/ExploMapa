@@ -1190,6 +1190,310 @@ img.emoji {
       cursor: not-allowed;
     }
 
+
+
+    :root {
+      --ui-bg: #0f1013;
+      --ui-bg-elev: #17191f;
+      --ui-bg-soft: #1d2028;
+      --ui-border: #2b2f38;
+      --ui-border-strong: #3a3f4b;
+      --ui-text: #eef0f3;
+      --ui-text-muted: #a9aeba;
+      --ui-accent: #e53935;
+      --ui-accent-strong: #ff4a46;
+      --ui-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+      --ui-radius: 12px;
+      --ui-radius-sm: 9px;
+      --ui-transition: 160ms ease;
+    }
+
+    html, body {
+      background: var(--ui-bg);
+      color: var(--ui-text);
+      font-family: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.45;
+    }
+
+    #sidebar,
+    #basemap-switcher,
+    #layer-editor,
+    #route-editor,
+    #bulk-pin-panel {
+      background: linear-gradient(180deg, rgba(23, 25, 31, 0.98) 0%, rgba(19, 21, 26, 0.98) 100%);
+      border-color: var(--ui-border) !important;
+      color: var(--ui-text);
+      box-shadow: var(--ui-shadow);
+      backdrop-filter: blur(4px);
+    }
+
+    #sidebar,
+    #basemap-switcher {
+      padding: 14px 12px;
+    }
+
+    #logoNaglowek {
+      font-size: 21px;
+      letter-spacing: 0.02em;
+      margin-bottom: 12px;
+    }
+
+    #sidebar-inner,
+    #basemap-content,
+    #layer-editor,
+    #route-editor {
+      gap: 8px;
+    }
+
+    input,
+    select,
+    textarea,
+    button,
+    summary,
+    .tool-btn,
+    .popup-route-btn,
+    .popup-direct-route-btn,
+    .route-actions button,
+    .route-input-group button,
+    .new-layer-cancel,
+    #clearWyszukiwarkaBtn,
+    #toggleLayers,
+    #toggleBasemaps,
+    #gpsFollowBtn {
+      font-family: inherit;
+      border-radius: var(--ui-radius-sm);
+      transition: background-color var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition), box-shadow var(--ui-transition), transform var(--ui-transition);
+    }
+
+    input,
+    select,
+    textarea {
+      background: var(--ui-bg-soft);
+      color: var(--ui-text);
+      border: 1px solid var(--ui-border);
+      padding: 8px 10px;
+      min-height: 36px;
+      box-sizing: border-box;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: var(--ui-text-muted);
+    }
+
+    button,
+    .tool-btn,
+    #addLayerBtn,
+    #loadPinsBtn,
+    #saveChanges,
+    #exportKML,
+    #loginBtn,
+    #bulk-pin-panel button {
+      background: #232733;
+      color: var(--ui-text);
+      border: 1px solid var(--ui-border);
+      min-height: 36px;
+      font-weight: 600;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    button:hover,
+    .tool-btn:hover,
+    .popup-route-btn:hover,
+    .popup-direct-route-btn:hover,
+    summary:hover {
+      background: #2a2f3d;
+      border-color: var(--ui-border-strong);
+    }
+
+    button:active,
+    .tool-btn:active {
+      transform: translateY(1px);
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    summary:focus-visible,
+    .tool-btn:focus-visible {
+      outline: none;
+      border-color: var(--ui-accent) !important;
+      box-shadow: 0 0 0 3px rgba(229, 57, 53, 0.22);
+    }
+
+    #saveChanges,
+    #exportKML,
+    #loadPinsBtn,
+    #loginBtn,
+    #bulkApplyLayer {
+      background: linear-gradient(180deg, var(--ui-accent-strong) 0%, var(--ui-accent) 100%);
+      border-color: #aa2724;
+      color: #fff;
+    }
+
+    #saveChanges.unsaved {
+      background: linear-gradient(180deg, #ff5e5a 0%, #db2f2c 100%);
+      border-color: #b32422;
+    }
+
+    #history-log,
+    #lista-warstw,
+    .layer-separator {
+      border-color: var(--ui-border) !important;
+    }
+
+    #history-log {
+      background: rgba(0, 0, 0, 0.18);
+      border-radius: var(--ui-radius-sm);
+      padding: 10px;
+    }
+
+    details {
+      border: 1px solid var(--ui-border);
+      border-radius: var(--ui-radius-sm);
+      background: rgba(0, 0, 0, 0.14);
+      padding: 8px;
+    }
+
+    details + details,
+    details + button,
+    button + button,
+    .new-layer-controls,
+    #sortowanie,
+    #addLayerBtn,
+    #collapseAllLayers,
+    #toggleVisibility {
+      margin-top: 8px;
+    }
+
+    #collapseAllLayers,
+    #toggleVisibility,
+    .kml-import-btn {
+      background: #1f2430 !important;
+      border: 1px solid var(--ui-border) !important;
+      color: var(--ui-text) !important;
+      text-decoration: none;
+      border-radius: var(--ui-radius-sm);
+      padding: 8px 10px;
+      width: 100%;
+      text-align: center;
+    }
+
+    summary {
+      font-weight: 600;
+      cursor: pointer;
+      list-style: none;
+      color: var(--ui-text);
+    }
+
+    .pinezka,
+    .plan-item,
+    .trasa-item {
+      border-radius: 8px;
+      padding: 8px 6px;
+      margin: 2px 0;
+      border: 1px solid transparent;
+      text-decoration: none !important;
+    }
+
+    .pinezka:hover,
+    .plan-item:hover,
+    .trasa-item:hover {
+      background: rgba(229, 57, 53, 0.08);
+      border-color: rgba(229, 57, 53, 0.28);
+    }
+
+    .pinezka.selected,
+    .tool-btn.active {
+      background: rgba(229, 57, 53, 0.16);
+      border-color: rgba(229, 57, 53, 0.4);
+    }
+
+    #narzedzia,
+    #geosearch-container {
+      gap: 8px;
+    }
+
+    #geosearch-container {
+      background: rgba(16, 18, 22, 0.85);
+      border: 1px solid var(--ui-border);
+      border-radius: 999px;
+      padding: 6px;
+      box-shadow: var(--ui-shadow);
+      backdrop-filter: blur(4px);
+    }
+
+    #geosearch,
+    #wyszukiwarka {
+      border-radius: 999px;
+      min-height: 38px;
+      padding-inline: 12px;
+    }
+
+    #geosearch-suggestions,
+    .plan-option-panel,
+    .plan-editor-panel,
+    #deleteModalContent,
+    #layerDeleteModalContent,
+    .mobile-modal-content,
+    .leaflet-popup-content-wrapper {
+      background: #171a21;
+      border: 1px solid var(--ui-border);
+      border-radius: var(--ui-radius);
+      box-shadow: var(--ui-shadow);
+    }
+
+    .leaflet-popup-tip {
+      background: #171a21;
+      border: 1px solid var(--ui-border);
+    }
+
+    #deleteModal,
+    #layerDeleteModal,
+    #photoModal {
+      background: rgba(5, 6, 9, 0.78);
+      backdrop-filter: blur(4px);
+    }
+
+    #toggleLayers,
+    #toggleBasemaps,
+    #gpsFollowBtn {
+      background: rgba(22, 25, 31, 0.96) !important;
+      border-color: var(--ui-border) !important;
+      color: var(--ui-text) !important;
+      box-shadow: var(--ui-shadow);
+    }
+
+    .leaflet-control-zoom a {
+      background: #1b1f27 !important;
+      color: var(--ui-text) !important;
+      border-color: var(--ui-border) !important;
+    }
+
+    .leaflet-control-zoom a:hover {
+      background: #262c38 !important;
+      color: #fff !important;
+    }
+
+    #offlineBar {
+      background: #b91c1c !important;
+      font-weight: 600;
+    }
+
+    #banner,
+    #toast {
+      border: 1px solid var(--ui-border);
+      box-shadow: var(--ui-shadow);
+      border-radius: 10px !important;
+      backdrop-filter: blur(4px);
+    }
+
+    ::-webkit-scrollbar-track { background: #111319; }
+    ::-webkit-scrollbar-thumb { background-color: #353b48; border-color: #111319; }
+    ::-webkit-scrollbar-thumb:hover { background-color: #484f61; }
+
   </style>
 </head>
 <body>
