@@ -44,16 +44,12 @@
   }
 
 .emoji-picker {
-    position: relative;
-    display: inline-block;
-    border-width: 2px;
-    border-style: solid;
-    border-color: buttonborder;
-    border-image: initial;
-    padding-right: 4px;
-    padding-top: 2px;
-    padding-bottom: 3px;
-  background-color: #444;
+  position: relative;
+  display: inline-block;
+  border: 1px solid #2b2f38;
+  border-radius: 10px;
+  padding: 4px 6px;
+  background-color: #1d2028;
 }
 
   .emoji-picker-grid {
@@ -123,9 +119,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #444;
+  background: #2a2f3b;
   color: #fff;
-  border: 1px solid #666;
+  border: 1px solid #383d48;
+  border-radius: 7px;
   cursor: pointer;
   padding: 0;
 }
@@ -499,11 +496,10 @@ bottom: 2px;
     }
 
 
-    #history-log{
-    border-width: 2px;
-    border-style: inset;
-    border-color: buttonborder;
-    border-image: initial;
+#history-log{
+    border-width: 1px;
+    border-style: solid;
+    border-color: #2b2f38;
     padding-bottom: 10px;
 }
 
