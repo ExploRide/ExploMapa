@@ -1371,6 +1371,12 @@ img.emoji {
       margin-top: 4px;
     }
 
+    .layer-actions-row {
+      display: flex;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
     #collapseAllLayers,
     #toggleVisibility,
     .kml-import-btn {
@@ -1379,9 +1385,30 @@ img.emoji {
       color: var(--ui-text) !important;
       text-decoration: none;
       border-radius: var(--ui-radius-sm);
-      padding: 5px 7px;
+      padding: 4px 6px;
       width: 100%;
       text-align: center;
+    }
+
+    .layer-actions-row #collapseAllLayers,
+    .layer-actions-row #toggleVisibility {
+      margin-top: 0;
+      flex: 1 1 0;
+      width: auto;
+      min-height: 26px;
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    #addLayerBtn {
+      background: #f1f4f9;
+      color: #1e2635;
+      border: 1px solid #c7d0de;
+    }
+
+    #addLayerBtn:hover {
+      background: #ffffff;
+      border-color: #b5c1d2;
     }
 
     summary {
@@ -1674,6 +1701,10 @@ img.emoji {
           </details>
         </div>
       </div>
+      <div class="layer-actions-row">
+        <button id="collapseAllLayers">Rozwiń wszystkie warstwy</button>
+        <button id="toggleVisibility">Ukryj wszystkie warstwy</button>
+      </div>
       <button id="addLayerBtn">+ Nowa warstwa</button>
       <div id="newLayerControls" class="new-layer-controls" style="display:none;">
         <div class="new-layer-row">
@@ -1683,8 +1714,6 @@ img.emoji {
         <button type="button" id="importKmlBtn" class="kml-import-btn">importuj z .kml</button>
         <input type="file" id="importKmlInput" accept=".kml" style="display:none;">
       </div>
-        <button id="collapseAllLayers">Rozwiń wszystkie warstwy</button>
-      <button id="toggleVisibility">Ukryj wszystkie warstwy</button>
       <button id="loadPinsBtn">Załaduj pinezki</button>
       </div>
       <div id="lista-warstw"></div>
