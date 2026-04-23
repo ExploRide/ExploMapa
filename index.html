@@ -2234,7 +2234,7 @@ function slugify(str) {
     const PINTEREST_LAYER_NAME = 'pinterest_diane_g';
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
     const CLUSTER_DISABLE_AT_ZOOM = 14; // skupiaj pinezki aż do średniego przybliżenia mapy
-    const CLUSTER_MIN_MARKERS = 10; // klastruj już od małej liczby pinezek
+    const CLUSTER_MIN_MARKERS = 5; // pierwszy klaster twórz dopiero od tej liczby pinezek
     const BIG_CLUSTER_COUNT = 500;
     const STRONG_CLUSTER_OVERLAP_MIN_RATIO = 0.72; // restrykcyjny próg: łącz tylko przy mocnym wejściu kół
     const STRONG_CLUSTER_OVERLAP_SUM_RATIO = 0.4;
@@ -2333,8 +2333,11 @@ function slugify(str) {
 
       let clusterLayer = null;
       let mergedOverlayLayer = null;
+      let smallClusterOverlayLayer = null;
       const hiddenClusterIds = new Set();
       const mergedClusterMarkers = [];
+      const hiddenSmallClusterIds = new Set();
+      const smallClusterMarkers = [];
 
       function setClusterMarkerVisibility(cluster, visible) {
         if (!cluster || !cluster._icon) return;
@@ -2346,6 +2349,12 @@ function slugify(str) {
         hiddenClusterIds.clear();
         mergedClusterMarkers.splice(0, mergedClusterMarkers.length);
         if (mergedOverlayLayer) mergedOverlayLayer.clearLayers();
+      }
+
+      function clearSmallClusterOverlays() {
+        hiddenSmallClusterIds.clear();
+        smallClusterMarkers.splice(0, smallClusterMarkers.length);
+        if (smallClusterOverlayLayer) smallClusterOverlayLayer.clearLayers();
       }
 
       function getVisibleTopClusters() {
@@ -2478,9 +2487,58 @@ function slugify(str) {
         }
       }
 
+      function buildSingleMarkerClone(marker) {
+        const latLng = marker.getLatLng();
+        const icon = marker.options?.icon;
+        const clone = L.marker(latLng, { icon, interactive: true });
+        if (marker.options?.zIndexOffset) {
+          clone.setZIndexOffset(marker.options.zIndexOffset);
+        }
+        const popup = marker.getPopup();
+        if (popup) {
+          clone.bindPopup(popup.getContent(), popup.options || {});
+        }
+        clone.on('click', () => marker.fire('click'));
+        return clone;
+      }
+
+      function renderSmallClustersAsSingleMarkers() {
+        if (!map || !clusterLayer || !clusterLayer._featureGroup) return;
+        if (!smallClusterOverlayLayer || !map.hasLayer(clusterLayer)) return;
+
+        for (const id of hiddenSmallClusterIds) {
+          const cluster = smallClusterMarkers.find(item => item.id === id)?.cluster;
+          if (cluster) setClusterMarkerVisibility(cluster, true);
+        }
+        clearSmallClusterOverlays();
+
+        const clusters = getVisibleTopClusters();
+        for (const cluster of clusters) {
+          const count = cluster.getChildCount();
+          if (count >= CLUSTER_MIN_MARKERS) continue;
+          const childMarkers = cluster.getAllChildMarkers();
+          if (childMarkers.length < 2) continue;
+
+          const id = L.Util.stamp(cluster);
+          hiddenSmallClusterIds.add(id);
+          smallClusterMarkers.push({ id, cluster });
+          setClusterMarkerVisibility(cluster, false);
+
+          childMarkers.forEach(childMarker => {
+            const markerClone = buildSingleMarkerClone(childMarker);
+            smallClusterOverlayLayer.addLayer(markerClone);
+          });
+        }
+      }
+
+      function refreshClusterVisuals() {
+        renderSmallClustersAsSingleMarkers();
+        mergeStronglyOverlappingClusters();
+      }
+
       clusterLayer = L.markerClusterGroup({
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
-        maxClusterRadius: () => (clusterLayer && clusterLayer.getLayers().length >= CLUSTER_MIN_MARKERS ? 75 : 1),
+        maxClusterRadius: () => 75,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         iconCreateFunction: cluster => {
@@ -2495,20 +2553,24 @@ function slugify(str) {
       });
 
       mergedOverlayLayer = L.layerGroup();
-      const handleMapViewChange = () => mergeStronglyOverlappingClusters();
+      smallClusterOverlayLayer = L.layerGroup();
+      const handleMapViewChange = () => refreshClusterVisuals();
       clusterLayer.on('add', () => {
         mergedOverlayLayer.addTo(map);
+        smallClusterOverlayLayer.addTo(map);
         map.on('zoomend moveend', handleMapViewChange);
-        mergeStronglyOverlappingClusters();
+        refreshClusterVisuals();
       });
       clusterLayer.on('remove', () => {
         clearMergedClusterOverlays();
+        clearSmallClusterOverlays();
         mergedOverlayLayer.remove();
+        smallClusterOverlayLayer.remove();
         map.off('zoomend moveend', handleMapViewChange);
       });
-      clusterLayer.on('animationend', mergeStronglyOverlappingClusters);
-      clusterLayer.on('spiderfied', mergeStronglyOverlappingClusters);
-      clusterLayer.on('unspiderfied', mergeStronglyOverlappingClusters);
+      clusterLayer.on('animationend', refreshClusterVisuals);
+      clusterLayer.on('spiderfied', refreshClusterVisuals);
+      clusterLayer.on('unspiderfied', refreshClusterVisuals);
 
       return clusterLayer;
     }
