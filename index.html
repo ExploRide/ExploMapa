@@ -2236,6 +2236,9 @@ function slugify(str) {
     const CLUSTER_DISABLE_AT_ZOOM = 8; // skupiaj pinezki aż do średniego przybliżenia mapy
     const CLUSTER_MIN_MARKERS = 1; // klastruj już od małej liczby pinezek
     const BIG_CLUSTER_COUNT = 500;
+    const STRONG_CLUSTER_OVERLAP_MIN_RATIO = 0.72; // restrykcyjny próg: łącz tylko przy mocnym wejściu kół
+    const STRONG_CLUSTER_OVERLAP_SUM_RATIO = 0.4;
+    const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 250;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
     // When the page is opened normally we want layer visibility/collapse to reset.
@@ -2319,12 +2322,162 @@ function slugify(str) {
     let lastSelectedPinId = null;
     let fullPinsLoaded = false;
 
+    function getClusterIconSize(count) {
+      return count >= BIG_CLUSTER_COUNT ? 56 : count >= 100 ? 46 : 38;
+    }
+
     function createPinLayer() {
       if (!L.markerClusterGroup) {
         return L.layerGroup();
       }
 
       let clusterLayer = null;
+      let mergedOverlayLayer = null;
+      const hiddenClusterIds = new Set();
+      const mergedClusterMarkers = [];
+
+      function setClusterMarkerVisibility(cluster, visible) {
+        if (!cluster || !cluster._icon) return;
+        cluster._icon.style.opacity = visible ? '1' : '0';
+        cluster._icon.style.pointerEvents = visible ? 'auto' : 'none';
+      }
+
+      function clearMergedClusterOverlays() {
+        hiddenClusterIds.clear();
+        mergedClusterMarkers.splice(0, mergedClusterMarkers.length);
+        if (mergedOverlayLayer) mergedOverlayLayer.clearLayers();
+      }
+
+      function getVisibleTopClusters() {
+        if (!clusterLayer || !clusterLayer._featureGroup || !map) return [];
+        const clusters = [];
+        clusterLayer._featureGroup.eachLayer(layer => {
+          if (layer instanceof L.MarkerCluster && layer._icon) {
+            clusters.push(layer);
+          }
+        });
+        return clusters;
+      }
+
+      function buildStrongOverlapGroups(clusters) {
+        const len = clusters.length;
+        if (len < 2 || len > MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE) return [];
+        const points = new Array(len);
+        const radii = new Array(len);
+        const parent = Array.from({ length: len }, (_, idx) => idx);
+
+        const find = idx => {
+          while (parent[idx] !== idx) {
+            parent[idx] = parent[parent[idx]];
+            idx = parent[idx];
+          }
+          return idx;
+        };
+
+        const union = (a, b) => {
+          const rootA = find(a);
+          const rootB = find(b);
+          if (rootA !== rootB) parent[rootB] = rootA;
+        };
+
+        for (let i = 0; i < len; i++) {
+          const cluster = clusters[i];
+          const count = cluster.getChildCount();
+          const size = getClusterIconSize(count);
+          points[i] = map.latLngToLayerPoint(cluster.getLatLng());
+          radii[i] = size * 0.5;
+        }
+
+        for (let i = 0; i < len; i++) {
+          const pointA = points[i];
+          const radiusA = radii[i];
+          for (let j = i + 1; j < len; j++) {
+            const radiusB = radii[j];
+            const distance = pointA.distanceTo(points[j]);
+            const sumOfRadii = radiusA + radiusB;
+            if (distance >= sumOfRadii) continue;
+
+            const overlap = sumOfRadii - distance;
+            const minRadius = Math.min(radiusA, radiusB);
+            if (minRadius <= 0) continue;
+            const overlapToMinRatio = overlap / minRadius;
+            const overlapToSumRatio = overlap / sumOfRadii;
+
+            if (
+              overlapToMinRatio >= STRONG_CLUSTER_OVERLAP_MIN_RATIO &&
+              overlapToSumRatio >= STRONG_CLUSTER_OVERLAP_SUM_RATIO
+            ) {
+              union(i, j);
+            }
+          }
+        }
+
+        const grouped = new Map();
+        for (let i = 0; i < len; i++) {
+          const root = find(i);
+          if (!grouped.has(root)) grouped.set(root, []);
+          grouped.get(root).push(clusters[i]);
+        }
+        return Array.from(grouped.values()).filter(group => group.length > 1);
+      }
+
+      function mergeStronglyOverlappingClusters() {
+        if (!map || !clusterLayer || !clusterLayer._featureGroup) return;
+        if (!mergedOverlayLayer || !map.hasLayer(clusterLayer)) return;
+
+        // Przywróć widoczność klastrów ukrytych podczas poprzedniego przebiegu.
+        for (const id of hiddenClusterIds) {
+          const cluster = mergedClusterMarkers.find(item => item.id === id)?.cluster;
+          if (cluster) setClusterMarkerVisibility(cluster, true);
+        }
+        clearMergedClusterOverlays();
+
+        const clusters = getVisibleTopClusters();
+        const mergedGroups = buildStrongOverlapGroups(clusters);
+        if (mergedGroups.length === 0) return;
+
+        for (const group of mergedGroups) {
+          let totalChildren = 0;
+          let weightedX = 0;
+          let weightedY = 0;
+          const markerSet = new Set();
+
+          group.forEach(cluster => {
+            const count = cluster.getChildCount();
+            const centerPoint = map.latLngToLayerPoint(cluster.getLatLng());
+            totalChildren += count;
+            weightedX += centerPoint.x * count;
+            weightedY += centerPoint.y * count;
+            cluster.getAllChildMarkers().forEach(marker => markerSet.add(marker));
+          });
+
+          if (totalChildren < 2) continue;
+          const centerPoint = L.point(weightedX / totalChildren, weightedY / totalChildren);
+          const centerLatLng = map.layerPointToLatLng(centerPoint);
+          const size = getClusterIconSize(totalChildren);
+          const icon = L.divIcon({
+            html: `<span>${totalChildren}</span>`,
+            className: 'custom-cluster-icon',
+            iconSize: L.point(size, size)
+          });
+
+          const mergedMarker = L.marker(centerLatLng, { icon, interactive: true });
+          const childMarkers = Array.from(markerSet);
+          mergedMarker.on('click', () => {
+            const bounds = L.latLngBounds(childMarkers.map(marker => marker.getLatLng()));
+            if (bounds.isValid()) map.fitBounds(bounds.pad(0.15));
+          });
+          mergedOverlayLayer.addLayer(mergedMarker);
+
+          group.forEach(cluster => {
+            const id = L.Util.stamp(cluster);
+            hiddenClusterIds.add(id);
+            mergedClusterMarkers.push({ id, cluster });
+            setClusterMarkerVisibility(cluster, false);
+          });
+        }
+      }
+
       clusterLayer = L.markerClusterGroup({
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
         maxClusterRadius: () => (clusterLayer && clusterLayer.getLayers().length >= CLUSTER_MIN_MARKERS ? 75 : 1),
@@ -2332,7 +2485,7 @@ function slugify(str) {
         showCoverageOnHover: false,
         iconCreateFunction: cluster => {
           const count = cluster.getChildCount();
-          const size = count >= BIG_CLUSTER_COUNT ? 56 : count >= 100 ? 46 : 38;
+          const size = getClusterIconSize(count);
           return L.divIcon({
             html: `<span>${count}</span>`,
             className: 'custom-cluster-icon',
@@ -2340,6 +2493,22 @@ function slugify(str) {
           });
         }
       });
+
+      mergedOverlayLayer = L.layerGroup();
+      const handleMapViewChange = () => mergeStronglyOverlappingClusters();
+      clusterLayer.on('add', () => {
+        mergedOverlayLayer.addTo(map);
+        map.on('zoomend moveend', handleMapViewChange);
+        mergeStronglyOverlappingClusters();
+      });
+      clusterLayer.on('remove', () => {
+        clearMergedClusterOverlays();
+        mergedOverlayLayer.remove();
+        map.off('zoomend moveend', handleMapViewChange);
+      });
+      clusterLayer.on('animationend', mergeStronglyOverlappingClusters);
+      clusterLayer.on('spiderfied', mergeStronglyOverlappingClusters);
+      clusterLayer.on('unspiderfied', mergeStronglyOverlappingClusters);
 
       return clusterLayer;
     }
