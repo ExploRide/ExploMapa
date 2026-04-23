@@ -1754,6 +1754,7 @@ function slugify(str) {
     const PINTEREST_LAYER_NAME = 'pinterest_diane_g';
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
     const CLUSTER_DISABLE_AT_ZOOM = 8; // skupiaj pinezki aż do średniego przybliżenia mapy
+    const CLUSTER_MIN_MARKERS = 50; // klastruj dopiero, gdy warstwa ma ponad 50 pinezek
     const BIG_CLUSTER_COUNT = 500;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
@@ -1842,9 +1843,11 @@ function slugify(str) {
       if (!L.markerClusterGroup) {
         return L.layerGroup();
       }
-      return L.markerClusterGroup({
+
+      let clusterLayer = null;
+      clusterLayer = L.markerClusterGroup({
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
-        maxClusterRadius: 55,
+        maxClusterRadius: () => (clusterLayer && clusterLayer.getLayers().length > CLUSTER_MIN_MARKERS ? 55 : 1),
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         iconCreateFunction: cluster => {
@@ -1858,6 +1861,8 @@ function slugify(str) {
           });
         }
       });
+
+      return clusterLayer;
     }
 
     const bulkPanel = document.getElementById('bulk-pin-panel');
