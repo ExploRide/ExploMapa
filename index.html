@@ -8,6 +8,8 @@
   <meta name="theme-color" content="#000000" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
@@ -504,6 +506,18 @@
           drop-shadow(0 0 1px black)
           drop-shadow(0 0 1px black);
 }
+    .marker-cluster,
+    .marker-cluster div {
+      background: rgba(24, 24, 24, 0.92);
+      border: 2px solid #7bd3ff;
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.45);
+    }
+    .marker-cluster-large,
+    .marker-cluster-large div {
+      border-color: #ffb86c;
+    }
     .emoji-inline {
 width: 15px;
     height: 15px;
@@ -1382,6 +1396,7 @@ img.emoji {
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="offline-uploads.js"></script>
   <script src="firestore-setup.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1738,6 +1753,8 @@ function slugify(str) {
     const LAYER_STATE_PRESERVE_FLAG_KEY = 'warstwaPreserveStateOnce';
     const PINTEREST_LAYER_NAME = 'pinterest_diane_g';
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
+    const CLUSTER_DISABLE_AT_ZOOM = 6; // Polska (~z6+) pokazuje pełne pinezki
+    const BIG_CLUSTER_COUNT = 500;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
     // When the page is opened normally we want layer visibility/collapse to reset.
@@ -1820,6 +1837,28 @@ function slugify(str) {
     const selectedPinIds = new Set();
     let lastSelectedPinId = null;
     let fullPinsLoaded = false;
+
+    function createPinLayer() {
+      if (!L.markerClusterGroup) {
+        return L.layerGroup();
+      }
+      return L.markerClusterGroup({
+        disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
+        maxClusterRadius: 55,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        iconCreateFunction: cluster => {
+          const count = cluster.getChildCount();
+          const size = count >= BIG_CLUSTER_COUNT ? 56 : count >= 100 ? 46 : 38;
+          const className = count >= BIG_CLUSTER_COUNT ? 'marker-cluster marker-cluster-large' : 'marker-cluster marker-cluster-medium';
+          return L.divIcon({
+            html: `<div><span>${count}</span></div>`,
+            className,
+            iconSize: L.point(size, size)
+          });
+        }
+      });
+    }
 
     const bulkPanel = document.getElementById('bulk-pin-panel');
     const bulkLayerInput = document.getElementById('bulkLayerInput');
@@ -2145,7 +2184,7 @@ function slugify(str) {
         enqueueCountryFetch(data);
         data.warstwaId = layerDocs[layerName] || null;
         if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+          warstwy[layerName] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
         }
         const iconEmoji = warstwy[layerName].emoji || data.emoji;
         const marker = L.marker([data.lat, data.lng], { icon: createEmojiIcon(iconEmoji, data.warstwaId, 32, data) }).addTo(warstwy[layerName].layer);
@@ -4256,7 +4295,7 @@ function emojiHtml(str) {
           orderList.push(layerName);
         }
         if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
+          warstwy[layerName] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
         }
         return;
       }
@@ -4269,12 +4308,12 @@ function emojiHtml(str) {
           orderList.push(layerName);
         }
         if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
+          warstwy[layerName] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
         }
       } catch (e) {
         console.error('Błąd dodawania warstwy do Firestore', e);
         if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
+          warstwy[layerName] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
         }
       }
     }
@@ -4292,7 +4331,7 @@ function emojiHtml(str) {
           if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: L.layerGroup(), collapsed: true, emoji: data.emoji || '', loaded: false, loading: false, defaultVisible: data.defaultVisible !== undefined ? !!data.defaultVisible : true };
+            warstwy[data.name] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: data.emoji || '', loaded: false, loading: false, defaultVisible: data.defaultVisible !== undefined ? !!data.defaultVisible : true };
           } else {
             if (data.emoji) {
               warstwy[data.name].emoji = data.emoji;
@@ -4389,7 +4428,7 @@ function zaladujPinezkiZFirestore() {
       if (!warstwy[warstwaNazwa]) {
         warstwy[warstwaNazwa] = {
           lista: [],
-          layer: L.layerGroup(),
+          layer: createPinLayer(),
           collapsed: true,
           emoji: '',
           defaultVisible: true
@@ -4791,7 +4830,7 @@ function zaladujPinezkiZFirestore() {
       Object.assign(p, data);
       const nowaWarstwa = p.warstwa || "Inne";
       if (!warstwy[nowaWarstwa]) {
-        warstwy[nowaWarstwa] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
+        warstwy[nowaWarstwa] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
       }
       if (staraWarstwa !== nowaWarstwa) {
         const idx = warstwy[staraWarstwa].lista.indexOf(p);
@@ -4940,7 +4979,7 @@ function zaladujPinezkiZFirestore() {
         }
         const layerName = addedPin.warstwa || 'Inne';
         if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+          warstwy[layerName] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
         }
         if (!warstwy[layerName].lista.includes(addedPin)) warstwy[layerName].lista.push(addedPin);
         if (!wszystkiePinezki.includes(addedPin)) wszystkiePinezki.push(addedPin);
@@ -5089,7 +5128,7 @@ function zaladujPinezkiZFirestore() {
         const warstwaN = data.warstwa || "Inne";
         data.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+          warstwy[warstwaN] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
         }
         data.marker = marker;
         const iconEmoji = warstwy[warstwaN].emoji || data.emoji;
@@ -5302,7 +5341,7 @@ function zaladujPinezkiZFirestore() {
         p.warstwa = layerInfo.warstwaName;
         const warstwaN = p.warstwa || 'Inne';
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+          warstwy[warstwaN] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
         }
         const iconEmoji = warstwy[warstwaN].emoji || p.emoji;
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[warstwaN].layer);
@@ -5702,7 +5741,7 @@ function zaladujPinezkiZFirestore() {
       if (!name || warstwy[name]) return;
       const prevLayersToAdd = layersToAdd.slice();
       const prevOrder = loadLayerOrder();
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
+      warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
       warstwy[name].visible = true;
       setLayerCollapseState(name, true);
       setLayerVisibilityState(name, true);
@@ -5727,7 +5766,7 @@ function zaladujPinezkiZFirestore() {
             updateSaveButton();
           },
           redo: () => {
-            warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
+            warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
             warstwy[name].visible = true;
             layersToAdd = prevLayersToAdd.concat(name);
             const o = prevOrder.slice();
@@ -6119,7 +6158,7 @@ function showRoutePopup(pinId, tr, latlng) {
         searchLayer = null;
         searchMarker = null;
       }
-      searchLayer = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', temporary: true };
+      searchLayer = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', temporary: true };
       warstwy['wyszukane'] = searchLayer;
       const latlng = L.latLng(latNum, lngNum);
       searchMarker = L.marker(latlng, {icon: greenIcon}).addTo(searchLayer.layer);
@@ -8008,7 +8047,7 @@ function confirmLayerDelete() {
     layerDocs[name] = movingLayerId;
     layerNamesById[movingLayerId] = name;
     if (!warstwy[name]) {
-      warstwy[name] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
+      warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
     }
     generujListeWarstw();
   }
@@ -8102,7 +8141,7 @@ function confirmLayerDelete() {
     const warstwaN = data.warstwa || 'Inne';
     data.warstwaId = layerDocs[warstwaN] || null;
     if (!warstwy[warstwaN]) {
-      warstwy[warstwaN] = { lista: [], layer: L.layerGroup().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+      warstwy[warstwaN] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
     }
     const marker = L.marker(latlng, {icon: createEmojiIcon(warstwy[warstwaN].emoji || data.emoji, data.warstwaId, 32, data)}).addTo(warstwy[warstwaN].layer);
     applyInactiveStyle(data);
