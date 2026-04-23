@@ -1203,8 +1203,8 @@ img.emoji {
       --ui-accent: #e53935;
       --ui-accent-strong: #ff4a46;
       --ui-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-      --ui-radius: 10px;
-      --ui-radius-sm: 7px;
+      --ui-radius: 8px;
+      --ui-radius-sm: 6px;
       --ui-transition: 160ms ease;
     }
 
@@ -1229,13 +1229,13 @@ img.emoji {
 
     #sidebar,
     #basemap-switcher {
-      padding: 10px 9px;
+      padding: 8px 7px;
     }
 
     #logoNaglowek {
-      font-size: 18px;
+      font-size: 16px;
       letter-spacing: 0.02em;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     #sidebar-inner,
@@ -1271,8 +1271,8 @@ img.emoji {
       background: var(--ui-bg-soft);
       color: var(--ui-text);
       border: 1px solid var(--ui-border);
-      padding: 6px 9px;
-      min-height: 32px;
+      padding: 5px 8px;
+      min-height: 28px;
       box-sizing: border-box;
     }
 
@@ -1292,9 +1292,9 @@ img.emoji {
       background: #232733;
       color: var(--ui-text);
       border: 1px solid var(--ui-border);
-      min-height: 32px;
+      min-height: 28px;
       font-weight: 600;
-      padding: 6px 10px;
+      padding: 5px 8px;
       cursor: pointer;
     }
 
@@ -1347,14 +1347,14 @@ img.emoji {
     #history-log {
       background: rgba(0, 0, 0, 0.18);
       border-radius: var(--ui-radius-sm);
-      padding: 8px;
+      padding: 6px;
     }
 
     details {
       border: 1px solid var(--ui-border);
       border-radius: var(--ui-radius-sm);
       background: rgba(0, 0, 0, 0.14);
-      padding: 6px;
+      padding: 4px 6px;
     }
 
     details + details,
@@ -1365,7 +1365,7 @@ img.emoji {
     #addLayerBtn,
     #collapseAllLayers,
     #toggleVisibility {
-      margin-top: 6px;
+      margin-top: 4px;
     }
 
     #collapseAllLayers,
@@ -1376,7 +1376,7 @@ img.emoji {
       color: var(--ui-text) !important;
       text-decoration: none;
       border-radius: var(--ui-radius-sm);
-      padding: 6px 8px;
+      padding: 5px 7px;
       width: 100%;
       text-align: center;
     }
@@ -1392,7 +1392,7 @@ img.emoji {
     .plan-item,
     .trasa-item {
       border-radius: 6px;
-      padding: 6px 5px;
+      padding: 4px 4px;
       margin: 1px 0;
       border: 1px solid transparent;
       text-decoration: none !important;
@@ -1420,7 +1420,7 @@ img.emoji {
       background: rgba(16, 18, 22, 0.85);
       border: 1px solid var(--ui-border);
       border-radius: 999px;
-      padding: 4px;
+      padding: 2px;
       box-shadow: var(--ui-shadow);
       backdrop-filter: blur(4px);
     }
@@ -1428,8 +1428,74 @@ img.emoji {
     #geosearch,
     #wyszukiwarka {
       border-radius: 999px;
-      min-height: 34px;
-      padding-inline: 10px;
+      min-height: 30px;
+      padding-inline: 9px;
+    }
+
+    #desktopFiltersDropdown {
+      border: 1px solid var(--ui-border);
+      border-radius: var(--ui-radius-sm);
+      background: rgba(0, 0, 0, 0.14);
+      padding: 4px;
+    }
+
+    #desktopFiltersToggle {
+      width: 100%;
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 26px;
+      font-size: 12px;
+      padding: 4px 7px;
+      background: #1f2430;
+    }
+
+    #desktopFiltersContent {
+      display: grid;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    #desktopFiltersDropdown .desktop-filter-indicator {
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    #status-lista > div,
+    #kategorie-lista > div,
+    #kraje-lista > div,
+    .filter-check-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 22px;
+      line-height: 1.15;
+      margin: 0;
+      padding: 1px 0;
+    }
+
+    #status-lista label,
+    #kategorie-lista label,
+    #kraje-lista label,
+    .filter-check-row label {
+      margin: 0;
+      line-height: 1.15;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #status-lista input[type="checkbox"],
+    #kategorie-lista input[type="checkbox"],
+    #kraje-lista input[type="checkbox"],
+    .filter-check-row input[type="checkbox"],
+    .warstwa input[type="checkbox"] {
+      margin: 0;
+      width: 14px;
+      height: 14px;
+      transform: translateY(0);
+      vertical-align: middle;
+      flex-shrink: 0;
     }
 
     #geosearch-suggestions,
@@ -1508,7 +1574,19 @@ img.emoji {
     @media (min-width: 701px) {
       #sidebarTopControls {
         display: grid;
-        gap: 6px;
+        gap: 4px;
+      }
+
+      #desktopFiltersToggle {
+        display: inline-flex;
+      }
+
+      #desktopFiltersContent {
+        display: none;
+      }
+
+      #desktopFiltersDropdown.open #desktopFiltersContent {
+        display: grid;
       }
     }
 
@@ -1525,6 +1603,22 @@ img.emoji {
 
       #sidebarTopControls.mobile-open {
         display: flex;
+      }
+
+      #desktopFiltersDropdown {
+        border: 0;
+        background: transparent;
+        padding: 0;
+      }
+
+      #desktopFiltersToggle {
+        display: none !important;
+      }
+
+      #desktopFiltersContent {
+        display: grid !important;
+        margin-top: 0;
+        gap: 6px;
       }
     }
 
@@ -1557,19 +1651,26 @@ img.emoji {
         <option value="nameAsc">Sortuj alfabetycznie A→Z</option>
         <option value="nameDesc">Sortuj alfabetycznie Z→A</option>
       </select>
-      <details id="filterKategorie">
-        <summary>Filtruj kategorie</summary>
-        <div id="kategorie-lista"></div>
-      </details>
-      <details id="filterStatusy">
-        <summary>Filtruj statusy</summary>
-        <div id="status-lista"></div>
-      </details>
-      <details id="filterKraje">
-        <summary>Filtruj kraje</summary>
-        <div id="kraje-meta" class="country-filter-meta"></div>
-        <div id="kraje-lista"></div>
-      </details>
+      <div id="desktopFiltersDropdown" class="open-mobile">
+        <button id="desktopFiltersToggle" type="button" aria-expanded="false" aria-controls="desktopFiltersContent">
+          Filtry szczegółowe <span class="desktop-filter-indicator">▼</span>
+        </button>
+        <div id="desktopFiltersContent">
+          <details id="filterKategorie">
+            <summary>Filtruj kategorie</summary>
+            <div id="kategorie-lista"></div>
+          </details>
+          <details id="filterStatusy">
+            <summary>Filtruj statusy</summary>
+            <div id="status-lista"></div>
+          </details>
+          <details id="filterKraje">
+            <summary>Filtruj kraje</summary>
+            <div id="kraje-meta" class="country-filter-meta"></div>
+            <div id="kraje-lista"></div>
+          </details>
+        </div>
+      </div>
       <button id="addLayerBtn">+ Nowa warstwa</button>
       <div id="newLayerControls" class="new-layer-controls" style="display:none;">
         <div class="new-layer-row">
@@ -1962,11 +2063,25 @@ function slugify(str) {
     function updateSidebarTopControlsLayout() {
       const controlsWrap = document.getElementById("sidebarTopControls");
       const controlsToggle = document.getElementById("mobileControlsToggle");
+      const desktopFilterDropdown = document.getElementById("desktopFiltersDropdown");
+      const desktopFilterToggle = document.getElementById("desktopFiltersToggle");
+      const desktopFilterIndicator = desktopFilterToggle ? desktopFilterToggle.querySelector(".desktop-filter-indicator") : null;
       if (!controlsWrap || !controlsToggle) return;
       const indicator = controlsToggle.querySelector(".mobile-controls-indicator");
       const mobileMode = document.body.classList.contains("mobile-layout");
       if (!mobileMode) {
         controlsWrap.classList.remove("mobile-open");
+      }
+      if (desktopFilterDropdown && desktopFilterToggle) {
+        if (mobileMode) {
+          desktopFilterDropdown.classList.add("open");
+          desktopFilterToggle.setAttribute("aria-expanded", "true");
+          if (desktopFilterIndicator) desktopFilterIndicator.textContent = "▼";
+        } else {
+          const isDesktopOpen = desktopFilterDropdown.classList.contains("open");
+          desktopFilterToggle.setAttribute("aria-expanded", String(isDesktopOpen));
+          if (desktopFilterIndicator) desktopFilterIndicator.textContent = isDesktopOpen ? "▲" : "▼";
+        }
       }
       const isOpen = controlsWrap.classList.contains("mobile-open");
       controlsToggle.setAttribute("aria-expanded", mobileMode ? String(isOpen) : "true");
@@ -2465,12 +2580,20 @@ function slugify(str) {
     }
     const mobileControlsToggleBtn = document.getElementById("mobileControlsToggle");
     const sidebarTopControlsEl = document.getElementById("sidebarTopControls");
+    const desktopFiltersToggleBtn = document.getElementById("desktopFiltersToggle");
+    const desktopFiltersDropdownEl = document.getElementById("desktopFiltersDropdown");
     if (mobileControlsToggleBtn && sidebarTopControlsEl) {
       mobileControlsToggleBtn.addEventListener("click", () => {
         sidebarTopControlsEl.classList.toggle("mobile-open");
         updateSidebarTopControlsLayout();
       });
       updateSidebarTopControlsLayout();
+    }
+    if (desktopFiltersToggleBtn && desktopFiltersDropdownEl) {
+      desktopFiltersToggleBtn.addEventListener("click", () => {
+        desktopFiltersDropdownEl.classList.toggle("open");
+        updateSidebarTopControlsLayout();
+      });
     }
     const addLayerBtn = document.getElementById('addLayerBtn');
     const newLayerControls = document.getElementById('newLayerControls');
