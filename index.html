@@ -2413,14 +2413,16 @@ function slugify(str) {
     const MAIN_CATEGORY_URBEX = 'URBEX';
     const MAIN_CATEGORY_TURYSTYCZNE = 'TURYSTYCZNE';
     const MAIN_CATEGORY_OPTIONS = [MAIN_CATEGORY_URBEX, MAIN_CATEGORY_TURYSTYCZNE];
+    const TURYSTYCZNE_SUBCATEGORIES = ['Atrakcje', 'Szczyty'];
+    const TURYSTYCZNE_SUBCATEGORIES_SET = new Set(TURYSTYCZNE_SUBCATEGORIES);
     const categoriesByMain = {
       [MAIN_CATEGORY_URBEX]: new Set(),
-      [MAIN_CATEGORY_TURYSTYCZNE]: new Set(['Atrakcje', 'Szczyty'])
+      [MAIN_CATEGORY_TURYSTYCZNE]: new Set(TURYSTYCZNE_SUBCATEGORIES)
     };
     let selectedMainCategories = new Set(MAIN_CATEGORY_OPTIONS);
     let selectedCategoriesByMain = {
       [MAIN_CATEGORY_URBEX]: new Set(),
-      [MAIN_CATEGORY_TURYSTYCZNE]: new Set(['Atrakcje', 'Szczyty'])
+      [MAIN_CATEGORY_TURYSTYCZNE]: new Set(TURYSTYCZNE_SUBCATEGORIES)
     };
     let selectedCategories = new Set();
     const countries = new Set();
@@ -5290,7 +5292,7 @@ function zaladujPinezkiZFirestore() {
       p.zdewastowane = p.zdewastowane === true;
       p.zwiedzone = p.zwiedzone === true;
       p.wyroznione = p.wyroznione === true;
-      p.kategoriaGlowna = normalizeMainCategory(p.kategoriaGlowna);
+      getPinMainCategory(p);
       p.slug = slugify(p.nazwa);
       if (!photosMap[p.slug]) {
         const merged = [];
@@ -5788,9 +5790,13 @@ function zaladujPinezkiZFirestore() {
       if (!layerVal) missing.push("Wybierz warstwę");
       if (missing.length) { alert(missing.join("\n")); return; }
       if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
-      const mainCatVal = normalizeMainCategory(document.getElementById("ekategoriaGlowna").value);
-      const catVal = document.getElementById("ekategoria").value.trim();
-      if (catVal && !categoriesByMain[mainCatVal].has(catVal)) { categoriesByMain[mainCatVal].add(catVal); }
+      const resolvedCategory = resolveMainCategoryForCategory(
+        document.getElementById("ekategoriaGlowna").value,
+        document.getElementById("ekategoria").value
+      );
+      const mainCatVal = resolvedCategory.mainCategory;
+      const catVal = resolvedCategory.category;
+      if (catVal) categoriesByMain[mainCatVal].add(catVal);
       updateCategoryFilter();
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (p && p._editDraft) delete p._editDraft;
@@ -5844,7 +5850,7 @@ function zaladujPinezkiZFirestore() {
         applyPinData(p, nowa);
         registerPinCategory(p);
                 updateCategoryFilter();
-        p.kategoriaGlowna = normalizeMainCategory(p.kategoriaGlowna);
+        getPinMainCategory(p);
       p.slug = slugify(p.nazwa);
         if (oldSlug !== p.slug) {
           const photos = getStoredPhotos(oldSlug);
@@ -6030,9 +6036,13 @@ function zaladujPinezkiZFirestore() {
           if (!layerVal) missing.push("Wybierz warstwę");
           if (missing.length) { alert(missing.join("\n")); return; }
           if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
-          const mainCatVal = normalizeMainCategory(container.querySelector('#kategoriaGlownaNew').value);
-          const catVal = container.querySelector("#kategoriaNew").value.trim();
-          if (catVal && !categoriesByMain[mainCatVal].has(catVal)) { categoriesByMain[mainCatVal].add(catVal); }
+          const resolvedCategory = resolveMainCategoryForCategory(
+            container.querySelector('#kategoriaGlownaNew').value,
+            container.querySelector("#kategoriaNew").value
+          );
+          const mainCatVal = resolvedCategory.mainCategory;
+          const catVal = resolvedCategory.category;
+          if (catVal) categoriesByMain[mainCatVal].add(catVal);
           updateCategoryFilter();
           const data = {
             id: tempPin.id,
@@ -6264,7 +6274,7 @@ function zaladujPinezkiZFirestore() {
         if (p.zdewastowane === undefined) p.zdewastowane = false;
         if (p.zwiedzone === undefined) p.zwiedzone = false;
         if (p.wyroznione === undefined) p.wyroznione = false;
-        p.kategoriaGlowna = normalizeMainCategory(p.kategoriaGlowna);
+        getPinMainCategory(p);
         if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
         registerPinCategory(p);
@@ -7896,11 +7906,24 @@ function showRoutePopup(pinId, tr, latlng) {
       return value === MAIN_CATEGORY_TURYSTYCZNE ? MAIN_CATEGORY_TURYSTYCZNE : MAIN_CATEGORY_URBEX;
     }
 
+    function resolveMainCategoryForCategory(mainCategory, categoryValue) {
+      const normalizedMain = normalizeMainCategory(mainCategory);
+      const normalizedCategory = (categoryValue || '').trim();
+      if (!normalizedCategory) {
+        return { mainCategory: normalizedMain, category: '' };
+      }
+      if (TURYSTYCZNE_SUBCATEGORIES_SET.has(normalizedCategory)) {
+        return { mainCategory: MAIN_CATEGORY_TURYSTYCZNE, category: normalizedCategory };
+      }
+      return { mainCategory: MAIN_CATEGORY_URBEX, category: normalizedCategory };
+    }
+
     function getPinMainCategory(pin) {
       if (!pin) return MAIN_CATEGORY_URBEX;
-      const normalized = normalizeMainCategory(pin.kategoriaGlowna);
-      pin.kategoriaGlowna = normalized;
-      return normalized;
+      const resolved = resolveMainCategoryForCategory(pin.kategoriaGlowna, pin.kategoria);
+      pin.kategoriaGlowna = resolved.mainCategory;
+      pin.kategoria = resolved.category;
+      return resolved.mainCategory;
     }
 
     function registerPinCategory(pin) {
@@ -7908,11 +7931,19 @@ function showRoutePopup(pinId, tr, latlng) {
       const main = getPinMainCategory(pin);
       const cat = pin.kategoria || '';
       categories.add(cat);
+      if (main === MAIN_CATEGORY_URBEX && TURYSTYCZNE_SUBCATEGORIES_SET.has(cat)) return;
+      if (main === MAIN_CATEGORY_TURYSTYCZNE && !TURYSTYCZNE_SUBCATEGORIES_SET.has(cat) && cat) return;
       categoriesByMain[main].add(cat);
     }
 
     function getCategoriesForMain(main) {
-      return Array.from(categoriesByMain[main] || []).sort((a, b) => (a || '').localeCompare(b || '', 'pl'));
+      const normalizedMain = normalizeMainCategory(main);
+      if (normalizedMain === MAIN_CATEGORY_TURYSTYCZNE) {
+        return TURYSTYCZNE_SUBCATEGORIES.slice().sort((a, b) => (a || '').localeCompare(b || '', 'pl'));
+      }
+      return Array.from(categoriesByMain[MAIN_CATEGORY_URBEX] || [])
+        .filter(cat => !TURYSTYCZNE_SUBCATEGORIES_SET.has(cat))
+        .sort((a, b) => (a || '').localeCompare(b || '', 'pl'));
     }
 
     function getCategorySuggestions(main) {
@@ -9161,9 +9192,10 @@ function confirmLayerDelete() {
     const latlng = map.getCenter();
     const layerVal = form.warstwa.trim();
     if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
-    const mainCatVal = normalizeMainCategory(form.kategoriaGlowna);
-    const catVal = form.kategoria.trim();
-    if (catVal && !categoriesByMain[mainCatVal].has(catVal)) { categoriesByMain[mainCatVal].add(catVal); }
+    const resolvedCategory = resolveMainCategoryForCategory(form.kategoriaGlowna, form.kategoria);
+    const mainCatVal = resolvedCategory.mainCategory;
+    const catVal = resolvedCategory.category;
+    if (catVal) categoriesByMain[mainCatVal].add(catVal);
     updateCategoryFilter();
     const newId = crypto.randomUUID();
     const data = {
@@ -9173,7 +9205,7 @@ function confirmLayerDelete() {
       opis: form.opis.replace(/\n/g, '<br>'),
       warstwa: layerVal,
       kategoria: catVal,
-      kategoriaGlowna: normalizeMainCategory(form.kategoriaGlowna),
+      kategoriaGlowna: mainCatVal,
       emoji: form.emoji,
       trudnosc: parseInt(form.trudnosc, 10),
       nieaktywne: form.nieaktywne,
