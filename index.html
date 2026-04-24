@@ -4153,12 +4153,12 @@ function emojiHtml(str) {
         <div class="popup-info-item">${formatCoords(p.lat, p.lng)}</div>
         <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
         <div class="popup-edit-row">
-          <button class="popup-edit-btn" id="editBtn-${p.id}">✏️</button>
+          <button class="popup-edit-btn">✏️</button>
         </div>
         <div class="popup-route-actions">
-          <button class="popup-route-btn" id="routeBtn-${p.id}">Dodaj trasę</button>
-          <button class="popup-direct-route-btn" id="routeDirectBtn-${p.id}">Wyznacz trasę do</button>
-          <button class="popup-route-btn" id="planBtn-${p.id}">Dodaj plan</button>
+          <button class="popup-route-btn popup-route-add-btn">Dodaj trasę</button>
+          <button class="popup-direct-route-btn popup-route-direct-btn">Wyznacz trasę do</button>
+          <button class="popup-route-btn popup-plan-btn">Dodaj plan</button>
         </div>
       `;
     }
@@ -4169,14 +4169,14 @@ function emojiHtml(str) {
         const container = e.popup.getElement();
         if (!container) return;
         setupGallery(container.querySelector('.photo-gallery'));
-        const btn = container.querySelector(`#editBtn-${p.id}`);
+        const btn = container.querySelector('.popup-edit-btn');
         if (btn) {
           btn.addEventListener('click', ev => {
             ev.stopPropagation();
             edytuj(p.id, p.lat, p.lng);
           });
         }
-        const rbtn = container.querySelector(`#routeBtn-${p.id}`);
+        const rbtn = container.querySelector('.popup-route-add-btn');
         if (rbtn) {
           rbtn.addEventListener('click', ev => {
             ev.stopPropagation();
@@ -4184,7 +4184,7 @@ function emojiHtml(str) {
             startRouteDrawing(p);
           });
         }
-        const directBtn = container.querySelector(`#routeDirectBtn-${p.id}`);
+        const directBtn = container.querySelector('.popup-route-direct-btn');
         if (directBtn) {
           directBtn.addEventListener('click', ev => {
             ev.stopPropagation();
@@ -4192,7 +4192,7 @@ function emojiHtml(str) {
             routeToPin(p, directBtn);
           });
         }
-        const planBtn = container.querySelector(`#planBtn-${p.id}`);
+        const planBtn = container.querySelector('.popup-plan-btn');
         if (planBtn) {
           planBtn.addEventListener('click', ev => {
             ev.stopPropagation();
@@ -5230,10 +5230,11 @@ function zaladujPinezkiZFirestore() {
         p.dataDodania = new Date(p.dataDodania).getTime();
       }
       const firebaseId = doc.id;
-      const id = p.IDpinezki;
+      const id = p.IDpinezki || p.id || firebaseId;
       p.firebaseId = firebaseId;
       p.sourceCollection = source.collection;
       p.id = id;
+      if (!p.IDpinezki) p.IDpinezki = id;
       if (p.trudnosc !== undefined) {
         p.trudnosc = parseInt(p.trudnosc, 10);
       }
@@ -8375,11 +8376,13 @@ toggleBtn.style.verticalAlign = "top";
                 rest.warstwaId = null;
               }
             }
-            await db.collection('pinezki2').doc(p.firebaseId).update(rest);
+            const targetCollection = p.sourceCollection || 'pinezki2';
+            await db.collection(targetCollection).doc(p.firebaseId).update(rest);
           }
           const localPhotos = getStoredPhotos(p.slug);
-          p.photos = await savePhotosForPin(p.firebaseId, p.slug, localPhotos, p.photos || [], onProgress);
-          p.plany = await savePlansForPin(p.firebaseId, p.slug, p.plany || [], p.savedPlans || [], onProgress);
+          const targetCollection = p.sourceCollection || 'pinezki2';
+          p.photos = await savePhotosForPin(p.firebaseId, p.slug, localPhotos, p.photos || [], onProgress, targetCollection);
+          p.plany = await savePlansForPin(p.firebaseId, p.slug, p.plany || [], p.savedPlans || [], onProgress, targetCollection);
           p.savedPlans = serializePlans(p);
           delete p.unsaved;
         });
@@ -8415,18 +8418,21 @@ toggleBtn.style.verticalAlign = "top";
           if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
           await db.collection('pinezki2').doc(firebaseId).set(payload);
           const localPhotos = getStoredPhotos(p.slug);
-          p.photos = await savePhotosForPin(firebaseId, p.slug, localPhotos, [], onProgress);
-          p.plany = await savePlansForPin(firebaseId, p.slug, p.plany || [], [], onProgress);
+          p.photos = await savePhotosForPin(firebaseId, p.slug, localPhotos, [], onProgress, 'pinezki2');
+          p.plany = await savePlansForPin(firebaseId, p.slug, p.plany || [], [], onProgress, 'pinezki2');
           p.savedPlans = serializePlans(p);
         });
 
         const deletePinPromises = pinsToDelete.map(info => {
           const firebaseId = info && info.firebaseId;
+          const sourceCollection = (info && info.sourceCollection) || 'pinezki2';
           if (firebaseId) {
-            return db.collection('pinezki2').doc(firebaseId).delete().catch(()=>{});
+            return db.collection(sourceCollection).doc(firebaseId).delete().catch(()=>{});
           }
           const p = wszystkiePinezki.find(pp => pp.id === (info ? info.id : info));
-          if (p && p.firebaseId) return db.collection('pinezki2').doc(p.firebaseId).delete().catch(()=>{});
+          if (p && p.firebaseId) {
+            return db.collection((p.sourceCollection || 'pinezki2')).doc(p.firebaseId).delete().catch(()=>{});
+          }
           return Promise.resolve();
         });
 
@@ -8625,7 +8631,7 @@ toggleBtn.style.verticalAlign = "top";
     if (modal) modal.style.display = 'none';
   }
 
-  async function savePlansForPin(id, slug, localPlans, remotePlans, onProgress) {
+  async function savePlansForPin(id, slug, localPlans, remotePlans, onProgress, sourceCollection = 'pinezki2') {
     const finalPlans = [];
     const remoteMap = {};
     (remotePlans || []).forEach(pl => { if (pl && pl.path) remoteMap[pl.path] = pl; });
@@ -8656,7 +8662,7 @@ toggleBtn.style.verticalAlign = "top";
       try { await storage.ref().child(path).delete(); } catch (e) {}
     }
 
-      await db.collection('pinezki2').doc(id).update({
+      await db.collection(sourceCollection).doc(id).update({
         plany: finalPlans.map(pl => ({
           id: pl.id,
           nazwa: pl.nazwa,
@@ -8678,7 +8684,7 @@ toggleBtn.style.verticalAlign = "top";
   }
 
   // === [CODEx REPLACED] Upload i zapis listy zdjęć z kompresją ===
-  async function savePhotosForPin(id, slug, localPhotos, remotePhotos, onProgress) {
+  async function savePhotosForPin(id, slug, localPhotos, remotePhotos, onProgress, sourceCollection = 'pinezki2') {
     // localPhotos: [{url, path?}]   (nowe zdjęcia mają tylko 'url' = dataURL)
     // remotePhotos: [{url, path}]   (to co już jest w Firestore/Storage)
     const finalPhotos = [];
@@ -8731,7 +8737,7 @@ toggleBtn.style.verticalAlign = "top";
     }
 
     // Zapis listy zdjęć w dokumencie pinezki
-    await db.collection('pinezki2').doc(id).update({ photos: finalPhotos });
+    await db.collection(sourceCollection).doc(id).update({ photos: finalPhotos });
 
     // Synchronizacja lokalnego cache'a jeśli istnieje
     if (typeof storePhotos === 'function') {
@@ -8775,7 +8781,9 @@ toggleBtn.style.verticalAlign = "top";
       prevZmiany: Object.assign({}, zmianyDoZapisania),
       prevAll: wszystkiePinezki.slice()
     };
-    if (p.firebaseId) pinsToDelete.push({ id: p.id, firebaseId: p.firebaseId });
+    if (p.firebaseId) {
+      pinsToDelete.push({ id: p.id, firebaseId: p.firebaseId, sourceCollection: p.sourceCollection || 'pinezki2' });
+    }
     const idxN = nowePinezki.indexOf(p);
     if (idxN > -1) nowePinezki.splice(idxN, 1);
     delete zmianyDoZapisania[p.id];
