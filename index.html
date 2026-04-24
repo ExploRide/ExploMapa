@@ -2010,6 +2010,86 @@ function slugify(str) {
       }
     }
 
+    function isSupportedImageUrl(url) {
+      if (!/^https?:\/\//i.test(url || '')) return false;
+      return (
+        /\.(jpg|jpeg|png|webp|gif)(\?|#|$)/i.test(url) ||
+        String(url).includes('/upload/locationimages/')
+      );
+    }
+
+    function extractUrlsFromText(text) {
+      if (typeof text !== 'string') return [];
+      const matches = text.match(/https?:\/\/[^"'<>\\\s,;]+/gi) || [];
+      return matches.map(url => String(url)
+        .replace(/&amp;/gi, '&')
+        .replace(/[)\].,;]+$/g, '')
+        .trim());
+    }
+
+    function normalizePhotoUrls(pin) {
+      const rawItems = [];
+      const pushRaw = (value) => {
+        if (!value) return;
+        if (Array.isArray(value)) {
+          value.forEach(pushRaw);
+          return;
+        }
+        if (typeof value === 'object') {
+          pushRaw(value.url || value.src || value.href || value.photo || value.photos);
+          return;
+        }
+        if (typeof value === 'string') {
+          rawItems.push(value);
+        }
+      };
+
+      pushRaw(pin && pin.photo);
+      pushRaw(pin && pin.photos);
+
+      const urls = [];
+      rawItems.forEach(item => {
+        extractUrlsFromText(String(item)).forEach(url => {
+          if (isSupportedImageUrl(url)) {
+            urls.push(url);
+          }
+        });
+      });
+      return [...new Set(urls)];
+    }
+
+    function extractPhotoEntries(photosValue) {
+      const out = [];
+      const pushEntry = (value) => {
+        if (!value) return;
+        if (Array.isArray(value)) {
+          value.forEach(pushEntry);
+          return;
+        }
+        if (typeof value === 'string') {
+          normalizePhotoUrls({ photo: value }).forEach(url => out.push({ url }));
+          return;
+        }
+        if (typeof value === 'object') {
+          const urls = normalizePhotoUrls({ photo: [value.url, value.src, value.href, value.photo] });
+          urls.forEach(url => out.push({ ...value, url }));
+        }
+      };
+      pushEntry(photosValue);
+      return out;
+    }
+
+    function getPhotoEntryUrl(entry) {
+      if (!entry) return null;
+      if (typeof entry === 'string') {
+        return normalizePhotoUrls({ photo: entry })[0] || null;
+      }
+      if (typeof entry === 'object') {
+        return normalizePhotoUrls({ photo: [entry.url, entry.src, entry.href, entry.photo] })[0] || null;
+      }
+      return null;
+    }
+
     function imgWithFallback(url) {
       const img = document.createElement('img');
       img.loading = 'lazy';
@@ -3389,9 +3469,11 @@ function emojiHtml(str) {
       gallery.innerHTML = '';
       if (photos.length === 0) return;
       photos.forEach((ph, idx) => {
+        const url = getPhotoEntryUrl(ph);
+        if (!url) return;
         const wrapper = document.createElement('div');
         wrapper.className = 'photo-item';
-        const img = imgWithFallback(ph.url);
+        const img = imgWithFallback(url);
         img.dataset.index = idx;
         img.className = 'popup-photo';
         const del = document.createElement('span');
@@ -3421,7 +3503,11 @@ function emojiHtml(str) {
 
     function setupGallery(gallery) {
       if (!gallery) return;
-      renderGallery(gallery);
+      try {
+        renderGallery(gallery);
+      } catch (err) {
+        console.error('Błąd renderowania galerii zdjęć', err);
+      }
       gallery.addEventListener('click', e => {
         if (e.target.classList.contains('photo-delete')) {
           e.stopPropagation();
@@ -5159,20 +5245,20 @@ function zaladujPinezkiZFirestore() {
       p.wyroznione = p.wyroznione === true;
       p.slug = slugify(p.nazwa);
       if (!photosMap[p.slug]) {
-        // 1) Start od legacy 'photo' (jeśli istnieje) – jako PIERWSZE
         const merged = [];
-        if (p.photo && typeof p.photo === 'string' && p.photo.trim()) {
-          merged.push({ url: normalizePhotoUrl(p.photo), legacy: true });
-        }
 
-        // 2) Dorzuć 'photos' (jeśli są)
-        if (Array.isArray(p.photos)) {
-          for (const x of p.photos) {
-            if (x && x.url) merged.push({ ...x, url: normalizePhotoUrl(x.url) });
-          }
-        }
+        // Obsługa legacy `photo` (string, lista URL-i, HTML, tablice, obiekty)
+        normalizePhotoUrls({ photo: p.photo }).forEach(url => {
+          merged.push({ url: normalizePhotoUrl(url), legacy: true });
+        });
 
-        // 3) Deduplikacja po URL
+        // Obsługa `photos` (tablice stringów/obiektów) z zachowaniem metadanych
+        extractPhotoEntries(p.photos).forEach(entry => {
+          if (!entry || !entry.url) return;
+          merged.push({ ...entry, url: normalizePhotoUrl(entry.url) });
+        });
+
+        // Deduplikacja po URL
         const seen = new Set();
         const dedup = [];
         for (const ph of merged) {
@@ -8508,9 +8594,11 @@ toggleBtn.style.verticalAlign = "top";
     const photos = getStoredPhotos(slug);
     const ph = photos[idx];
     if (!ph) return;
+    const photoUrl = getPhotoEntryUrl(ph);
+    if (!photoUrl) return;
     const oldImg = document.getElementById('photoModalImg');
     if (oldImg) {
-      const img = imgWithFallback(ph.url);
+      const img = imgWithFallback(photoUrl);
       img.id = 'photoModalImg';
       oldImg.replaceWith(img);
     }
