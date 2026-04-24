@@ -673,31 +673,6 @@ body, #sidebar, #basemap-switcher {
 .edit-popup {
   min-width: 300px;
 }
-.edit-popup-form {
-  display: grid;
-  gap: 4px;
-}
-.edit-popup-form input,
-.edit-popup-form textarea {
-  width: 100%;
-  box-sizing: border-box;
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.25;
-  padding: 4px 6px;
-}
-.edit-popup-form textarea {
-  min-height: 46px;
-  resize: vertical;
-}
-.edit-popup-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-}
-.edit-popup-actions button {
-  min-height: 30px;
-}
 .popup-edit-btn {
   position: static;
   margin-left: auto;
@@ -5578,14 +5553,13 @@ function zaladujPinezkiZFirestore() {
       const container = document.createElement("div");
       container.className = "popup-container edit-popup";
       container.innerHTML = `
-        <div class="edit-popup-form">
         <div class="photo-gallery" data-slug="${p.slug}"></div>
         <button class="popup-add-photo" data-slug="${p.slug}">📷</button>
-        <input id="enazwa" value="${p.nazwa}">
-        <textarea id="eopis"></textarea>
-        <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo">
-        <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa">
-        <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria">
+        <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
+        <textarea id="eopis" style="width: 100%; height: 50px"></textarea><br>
+        <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo" style="width: 100%"><br>
+        <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa" style="width: 100%"><br>
+        <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="etrudnosc" class="trudnosc-range" min="0" max="5" step="1" value="${p.trudnosc ?? 0}">
@@ -5595,13 +5569,10 @@ function zaladujPinezkiZFirestore() {
           <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 0)}">${trudnoscText(p.trudnosc ?? 0)}</div>
         </div>
         ${buildStatusGrid('e', '', p)}
-        <div class="edit-popup-actions">
-          <button id="movePinBtn-${id}">📍 Zmień położenie</button>
-          <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
-          <button id="deleteBtn-${id}">🗑️</button>
-        </div>
+        <button id="movePinBtn-${id}">📍 Zmień położenie</button>
+        <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
+        <button id="deleteBtn-${id}">🗑️</button>
         <div id="emojiPicker-${id}" class="emoji-picker"></div>
-        </div>
       `;
       L.DomEvent.disableClickPropagation(container);
       const eOpisInput = container.querySelector('#eopis');
@@ -5899,14 +5870,13 @@ function zaladujPinezkiZFirestore() {
       // i umożliwia poprawne działanie przycisków wewnątrz popupu.
       L.DomEvent.disableClickPropagation(container);
       container.innerHTML = `
-        <div class="edit-popup-form">
         <div class="photo-gallery" data-slug="${tempPin.slug}"></div>
         <button class="popup-add-photo" data-slug="${tempPin.slug}">📷</button>
-        <input id="nazwaNew" placeholder="Nazwa">
-        <textarea id="opisNew" placeholder="Opis"></textarea>
-        <input id="odKogoNew" placeholder="Od kogo">
-        <input id="warstwaNew" placeholder="Warstwa">
-        <input id="kategoriaNew" placeholder="Kategoria">
+        <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
+        <textarea id="opisNew" placeholder="Opis" style="width: 100%; height: 100px"></textarea><br>
+        <input id="odKogoNew" placeholder="Od kogo" style="width: 100%"><br>
+        <input id="warstwaNew" placeholder="Warstwa" style="width: 102%"><br>
+        <input id="kategoriaNew" placeholder="Kategoria" style="width: 102%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="trudnoscNew" class="trudnosc-range" min="0" max="5" step="1" value="0">
@@ -5916,12 +5886,9 @@ function zaladujPinezkiZFirestore() {
           <div class="trudnosc-value" id="trudnoscNewLabel" style="color:${trudnoscColor(0)}">${trudnoscText(0)}</div>
         </div>
         ${buildStatusGrid('', 'New')}
-        <div class="edit-popup-actions">
-          <button id="saveNew">💾 Zapisz</button>
-          <button id="cancelNew">Anuluj</button>
-        </div>
-        <div id="emojiPickerNew" class="emoji-picker"></div>
-        </div>`;
+        <button id="saveNew">💾 Zapisz</button>
+        <button id="cancelNew">Anuluj</button>
+        <div id="emojiPickerNew" class="emoji-picker"></div>`;
 
       setupGallery(container.querySelector('.photo-gallery'));
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'));
@@ -6342,24 +6309,6 @@ function zaladujPinezkiZFirestore() {
         highlightedItem.classList.add('active');
         highlightedItem.scrollIntoView({behavior: 'smooth', block: 'nearest'});
       }
-    }
-
-    function focusPinFromList(pin, listItemEl) {
-      if (!map || !pin || !pin.marker) return;
-      const marker = pin.marker;
-      const targetLatLng = marker.getLatLng ? marker.getLatLng() : L.latLng(pin.lat, pin.lng);
-      const targetZoom = Math.max(map.getZoom() || 0, 16);
-
-      map.setView(targetLatLng, targetZoom);
-      updateMarkerVisibility();
-
-      if (clusterLayer && typeof clusterLayer.zoomToShowLayer === 'function' && clusterLayer.hasLayer(marker)) {
-        clusterLayer.zoomToShowLayer(marker, () => marker.openPopup());
-      } else {
-        marker.openPopup();
-      }
-
-      highlightListItem(listItemEl);
     }
 
     function setMarkerHighlight(marker) {
@@ -8267,7 +8216,12 @@ toggleBtn.style.verticalAlign = "top";
             if (layerData && p.marker && !layerData.layer.hasLayer(p.marker)) {
               layerData.layer.addLayer(p.marker);
             }
-            focusPinFromList(p, el);
+            map.setView([p.lat, p.lng], 16);
+            map.once('moveend', () => {
+              updateMarkerVisibility();
+              if (p.marker) p.marker.openPopup();
+            });
+            highlightListItem(el);
           });
           if (p.marker) {
             attachHighlight(p.marker, el);
