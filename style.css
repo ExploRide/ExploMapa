@@ -446,8 +446,8 @@
 .status-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px 8px;
-  margin: 15px 0 !important;
+  gap: 5px 8px;
+  margin: 5px 0 !important;
 }
 .status-grid label {
   display: flex;
