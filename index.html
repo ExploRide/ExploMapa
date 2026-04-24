@@ -2611,11 +2611,13 @@ function slugify(str) {
         if (marker.options?.zIndexOffset) {
           clone.setZIndexOffset(marker.options.zIndexOffset);
         }
-        const popup = marker.getPopup();
-        if (popup) {
-          clone.bindPopup(popup.getContent(), popup.options || {});
-        }
-        clone.on('click', () => marker.fire('click'));
+        // Popup should always belong to the original marker.
+        // If clone has its own popup, it gets destroyed on cluster refresh
+        // after auto-pan/moveend and closes unexpectedly.
+        clone.on('click', () => {
+          marker.fire('click');
+          marker.openPopup();
+        });
         return clone;
       }
 
