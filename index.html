@@ -1528,7 +1528,6 @@ img.emoji {
     }
 
     #status-lista > div,
-    #kategorie-lista > div,
     #kraje-lista > div,
     .filter-check-row {
       display: flex;
@@ -1562,6 +1561,43 @@ img.emoji {
       transform: translateY(0);
       vertical-align: middle;
       flex-shrink: 0;
+    }
+
+    #mainCategoryFilters {
+      margin-top: 0;
+    }
+
+    #mainCategoryFilters .main-category-options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    #mainCategoryFilters .main-category-options label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+
+    #kategorie-lista .main-category-section {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 2px;
+      margin-bottom: 6px;
+    }
+
+    #kategorie-lista .main-category-section > div {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 22px;
+      line-height: 1.15;
+      margin: 0;
+      padding: 1px 0;
     }
 
     #geosearch-suggestions,
@@ -1717,16 +1753,18 @@ img.emoji {
         <option value="nameAsc">Sortuj alfabetycznie A→Z</option>
         <option value="nameDesc">Sortuj alfabetycznie Z→A</option>
       </select>
-      <div id="mainCategoryFilters" class="main-category-filters">
-        <div class="main-category-title">Kategoria główna</div>
-        <label><input type="checkbox" id="maincat-urbex" checked> URBEX</label>
-        <label><input type="checkbox" id="maincat-turystyczne" checked> TURYSTYCZNE</label>
-      </div>
       <div id="desktopFiltersDropdown" class="open-mobile">
         <button id="desktopFiltersToggle" type="button" aria-expanded="false" aria-controls="desktopFiltersContent">
           Filtry szczegółowe <span class="desktop-filter-indicator">▼</span>
         </button>
         <div id="desktopFiltersContent">
+          <div id="mainCategoryFilters" class="main-category-filters">
+            <div class="main-category-title">Kategoria główna</div>
+            <div class="main-category-options">
+              <label><input type="checkbox" id="maincat-urbex" checked> URBEX</label>
+              <label><input type="checkbox" id="maincat-turystyczne" checked> TURYSTYCZNE</label>
+            </div>
+          </div>
           <details id="filterKategorie">
             <summary>Filtruj kategorie</summary>
             <div id="kategorie-lista"></div>
@@ -8228,6 +8266,7 @@ function showRoutePopup(pinId, tr, latlng) {
 
     function updateMarkerVisibility() {
       const paddedBounds = map ? map.getBounds().pad(0.15) : null;
+      const changedLayers = new Set();
       Object.values(warstwy).forEach(w => {
         w.lista.forEach(p => {
           if (!p.marker) return;
@@ -8236,14 +8275,24 @@ function showRoutePopup(pinId, tr, latlng) {
           if (visible) {
             if (!w.layer.hasLayer(p.marker)) {
               w.layer.addLayer(p.marker);
+              changedLayers.add(w.layer);
             }
           } else {
             if (w.layer.hasLayer(p.marker)) {
               w.layer.removeLayer(p.marker);
+              changedLayers.add(w.layer);
             }
           }
           updatePlanVisibilityForPin(p);
         });
+      });
+      changedLayers.forEach(layer => {
+        if (layer && typeof layer.refreshClusters === 'function') {
+          layer.refreshClusters();
+        }
+        if (layer && typeof layer.fire === 'function') {
+          layer.fire('animationend');
+        }
       });
     }
 
