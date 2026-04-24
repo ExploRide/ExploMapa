@@ -935,6 +935,11 @@ body, #sidebar, #basemap-switcher {
   display: grid;
   gap: 4px;
 }
+.main-category-filters label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .main-category-title {
   font-weight: 700;
   font-size: 12px;
@@ -2413,16 +2418,14 @@ function slugify(str) {
     const MAIN_CATEGORY_URBEX = 'URBEX';
     const MAIN_CATEGORY_TURYSTYCZNE = 'TURYSTYCZNE';
     const MAIN_CATEGORY_OPTIONS = [MAIN_CATEGORY_URBEX, MAIN_CATEGORY_TURYSTYCZNE];
-    const TURYSTYCZNE_SUBCATEGORIES = ['Atrakcje', 'Szczyty'];
-    const TURYSTYCZNE_SUBCATEGORIES_SET = new Set(TURYSTYCZNE_SUBCATEGORIES);
     const categoriesByMain = {
       [MAIN_CATEGORY_URBEX]: new Set(),
-      [MAIN_CATEGORY_TURYSTYCZNE]: new Set(TURYSTYCZNE_SUBCATEGORIES)
+      [MAIN_CATEGORY_TURYSTYCZNE]: new Set()
     };
     let selectedMainCategories = new Set(MAIN_CATEGORY_OPTIONS);
     let selectedCategoriesByMain = {
       [MAIN_CATEGORY_URBEX]: new Set(),
-      [MAIN_CATEGORY_TURYSTYCZNE]: new Set(TURYSTYCZNE_SUBCATEGORIES)
+      [MAIN_CATEGORY_TURYSTYCZNE]: new Set()
     };
     let selectedCategories = new Set();
     const countries = new Set();
@@ -5379,6 +5382,7 @@ function zaladujPinezkiZFirestore() {
     });
     });
     if (!localPinsLoaded) loadNewPinsFromLocal();
+    refreshCategoryCollectionsFromPins();
     updateMainCategoryFilterUI();
     updateCategoryFilter();
     updateStatusFilter();
@@ -5388,6 +5392,7 @@ function zaladujPinezkiZFirestore() {
   .catch(err => {
     console.error("Błąd pobierania pinezek:", err);
     if (!localPinsLoaded) loadNewPinsFromLocal();
+    refreshCategoryCollectionsFromPins();
     updateMainCategoryFilterUI();
     updateCategoryFilter();
     updateStatusFilter();
@@ -5796,8 +5801,6 @@ function zaladujPinezkiZFirestore() {
       );
       const mainCatVal = resolvedCategory.mainCategory;
       const catVal = resolvedCategory.category;
-      if (catVal) categoriesByMain[mainCatVal].add(catVal);
-      updateCategoryFilter();
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (p && p._editDraft) delete p._editDraft;
       const oldData = p ? {
@@ -5848,8 +5851,8 @@ function zaladujPinezkiZFirestore() {
       if (p) {
         const oldSlug = p.slug;
         applyPinData(p, nowa);
-        registerPinCategory(p);
-                updateCategoryFilter();
+        refreshCategoryCollectionsFromPins();
+        updateCategoryFilter();
         getPinMainCategory(p);
       p.slug = slugify(p.nazwa);
         if (oldSlug !== p.slug) {
@@ -6042,8 +6045,6 @@ function zaladujPinezkiZFirestore() {
           );
           const mainCatVal = resolvedCategory.mainCategory;
           const catVal = resolvedCategory.category;
-          if (catVal) categoriesByMain[mainCatVal].add(catVal);
-          updateCategoryFilter();
           const data = {
             id: tempPin.id,
             IDpinezki: tempPin.id,
@@ -6088,10 +6089,8 @@ function zaladujPinezkiZFirestore() {
         } else if (!photosMap[data.slug]) {
           storePhotos(data.slug, []);
         }
-        registerPinCategory(data);
-                registerPinCountry(data);
+        registerPinCountry(data);
         enqueueCountryFetch(data);
-        updateCategoryFilter();
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(data);
@@ -6104,6 +6103,8 @@ function zaladujPinezkiZFirestore() {
         syncNowePinezkiStorage();
         warstwy[warstwaN].lista.push(data);
         wszystkiePinezki.push(data);
+        refreshCategoryCollectionsFromPins();
+        updateCategoryFilter();
         generujListeWarstw();
         updateSaveButton();
         map.closePopup();
@@ -6319,6 +6320,7 @@ function zaladujPinezkiZFirestore() {
       })));
       updateSaveButton();
       updateMainCategoryFilterUI();
+      refreshCategoryCollectionsFromPins();
       updateCategoryFilter();
       refreshCountriesFromPins();
     }
@@ -7909,13 +7911,7 @@ function showRoutePopup(pinId, tr, latlng) {
     function resolveMainCategoryForCategory(mainCategory, categoryValue) {
       const normalizedMain = normalizeMainCategory(mainCategory);
       const normalizedCategory = (categoryValue || '').trim();
-      if (!normalizedCategory) {
-        return { mainCategory: normalizedMain, category: '' };
-      }
-      if (TURYSTYCZNE_SUBCATEGORIES_SET.has(normalizedCategory)) {
-        return { mainCategory: MAIN_CATEGORY_TURYSTYCZNE, category: normalizedCategory };
-      }
-      return { mainCategory: MAIN_CATEGORY_URBEX, category: normalizedCategory };
+      return { mainCategory: normalizedMain, category: normalizedCategory };
     }
 
     function getPinMainCategory(pin) {
@@ -7931,19 +7927,26 @@ function showRoutePopup(pinId, tr, latlng) {
       const main = getPinMainCategory(pin);
       const cat = pin.kategoria || '';
       categories.add(cat);
-      if (main === MAIN_CATEGORY_URBEX && TURYSTYCZNE_SUBCATEGORIES_SET.has(cat)) return;
-      if (main === MAIN_CATEGORY_TURYSTYCZNE && !TURYSTYCZNE_SUBCATEGORIES_SET.has(cat) && cat) return;
       categoriesByMain[main].add(cat);
     }
 
     function getCategoriesForMain(main) {
       const normalizedMain = normalizeMainCategory(main);
-      if (normalizedMain === MAIN_CATEGORY_TURYSTYCZNE) {
-        return TURYSTYCZNE_SUBCATEGORIES.slice().sort((a, b) => (a || '').localeCompare(b || '', 'pl'));
-      }
-      return Array.from(categoriesByMain[MAIN_CATEGORY_URBEX] || [])
-        .filter(cat => !TURYSTYCZNE_SUBCATEGORIES_SET.has(cat))
+      return Array.from(categoriesByMain[normalizedMain] || [])
         .sort((a, b) => (a || '').localeCompare(b || '', 'pl'));
+    }
+
+    function refreshCategoryCollectionsFromPins() {
+      categories.clear();
+      Object.values(categoriesByMain).forEach(set => set.clear());
+      wszystkiePinezki.forEach(registerPinCategory);
+      MAIN_CATEGORY_OPTIONS.forEach(main => {
+        const selectedSet = selectedCategoriesByMain[main];
+        const available = categoriesByMain[main];
+        selectedCategoriesByMain[main] = new Set(
+          Array.from(selectedSet || []).filter(cat => available.has(cat))
+        );
+      });
     }
 
     function getCategorySuggestions(main) {
@@ -9002,6 +9005,8 @@ toggleBtn.style.verticalAlign = "top";
       if (idx > -1) layer.lista.splice(idx, 1);
     }
     wszystkiePinezki = wszystkiePinezki.filter(pp => pp !== p);
+    refreshCategoryCollectionsFromPins();
+    updateCategoryFilter();
     refreshCountriesFromPins();
     generujListeWarstw();
     updateSaveButton();
@@ -9015,6 +9020,8 @@ toggleBtn.style.verticalAlign = "top";
           pinsToDelete = backup.prevPinsToDelete;
           nowePinezki = backup.prevNowe;
           zmianyDoZapisania = Object.assign({}, backup.prevZmiany);
+          refreshCategoryCollectionsFromPins();
+          updateCategoryFilter();
           generujListeWarstw();
           updateSaveButton();
         },
@@ -9182,9 +9189,10 @@ function confirmLayerDelete() {
     marker.bindPopup(popupDiv);
     attachPopupHandlers(marker, data);
     data.marker = marker;
-    registerPinCategory(data);
     warstwy['Tryb w ruchu'].lista.push(data);
     wszystkiePinezki.push(data);
+    refreshCategoryCollectionsFromPins();
+    updateCategoryFilter();
     generujListeWarstw();
   }
 
@@ -9195,8 +9203,6 @@ function confirmLayerDelete() {
     const resolvedCategory = resolveMainCategoryForCategory(form.kategoriaGlowna, form.kategoria);
     const mainCatVal = resolvedCategory.mainCategory;
     const catVal = resolvedCategory.category;
-    if (catVal) categoriesByMain[mainCatVal].add(catVal);
-    updateCategoryFilter();
     const newId = crypto.randomUUID();
     const data = {
       id: newId,
@@ -9234,10 +9240,8 @@ function confirmLayerDelete() {
     if (!photosMap[data.slug]) {
       storePhotos(data.slug, []);
     }
-    registerPinCategory(data);
-        registerPinCountry(data);
+    registerPinCountry(data);
     enqueueCountryFetch(data);
-    updateCategoryFilter();
     const popupDiv = document.createElement('div');
     popupDiv.className = 'popup-container';
     popupDiv.innerHTML = createPopupHtml(data);
@@ -9250,6 +9254,8 @@ function confirmLayerDelete() {
     })));
     warstwy[warstwaN].lista.push(data);
     wszystkiePinezki.push(data);
+    refreshCategoryCollectionsFromPins();
+    updateCategoryFilter();
     generujListeWarstw();
     updateSaveButton();
   }
