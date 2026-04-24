@@ -1377,6 +1377,13 @@ img.emoji {
       margin-top: 4px;
     }
 
+    .pin-total-counter {
+      margin-top: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--ui-text);
+    }
+
     #collapseAllLayers,
     #toggleVisibility,
     .kml-import-btn {
@@ -1716,6 +1723,7 @@ img.emoji {
       </div>
       <button id="loadPinsBtn">Załaduj pinezki</button>
       </div>
+      <div id="pinTotalCounter" class="pin-total-counter">Liczba miejsc: 0</div>
       <div id="lista-warstw"></div>
       <button id="emojiToolBtn">Emoji Tool</button>
       <button id="syncBtn">Synchronizuj (<span id="syncCount">0</span>)</button>
@@ -7947,6 +7955,7 @@ function showRoutePopup(pinId, tr, latlng) {
       updateMarkerVisibility();
       layerDomRefs = {};
       const lista = document.getElementById("lista-warstw");
+      const pinTotalCounter = document.getElementById("pinTotalCounter");
       lista.innerHTML = "";
       const saved = loadLayerOrder();
       const collapseStates = shouldIgnoreStoredLayerState ? {} : loadLayerCollapseStates();
@@ -7955,6 +7964,10 @@ function showRoutePopup(pinId, tr, latlng) {
       const tempLayers = nazwy.filter(n => warstwy[n].temporary);
       const regularLayers = nazwy.filter(n => !warstwy[n].temporary);
       const finalNazwy = [...tempLayers, ...regularLayers];
+      const totalPinsCount = regularLayers.reduce((sum, name) => sum + (warstwy[name]?.lista?.length || 0), 0);
+      if (pinTotalCounter) {
+        pinTotalCounter.textContent = `Liczba miejsc: ${totalPinsCount}`;
+      }
       finalNazwy.forEach((nazwa, idx) => {
         const div = document.createElement("div");
         div.className = "warstwa";
