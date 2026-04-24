@@ -36,7 +36,7 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-window.addPinOffline = async function({ lat, lng, name, opis, warstwa, emoji }){
+window.addPinOffline = async function({ lat, lng, name, opis, warstwa, emoji, kategoriaGlowna = 'URBEX' }){
   const now = firebase.firestore.FieldValue.serverTimestamp();
   return db.collection('pinezki2').add({
     lat,
@@ -44,6 +44,7 @@ window.addPinOffline = async function({ lat, lng, name, opis, warstwa, emoji }){
     nazwa: name,
     opis,
     warstwa,
+    kategoriaGlowna: kategoriaGlowna === 'TURYSTYCZNE' ? 'TURYSTYCZNE' : 'URBEX',
     emoji,
     createdAt: now,
     updatedAt: now

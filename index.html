@@ -927,6 +927,30 @@ body, #sidebar, #basemap-switcher {
   color: #666;
   margin: 6px 0;
 }
+.main-category-filters {
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  display: grid;
+  gap: 4px;
+}
+.main-category-title {
+  font-weight: 700;
+  font-size: 12px;
+}
+.main-category-section {
+  margin-bottom: 8px;
+}
+.main-category-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  margin: 6px 0;
+}
+.filter-disabled {
+  opacity: 0.7;
+  font-size: 12px;
+}
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -1688,6 +1712,11 @@ img.emoji {
         <option value="nameAsc">Sortuj alfabetycznie A→Z</option>
         <option value="nameDesc">Sortuj alfabetycznie Z→A</option>
       </select>
+      <div id="mainCategoryFilters" class="main-category-filters">
+        <div class="main-category-title">Kategoria główna</div>
+        <label><input type="checkbox" id="maincat-urbex" checked> URBEX</label>
+        <label><input type="checkbox" id="maincat-turystyczne" checked> TURYSTYCZNE</label>
+      </div>
       <div id="desktopFiltersDropdown" class="open-mobile">
         <button id="desktopFiltersToggle" type="button" aria-expanded="false" aria-controls="desktopFiltersContent">
           Filtry szczegółowe <span class="desktop-filter-indicator">▼</span>
@@ -2381,6 +2410,18 @@ function slugify(str) {
     const photosMap = {};
     let sortMode = 'dateDesc';
     const categories = new Set();
+    const MAIN_CATEGORY_URBEX = 'URBEX';
+    const MAIN_CATEGORY_TURYSTYCZNE = 'TURYSTYCZNE';
+    const MAIN_CATEGORY_OPTIONS = [MAIN_CATEGORY_URBEX, MAIN_CATEGORY_TURYSTYCZNE];
+    const categoriesByMain = {
+      [MAIN_CATEGORY_URBEX]: new Set(),
+      [MAIN_CATEGORY_TURYSTYCZNE]: new Set(['Atrakcje', 'Szczyty'])
+    };
+    let selectedMainCategories = new Set(MAIN_CATEGORY_OPTIONS);
+    let selectedCategoriesByMain = {
+      [MAIN_CATEGORY_URBEX]: new Set(),
+      [MAIN_CATEGORY_TURYSTYCZNE]: new Set(['Atrakcje', 'Szczyty'])
+    };
     let selectedCategories = new Set();
     const countries = new Set();
     let selectedCountries = new Set();
@@ -3011,6 +3052,7 @@ function slugify(str) {
           opis: pin.opis ? pin.opis.replace(/\n/g, '<br>') : '',
           warstwa: layerName,
           kategoria: '',
+          kategoriaGlowna: MAIN_CATEGORY_URBEX,
           emoji: '',
           nieaktywne: false,
           zamkniete: false,
@@ -3030,7 +3072,7 @@ function slugify(str) {
         if (!photosMap[data.slug]) {
           storePhotos(data.slug, []);
         }
-        categories.add(data.kategoria || '');
+        registerPinCategory(data);
         registerPinCountry(data);
         enqueueCountryFetch(data);
         data.warstwaId = layerDocs[layerName] || null;
@@ -3065,6 +3107,7 @@ function slugify(str) {
           warstwa: layerInfo.warstwaId || null,
           warstwaId: layerInfo.warstwaId || null,
           kategoria: p.kategoria,
+        kategoriaGlowna: getPinMainCategory(p),
           kraj: p.kraj || '',
           emoji: p.emoji,
           nieaktywne: p.nieaktywne || false,
@@ -3630,7 +3673,7 @@ function emojiHtml(str) {
     function shouldPlanBeVisible(pin, plan) {
       if (activePlanPlacement && activePlanPlacement.plan === plan) return true;
       const layerVisible = pin && pin.warstwa && warstwy[pin.warstwa] ? warstwy[pin.warstwa].visible !== false : true;
-      const pinVisible = (selectedCategories.size === 0 || selectedCategories.has(pin.kategoria || '')) && pinMatchesStatus(pin);
+      const pinVisible = pinMatchesAllFilters(pin, false);
       return (plan.widoczny !== false) && layerVisible && pinVisible;
     }
 
@@ -4148,6 +4191,7 @@ function emojiHtml(str) {
         <div style="height:4px;"></div>
         <div style="border-top:1px solid #444;"></div>
         <div class="popup-info-item">Warstwa: ${layerLabel}</div>
+        <div class="popup-info-item">Kategoria główna: ${getPinMainCategory(p)}</div>
         ${p.kategoria ? `<div class="popup-info-item">Kategoria: ${p.kategoria}</div>` : ''}
         ${p.odKogo ? `<div class="popup-info-item">Od kogo: ${p.odKogo}</div>` : ''}
         <div class="popup-info-item">Data dodania: ${formatDate(p.dataDodania)}</div>
@@ -5246,6 +5290,7 @@ function zaladujPinezkiZFirestore() {
       p.zdewastowane = p.zdewastowane === true;
       p.zwiedzone = p.zwiedzone === true;
       p.wyroznione = p.wyroznione === true;
+      p.kategoriaGlowna = normalizeMainCategory(p.kategoriaGlowna);
       p.slug = slugify(p.nazwa);
       if (!photosMap[p.slug]) {
         const merged = [];
@@ -5273,7 +5318,7 @@ function zaladujPinezkiZFirestore() {
 
         storePhotos(p.slug, dedup);
       }
-      categories.add(p.kategoria || '');
+      registerPinCategory(p);
       registerPinCountry(p);
       enqueueCountryFetch(p);
       const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
@@ -5332,6 +5377,7 @@ function zaladujPinezkiZFirestore() {
     });
     });
     if (!localPinsLoaded) loadNewPinsFromLocal();
+    updateMainCategoryFilterUI();
     updateCategoryFilter();
     updateStatusFilter();
     refreshCountriesFromPins();
@@ -5340,6 +5386,7 @@ function zaladujPinezkiZFirestore() {
   .catch(err => {
     console.error("Błąd pobierania pinezek:", err);
     if (!localPinsLoaded) loadNewPinsFromLocal();
+    updateMainCategoryFilterUI();
     updateCategoryFilter();
     updateStatusFilter();
     refreshCountriesFromPins();
@@ -5376,6 +5423,8 @@ function zaladujPinezkiZFirestore() {
       if (warstwaInput) draft.warstwa = warstwaInput.value;
       const kategoriaInput = container.querySelector('#ekategoria');
       if (kategoriaInput) draft.kategoria = kategoriaInput.value;
+      const kategoriaGlownaInput = container.querySelector('#ekategoriaGlowna');
+      if (kategoriaGlownaInput) draft.kategoriaGlowna = kategoriaGlownaInput.value;
       const trudInput = container.querySelector('#etrudnosc');
       if (trudInput) draft.trudnosc = trudInput.value;
       const status = {};
@@ -5407,6 +5456,7 @@ function zaladujPinezkiZFirestore() {
       setValue('#eodKogo', draft.odKogo);
       setValue('#ewarstwa', draft.warstwa);
       setValue('#ekategoria', draft.kategoria);
+      setValue('#ekategoriaGlowna', draft.kategoriaGlowna);
       setValue('#etrudnosc', draft.trudnosc);
       const trudInput = container.querySelector('#etrudnosc');
       if (trudInput && draft.trudnosc !== undefined) {
@@ -5561,6 +5611,11 @@ function zaladujPinezkiZFirestore() {
         <textarea id="eopis" style="width: 100%; height: 50px"></textarea><br>
         <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo" style="width: 100%"><br>
         <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa" style="width: 100%"><br>
+        <label for="ekategoriaGlowna">Kategoria główna</label><br>
+        <select id="ekategoriaGlowna" style="width: 100%">
+          <option value="URBEX" ${getPinMainCategory(p) === MAIN_CATEGORY_URBEX ? 'selected' : ''}>URBEX</option>
+          <option value="TURYSTYCZNE" ${getPinMainCategory(p) === MAIN_CATEGORY_TURYSTYCZNE ? 'selected' : ''}>TURYSTYCZNE</option>
+        </select><br>
         <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
@@ -5585,7 +5640,14 @@ function zaladujPinezkiZFirestore() {
       setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p);
       setupGallery(container.querySelector('.photo-gallery'));
       setupDropdownInput(container.querySelector('#ewarstwa'), () => Object.keys(warstwy));
-      setupDropdownInput(container.querySelector('#ekategoria'), () => Array.from(categories).filter(c => c));
+      const editMainCategoryInput = container.querySelector('#ekategoriaGlowna');
+      const editCategoryInput = container.querySelector('#ekategoria');
+      setupDropdownInput(editCategoryInput, () => getCategorySuggestions(editMainCategoryInput ? editMainCategoryInput.value : getPinMainCategory(p)));
+      if (editMainCategoryInput) {
+        editMainCategoryInput.addEventListener('change', () => {
+          if (editCategoryInput) editCategoryInput.value = '';
+        });
+      }
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'));
       setupTrudnoscInput(container.querySelector('#etrudnosc'), container.querySelector('#etrudnoscLabel'));
       const chkInactive = container.querySelector('#enieaktywne');
@@ -5726,8 +5788,10 @@ function zaladujPinezkiZFirestore() {
       if (!layerVal) missing.push("Wybierz warstwę");
       if (missing.length) { alert(missing.join("\n")); return; }
       if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
+      const mainCatVal = normalizeMainCategory(document.getElementById("ekategoriaGlowna").value);
       const catVal = document.getElementById("ekategoria").value.trim();
-      if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
+      if (catVal && !categoriesByMain[mainCatVal].has(catVal)) { categoriesByMain[mainCatVal].add(catVal); }
+      updateCategoryFilter();
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (p && p._editDraft) delete p._editDraft;
       const oldData = p ? {
@@ -5737,6 +5801,7 @@ function zaladujPinezkiZFirestore() {
         warstwa: p.warstwa,
         warstwaId: p.warstwaId,
         kategoria: p.kategoria,
+        kategoriaGlowna: getPinMainCategory(p),
         emoji: p.emoji,
         trudnosc: p.trudnosc,
         nieaktywne: p.nieaktywne,
@@ -5758,6 +5823,7 @@ function zaladujPinezkiZFirestore() {
         warstwa: layerVal,
         warstwaId: layerDocs[layerVal] || null,
         kategoria: catVal,
+        kategoriaGlowna: mainCatVal,
         emoji: emojiVal,
         trudnosc: parseInt(document.getElementById("etrudnosc").value, 10),
         nieaktywne: document.getElementById("enieaktywne").checked,
@@ -5776,10 +5842,10 @@ function zaladujPinezkiZFirestore() {
       if (p) {
         const oldSlug = p.slug;
         applyPinData(p, nowa);
-        categories.add(p.kategoria || '');
-        selectedCategories.add(p.kategoria || '');
-        updateCategoryFilter();
-        p.slug = slugify(p.nazwa);
+        registerPinCategory(p);
+                updateCategoryFilter();
+        p.kategoriaGlowna = normalizeMainCategory(p.kategoriaGlowna);
+      p.slug = slugify(p.nazwa);
         if (oldSlug !== p.slug) {
           const photos = getStoredPhotos(oldSlug);
           delete photosMap[oldSlug];
@@ -5878,6 +5944,11 @@ function zaladujPinezkiZFirestore() {
         <textarea id="opisNew" placeholder="Opis" style="width: 100%; height: 100px"></textarea><br>
         <input id="odKogoNew" placeholder="Od kogo" style="width: 100%"><br>
         <input id="warstwaNew" placeholder="Warstwa" style="width: 102%"><br>
+        <label for="kategoriaGlownaNew">Kategoria główna</label><br>
+        <select id="kategoriaGlownaNew" style="width: 102%">
+          <option value="URBEX">URBEX</option>
+          <option value="TURYSTYCZNE">TURYSTYCZNE</option>
+        </select><br>
         <input id="kategoriaNew" placeholder="Kategoria" style="width: 102%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
@@ -5896,7 +5967,10 @@ function zaladujPinezkiZFirestore() {
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'));
       setupEmojiPicker(container.querySelector('#emojiPickerNew'), tempPin);
       setupDropdownInput(container.querySelector('#warstwaNew'), () => Object.keys(warstwy));
-      setupDropdownInput(container.querySelector('#kategoriaNew'), () => Array.from(categories).filter(c => c));
+      const newMainCategoryInput = container.querySelector('#kategoriaGlownaNew');
+      const newCategoryInput = container.querySelector('#kategoriaNew');
+      setupDropdownInput(newCategoryInput, () => getCategorySuggestions(newMainCategoryInput ? newMainCategoryInput.value : MAIN_CATEGORY_URBEX));
+      if (newMainCategoryInput) newMainCategoryInput.addEventListener('change', () => { if (newCategoryInput) newCategoryInput.value = ''; });
       setupTrudnoscInput(container.querySelector('#trudnoscNew'), container.querySelector('#trudnoscNewLabel'));
 
       const popup = marker.bindPopup(container).openPopup();
@@ -5956,8 +6030,10 @@ function zaladujPinezkiZFirestore() {
           if (!layerVal) missing.push("Wybierz warstwę");
           if (missing.length) { alert(missing.join("\n")); return; }
           if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
+          const mainCatVal = normalizeMainCategory(container.querySelector('#kategoriaGlownaNew').value);
           const catVal = container.querySelector("#kategoriaNew").value.trim();
-          if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
+          if (catVal && !categoriesByMain[mainCatVal].has(catVal)) { categoriesByMain[mainCatVal].add(catVal); }
+          updateCategoryFilter();
           const data = {
             id: tempPin.id,
             IDpinezki: tempPin.id,
@@ -5965,6 +6041,7 @@ function zaladujPinezkiZFirestore() {
             opis: container.querySelector("#opisNew").value.replace(/\n/g, '<br>'),
             warstwa: layerVal,
             kategoria: catVal,
+            kategoriaGlowna: mainCatVal,
             emoji: tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji,
             nieaktywne: container.querySelector("#nieaktywneNew").checked,
             zamkniete: container.querySelector("#zamknieteNew").checked,
@@ -6001,9 +6078,8 @@ function zaladujPinezkiZFirestore() {
         } else if (!photosMap[data.slug]) {
           storePhotos(data.slug, []);
         }
-        categories.add(data.kategoria || '');
-        selectedCategories.add(data.kategoria || '');
-        registerPinCountry(data);
+        registerPinCategory(data);
+                registerPinCountry(data);
         enqueueCountryFetch(data);
         updateCategoryFilter();
         const popupDiv = document.createElement('div');
@@ -6188,11 +6264,11 @@ function zaladujPinezkiZFirestore() {
         if (p.zdewastowane === undefined) p.zdewastowane = false;
         if (p.zwiedzone === undefined) p.zwiedzone = false;
         if (p.wyroznione === undefined) p.wyroznione = false;
+        p.kategoriaGlowna = normalizeMainCategory(p.kategoriaGlowna);
         if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
-        categories.add(p.kategoria || '');
-        selectedCategories.add(p.kategoria || '');
-        registerPinCountry(p);
+        registerPinCategory(p);
+                registerPinCountry(p);
         enqueueCountryFetch(p);
         const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
         p.warstwaId = layerInfo.warstwaId || null;
@@ -6232,6 +6308,7 @@ function zaladujPinezkiZFirestore() {
         return rest;
       })));
       updateSaveButton();
+      updateMainCategoryFilterUI();
       updateCategoryFilter();
       refreshCountriesFromPins();
     }
@@ -7814,6 +7891,72 @@ function showRoutePopup(pinId, tr, latlng) {
       return true;
     }
 
+
+    function normalizeMainCategory(value) {
+      return value === MAIN_CATEGORY_TURYSTYCZNE ? MAIN_CATEGORY_TURYSTYCZNE : MAIN_CATEGORY_URBEX;
+    }
+
+    function getPinMainCategory(pin) {
+      if (!pin) return MAIN_CATEGORY_URBEX;
+      const normalized = normalizeMainCategory(pin.kategoriaGlowna);
+      pin.kategoriaGlowna = normalized;
+      return normalized;
+    }
+
+    function registerPinCategory(pin) {
+      if (!pin) return;
+      const main = getPinMainCategory(pin);
+      const cat = pin.kategoria || '';
+      categories.add(cat);
+      categoriesByMain[main].add(cat);
+    }
+
+    function getCategoriesForMain(main) {
+      return Array.from(categoriesByMain[main] || []).sort((a, b) => (a || '').localeCompare(b || '', 'pl'));
+    }
+
+    function getCategorySuggestions(main) {
+      return getCategoriesForMain(normalizeMainCategory(main)).filter(c => c);
+    }
+
+    function pinMatchesCategoryFilters(pin) {
+      if (selectedMainCategories.size === 0) return false;
+      const main = getPinMainCategory(pin);
+      if (!selectedMainCategories.has(main)) return false;
+      const selected = selectedCategoriesByMain[main] || new Set();
+      const available = categoriesByMain[main] || new Set();
+      if (selected.size === 0 || selected.size === available.size) return true;
+      return selected.has(pin.kategoria || '');
+    }
+
+    function pinMatchesAllFilters(pin, includeCountry = false) {
+      if (!pinMatchesCategoryFilters(pin)) return false;
+      if (!pinMatchesStatus(pin)) return false;
+      if (includeCountry && !pinMatchesCountry(pin)) return false;
+      return true;
+    }
+
+    function updateMainCategoryFilterUI() {
+      const urbex = document.getElementById('maincat-urbex');
+      const tur = document.getElementById('maincat-turystyczne');
+      if (!urbex || !tur) return;
+      urbex.checked = selectedMainCategories.has(MAIN_CATEGORY_URBEX);
+      tur.checked = selectedMainCategories.has(MAIN_CATEGORY_TURYSTYCZNE);
+      const apply = () => {
+        selectedMainCategories = new Set();
+        if (urbex.checked) selectedMainCategories.add(MAIN_CATEGORY_URBEX);
+        if (tur.checked) selectedMainCategories.add(MAIN_CATEGORY_TURYSTYCZNE);
+        updateCategoryFilter();
+        generujListeWarstw();
+      };
+      if (!urbex.dataset.bound) {
+        urbex.dataset.bound = '1';
+        tur.dataset.bound = '1';
+        urbex.addEventListener('change', apply);
+        tur.addEventListener('change', apply);
+      }
+    }
+
     function updateStatusFilter() {
       const container = document.getElementById('status-lista');
       if (!container) return;
@@ -7877,59 +8020,89 @@ function showRoutePopup(pinId, tr, latlng) {
       const container = document.getElementById('kategorie-lista');
       if (!container) return;
       container.innerHTML = '';
-      const cats = Array.from(categories).sort();
-      if (selectedCategories.size === 0) {
-        selectedCategories = new Set(cats);
+
+      const selectedMain = Array.from(selectedMainCategories);
+      if (selectedMain.length === 0) {
+        container.innerHTML = '<div class="filter-disabled">Wybierz kategorię główną, aby filtrować kategorie szczegółowe.</div>';
+        return;
       }
-      const allDiv = document.createElement('div');
-      const allChk = document.createElement('input');
-      allChk.type = 'checkbox';
-      allChk.id = 'kategorie-all';
-      allChk.checked = selectedCategories.size === 0 || selectedCategories.size === categories.size;
-      const allLbl = document.createElement('label');
-      allLbl.textContent = 'Zaznacz wszystkie';
-      allDiv.appendChild(allChk);
-      allDiv.appendChild(allLbl);
-      container.appendChild(allDiv);
-      allChk.addEventListener('change', () => {
-        if (allChk.checked) {
-          selectedCategories = new Set(categories);
-          container.querySelectorAll('.kat-item input').forEach(ch => ch.checked = true);
+
+      const renderMainSection = (main, title = '') => {
+        const cats = getCategoriesForMain(main);
+        if (!selectedCategoriesByMain[main] || selectedCategoriesByMain[main].size === 0) {
+          selectedCategoriesByMain[main] = new Set(cats);
         } else {
-          selectedCategories.clear();
-          container.querySelectorAll('.kat-item input').forEach(ch => ch.checked = false);
+          selectedCategoriesByMain[main] = new Set(Array.from(selectedCategoriesByMain[main]).filter(c => categoriesByMain[main].has(c)));
+          if (selectedCategoriesByMain[main].size === 0) {
+            selectedCategoriesByMain[main] = new Set(cats);
+          }
         }
-        generujListeWarstw();
-      });
-      cats.forEach(cat => {
-        const div = document.createElement('div');
-        div.className = 'kat-item';
-        const chk = document.createElement('input');
-        chk.type = 'checkbox';
-        chk.value = cat;
-        chk.checked = selectedCategories.size === 0 || selectedCategories.has(cat);
-        const lbl = document.createElement('label');
-        lbl.textContent = cat || 'Bez kategorii';
-        div.appendChild(chk);
-        div.appendChild(lbl);
-        container.appendChild(div);
-        chk.addEventListener('click', (event) => {
-          handleCtrlExclusiveToggle(event, Array.from(container.querySelectorAll('.kat-item input')), () => {
-            selectedCategories = new Set([cat]);
-            const all = document.getElementById('kategorie-all');
-            if (all) all.checked = false;
+
+        const section = document.createElement('div');
+        section.className = 'main-category-section';
+        if (title) {
+          const header = document.createElement('div');
+          header.className = 'main-category-section-title';
+          header.textContent = title;
+          section.appendChild(header);
+        }
+
+        const allDiv = document.createElement('div');
+        const allChk = document.createElement('input');
+        const allId = `kategorie-all-${main}`;
+        allChk.type = 'checkbox';
+        allChk.id = allId;
+        allChk.checked = cats.length > 0 && selectedCategoriesByMain[main].size === cats.length;
+        const allLbl = document.createElement('label');
+        allLbl.setAttribute('for', allId);
+        allLbl.textContent = 'Zaznacz wszystkie';
+        allDiv.appendChild(allChk);
+        allDiv.appendChild(allLbl);
+        section.appendChild(allDiv);
+
+        allChk.addEventListener('change', () => {
+          if (allChk.checked) {
+            selectedCategoriesByMain[main] = new Set(cats);
+            section.querySelectorAll('.kat-item input').forEach(ch => ch.checked = true);
+          } else {
+            selectedCategoriesByMain[main].clear();
+            section.querySelectorAll('.kat-item input').forEach(ch => ch.checked = false);
+          }
+          generujListeWarstw();
+        });
+
+        cats.forEach(cat => {
+          const div = document.createElement('div');
+          div.className = 'kat-item';
+          const chk = document.createElement('input');
+          chk.type = 'checkbox';
+          chk.value = cat;
+          chk.checked = selectedCategoriesByMain[main].size === 0 || selectedCategoriesByMain[main].has(cat);
+          const lbl = document.createElement('label');
+          lbl.textContent = cat || 'Bez kategorii';
+          div.appendChild(chk);
+          div.appendChild(lbl);
+          section.appendChild(div);
+
+          chk.addEventListener('change', () => {
+            selectedCategoriesByMain[main] = new Set(
+              Array.from(section.querySelectorAll('.kat-item input')).filter(c => c.checked).map(c => c.value)
+            );
+            allChk.checked = selectedCategoriesByMain[main].size === cats.length;
             generujListeWarstw();
           });
         });
-        chk.addEventListener('change', () => {
-          selectedCategories = new Set(
-            Array.from(container.querySelectorAll('.kat-item input')).filter(c => c.checked).map(c => c.value)
-          );
-          const all = document.getElementById('kategorie-all');
-          if (all) all.checked = selectedCategories.size === categories.size;
-          generujListeWarstw();
-        });
-      });
+
+        container.appendChild(section);
+      };
+
+      if (selectedMain.length === 1) {
+        const main = selectedMain[0];
+        renderMainSection(main, '');
+      } else {
+        renderMainSection(MAIN_CATEGORY_URBEX, 'Kategorie URBEX');
+        renderMainSection(MAIN_CATEGORY_TURYSTYCZNE, 'Kategorie TURYSTYCZNE');
+      }
     }
 
     function updateCountryFilter() {
@@ -8024,7 +8197,7 @@ function showRoutePopup(pinId, tr, latlng) {
       Object.values(warstwy).forEach(w => {
         w.lista.forEach(p => {
           if (!p.marker) return;
-          const visibleByFilters = (selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '')) && pinMatchesStatus(p) && pinMatchesCountry(p);
+          const visibleByFilters = pinMatchesAllFilters(p, true);
           const visible = visibleByFilters && pinIsInViewport(p, paddedBounds);
           if (visible) {
             if (!w.layer.hasLayer(p.marker)) {
@@ -8177,7 +8350,7 @@ toggleBtn.style.verticalAlign = "top";
         listaP.className = "pinezki-lista";
 
         const sorted = warstwy[nazwa].lista.slice().filter(p => {
-          return (selectedCategories.size === 0 || selectedCategories.has(p.kategoria || '')) && pinMatchesStatus(p) && pinMatchesCountry(p);
+          return pinMatchesAllFilters(p, true);
         }).sort((a, b) => {
           const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
           const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
@@ -8400,6 +8573,7 @@ toggleBtn.style.verticalAlign = "top";
             warstwa: layerInfo.warstwaId || null,
             warstwaId: layerInfo.warstwaId || null,
             kategoria: p.kategoria,
+        kategoriaGlowna: getPinMainCategory(p),
             kraj: p.kraj || '',
             emoji: p.emoji,
             nieaktywne: p.nieaktywne || false,
@@ -8943,6 +9117,7 @@ function confirmLayerDelete() {
         warstwa: movingLayerId,
         warstwaId: movingLayerId,
         kategoria: '',
+        kategoriaGlowna: MAIN_CATEGORY_URBEX,
         kraj: '',
         emoji: '',
         trudnosc: 0,
@@ -8960,6 +9135,7 @@ function confirmLayerDelete() {
         warstwa: 'Tryb w ruchu',
         warstwaId: movingLayerId,
         kategoria: '',
+        kategoriaGlowna: MAIN_CATEGORY_URBEX,
         kraj: '',
         emoji: '',
         trudnosc: 0,
@@ -8975,6 +9151,7 @@ function confirmLayerDelete() {
     marker.bindPopup(popupDiv);
     attachPopupHandlers(marker, data);
     data.marker = marker;
+    registerPinCategory(data);
     warstwy['Tryb w ruchu'].lista.push(data);
     wszystkiePinezki.push(data);
     generujListeWarstw();
@@ -8984,8 +9161,10 @@ function confirmLayerDelete() {
     const latlng = map.getCenter();
     const layerVal = form.warstwa.trim();
     if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
+    const mainCatVal = normalizeMainCategory(form.kategoriaGlowna);
     const catVal = form.kategoria.trim();
-    if (catVal && !categories.has(catVal)) { categories.add(catVal); updateCategoryFilter(); }
+    if (catVal && !categoriesByMain[mainCatVal].has(catVal)) { categoriesByMain[mainCatVal].add(catVal); }
+    updateCategoryFilter();
     const newId = crypto.randomUUID();
     const data = {
       id: newId,
@@ -8994,6 +9173,7 @@ function confirmLayerDelete() {
       opis: form.opis.replace(/\n/g, '<br>'),
       warstwa: layerVal,
       kategoria: catVal,
+      kategoriaGlowna: normalizeMainCategory(form.kategoriaGlowna),
       emoji: form.emoji,
       trudnosc: parseInt(form.trudnosc, 10),
       nieaktywne: form.nieaktywne,
@@ -9022,9 +9202,8 @@ function confirmLayerDelete() {
     if (!photosMap[data.slug]) {
       storePhotos(data.slug, []);
     }
-    categories.add(data.kategoria || '');
-    selectedCategories.add(data.kategoria || '');
-    registerPinCountry(data);
+    registerPinCategory(data);
+        registerPinCountry(data);
     enqueueCountryFetch(data);
     updateCategoryFilter();
     const popupDiv = document.createElement('div');
@@ -9063,6 +9242,7 @@ function confirmLayerDelete() {
       const nameInput = document.getElementById('mobilePinName');
       const descInput = document.getElementById('mobilePinDesc');
       const layerInput = document.getElementById('mobilePinLayer');
+      const mainCatInput = document.getElementById('mobilePinMainCategory');
       const catInput = document.getElementById('mobilePinCategory');
       const emojiInput = document.getElementById('mobilePinEmoji');
       const emojiPicker = document.getElementById('mobilePinEmojiPicker');
@@ -9102,6 +9282,7 @@ function confirmLayerDelete() {
       nameInput.value = '';
       descInput.style.display = 'none';
       layerInput.style.display = 'none';
+      mainCatInput.style.display = 'none';
       catInput.style.display = 'none';
       emojiInput.value = '';
       if (emojiWrapper) emojiWrapper.style.display = 'none';
@@ -9125,6 +9306,7 @@ function confirmLayerDelete() {
       nameInput.value = '';
       descInput.value = '';
       layerInput.value = '';
+      mainCatInput.value = MAIN_CATEGORY_URBEX;
       catInput.value = '';
       emojiInput.value = '';
       if (emojiWrapper) emojiWrapper.style.display = '';
@@ -9137,6 +9319,7 @@ function confirmLayerDelete() {
       highlightedInput.checked = false;
       descInput.style.display = '';
       layerInput.style.display = '';
+      mainCatInput.style.display = '';
       catInput.style.display = '';
       inactiveInput.parentElement.style.display = '';
       closedInput.parentElement.style.display = '';
@@ -9153,7 +9336,8 @@ function confirmLayerDelete() {
         modal.style.display = 'flex';
         refreshMobileEmojiPicker();
         setupDropdownInput(layerInput, () => Object.keys(warstwy));
-        setupDropdownInput(catInput, () => Array.from(categories).filter(c => c));
+        setupDropdownInput(catInput, () => getCategorySuggestions(mainCatInput.value));
+        mainCatInput.onchange = () => { catInput.value = ''; };
       }
 
     if (window.innerWidth <= 800) {
@@ -9191,6 +9375,7 @@ function confirmLayerDelete() {
           nazwa: name,
           opis: descInput.value,
           warstwa: layer,
+          kategoriaGlowna: mainCatInput.value,
           kategoria: catInput.value,
           emoji: emojiInput.value,
           nieaktywne: inactiveInput.checked,
@@ -9251,6 +9436,10 @@ function confirmLayerDelete() {
       <textarea id="mobilePinDesc" placeholder="Opis" style="width: 100%; height: 100px"></textarea>
       <input type="text" id="mobilePinFrom" placeholder="Od kogo" style="width: 100%">
       <input type="text" id="mobilePinLayer" placeholder="Warstwa" style="width: 100%">
+      <select id="mobilePinMainCategory" style="width: 100%">
+        <option value="URBEX">URBEX</option>
+        <option value="TURYSTYCZNE">TURYSTYCZNE</option>
+      </select>
       <input type="text" id="mobilePinCategory" placeholder="Kategoria" style="width: 100%">
       <div id="mobileEmojiPickerWrapper" class="mobile-emoji-picker">
         <div id="mobilePinEmojiPicker" class="emoji-picker"></div>
