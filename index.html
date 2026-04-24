@@ -2712,6 +2712,13 @@ function slugify(str) {
         // If clone has its own popup, it gets destroyed on cluster refresh
         // after auto-pan/moveend and closes unexpectedly.
         clone.on('click', () => {
+          if (clusterLayer && typeof clusterLayer.zoomToShowLayer === 'function') {
+            clusterLayer.zoomToShowLayer(marker, () => {
+              marker.fire('click');
+              marker.openPopup();
+            });
+            return;
+          }
           marker.fire('click');
           marker.openPopup();
         });
