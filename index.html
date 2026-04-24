@@ -548,7 +548,7 @@ width: 15px;
     #geosearch-suggestions {
       position: absolute;
       top: 100%;
-      left: 0;
+      left: 52px;
       right: 42px;
       background: #2b2b2be0;
       border: 1px solid #444;
@@ -1013,6 +1013,9 @@ body.mobile-layout #geosearch-container {
   z-index: 200;
   display: flex !important;
 }
+body.mobile-layout #geosearch-suggestions {
+  left: 52px;
+}
 body.mobile-layout #gpsFollowBtn {
   position: fixed;
   bottom: 20px;
@@ -1066,6 +1069,9 @@ body.mobile-layout #toggleBasemaps {
     top: calc(env(safe-area-inset-top, 0px) + 52px);
     z-index: 200;
     display: flex !important;
+  }
+  #geosearch-suggestions {
+    left: 52px;
   }
   #gpsFollowBtn {
     position: fixed;
