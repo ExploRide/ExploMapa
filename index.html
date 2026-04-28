@@ -4759,13 +4759,23 @@ function emojiHtml(str) {
         if (!popupEl || !mapEl) return;
 
         const mapRect = mapEl.getBoundingClientRect();
-        const geosearchEl = document.getElementById('geosearch-container');
         const padding = popupAutoPanState.padding;
-        const searchRect = geosearchEl ? geosearchEl.getBoundingClientRect() : null;
-        const geosearchVisible = !!(searchRect && searchRect.width > 0 && searchRect.height > 0);
-        const minTop = geosearchVisible
-          ? Math.max(mapRect.top + padding.top, searchRect.bottom + 8)
-          : mapRect.top + padding.top;
+        const topOverlayIds = ['geosearch-container', 'narzedzia'];
+        const topOverlayElements = topOverlayIds
+          .map(id => document.getElementById(id))
+          .filter(Boolean);
+        const zoomControlEl = mapEl.querySelector('.leaflet-control-zoom.leaflet-bar.leaflet-control');
+        if (zoomControlEl) topOverlayElements.push(zoomControlEl);
+
+        let minTop = mapRect.top + padding.top;
+        for (const overlayEl of topOverlayElements) {
+          const overlayRect = overlayEl.getBoundingClientRect();
+          const isVisible = overlayRect.width > 0 && overlayRect.height > 0;
+          const overlapsMapVertically = overlayRect.bottom > mapRect.top && overlayRect.top < mapRect.bottom;
+          const overlapsMapHorizontally = overlayRect.right > mapRect.left && overlayRect.left < mapRect.right;
+          if (!isVisible || !overlapsMapVertically || !overlapsMapHorizontally) continue;
+          minTop = Math.max(minTop, overlayRect.bottom + 8);
+        }
         const maxRight = mapRect.right - padding.right;
         const maxBottom = mapRect.bottom - padding.bottom;
         const maxLeft = mapRect.left + padding.left;
@@ -4785,11 +4795,9 @@ function emojiHtml(str) {
         let dx = 0;
         let dy = 0;
 
-        if (popupRect.left < maxLeft) {
-          dx = popupRect.left - maxLeft;
-        } else if (popupRect.right > maxRight) {
-          dx = popupRect.right - maxRight;
-        }
+        // Keep popup horizontally centered over marker:
+        // no left/right autopan, only vertical corrections.
+        dx = 0;
 
         if (popupRect.top < minTop) {
           dy = popupRect.top - minTop;
