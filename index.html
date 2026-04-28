@@ -2762,10 +2762,10 @@ function slugify(str) {
       clusterLayer = L.markerClusterGroup({
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
         maxClusterRadius: () => 75,
-        animate: false,
-        animateAddingMarkers: false,
+        animate: true,
+        animateAddingMarkers: true,
         spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false,
+        showCoverageOnHover: true,
         iconCreateFunction: cluster => {
           const count = cluster.getChildCount();
           const size = getClusterIconSize(count);
