@@ -676,27 +676,36 @@ body, #sidebar, #basemap-switcher {
 .popup-edit-btn {
   position: static;
   margin-left: auto;
+  min-height: 24px;
+  padding: 2px 8px;
+  line-height: 1.2;
 }
 .popup-edit-row {
   display: flex;
   justify-content: flex-end;
-  margin-top: 6px;
+  align-items: center;
+  margin-top: 0;
+  margin-bottom: 2px;
 }
 .popup-route-actions {
   display: flex;
   gap: 6px;
-  margin-top: 5px;
+  margin-top: 0;
 }
 
 .popup-route-btn,
 .popup-direct-route-btn {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: #2b2b2b;
   border: 1px solid #444;
   border-radius: 4px;
   color: #f0f0f0;
   cursor: pointer;
   font-size: 12px;
+  min-height: 28px;
   padding: 4px 6px;
 }
 
