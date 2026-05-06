@@ -8580,9 +8580,13 @@ function showRoutePopup(pinId, tr, latlng) {
         const toggleBtn = document.createElement("button");
         toggleBtn.type = "button";
         toggleBtn.className = "layer-control-btn toggle-btn";
-        toggleBtn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5"/></svg>';
         toggleBtn.setAttribute('aria-label', 'Rozwiń / zwiń warstwę');
-        if (warstwy[nazwa].collapsed) toggleBtn.classList.add('is-collapsed');
+        const updateLayerToggleSymbol = () => {
+          const isCollapsed = !!warstwy[nazwa].collapsed;
+          toggleBtn.textContent = isCollapsed ? "▶" : "▼";
+          toggleBtn.classList.toggle('is-collapsed', isCollapsed);
+        };
+        updateLayerToggleSymbol();
         const controls = document.createElement("span");
         if (!warstwy[nazwa].temporary) {
           const editBtn = document.createElement("button");
@@ -8746,7 +8750,7 @@ function showRoutePopup(pinId, tr, latlng) {
           }
           warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
           listaP.classList.toggle("ukryta");
-          toggleBtn.classList.toggle('is-collapsed', listaP.classList.contains("ukryta"));
+          updateLayerToggleSymbol();
           setLayerCollapseState(nazwa, warstwy[nazwa].collapsed);
         };
         toggleBtn.addEventListener('pointerup', toggleLayerCollapse);
