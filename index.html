@@ -423,7 +423,9 @@
     .layer-control-btn {
       width: 24px;
       height: 24px;
-      border: 1px solid #4b4b4b;
+      border: none;
+      outline: none;
+      box-shadow: none;
       border-radius: 4px;
       background: transparent;
       color: #d2d2d2;
@@ -433,8 +435,20 @@
       cursor: pointer;
       padding: 0;
     }
+    .layer-control-btn i,
+    .layer-control-btn svg { border: none; }
     .layer-control-btn:hover { background: rgba(255,255,255,0.08); }
     .layer-control-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .layer-control-btn.toggle-btn {
+      width: auto;
+      min-width: 18px;
+      height: auto;
+      padding: 0 2px;
+      border-radius: 0;
+      font-size: 11px;
+      line-height: 1;
+      background: transparent;
+    }
     .layer-control-btn.toggle-btn.is-collapsed svg { transform: rotate(-90deg); }
     .pin-name-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
     .pin-edit-btn {
@@ -452,6 +466,13 @@
     }
     .pinezka.active .pin-edit-btn { display: inline-flex; }
     .pinezki-lista { margin-left: 10px; display: block; }
+
+    body.layer-drag-active,
+    body.layer-drag-active * {
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      cursor: grabbing !important;
+    }
     .new-layer-controls { margin-top: 5px; }
     .new-layer-row { display: flex; align-items: center; gap: 6px; }
     #newLayerInput { flex: 1; min-width: 0; }
@@ -6474,7 +6495,6 @@ function zaladujPinezkiZFirestore() {
         }
       });
 
-      let dragStartY = null;
       const onPointerMove = (event) => {
         if (!draggedLayer) return;
         const lista = document.getElementById('lista-warstw');
@@ -6492,7 +6512,7 @@ function zaladujPinezkiZFirestore() {
         if (!draggedLayer) return;
         handle.classList.remove('dragging');
         draggedLayer = null;
-        dragStartY = null;
+        document.body.classList.remove('layer-drag-active');
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', endPointerDrag);
         document.removeEventListener('pointercancel', endPointerDrag);
@@ -6501,9 +6521,10 @@ function zaladujPinezkiZFirestore() {
       };
       handle.addEventListener('pointerdown', (event) => {
         if (event.button !== 0 && event.pointerType !== 'touch') return;
-        dragStartY = event.clientY;
+        event.preventDefault();
         draggedLayer = div;
         handle.classList.add('dragging');
+        document.body.classList.add('layer-drag-active');
         document.addEventListener('pointermove', onPointerMove);
         document.addEventListener('pointerup', endPointerDrag);
         document.addEventListener('pointercancel', endPointerDrag);
@@ -6530,8 +6551,15 @@ function zaladujPinezkiZFirestore() {
         }
         layerData.layer.zoomToShowLayer(p.marker, () => p.marker.openPopup());
       };
+      let popupOpened = false;
+      const openPopupOnce = () => {
+        if (popupOpened) return;
+        popupOpened = true;
+        openPopupForPin();
+      };
+      map.once('moveend', openPopupOnce);
       map.setView([p.lat, p.lng], Math.max(map.getZoom(), 16), { animate: true });
-      map.once('moveend', openPopupForPin);
+      setTimeout(openPopupOnce, 450);
       highlightListItem(el);
     }
 
