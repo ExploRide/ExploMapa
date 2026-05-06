@@ -8676,6 +8676,14 @@ toggleBtn.style.verticalAlign = "top";
           btn.textContent = `Zapisywanie… (${doneAll}/${totalAll})`;
         };
 
+        const orderList = loadLayerOrder();
+        const pendingLayerNames = [...new Set(
+          nowePinezki
+            .map(p => (p.warstwa || '').trim())
+            .filter(Boolean)
+        )];
+        await Promise.all(pendingLayerNames.map(name => ensureLayerEntry(name, orderList)));
+
         const updatePromises = Object.entries(zmianyDoZapisania).map(async ([id, data]) => {
           const p = wszystkiePinezki.find(pp => pp.id === id);
           if (!p || !p.firebaseId) return;
@@ -8752,7 +8760,6 @@ toggleBtn.style.verticalAlign = "top";
           return Promise.resolve();
         });
 
-        const orderList = loadLayerOrder();
         const layerUpdates = Object.keys(warstwy).map(name => {
           const order = orderList.indexOf(name);
           const docId = layerDocs[name];
