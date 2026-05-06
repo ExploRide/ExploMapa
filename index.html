@@ -2006,6 +2006,12 @@ img.emoji {
     <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
     <input type="number" id="layerEditOrder" min="1" style="width:70px;"> <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button><br>
     <input id="layerEditEmoji" placeholder="Emoji warstwy" style="width:100%"><br>
+    <label for="layerEditMainCategory">Kategoria główna wszystkich pinezek w warstwie</label><br>
+    <select id="layerEditMainCategory" style="width:100%">
+      <option value="">— Bez zmian —</option>
+      <option value="URBEX">URBEX</option>
+      <option value="TURYSTYCZNE">TURYSTYCZNE</option>
+    </select><br>
     <div id="layerEditDefaultVisibility">
       <div>Domyślna widoczność:</div>
       <label><input type="radio" name="layerDefaultVisibility" id="layerDefaultVisible" value="visible"> Domyślnie pokazana</label><br>
@@ -7013,6 +7019,8 @@ function zaladujPinezkiZFirestore() {
       const idx = order.indexOf(name);
       document.getElementById('layerEditOrder').value = idx >= 0 ? idx + 1 : (order.length + 1);
       document.getElementById('layerEditEmoji').value = warstwy[name].emoji || '';
+      const mainCategoryInput = document.getElementById('layerEditMainCategory');
+      if (mainCategoryInput) mainCategoryInput.value = '';
       const defaultVisible = getLayerDefaultVisible(name);
       const defaultVisibleInput = document.getElementById('layerDefaultVisible');
       const defaultHiddenInput = document.getElementById('layerDefaultHidden');
@@ -7038,6 +7046,7 @@ function zaladujPinezkiZFirestore() {
       const newName = document.getElementById('layerEditName').value.trim();
       const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
       const newEmoji = document.getElementById('layerEditEmoji').value.trim();
+      const newMainCategory = (document.getElementById('layerEditMainCategory')?.value || '').trim();
       const defaultVisibleInput = document.getElementById('layerDefaultVisible');
       const defaultHiddenInput = document.getElementById('layerDefaultHidden');
       if (!defaultVisibleInput || !defaultHiddenInput || (!defaultVisibleInput.checked && !defaultHiddenInput.checked)) {
@@ -7059,6 +7068,22 @@ function zaladujPinezkiZFirestore() {
         warstwy[editedLayer].defaultVisible = newDefaultVisible;
         layerDefaultVisibilityChanges[editedLayer] = newDefaultVisible;
       }
+      const layerPins = warstwy[editedLayer] && Array.isArray(warstwy[editedLayer].lista) ? warstwy[editedLayer].lista : [];
+      const previousMainCategories = {};
+      let changedMainCategoryCount = 0;
+      if (MAIN_CATEGORY_OPTIONS.includes(newMainCategory)) {
+        layerPins.forEach(pin => {
+          previousMainCategories[pin.id] = getPinMainCategory(pin);
+          if (previousMainCategories[pin.id] !== newMainCategory) {
+            pin.kategoriaGlowna = newMainCategory;
+            const pending = zmianyDoZapisania[pin.id] || {};
+            pending.kategoriaGlowna = newMainCategory;
+            zmianyDoZapisania[pin.id] = pending;
+            pin.unsaved = true;
+            changedMainCategoryCount += 1;
+          }
+        });
+      }
       generujListeWarstw();
       updateSaveButton();
       closeLayerEditor();
@@ -7077,6 +7102,15 @@ function zaladujPinezkiZFirestore() {
             updateMarkersForLayer(oldState.name);
           }
           warstwy[oldState.name].defaultVisible = oldState.defaultVisible;
+          Object.entries(previousMainCategories).forEach(([pinId, prevMainCategory]) => {
+            const pin = wszystkiePinezki.find(pp => pp.id === pinId);
+            if (!pin || !MAIN_CATEGORY_OPTIONS.includes(prevMainCategory)) return;
+            pin.kategoriaGlowna = prevMainCategory;
+            const data = zmianyDoZapisania[pin.id] || {};
+            data.kategoriaGlowna = prevMainCategory;
+            zmianyDoZapisania[pin.id] = data;
+            pin.unsaved = true;
+          });
           generujListeWarstw();
           updateSaveButton();
         },
@@ -7088,10 +7122,24 @@ function zaladujPinezkiZFirestore() {
             updateMarkersForLayer(newState.name);
           }
           warstwy[newState.name].defaultVisible = newState.defaultVisible;
+          if (MAIN_CATEGORY_OPTIONS.includes(newMainCategory)) {
+            const layer = warstwy[newState.name];
+            const pins = layer && Array.isArray(layer.lista) ? layer.lista : [];
+            pins.forEach(pin => {
+              pin.kategoriaGlowna = newMainCategory;
+              const data = zmianyDoZapisania[pin.id] || {};
+              data.kategoriaGlowna = newMainCategory;
+              zmianyDoZapisania[pin.id] = data;
+              pin.unsaved = true;
+            });
+          }
           generujListeWarstw();
           updateSaveButton();
         }
       }, 'Edytowano warstwę ' + newState.name);
+      if (changedMainCategoryCount > 0) {
+        showToast(`Ustawiono kategorię główną ${newMainCategory} dla ${changedMainCategoryCount} pinezek.`);
+      }
     }
 
     function applyRenameLayer(oldName, newName) {
