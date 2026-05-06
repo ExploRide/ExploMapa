@@ -414,10 +414,43 @@
     .pinezka:hover { text-decoration: underline; }
     .warstwa { margin-bottom: 10px; }
     .dragging { opacity: 0.5; }
-    .warstwa h3 { margin: 5px 0; font-size: 16px; display: flex; align-items: center; cursor: pointer; }
+    .warstwa h3 { margin: 5px 0; font-size: 16px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; gap: 6px; }
     .warstwa input[type="checkbox"] { margin-right: 5px; }
-    .layer-number { margin-right: 5px; color: #bbb; cursor: move; user-select: none; font-size: 12px}
+    .layer-number { margin-right: 5px; color: #bbb; cursor: grab; user-select: none; font-size: 12px}
     .layer-number.dragging { opacity: 0.5; }
+    .warstwa-left { display: flex; align-items: center; min-width: 0; flex: 1; }
+    .warstwa-left > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .layer-control-btn {
+      width: 24px;
+      height: 24px;
+      border: 1px solid #4b4b4b;
+      border-radius: 4px;
+      background: transparent;
+      color: #d2d2d2;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+    }
+    .layer-control-btn:hover { background: rgba(255,255,255,0.08); }
+    .layer-control-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .layer-control-btn.toggle-btn.is-collapsed svg { transform: rotate(-90deg); }
+    .pin-name-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .pin-edit-btn {
+      display: none;
+      border: 1px solid #4b4b4b;
+      background: transparent;
+      color: #d2d2d2;
+      border-radius: 4px;
+      width: 22px;
+      height: 22px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .pinezka.active .pin-edit-btn { display: inline-flex; }
     .pinezki-lista { margin-left: 10px; display: block; }
     .new-layer-controls { margin-top: 5px; }
     .new-layer-row { display: flex; align-items: center; gap: 6px; }
@@ -6440,6 +6473,66 @@ function zaladujPinezkiZFirestore() {
           updateLayerNumbers();
         }
       });
+
+      let dragStartY = null;
+      const onPointerMove = (event) => {
+        if (!draggedLayer) return;
+        const lista = document.getElementById('lista-warstw');
+        const hoveredLayer = event.target.closest('.warstwa');
+        if (!lista || !hoveredLayer || hoveredLayer === draggedLayer) return;
+        const rect = hoveredLayer.getBoundingClientRect();
+        const moveAfter = event.clientY > rect.top + rect.height / 2;
+        if (moveAfter) {
+          lista.insertBefore(draggedLayer, hoveredLayer.nextElementSibling);
+        } else {
+          lista.insertBefore(draggedLayer, hoveredLayer);
+        }
+      };
+      const endPointerDrag = () => {
+        if (!draggedLayer) return;
+        handle.classList.remove('dragging');
+        draggedLayer = null;
+        dragStartY = null;
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', endPointerDrag);
+        document.removeEventListener('pointercancel', endPointerDrag);
+        saveLayerOrder();
+        updateLayerNumbers();
+      };
+      handle.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0 && event.pointerType !== 'touch') return;
+        dragStartY = event.clientY;
+        draggedLayer = div;
+        handle.classList.add('dragging');
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', endPointerDrag);
+        document.addEventListener('pointercancel', endPointerDrag);
+      });
+    }
+
+    function openPinFromList(p, el) {
+      if (!p) return;
+      if (isMobile && followGps) {
+        followGps = false;
+        const gpsBtn = document.getElementById('gpsFollowBtn');
+        if (gpsBtn) gpsBtn.style.display = 'block';
+      }
+      const layerName = p.warstwa || "Inne";
+      const layerData = warstwy[layerName];
+      if (layerData && p.marker && !layerData.layer.hasLayer(p.marker)) {
+        layerData.layer.addLayer(p.marker);
+      }
+      const openPopupForPin = () => {
+        updateMarkerVisibility();
+        if (!p.marker || !layerData || typeof layerData.layer.zoomToShowLayer !== 'function') {
+          if (p.marker) p.marker.openPopup();
+          return;
+        }
+        layerData.layer.zoomToShowLayer(p.marker, () => p.marker.openPopup());
+      };
+      map.setView([p.lat, p.lng], Math.max(map.getZoom(), 16), { animate: true });
+      map.once('moveend', openPopupForPin);
+      highlightListItem(el);
     }
 
     function handlePinSelectionClick(event, pin, el) {
@@ -8456,19 +8549,20 @@ function showRoutePopup(pinId, tr, latlng) {
             warstwy[nazwa].collapsed = !getLayerDefaultVisible(nazwa);
           }
         }
-        const toggleBtn = document.createElement("span");
-        toggleBtn.textContent = warstwy[nazwa].collapsed ? "▶️" : "🔽";
-       toggleBtn.style.cursor = "pointer";
-toggleBtn.style.display = "inline-block";
-toggleBtn.style.verticalAlign = "top";
+        const toggleBtn = document.createElement("button");
+        toggleBtn.type = "button";
+        toggleBtn.className = "layer-control-btn toggle-btn";
+        toggleBtn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5"/></svg>';
+        toggleBtn.setAttribute('aria-label', 'Rozwiń / zwiń warstwę');
+        if (warstwy[nazwa].collapsed) toggleBtn.classList.add('is-collapsed');
         const controls = document.createElement("span");
         if (!warstwy[nazwa].temporary) {
-          const editBtn = document.createElement("span");
-          editBtn.textContent = "✏️";
-          editBtn.style.cursor = "pointer";
+          const editBtn = document.createElement("button");
+          editBtn.type = "button";
+          editBtn.className = "layer-control-btn";
+          editBtn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 11.5V13h1.5L12 5.5 10.5 4 3 11.5z"/><path d="M9.8 4.7l1.5 1.5"/></svg>';
           editBtn.style.marginRight = "5px";
-          editBtn.style.display = "inline-block";
-          editBtn.style.verticalAlign = "top";
+          editBtn.setAttribute('aria-label', `Edytuj warstwę ${nazwa}`);
           const openLayerEditor = (ev) => {
             if (ev) {
               ev.preventDefault();
@@ -8482,6 +8576,7 @@ toggleBtn.style.verticalAlign = "top";
         controls.appendChild(toggleBtn);
         controls.style.display = "flex";
         controls.style.alignItems = "center";
+        left.className = "warstwa-left";
         h3.appendChild(left);
         h3.appendChild(controls);
         div.appendChild(h3);
@@ -8513,7 +8608,23 @@ toggleBtn.style.verticalAlign = "top";
           el.className = "pinezka";
           el.dataset.pinId = String(p.id);
           const dispEmoji = warstwy[nazwa].emoji || p.emoji;
-          el.innerHTML = (dispEmoji ? emojiHtml(dispEmoji) + ' ' : '') + p.nazwa;
+          const nameRow = document.createElement('div');
+          nameRow.className = 'pin-name-row';
+          const nameSpan = document.createElement('span');
+          nameSpan.innerHTML = (dispEmoji ? emojiHtml(dispEmoji) + ' ' : '') + p.nazwa;
+          const pinEditBtn = document.createElement('button');
+          pinEditBtn.type = 'button';
+          pinEditBtn.className = 'pin-edit-btn';
+          pinEditBtn.title = 'Edytuj pinezkę';
+          pinEditBtn.innerHTML = '✎';
+          pinEditBtn.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            edytuj(p.id, p.lat, p.lng);
+          });
+          nameRow.appendChild(nameSpan);
+          nameRow.appendChild(pinEditBtn);
+          el.appendChild(nameRow);
           if (p.unsaved) el.classList.add('unsaved');
           if (selectedPinIds.has(String(p.id))) {
             el.classList.add('selected');
@@ -8521,22 +8632,7 @@ toggleBtn.style.verticalAlign = "top";
           el.addEventListener('click', e => {
             const selectionHandled = handlePinSelectionClick(e, p, el);
             if (selectionHandled) return;
-            if (isMobile && followGps) {
-              followGps = false;
-              const gpsBtn = document.getElementById('gpsFollowBtn');
-              if (gpsBtn) gpsBtn.style.display = 'block';
-            }
-            const layerName = p.warstwa || "Inne";
-            const layerData = warstwy[layerName];
-            if (layerData && p.marker && !layerData.layer.hasLayer(p.marker)) {
-              layerData.layer.addLayer(p.marker);
-            }
-            map.setView([p.lat, p.lng], 16);
-            map.once('moveend', () => {
-              updateMarkerVisibility();
-              if (p.marker) p.marker.openPopup();
-            });
-            highlightListItem(el);
+            openPinFromList(p, el);
           });
           if (p.marker) {
             attachHighlight(p.marker, el);
@@ -8622,7 +8718,7 @@ toggleBtn.style.verticalAlign = "top";
           }
           warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
           listaP.classList.toggle("ukryta");
-          toggleBtn.textContent = listaP.classList.contains("ukryta") ? "▶️" : "🔽";
+          toggleBtn.classList.toggle('is-collapsed', listaP.classList.contains("ukryta"));
           setLayerCollapseState(nazwa, warstwy[nazwa].collapsed);
         };
         toggleBtn.addEventListener('pointerup', toggleLayerCollapse);
