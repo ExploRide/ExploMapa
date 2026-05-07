@@ -1428,7 +1428,7 @@ img.emoji {
     #exportKML,
     #loadPinsBtn,
     #loginBtn,
-    #bulkApplyLayer {
+    #bulkApplyEdits {
       background: linear-gradient(180deg, var(--ui-accent-strong) 0%, var(--ui-accent) 100%);
       border-color: #aa2724;
       color: #fff;
@@ -1878,12 +1878,20 @@ img.emoji {
     </div>
   </div>
   <div id="bulk-pin-panel">
-    <h4>Masowa zmiana warstwy</h4>
+    <h4>Masowa edycja pinezek</h4>
     <div class="bulk-pin-count">Zaznaczone: 0</div>
     <input type="text" id="bulkLayerInput" placeholder="Wybierz warstwę" style="width: 100%">
+    <select id="bulkMainCategoryInput" style="width: 100%">
+      <option value="">— Bez zmiany kategorii głównej —</option>
+      <option value="URBEX">URBEX</option>
+      <option value="TURYSTYCZNE">TURYSTYCZNE</option>
+    </select>
+    <input type="text" id="bulkCategoryInput" placeholder="Wybierz podkategorię" style="width: 100%">
+    <input type="text" id="bulkEmojiInput" placeholder="Emoji (opcjonalnie)" style="width: 100%">
+    <div id="bulkStatusGrid"></div>
     <div class="bulk-pin-hint">Shift wybiera zakres, Ctrl/⌘ dodaje/usuwa z zaznaczenia.</div>
     <div class="bulk-actions">
-      <button id="bulkApplyLayer">Zatwierdź zmianę warstwy</button>
+      <button id="bulkApplyEdits">Zastosuj masową edycję</button>
       <button id="bulkClearSelection">Wyczyść zaznaczenie</button>
     </div>
   </div>
@@ -2004,7 +2012,7 @@ img.emoji {
   <div id="layer-editor">
     <h3>Edycja warstwy</h3>
     <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
-    <input type="number" id="layerEditOrder" min="1" style="width:70px;"> <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button><br>
+    <input type="number" id="layerEditOrder" min="1" style="width:70px;"><br>
     <input id="layerEditEmoji" placeholder="Emoji warstwy" style="width:100%"><br>
     <label for="layerEditMainCategory">Kategoria główna wszystkich pinezek w warstwie</label><br>
     <select id="layerEditMainCategory" style="width:100%">
@@ -2018,6 +2026,7 @@ img.emoji {
       <label><input type="radio" name="layerDefaultVisibility" id="layerDefaultHidden" value="hidden"> Domyślnie ukryta</label>
     </div>
     <button id="layerEditDelete">Usuń warstwę</button>
+    <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button>
     <button id="layerEditClose" onclick="closeLayerEditor()">Zamknij</button>
   </div>
   <div id="route-editor">
@@ -2871,9 +2880,14 @@ function slugify(str) {
 
     const bulkPanel = document.getElementById('bulk-pin-panel');
     const bulkLayerInput = document.getElementById('bulkLayerInput');
-    const bulkApplyLayerBtn = document.getElementById('bulkApplyLayer');
+    const bulkApplyEditsBtn = document.getElementById('bulkApplyEdits');
     const bulkClearSelectionBtn = document.getElementById('bulkClearSelection');
+    const bulkMainCategoryInput = document.getElementById('bulkMainCategoryInput');
+    const bulkCategoryInput = document.getElementById('bulkCategoryInput');
+    const bulkEmojiInput = document.getElementById('bulkEmojiInput');
+    const bulkStatusGrid = document.getElementById('bulkStatusGrid');
     const bulkCountEl = bulkPanel ? bulkPanel.querySelector('.bulk-pin-count') : null;
+    if (bulkStatusGrid) bulkStatusGrid.innerHTML = buildStatusGrid('bulk', '', {});
 
     function updateBulkPanel() {
       if (!bulkPanel) return;
@@ -2900,18 +2914,21 @@ function slugify(str) {
       updateBulkPanel();
     }
 
-    function handleBulkLayerSelection() {
+    function handleBulkPinEdits() {
       if (!bulkLayerInput) return;
       const layerName = bulkLayerInput.value.trim();
-      if (!layerName) {
-        showToast('Wybierz warstwę dla zaznaczonych pinezek.');
-        return;
-      }
+      const newMainCategory = bulkMainCategoryInput ? bulkMainCategoryInput.value : '';
+      const newCategory = bulkCategoryInput ? bulkCategoryInput.value.trim() : '';
+      const newEmoji = bulkEmojiInput ? bulkEmojiInput.value.trim() : '';
       if (selectedPinIds.size === 0) {
         showToast('Najpierw zaznacz pinezki na liście.');
         return;
       }
-      if (!warstwy[layerName]) {
+      if (!layerName && !newMainCategory && !newCategory && !newEmoji) {
+        showToast('Uzupełnij przynajmniej jedno pole masowej edycji.');
+        return;
+      }
+      if (layerName && !warstwy[layerName]) {
         addLayer(layerName);
       }
       const updatedLayerId = layerDocs[layerName] || null;
@@ -2921,29 +2938,46 @@ function slugify(str) {
       pins.forEach(pin => {
         markPinUnsaved(pin.slug);
         const pending = zmianyDoZapisania[pin.id] || {};
-        pending.warstwa = layerName;
-        pending.warstwaId = updatedLayerId;
+        if (layerName) {
+          pending.warstwa = layerName;
+          pending.warstwaId = updatedLayerId;
+        }
+        if (newMainCategory) pending.kategoriaGlowna = newMainCategory;
+        if (newCategory) pending.kategoria = newCategory;
+        if (newEmoji) pending.emoji = newEmoji;
+        ['nieaktywne','zamkniete','tajne','doSprawdzenia','zdewastowane','zwiedzone','wyroznione'].forEach(key => {
+          const input = document.getElementById(`bulk${key}`);
+          if (input) pending[key] = !!input.checked;
+        });
         zmianyDoZapisania[pin.id] = pending;
-        applyPinData(pin, { warstwa: layerName, warstwaId: updatedLayerId });
+        applyPinData(pin, pending);
       });
       generujListeWarstw();
       updateSaveButton();
-      showToast(`Przeniesiono ${pins.length} pinezek do warstwy "${layerName}".`);
+      showToast(`Zastosowano masową edycję dla ${pins.length} pinezek.`);
     }
 
     if (bulkClearSelectionBtn) {
       bulkClearSelectionBtn.addEventListener('click', () => clearBulkSelection());
     }
-    if (bulkApplyLayerBtn) {
-      bulkApplyLayerBtn.addEventListener('click', () => handleBulkLayerSelection());
+    if (bulkApplyEditsBtn) {
+      bulkApplyEditsBtn.addEventListener('click', () => handleBulkPinEdits());
     }
     if (bulkLayerInput) {
       setupDropdownInput(bulkLayerInput, () => Object.keys(warstwy));
       bulkLayerInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          handleBulkLayerSelection();
+          handleBulkPinEdits();
         }
+      });
+    }
+    if (bulkCategoryInput) {
+      setupDropdownInput(bulkCategoryInput, () => getCategorySuggestions(bulkMainCategoryInput ? bulkMainCategoryInput.value : MAIN_CATEGORY_URBEX));
+    }
+    if (bulkMainCategoryInput) {
+      bulkMainCategoryInput.addEventListener('change', () => {
+        if (bulkCategoryInput) bulkCategoryInput.value = '';
       });
     }
 
@@ -4326,7 +4360,7 @@ function emojiHtml(str) {
         <div style="border-top:1px solid #444;"></div>
         <div class="popup-info-item">Warstwa: ${layerLabel}</div>
         <div class="popup-info-item">Kategoria główna: ${getPinMainCategory(p)}</div>
-        ${p.kategoria ? `<div class="popup-info-item">Kategoria: ${p.kategoria}</div>` : ''}
+        ${p.kategoria ? `<div class="popup-info-item">Podkategoria: ${p.kategoria}</div>` : ''}
         ${p.odKogo ? `<div class="popup-info-item">Od kogo: ${p.odKogo}</div>` : ''}
         <div class="popup-info-item">Data dodania: ${formatDate(p.dataDodania)}</div>
         <div class="popup-info-item popup-address" data-lat="${p.lat}" data-lng="${p.lng}">Adres: wyszukiwanie...</div>
@@ -5778,7 +5812,7 @@ function zaladujPinezkiZFirestore() {
           <option value="URBEX" ${getPinMainCategory(p) === MAIN_CATEGORY_URBEX ? 'selected' : ''}>URBEX</option>
           <option value="TURYSTYCZNE" ${getPinMainCategory(p) === MAIN_CATEGORY_TURYSTYCZNE ? 'selected' : ''}>TURYSTYCZNE</option>
         </select><br>
-        <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Kategoria" style="width: 100%"><br>
+        <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Podkategoria" style="width: 100%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="etrudnosc" class="trudnosc-range" min="0" max="5" step="1" value="${p.trudnosc ?? 0}">
@@ -6113,7 +6147,7 @@ function zaladujPinezkiZFirestore() {
           <option value="URBEX">URBEX</option>
           <option value="TURYSTYCZNE">TURYSTYCZNE</option>
         </select><br>
-        <input id="kategoriaNew" placeholder="Kategoria" style="width: 102%"><br>
+        <input id="kategoriaNew" placeholder="Podkategoria" style="width: 102%"><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="trudnoscNew" class="trudnosc-range" min="0" max="5" step="1" value="0">
@@ -6504,7 +6538,8 @@ function zaladujPinezkiZFirestore() {
       const onPointerMove = (event) => {
         if (!draggedLayer) return;
         const lista = document.getElementById('lista-warstw');
-        const hoveredLayer = event.target.closest('.warstwa');
+        const hoveredElement = document.elementFromPoint(event.clientX, event.clientY);
+        const hoveredLayer = hoveredElement ? hoveredElement.closest('.warstwa') : null;
         if (!lista || !hoveredLayer || hoveredLayer === draggedLayer) return;
         const rect = hoveredLayer.getBoundingClientRect();
         const moveAfter = event.clientY > rect.top + rect.height / 2;
@@ -9767,7 +9802,7 @@ function confirmLayerDelete() {
         <option value="URBEX">URBEX</option>
         <option value="TURYSTYCZNE">TURYSTYCZNE</option>
       </select>
-      <input type="text" id="mobilePinCategory" placeholder="Kategoria" style="width: 100%">
+      <input type="text" id="mobilePinCategory" placeholder="Podkategoria" style="width: 100%">
       <div id="mobileEmojiPickerWrapper" class="mobile-emoji-picker">
         <div id="mobilePinEmojiPicker" class="emoji-picker"></div>
         <input type="hidden" id="mobilePinEmoji">
