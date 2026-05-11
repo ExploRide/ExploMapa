@@ -7900,18 +7900,44 @@ function showRoutePopup(pinId, tr, latlng) {
     }
     function formatTripDistance(meters) { return `${Math.round((meters || 0) / 1000)} km`; }
     function getActiveTrip() { return tripPlannerTrips.find(t => t.id === activeTripId) || null; }
+    function getCompatDb() {
+      const compatDb = window.db || (typeof db !== 'undefined' ? db : null);
+      if (!compatDb || typeof compatDb.collection !== 'function') {
+        console.error('Trip planner: db nie jest Firebase compat db', compatDb);
+        return null;
+      }
+      return compatDb;
+    }
+    function renderTripMapLayers() {
+      if (!map) return;
+      if (!tripPlannerLayer) tripPlannerLayer = L.layerGroup().addTo(map);
+      tripPlannerLayer.clearLayers();
+      const trip = getActiveTrip();
+      if (!trip || !Array.isArray(trip.days)) return;
+      (trip.days || []).forEach(day => {
+        if (day.visible === false) return;
+        (day.routeSegments || []).forEach(seg => {
+          const coords = (seg.geometry || []).map(c => [c[1], c[0]]);
+          if (!coords.length) return;
+          L.polyline(coords, { color: day.color || '#ff3b3b', weight: day.highlight ? 7 : 4, opacity: 0.9, className: 'trip-route-line' })
+            .bindTooltip(`${formatTripDuration(seg.durationSeconds)} / ${formatTripDistance(seg.distanceMeters)}`, { className: 'trip-route-segment-tooltip' })
+            .addTo(tripPlannerLayer);
+        });
+        (day.points || []).forEach(p => L.circleMarker([p.lat, p.lng], { radius: day.highlight ? 7 : 5, color: day.color || '#ff3b3b', className: p.type === 'custom' ? 'trip-private-point-marker' : '' }).addTo(tripPlannerLayer));
+      });
+    }
     async function loadTrips() {
-      if (!db) { console.warn('Trip planner: brak db w loadTrips().'); return; }
+      const compatDb = getCompatDb();
       const user = firebase.auth().currentUser;
-      if (!user) { console.warn('Trip planner: brak user/auth w loadTrips().'); return; }
-      const snap = await db.collection('trips').where('ownerEmail', '==', user.email.toLowerCase()).get();
+      if (!compatDb || !user) return;
+      const snap = await compatDb.collection('trips').where('ownerEmail', '==', user.email.toLowerCase()).get();
       tripPlannerTrips = [];
       for (const doc of snap.docs) {
         const trip = { id: doc.id, ...doc.data(), days: [] };
-        const daysSnap = await db.collection('trips').doc(doc.id).collection('days').orderBy('order').get();
+        const daysSnap = await compatDb.collection('trips').doc(doc.id).collection('days').orderBy('order').get();
         for (const d of daysSnap.docs) {
           const day = { id: d.id, ...d.data(), points: [] };
-          const pts = await db.collection('trips').doc(doc.id).collection('days').doc(d.id).collection('points').orderBy('order').get();
+          const pts = await compatDb.collection('trips').doc(doc.id).collection('days').doc(d.id).collection('points').orderBy('order').get();
           day.points = pts.docs.map(x => ({ id: x.id, ...x.data() }));
           trip.days.push(day);
         }
@@ -7922,11 +7948,12 @@ function showRoutePopup(pinId, tr, latlng) {
       renderTripMapLayers();
     }
     async function saveTrip(tripId) {
-      if (!db) { console.warn('Trip planner: brak db w saveTrip().'); return; }
+      const compatDb = getCompatDb();
+      if (!compatDb) return;
       const trip = tripPlannerTrips.find(t => t.id === tripId); if (!trip) return;
-      await db.collection('trips').doc(tripId).set({ name: trip.name, description: trip.description || '', startDate: trip.startDate || '', endDate: trip.endDate || '', ownerEmail: trip.ownerEmail, createdAt: trip.createdAt || firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      await compatDb.collection('trips').doc(tripId).set({ name: trip.name, description: trip.description || '', startDate: trip.startDate || '', endDate: trip.endDate || '', ownerEmail: trip.ownerEmail, createdAt: trip.createdAt || firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
       for (const [di, day] of (trip.days || []).entries()) {
-        const dayRef = db.collection('trips').doc(tripId).collection('days').doc(day.id);
+        const dayRef = compatDb.collection('trips').doc(tripId).collection('days').doc(day.id);
         await dayRef.set({ name: day.name, date: day.date || '', order: di, color: day.color || '#ff3b3b', visible: day.visible !== false, routeSummary: day.routeSummary || {}, routeSegments: day.routeSegments || [], updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
         for (const [pi, point] of (day.points || []).entries()) await dayRef.collection('points').doc(point.id).set({ ...point, order: pi }, { merge: true });
       }
@@ -8686,9 +8713,8 @@ function showRoutePopup(pinId, tr, latlng) {
         });
       });
       changedLayers.forEach(layer => {
-        if (layer && typeof layer.refreshClusters === 'function' && layer._featureGroup && typeof layer._featureGroup.getLayers === 'function') {
-          layer.refreshClusters();
-        }
+        // refreshClusters() potrafi rzucać wyjątek w niektórych stanach MarkerCluster.
+        // Pomijamy odświeżanie klastrów, aby nie przerywać generowania listy warstw.
         if (layer && typeof layer.fire === 'function') {
           layer.fire('animationend');
         }
@@ -10222,23 +10248,6 @@ function confirmLayerDelete() {
   }
 
     function reset(){ els.start.disabled=false; els.stop.disabled=true; abortFlag=false; }
-    function renderTripMapLayers() {
-      if (!map) return;
-      if (!tripPlannerLayer) tripPlannerLayer = L.layerGroup().addTo(map);
-      tripPlannerLayer.clearLayers();
-      const trip = getActiveTrip(); if (!trip) return;
-      (trip.days || []).forEach(day => {
-        if (day.visible === false) return;
-        (day.routeSegments || []).forEach(seg => {
-          const coords = (seg.geometry || []).map(c => [c[1], c[0]]);
-          if (!coords.length) return;
-          L.polyline(coords, { color: day.color || '#ff3b3b', weight: day.highlight ? 7 : 4, opacity: 0.9, className: 'trip-route-line' })
-            .bindTooltip(`${formatTripDuration(seg.durationSeconds)} / ${formatTripDistance(seg.distanceMeters)}`, { className: 'trip-route-segment-tooltip' })
-            .addTo(tripPlannerLayer);
-        });
-        (day.points || []).forEach(p => L.circleMarker([p.lat, p.lng], { radius: day.highlight ? 7 : 5, color: day.color || '#ff3b3b', className: p.type === 'custom' ? 'trip-private-point-marker' : '' }).addTo(tripPlannerLayer));
-      });
-    }
     function setTripMode(mode) {
       tripPlannerMode = mode;
       document.getElementById('modePinsBtn')?.classList.toggle('active', mode === 'pins');
@@ -10256,14 +10265,14 @@ function confirmLayerDelete() {
     });
     document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; renderTripPlannerPanel(); renderTripMapLayers(); });
     document.getElementById('tripNewBtn')?.addEventListener('click', async () => {
-      if (!db) { console.error('Trip planner: brak db przy tworzeniu tripa.'); return; }
+      const compatDb = getCompatDb();
       const user = firebase.auth().currentUser;
-      if (!user) { showToast('Najpierw zaloguj się'); return; }
+      if (!compatDb || !user) { showToast('Najpierw zaloguj się'); return; }
       const rawName = prompt('Nazwa tripa:', 'Nowy trip');
       const name = (rawName || '').trim();
       if (!name) { console.warn('Trip planner: pusta nazwa tripa.'); return; }
       try {
-        const ref = db.collection('trips').doc();
+        const ref = compatDb.collection('trips').doc();
         await ref.set({
           name,
           description: '',
@@ -10313,7 +10322,7 @@ function confirmLayerDelete() {
     let tripPlannerUnauthWarned = false;
     firebase.auth().onAuthStateChanged(async user => {
       if (!user) {
-        if (!tripPlannerUnauthWarned) { console.warn('Trip planner: użytkownik niezalogowany — pomijam loadTrips().'); tripPlannerUnauthWarned = true; }
+        tripPlannerUnauthWarned = true;
         return;
       }
       tripPlannerUnauthWarned = false;
