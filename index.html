@@ -3454,13 +3454,13 @@ function slugify(str) {
         layerOrderChanged ||
         Object.keys(layerEmojiChanges).length > 0 ||
         Object.keys(layerDefaultVisibilityChanges).length > 0;
-      const routeChanges = Array.isArray(window.localTrasy) && window.localTrasy.length > 0;
+      // `localTrasy` bywa zanieczyszczone wpisami pomocniczymi po inicjalizacji UI,
+      // dlatego o niezapisanych trasach decydujemy wyłącznie przez realne zmiany pinezek.
       return (
         hasUnsavedPinChanges() ||
         nowePinezki.length > 0 ||
         pinsToDelete.length > 0 ||
-        layerChanges ||
-        routeChanges
+        layerChanges
       );
     }
 
