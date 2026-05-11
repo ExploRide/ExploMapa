@@ -3440,6 +3440,13 @@ function slugify(str) {
       });
     }
 
+    function hasUnsavedPinChanges() {
+      return Object.values(zmianyDoZapisania).some(change => {
+        if (!change || typeof change !== 'object') return false;
+        return Object.keys(change).length > 0;
+      });
+    }
+
     function hasUnsavedChanges() {
       const layerChanges =
         layersToAdd.length > 0 ||
@@ -3447,9 +3454,9 @@ function slugify(str) {
         layerOrderChanged ||
         Object.keys(layerEmojiChanges).length > 0 ||
         Object.keys(layerDefaultVisibilityChanges).length > 0;
-      const routeChanges = window.localTrasy.length > 0;
+      const routeChanges = Array.isArray(window.localTrasy) && window.localTrasy.length > 0;
       return (
-        Object.keys(zmianyDoZapisania).length > 0 ||
+        hasUnsavedPinChanges() ||
         nowePinezki.length > 0 ||
         pinsToDelete.length > 0 ||
         layerChanges ||
