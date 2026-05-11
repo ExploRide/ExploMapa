@@ -755,6 +755,8 @@ body, #sidebar, #basemap-switcher {
 .trip-day-card { border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:7px; margin-bottom:8px; background:#1d2028; }
 .trip-day-header,.trip-point-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .trip-day-summary,.trip-point-item,.trip-segment-row { font-size:12px; opacity:.95; margin:4px 0; }
+.trip-point-name { color:#fff; font-weight:700; font-size:13px; }
+.trip-segment-row,.trip-point-meta { color:var(--ui-text-muted); font-size:11px; }
 .trip-color-input { width:32px; height:24px; padding:0; border:0; background:none; }
 .trip-active-day { box-shadow:0 0 0 1px var(--ui-accent) inset; }
 .trip-muted-day { opacity:.7; }
@@ -4462,23 +4464,11 @@ function emojiHtml(str) {
         }
         const tripBtn = container.querySelector('.popup-trip-add-btn');
         if (tripBtn) {
-          tripBtn.addEventListener('click', async ev => {
+          const tripBtnClean = tripBtn.cloneNode(true);
+          tripBtn.replaceWith(tripBtnClean);
+          tripBtnClean.addEventListener('click', async ev => {
             ev.stopPropagation();
-            if (!activeTripId) return alert('Najpierw wybierz trip w trybie Plan tripu.');
-            const trip = tripPlannerTrips.find(t => t.id === activeTripId);
-            if (!trip || !trip.days?.length) return alert('Dodaj najpierw dzień do tripa.');
-            const dayOptions = trip.days.map((d,i)=>`${i+1}. ${d.name || 'Dzień'}`).join('\n');
-            const dayIdx = parseInt(prompt(`Wybierz numer dnia:\n${dayOptions}`), 10) - 1;
-            const day = trip.days[dayIdx];
-            if (!day) return;
-            const pointType = prompt('Typ punktu (urbex/nocleg/parking/paliwo/jedzenie/widok/inny):', 'urbex') || 'inny';
-            const visitMinutes = parseInt(prompt('Czas zwiedzania/pobytu (min):', '60'), 10) || 0;
-            day.points = day.points || [];
-            day.points.push({ id: `pt_${Date.now()}`, type: 'existing', pinId: p.id, pinFirebaseId: p.firebaseId || null, nameSnapshot: p.nazwa, lat: p.lat, lng: p.lng, emojiSnapshot: p.emoji || '', pointType, visitMinutes, note: '', order: day.points.length });
-            await saveTrip(activeTripId);
-            await recalculateTripDay(activeTripId, day.id);
-            showToast('Dodano punkt do dnia');
-            renderTripPlannerPanel();
+            await addPointToTripFromData({ type: 'existing', pinId: p.id, pinFirebaseId: p.firebaseId || null, nameSnapshot: p.nazwa, lat: p.lat, lng: p.lng, emojiSnapshot: p.emoji || '', defaultPointType: 'urbex', defaultVisitMinutes: 60 });
           });
         }
         updatePopupAddress(container, p.lat, p.lng);
@@ -7483,6 +7473,7 @@ function showRoutePopup(pinId, tr, latlng) {
         <div class="popup-route-actions">
           <button class="popup-direct-route-btn" id="routeSearchBtn">Wyznacz trasę do</button>
           <button class="popup-route-btn" id="addSearchPin">dodaj pinezkę</button>
+          <button class="popup-route-btn" id="addSearchToTripBtn">+ Do tripa</button>
         </div>`;
       searchMarker.bindPopup(container).openPopup();
       container.querySelector('#addSearchPin').addEventListener('click', () => {
@@ -7500,6 +7491,13 @@ function showRoutePopup(pinId, tr, latlng) {
         routeBtn.addEventListener('click', () => {
           map.closePopup();
           routeToPin({ lat: latNum, lng: lngNum }, routeBtn);
+        });
+      }
+      const addSearchToTripBtn = container.querySelector('#addSearchToTripBtn');
+      if (addSearchToTripBtn) {
+        addSearchToTripBtn.addEventListener('click', async ev => {
+          ev.stopPropagation();
+          await addPointToTripFromData({ id: `cp_${Date.now()}`, type: 'custom', name: label, lat: latNum, lng: lngNum, emoji: '📍', tripOnly: true, defaultPointType: 'inny', defaultVisitMinutes: 30 });
         });
       }
       searchLayer.lista.push({ id: 'search', nazwa: label, marker: searchMarker, lat: latNum, lng: lngNum });
@@ -7900,7 +7898,34 @@ function showRoutePopup(pinId, tr, latlng) {
     }
     function formatTripDistance(meters) { return `${Math.round((meters || 0) / 1000)} km`; }
     function getActiveTrip() { return tripPlannerTrips.find(t => t.id === activeTripId) || null; }
-    function getCompatDb() {
+function getTripPointEmoji(p) {
+      const emojiVal = p?.emojiSnapshot || p?.emoji || '';
+      const resolved = resolveEmoji(emojiVal);
+      if (resolved && /^https?:\/\//i.test(resolved)) return emojiHtml(resolved);
+      if (resolved && !/^emoji\d+$/i.test(resolved)) return emojiHtml(resolved);
+      const byType = { nocleg: '🏨', parking: '🅿️', paliwo: '⛽', jedzenie: '🍽️', widok: '🌄', urbex: '🏚️', inny: '📍' };
+      return byType[p?.pointType] || '📍';
+    }
+    async function addPointToTripFromData(pointData) {
+      if (!activeTripId) return alert('Najpierw wybierz trip w trybie Plan tripu.');
+      const trip = tripPlannerTrips.find(t => t.id === activeTripId);
+      if (!trip || !trip.days?.length) return alert('Dodaj najpierw dzień do tripa.');
+      const dayOptions = trip.days.map((d, i) => `${i + 1}. ${d.name || 'Dzień'}`).join('\n');
+      const dayIdx = parseInt(prompt(`Wybierz numer dnia:\n${dayOptions}`), 10) - 1;
+      const day = trip.days[dayIdx];
+      if (!day) return;
+      const pointType = prompt('Typ punktu (urbex/nocleg/parking/paliwo/jedzenie/widok/inny):', pointData.defaultPointType || 'urbex') || 'inny';
+      const visitMinutes = parseInt(prompt('Czas zwiedzania/pobytu (min):', `${pointData.defaultVisitMinutes ?? 60}`), 10) || 0;
+      day.points = day.points || [];
+      day.points.push({ ...pointData, id: pointData.id || `pt_${Date.now()}`, pointType, visitMinutes, note: '', order: day.points.length });
+      day.points.forEach((p, i) => p.order = i);
+      renderTripPlannerPanel();
+      renderTripMapLayers();
+      if (day.points.length >= 2) await recalculateTripDay(activeTripId, day.id);
+      else await saveTrip(activeTripId);
+      showToast('Dodano punkt do dnia');
+    }
+        function getCompatDb() {
       const compatDb = window.db || (typeof db !== 'undefined' ? db : null);
       if (!compatDb || typeof compatDb.collection !== 'function') {
         console.error('Trip planner: db nie jest Firebase compat db', compatDb);
@@ -8072,8 +8097,8 @@ function showRoutePopup(pinId, tr, latlng) {
       box.innerHTML = `<div><b>${trip.name}</b></div><button id="tripAddDayBtn" type="button">+ Dodaj dzień</button><button id="tripAddPrivatePointBtn" type="button">+ Punkt tylko do tripa</button>` + trip.days.map((d, idx) => {
         const summary = d.routeSummary || {};
         const points = (d.points || []).sort((a,b)=>(a.order||0)-(b.order||0));
-        const ptsHtml = points.map((p, i) => `<div class="trip-point-item">${i+1}. ${(p.emoji||p.emojiSnapshot||'📍')} ${p.name || p.nameSnapshot} (${p.pointType || 'inny'}) <button data-day="${d.id}" data-point="${p.id}" data-dir="-1">↑</button><button data-day="${d.id}" data-point="${p.id}" data-dir="1">↓</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('');
-        return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}"><div class="trip-day-header"><b>Dzień ${idx+1}: ${d.name || ''}</b><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><button data-day-focus="${d.id}">Podświetl</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
+        const ptsHtml = points.map((p, i) => `<div class="trip-point-item"><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button data-day="${d.id}" data-point="${p.id}" data-dir="-1">↑</button><button data-day="${d.id}" data-point="${p.id}" data-dir="1">↓</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('');
+        return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>Dzień ${idx+1}: ${d.name || ''}</b><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><button data-day-focus="${d.id}">Podświetl</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
       }).join('');
     }
 
@@ -10296,27 +10321,39 @@ function confirmLayerDelete() {
       const trip = getActiveTrip(); if (!trip) return;
       if (e.target.id === 'tripAddDayBtn') {
         const day = { id: `day_${Date.now()}`, name: `Dzień ${trip.days.length + 1}`, color: '#ff3b3b', visible: true, points: [], routeSummary: {} };
-        trip.days.push(day); await saveTrip(trip.id); renderTripPlannerPanel(); return;
+        trip.days.push(day); await saveTrip(trip.id); renderTripPlannerPanel(); renderTripMapLayers(); return;
       }
       if (e.target.id === 'tripAddPrivatePointBtn') { tripPrivatePointArmed = true; showToast('Kliknij na mapie, aby dodać prywatny punkt tripa.'); return; }
-      if (e.target.dataset.dayFocus) { trip.days.forEach(d => d.highlight = d.id === e.target.dataset.dayFocus); renderTripPlannerPanel(); renderTripMapLayers(); return; }
+      if (e.target.dataset.dayFocus) { trip.days.forEach(d => d.highlight = d.id === e.target.dataset.dayFocus); await saveTrip(trip.id); renderTripPlannerPanel(); renderTripMapLayers(); return; }
+      const dayCardEl = e.target.closest('.trip-day-card');
+      if (dayCardEl && !e.target.closest('button, input, select, textarea, a, label')) {
+        trip.days.forEach(d => d.highlight = d.id === dayCardEl.dataset.dayCard);
+        await saveTrip(trip.id);
+        renderTripPlannerPanel(); renderTripMapLayers(); return;
+      }
       if (e.target.dataset.dir) {
         const d = trip.days.find(x => x.id === e.target.dataset.day); if (!d) return;
         const idx = d.points.findIndex(x => x.id === e.target.dataset.point); const next = idx + parseInt(e.target.dataset.dir, 10);
         if (idx < 0 || next < 0 || next >= d.points.length) return;
         [d.points[idx], d.points[next]] = [d.points[next], d.points[idx]];
-        d.points.forEach((p, i) => p.order = i); await recalculateTripDay(trip.id, d.id);
+        d.points.forEach((p, i) => p.order = i);
+        renderTripPlannerPanel();
+        renderTripMapLayers();
+        await recalculateTripDay(trip.id, d.id);
       }
     });
     map?.on('click', async e => {
-      if (!tripPrivatePointArmed || tripPlannerMode !== 'trip') return;
+      if (!tripPrivatePointArmed || tripPlannerMode !== 'trip' || currentTool === 'pinTool' || drawingRoute) return;
       const trip = getActiveTrip(); if (!trip || !trip.days?.length) return alert('Dodaj najpierw dzień.');
-      const day = trip.days[0];
+      const day = trip.days.find(d => d.highlight) || trip.days[0];
       const name = prompt('Nazwa punktu prywatnego:', 'Nocleg') || 'Punkt';
       const pointType = prompt('Typ punktu:', 'nocleg') || 'inny';
       const visitMinutes = parseInt(prompt('Czas pobytu (min):', '480'), 10) || 0;
       day.points.push({ id: `cp_${Date.now()}`, type: 'custom', name, lat: e.latlng.lat, lng: e.latlng.lng, emoji: '🏨', pointType, visitMinutes, note: '', tripOnly: true, order: day.points.length });
       tripPrivatePointArmed = false;
+      day.points.forEach((p, i) => p.order = i);
+      renderTripPlannerPanel();
+      renderTripMapLayers();
       await recalculateTripDay(trip.id, day.id);
     });
     let tripPlannerUnauthWarned = false;
