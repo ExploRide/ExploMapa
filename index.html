@@ -8062,7 +8062,11 @@ function getTripPointEmoji(p) {
             .addTo(tripPlannerLayer);
         });
         (day.points || []).forEach(p => {
-          const marker = L.circleMarker([p.lat, p.lng], { radius: day.highlight ? 7 : 5, color: day.color || '#ff3b3b', className: p.type === 'custom' ? 'trip-private-point-marker' : '' }).addTo(tripPlannerLayer);
+          const lat = Number(p.lat);
+          const lng = Number(p.lng);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+          const marker = L.circleMarker([lat, lng], { radius: day.highlight ? 7 : 5, color: day.color || '#ff3b3b', className: p.type === 'custom' ? 'trip-private-point-marker' : '' }).addTo(tripPlannerLayer);
+          marker.bindTooltip(`${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}`);
           tripPointMarkers.set(p.id, marker);
         });
       });
@@ -8084,9 +8088,6 @@ function getTripPointEmoji(p) {
         }
         recalculateTripDateRange(trip);
         tripPlannerTrips.push(trip);
-        for (const day of (trip.days || [])) {
-          await recalculateTripDay(trip.id, day.id);
-        }
       }
       if (!activeTripId && tripPlannerTrips[0]) activeTripId = tripPlannerTrips[0].id;
       renderTripPlannerPanel();
@@ -8255,7 +8256,8 @@ function getTripPointEmoji(p) {
       let removedLayersCount = 0;
       Object.values(warstwy).forEach(layer => {
         if (!layer || !layer.layer) return;
-        if (tripPlannerMode === 'trip' && hideMainPinsInTripMode) {
+        const isOfficialLayer = Array.isArray(layer.lista) && layer.lista.some(p => (p?.sourceCollection || 'pinezki2') === 'pinezki2');
+        if (tripPlannerMode === 'trip' && hideMainPinsInTripMode && isOfficialLayer) {
           try {
             if (map.hasLayer(layer.layer)) {
               map.removeLayer(layer.layer);
@@ -8288,10 +8290,15 @@ function getTripPointEmoji(p) {
       const lng = Number(point.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
       console.log('Trip planner: clicked point, lat/lng', lat, lng);
-      map.flyTo([lat, lng], 16, {
-        duration: 0.35,
-        easeLinearity: 0.8
-      });
+      try {
+        map.flyTo([lat, lng], 16, {
+          duration: 0.75,
+          easeLinearity: 0.45
+        });
+      } catch (err) {
+        console.warn('Trip planner: flyTo failed, fallback to setView', err);
+        map.setView([lat, lng], 16);
+      }
       const marker = tripPointMarkers.get(point.id);
       if (marker) {
         marker.setStyle?.({ radius: 9, weight: 3 });
@@ -10601,13 +10608,15 @@ function confirmLayerDelete() {
           const lng = Number(actionEl.dataset.lng);
           const day = trip.days.find(x => x.id === actionEl.dataset.dayId);
           const point = day?.points?.find(x => x.id === actionEl.dataset.pointId);
-          if (Number.isFinite(lat) && Number.isFinite(lng)) {
-            map.flyTo([lat, lng], 16, {
-              duration: 0.35,
-              easeLinearity: 0.8
-            });
-          }
           if (point) focusTripPointOnMap(point);
+          else if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            try {
+              map.flyTo([lat, lng], 16, { duration: 0.75, easeLinearity: 0.45 });
+            } catch (err) {
+              console.warn('Trip planner: flyTo failed in list click fallback', err);
+              map.setView([lat, lng], 16);
+            }
+          }
           return;
         }
         if (action === 'move-point-up' || action === 'move-point-down') {
