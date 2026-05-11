@@ -746,6 +746,18 @@ body, #sidebar, #basemap-switcher {
   gap: 6px;
   margin-top: 0;
 }
+.trip-mode-toggle { display:flex; gap:6px; margin:8px 0; }
+.trip-mode-toggle button { flex:1; background:#1d2028; color:#ddd; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:6px; }
+.trip-mode-toggle button.active { background:var(--ui-accent); color:#fff; border-color:var(--ui-accent); }
+.trip-planner-panel { background:#17191f; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:8px; margin-bottom:8px; }
+.trip-select-row { display:flex; gap:6px; margin-bottom:8px; }
+.trip-select-row select,.trip-select-row button { background:#1d2028; color:#eee; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); font-size:12px; padding:5px; }
+.trip-day-card { border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:7px; margin-bottom:8px; background:#1d2028; }
+.trip-day-header,.trip-point-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.trip-day-summary,.trip-point-item,.trip-segment-row { font-size:12px; opacity:.95; margin:4px 0; }
+.trip-color-input { width:32px; height:24px; padding:0; border:0; background:none; }
+.trip-active-day { box-shadow:0 0 0 1px var(--ui-accent) inset; }
+.trip-muted-day { opacity:.7; }
 
 .popup-route-btn,
 .popup-direct-route-btn {
@@ -1815,6 +1827,10 @@ img.emoji {
   <div id="sidebar">
     <div id="sidebar-inner">
       <h2 id="logoNaglowek">ExploMapy</h2>
+      <div class="trip-mode-toggle">
+        <button id="modePinsBtn" class="active" type="button">Pinezki</button>
+        <button id="modeTripBtn" type="button">Plan tripu</button>
+      </div>
       <button id="mobileControlsToggle" type="button" aria-expanded="false" aria-controls="sidebarTopControls">
         Filtry i akcje <span class="mobile-controls-indicator">▼</span>
       </button>
@@ -1870,6 +1886,14 @@ img.emoji {
         <input type="file" id="importKmlInput" accept=".kml" style="display:none;">
       </div>
       <button id="loadPinsBtn">Załaduj pinezki</button>
+      </div>
+      <div id="tripPlannerPanel" class="trip-planner-panel" style="display:none;">
+        <h3>Plan tripu</h3>
+        <div class="trip-select-row">
+          <select id="tripSelect"><option value="">Wybierz trip</option></select>
+          <button id="tripNewBtn" type="button">+ Nowy trip</button>
+        </div>
+        <div id="tripActiveBox"></div>
       </div>
       <div id="pinTotalCounter" class="pin-total-counter">Liczba miejsc: 0</div>
       <div id="lista-warstw"></div>
@@ -2613,6 +2637,12 @@ function slugify(str) {
     const selectedPinIds = new Set();
     let lastSelectedPinId = null;
     let fullPinsLoaded = false;
+    let tripPlannerMode = 'pins';
+    let tripPlannerTrips = [];
+    let activeTripId = null;
+    let tripRouteLayers = {};
+    let tripPlannerLayer = null;
+    let tripPrivatePointArmed = false;
 
     function getClusterIconSize(count) {
       return count >= BIG_CLUSTER_COUNT ? 56 : count >= 100 ? 46 : 38;
@@ -4373,6 +4403,7 @@ function emojiHtml(str) {
           <button class="popup-route-btn popup-route-add-btn">Dodaj trasę</button>
           <button class="popup-direct-route-btn popup-route-direct-btn">Wyznacz trasę do</button>
           <button class="popup-route-btn popup-plan-btn">Dodaj plan</button>
+          <button class="popup-route-btn popup-trip-add-btn">+ Do tripa</button>
         </div>
       `;
     }
@@ -4412,6 +4443,27 @@ function emojiHtml(str) {
             ev.stopPropagation();
             map.closePopup();
             startPlanUpload(p);
+          });
+        }
+        const tripBtn = container.querySelector('.popup-trip-add-btn');
+        if (tripBtn) {
+          tripBtn.addEventListener('click', async ev => {
+            ev.stopPropagation();
+            if (!activeTripId) return alert('Najpierw wybierz trip w trybie Plan tripu.');
+            const trip = tripPlannerTrips.find(t => t.id === activeTripId);
+            if (!trip || !trip.days?.length) return alert('Dodaj najpierw dzień do tripa.');
+            const dayOptions = trip.days.map((d,i)=>`${i+1}. ${d.name || 'Dzień'}`).join('\n');
+            const dayIdx = parseInt(prompt(`Wybierz numer dnia:\n${dayOptions}`), 10) - 1;
+            const day = trip.days[dayIdx];
+            if (!day) return;
+            const pointType = prompt('Typ punktu (urbex/nocleg/parking/paliwo/jedzenie/widok/inny):', 'urbex') || 'inny';
+            const visitMinutes = parseInt(prompt('Czas zwiedzania/pobytu (min):', '60'), 10) || 0;
+            day.points = day.points || [];
+            day.points.push({ id: `pt_${Date.now()}`, type: 'existing', pinId: p.id, pinFirebaseId: p.firebaseId || null, nameSnapshot: p.nazwa, lat: p.lat, lng: p.lng, emojiSnapshot: p.emoji || '', pointType, visitMinutes, note: '', order: day.points.length });
+            await saveTrip(activeTripId);
+            await recalculateTripDay(activeTripId, day.id);
+            showToast('Dodano punkt do dnia');
+            renderTripPlannerPanel();
           });
         }
         updatePopupAddress(container, p.lat, p.lng);
@@ -7826,6 +7878,60 @@ function showRoutePopup(pinId, tr, latlng) {
       return json.routes[0];
     }
 
+    function formatTripDuration(seconds) {
+      const h = Math.floor((seconds || 0) / 3600);
+      const m = Math.round(((seconds || 0) % 3600) / 60);
+      return `${h}h ${m}m`;
+    }
+    function formatTripDistance(meters) { return `${Math.round((meters || 0) / 1000)} km`; }
+    function getActiveTrip() { return tripPlannerTrips.find(t => t.id === activeTripId) || null; }
+    async function loadTrips() {
+      const user = auth.currentUser;
+      if (!user) return;
+      const snap = await db.collection('trips').where('ownerEmail', '==', user.email).get();
+      tripPlannerTrips = [];
+      for (const doc of snap.docs) {
+        const trip = { id: doc.id, ...doc.data(), days: [] };
+        const daysSnap = await db.collection('trips').doc(doc.id).collection('days').orderBy('order').get();
+        for (const d of daysSnap.docs) {
+          const day = { id: d.id, ...d.data(), points: [] };
+          const pts = await db.collection('trips').doc(doc.id).collection('days').doc(d.id).collection('points').orderBy('order').get();
+          day.points = pts.docs.map(x => ({ id: x.id, ...x.data() }));
+          trip.days.push(day);
+        }
+        tripPlannerTrips.push(trip);
+      }
+      if (!activeTripId && tripPlannerTrips[0]) activeTripId = tripPlannerTrips[0].id;
+      renderTripPlannerPanel();
+      renderTripMapLayers();
+    }
+    async function saveTrip(tripId) {
+      const trip = tripPlannerTrips.find(t => t.id === tripId); if (!trip) return;
+      await db.collection('trips').doc(tripId).set({ name: trip.name, description: trip.description || '', startDate: trip.startDate || '', endDate: trip.endDate || '', ownerEmail: trip.ownerEmail, createdAt: trip.createdAt || firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      for (const [di, day] of (trip.days || []).entries()) {
+        const dayRef = db.collection('trips').doc(tripId).collection('days').doc(day.id);
+        await dayRef.set({ name: day.name, date: day.date || '', order: di, color: day.color || '#ff3b3b', visible: day.visible !== false, routeSummary: day.routeSummary || {}, routeSegments: day.routeSegments || [], updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        for (const [pi, point] of (day.points || []).entries()) await dayRef.collection('points').doc(point.id).set({ ...point, order: pi }, { merge: true });
+      }
+      showToast('Zapisano trip');
+    }
+    async function recalculateTripDay(tripId, dayId) {
+      const trip = tripPlannerTrips.find(t => t.id === tripId); const day = trip?.days?.find(d => d.id === dayId); if (!day) return;
+      day.points.sort((a,b)=>(a.order||0)-(b.order||0));
+      let distanceMeters = 0, durationSeconds = 0;
+      const routeSegments = [];
+      for (let i = 0; i < day.points.length - 1; i++) {
+        const a = day.points[i], b = day.points[i+1];
+        const route = await fetchOsrmRoute('driving', a.lat, a.lng, b.lat, b.lng);
+        distanceMeters += route.distance || 0; durationSeconds += route.duration || 0;
+        routeSegments.push({ fromPointId: a.id, toPointId: b.id, distanceMeters: route.distance || 0, durationSeconds: route.duration || 0, geometry: route.geometry?.coordinates || [] });
+      }
+      const visitSeconds = day.points.reduce((s,p)=>s+((p.visitMinutes||0)*60),0);
+      day.routeSegments = routeSegments;
+      day.routeSummary = { distanceMeters, durationSeconds, visitSeconds, totalSeconds: durationSeconds + visitSeconds };
+      await saveTrip(tripId); renderTripPlannerPanel(); renderTripMapLayers(); showToast('Przeliczono trasę');
+    }
+
     async function resolveAddressToCoords(value) {
       const coords = parseCoordinateInput(value);
       if (coords) return coords;
@@ -7910,6 +8016,21 @@ function showRoutePopup(pinId, tr, latlng) {
           }
         });
       });
+    }
+
+    function renderTripPlannerPanel() {
+      const sel = document.getElementById('tripSelect');
+      const box = document.getElementById('tripActiveBox');
+      if (!sel || !box) return;
+      sel.innerHTML = '<option value="">Wybierz trip</option>' + tripPlannerTrips.map(t => `<option value="${t.id}" ${t.id===activeTripId?'selected':''}>${t.name}</option>`).join('');
+      const trip = getActiveTrip();
+      if (!trip) { box.innerHTML = '<div>Brak aktywnego tripa.</div>'; return; }
+      box.innerHTML = `<div><b>${trip.name}</b></div><button id="tripAddDayBtn" type="button">+ Dodaj dzień</button><button id="tripAddPrivatePointBtn" type="button">+ Punkt tylko do tripa</button>` + trip.days.map((d, idx) => {
+        const summary = d.routeSummary || {};
+        const points = (d.points || []).sort((a,b)=>(a.order||0)-(b.order||0));
+        const ptsHtml = points.map((p, i) => `<div class="trip-point-item">${i+1}. ${(p.emoji||p.emojiSnapshot||'📍')} ${p.name || p.nameSnapshot} (${p.pointType || 'inny'}) <button data-day="${d.id}" data-point="${p.id}" data-dir="-1">↑</button><button data-day="${d.id}" data-point="${p.id}" data-dir="1">↓</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('');
+        return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}"><div class="trip-day-header"><b>Dzień ${idx+1}: ${d.name || ''}</b><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><button data-day-focus="${d.id}">Podświetl</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
+      }).join('');
     }
 
     async function geocodeAddress(addr) {
@@ -10083,7 +10204,71 @@ function confirmLayerDelete() {
     finally{ reset(); }
   }
 
-  function reset(){ els.start.disabled=false; els.stop.disabled=true; abortFlag=false; }
+    function reset(){ els.start.disabled=false; els.stop.disabled=true; abortFlag=false; }
+    function renderTripMapLayers() {
+      if (!map) return;
+      if (!tripPlannerLayer) tripPlannerLayer = L.layerGroup().addTo(map);
+      tripPlannerLayer.clearLayers();
+      const trip = getActiveTrip(); if (!trip) return;
+      (trip.days || []).forEach(day => {
+        if (day.visible === false) return;
+        (day.routeSegments || []).forEach(seg => {
+          const coords = (seg.geometry || []).map(c => [c[1], c[0]]);
+          if (!coords.length) return;
+          L.polyline(coords, { color: day.color || '#ff3b3b', weight: day.highlight ? 7 : 4, opacity: 0.9, className: 'trip-route-line' })
+            .bindTooltip(`${formatTripDuration(seg.durationSeconds)} / ${formatTripDistance(seg.distanceMeters)}`, { className: 'trip-route-segment-tooltip' })
+            .addTo(tripPlannerLayer);
+        });
+        (day.points || []).forEach(p => L.circleMarker([p.lat, p.lng], { radius: day.highlight ? 7 : 5, color: day.color || '#ff3b3b', className: p.type === 'custom' ? 'trip-private-point-marker' : '' }).addTo(tripPlannerLayer));
+      });
+    }
+    function setTripMode(mode) {
+      tripPlannerMode = mode;
+      document.getElementById('modePinsBtn')?.classList.toggle('active', mode === 'pins');
+      document.getElementById('modeTripBtn')?.classList.toggle('active', mode === 'trip');
+      document.getElementById('sidebarTopControls').style.display = mode === 'pins' ? '' : 'none';
+      document.getElementById('tripPlannerPanel').style.display = mode === 'trip' ? '' : 'none';
+      document.getElementById('toggleLayers').textContent = mode === 'trip' ? '☰ Plan tripu' : '☰ Warstwy';
+      renderTripMapLayers();
+    }
+    document.getElementById('modePinsBtn')?.addEventListener('click', () => setTripMode('pins'));
+    document.getElementById('modeTripBtn')?.addEventListener('click', () => setTripMode('trip'));
+    document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; renderTripPlannerPanel(); renderTripMapLayers(); });
+    document.getElementById('tripNewBtn')?.addEventListener('click', async () => {
+      const user = auth.currentUser; if (!user) return alert('Zaloguj się.');
+      const name = prompt('Nazwa tripa:', 'Nowy trip'); if (!name) return;
+      const id = db.collection('trips').doc().id;
+      tripPlannerTrips.push({ id, name, ownerEmail: user.email, days: [] }); activeTripId = id;
+      await saveTrip(id); renderTripPlannerPanel();
+    });
+    document.getElementById('tripActiveBox')?.addEventListener('click', async (e) => {
+      const trip = getActiveTrip(); if (!trip) return;
+      if (e.target.id === 'tripAddDayBtn') {
+        const day = { id: `day_${Date.now()}`, name: `Dzień ${trip.days.length + 1}`, color: '#ff3b3b', visible: true, points: [], routeSummary: {} };
+        trip.days.push(day); await saveTrip(trip.id); renderTripPlannerPanel(); return;
+      }
+      if (e.target.id === 'tripAddPrivatePointBtn') { tripPrivatePointArmed = true; showToast('Kliknij na mapie, aby dodać prywatny punkt tripa.'); return; }
+      if (e.target.dataset.dayFocus) { trip.days.forEach(d => d.highlight = d.id === e.target.dataset.dayFocus); renderTripPlannerPanel(); renderTripMapLayers(); return; }
+      if (e.target.dataset.dir) {
+        const d = trip.days.find(x => x.id === e.target.dataset.day); if (!d) return;
+        const idx = d.points.findIndex(x => x.id === e.target.dataset.point); const next = idx + parseInt(e.target.dataset.dir, 10);
+        if (idx < 0 || next < 0 || next >= d.points.length) return;
+        [d.points[idx], d.points[next]] = [d.points[next], d.points[idx]];
+        d.points.forEach((p, i) => p.order = i); await recalculateTripDay(trip.id, d.id);
+      }
+    });
+    map?.on('click', async e => {
+      if (!tripPrivatePointArmed || tripPlannerMode !== 'trip') return;
+      const trip = getActiveTrip(); if (!trip || !trip.days?.length) return alert('Dodaj najpierw dzień.');
+      const day = trip.days[0];
+      const name = prompt('Nazwa punktu prywatnego:', 'Nocleg') || 'Punkt';
+      const pointType = prompt('Typ punktu:', 'nocleg') || 'inny';
+      const visitMinutes = parseInt(prompt('Czas pobytu (min):', '480'), 10) || 0;
+      day.points.push({ id: `cp_${Date.now()}`, type: 'custom', name, lat: e.latlng.lat, lng: e.latlng.lng, emoji: '🏨', pointType, visitMinutes, note: '', tripOnly: true, order: day.points.length });
+      tripPrivatePointArmed = false;
+      await recalculateTripDay(trip.id, day.id);
+    });
+    auth.onAuthStateChanged(() => loadTrips().catch(console.error));
   emojiBtn.addEventListener('click', ()=>{ backdrop.style.display='block'; });
   els.close.addEventListener('click', ()=>{ backdrop.style.display='none'; if(emojiToolChanged) location.reload(); });
   backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop){ backdrop.style.display='none'; if(emojiToolChanged) location.reload(); } });
