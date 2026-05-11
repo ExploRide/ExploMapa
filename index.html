@@ -8170,6 +8170,11 @@ function getTripPointEmoji(p) {
       trip.days.forEach(d => { d.highlight = d.id === activeTripDayId; });
     }
 
+    function updateTripPinsVisibilityToggleLabel() {
+      const btn = document.getElementById('tripPinsVisibilityToggle');
+      if (btn) btn.textContent = hideMainPinsInTripMode ? 'Pokaż wszystkie pinezki' : 'Ukryj pinezki główne';
+    }
+
     function applyTripMainPinsVisibility() {
       Object.values(warstwy).forEach(layer => {
         if (!layer || layer.sourceCollection !== 'pinezki2' || !layer.layer || typeof layer.layer.addTo !== 'function') return;
@@ -8183,27 +8188,17 @@ function getTripPointEmoji(p) {
         applyTripMainPinsVisibility();
         return;
       }
-      const trip = getActiveTrip();
-      const keep = new Set();
-      if (trip) {
-        (trip.days || []).forEach(day => (day.points || []).forEach(p => { if (p.type === 'existing' && p.pinId) keep.add(String(p.pinId)); }));
-      }
       applyTripMainPinsVisibility();
-      Object.values(warstwy).forEach(layer => {
-        (layer.lista || []).forEach(pin => {
-          if (!pin || !pin.marker || pin.sourceCollection !== 'pinezki2') return;
-          const show = !hideMainPinsInTripMode || keep.has(String(pin.id));
-          const el = pin.marker.getElement && pin.marker.getElement();
-          if (el) el.style.display = show ? '' : 'none';
-        });
-      });
-      const btn = document.getElementById('tripPinsVisibilityToggle');
-      if (btn) btn.textContent = hideMainPinsInTripMode ? 'Pokaż wszystkie pinezki' : 'Ukryj pinezki główne';
+      updateTripPinsVisibilityToggleLabel();
     }
 
     function focusTripPointOnMap(point) {
       if (!point || !map) return;
-      map.flyTo([point.lat, point.lng], 16);
+      const lat = Number(point.lat);
+      const lng = Number(point.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      console.log('Trip planner: clicked point, lat/lng', lat, lng);
+      map.setView([lat, lng], Math.max(map.getZoom(), 16));
       const marker = tripPointMarkers.get(point.id);
       if (marker) {
         marker.setStyle?.({ radius: 9, weight: 3 });
@@ -8229,12 +8224,23 @@ function getTripPointEmoji(p) {
       box.innerHTML = `<div><b>${trip.name}</b></div>${tripRange}<button id="tripAddDayBtn" type="button">+ Dodaj dzień</button><button id="tripAddPrivatePointBtn" type="button">+ Punkt tylko do tripa</button><button id="tripDeleteBtn" class="trip-icon-btn" type="button" title="Usuń trip" aria-label="Usuń trip">🗑️</button>` + trip.days.map((d, idx) => {
         const summary = d.routeSummary || {};
         const points = (d.points || []).sort((a,b)=>(a.order||0)-(b.order||0));
-        const ptsHtml = `<div class="trip-point-list">` + points.map((p, i) => `<div class="trip-point-item" data-day="${d.id}" data-point-item="${p.id}"><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button data-day="${d.id}" data-point="${p.id}" data-dir="-1" data-stop-row-click="1">↑</button><button data-day="${d.id}" data-point="${p.id}" data-dir="1" data-stop-row-click="1">↓</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
+        const ptsHtml = `<div class="trip-point-list">` + points.map((p, i) => `<div class="trip-point-item" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-direction="-1" data-stop-row-click="1">↑</button><button data-trip-action="move-point-down" data-day-id="${d.id}" data-point-id="${p.id}" data-direction="1" data-stop-row-click="1">↓</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
         return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
       }).join('');
       box.querySelectorAll('[data-stop-row-click="1"]').forEach(btn => {
         btn.addEventListener('click', ev => ev.stopPropagation());
       });
+    }
+
+    async function saveTripDayPointOrder(tripId, dayId, points) {
+      const compatDb = getCompatDb();
+      if (!compatDb) return;
+      const dayRef = compatDb.collection('trips').doc(tripId).collection('days').doc(dayId);
+      for (const [idx, point] of points.entries()) {
+        point.order = idx;
+        await dayRef.collection('points').doc(point.id).set({ order: idx }, { merge: true });
+      }
+      await dayRef.set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
     }
 
     async function geocodeAddress(addr) {
@@ -10520,24 +10526,40 @@ function confirmLayerDelete() {
         renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility();
         return;
       }
-      const pointRow = e.target.closest('[data-point-item]');
-      if (pointRow && !e.target.closest('button, input, select, textarea, label, a')) {
-        const day = trip.days.find(x => x.id === pointRow.dataset.day);
-        const point = day?.points?.find(x => x.id === pointRow.dataset.pointItem);
-        focusTripPointOnMap(point);
-        return;
-      }
-      if (e.target.dataset.dir) {
-        const d = trip.days.find(x => x.id === e.target.dataset.day); if (!d) return;
-        const idx = d.points.findIndex(x => x.id === e.target.dataset.point); const next = idx + parseInt(e.target.dataset.dir, 10);
-        if (idx < 0 || next < 0 || next >= d.points.length) return;
-        [d.points[idx], d.points[next]] = [d.points[next], d.points[idx]];
-        d.points.forEach((p, i) => p.order = i);
-        renderTripPlannerPanel();
-        renderTripMapLayers();
-      applyTripPlannerPinVisibility();
-        await recalculateTripDay(trip.id, d.id);
-        applyTripPlannerPinVisibility();
+      const actionEl = e.target.closest('[data-trip-action]');
+      if (actionEl) {
+        const action = actionEl.dataset.tripAction;
+        if (action === 'focus-point') {
+          const lat = Number(actionEl.dataset.lat);
+          const lng = Number(actionEl.dataset.lng);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            console.log('Trip planner: clicked point, lat/lng', lat, lng);
+            map.setView([lat, lng], Math.max(map.getZoom(), 16));
+          }
+          const day = trip.days.find(x => x.id === actionEl.dataset.dayId);
+          const point = day?.points?.find(x => x.id === actionEl.dataset.pointId);
+          if (point) focusTripPointOnMap(point);
+          return;
+        }
+        if (action === 'move-point-up' || action === 'move-point-down') {
+          const dayId = actionEl.dataset.dayId;
+          const pointId = actionEl.dataset.pointId;
+          const direction = Number(actionEl.dataset.direction);
+          const day = trip.days.find(x => x.id === dayId);
+          if (!day || !Array.isArray(day.points)) return;
+          day.points.sort((a, b) => (a.order || 0) - (b.order || 0));
+          const idx = day.points.findIndex(x => x.id === pointId);
+          const next = idx + direction;
+          if (idx < 0 || next < 0 || next >= day.points.length) return;
+          [day.points[idx], day.points[next]] = [day.points[next], day.points[idx]];
+          day.points.forEach((p, i) => { p.order = i; });
+          await saveTripDayPointOrder(trip.id, day.id, day.points);
+          renderTripPlannerPanel();
+          renderTripMapLayers();
+          applyTripPlannerPinVisibility();
+          await recalculateTripDay(trip.id, day.id);
+          return;
+        }
       }
     });
     document.getElementById('tripActiveBox')?.addEventListener('change', async (e) => {
