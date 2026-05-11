@@ -8003,8 +8003,14 @@ function getTripPointEmoji(p) {
       ensureActiveTripDay(trip);
       (trip.days || []).forEach(day => {
         if (day.visible === false) return;
-        (day.routeSegments || []).forEach(seg => {
-          const coords = (seg.geometry || []).map(c => [c[1], c[0]]);
+        const pointsSorted = [...(day.points || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        (day.routeSegments || []).forEach((seg, segIdx) => {
+          let coords = (seg.geometry || []).map(c => [c[1], c[0]]);
+          if (!coords.length) {
+            const a = pointsSorted[segIdx];
+            const b = pointsSorted[segIdx + 1];
+            if (a && b) coords = [[Number(a.lat), Number(a.lng)], [Number(b.lat), Number(b.lng)]];
+          }
           if (!coords.length) return;
           L.polyline(coords, { color: day.color || '#ff3b3b', weight: day.highlight ? 7 : 4, opacity: 0.9, className: 'trip-route-line' })
             .bindTooltip(`${formatTripDuration(seg.durationSeconds)} / ${formatTripDistance(seg.distanceMeters)}`, { className: 'trip-route-segment-tooltip' })
@@ -8033,6 +8039,9 @@ function getTripPointEmoji(p) {
         }
         recalculateTripDateRange(trip);
         tripPlannerTrips.push(trip);
+        for (const day of (trip.days || [])) {
+          await recalculateTripDay(trip.id, day.id);
+        }
       }
       if (!activeTripId && tripPlannerTrips[0]) activeTripId = tripPlannerTrips[0].id;
       renderTripPlannerPanel();
@@ -8052,15 +8061,33 @@ function getTripPointEmoji(p) {
       showToast('Zapisano trip');
     }
     async function recalculateTripDay(tripId, dayId) {
-      const trip = tripPlannerTrips.find(t => t.id === tripId); const day = trip?.days?.find(d => d.id === dayId); if (!day) return;
+      const trip = tripPlannerTrips.find(t => t.id === tripId); const day = trip?.days?.find(d => d.id === dayId);
+      if (!day) {
+        console.warn('Trip planner: day not found during route recalc', { tripId, dayId });
+        return;
+      }
       day.points.sort((a,b)=>(a.order||0)-(b.order||0));
+      if (day.points.length < 2) {
+        day.routeSegments = [];
+        const visitSecondsShort = day.points.reduce((s,p)=>s+((p.visitMinutes||0)*60),0);
+        day.routeSummary = { distanceMeters: 0, durationSeconds: 0, visitSeconds: visitSecondsShort, totalSeconds: visitSecondsShort };
+        await saveTrip(tripId); renderTripPlannerPanel(); renderTripMapLayers();
+        return;
+      }
       let distanceMeters = 0, durationSeconds = 0;
       const routeSegments = [];
       for (let i = 0; i < day.points.length - 1; i++) {
         const a = day.points[i], b = day.points[i+1];
-        const route = await fetchOsrmRoute('driving', a.lat, a.lng, b.lat, b.lng);
-        distanceMeters += route.distance || 0; durationSeconds += route.duration || 0;
-        routeSegments.push({ fromPointId: a.id, toPointId: b.id, distanceMeters: route.distance || 0, durationSeconds: route.duration || 0, geometry: route.geometry?.coordinates || [] });
+        try {
+          const route = await fetchOsrmRoute('driving', a.lat, a.lng, b.lat, b.lng);
+          const fallbackGeometry = [[Number(a.lng), Number(a.lat)], [Number(b.lng), Number(b.lat)]];
+          const geometry = route?.geometry?.coordinates?.length ? route.geometry.coordinates : fallbackGeometry;
+          distanceMeters += route?.distance || 0; durationSeconds += route?.duration || 0;
+          routeSegments.push({ fromPointId: a.id, toPointId: b.id, distanceMeters: route?.distance || 0, durationSeconds: route?.duration || 0, geometry });
+        } catch (err) {
+          console.warn('Trip planner: route segment recalc error', { tripId, dayId, fromPointId: a?.id, toPointId: b?.id, err });
+          routeSegments.push({ fromPointId: a.id, toPointId: b.id, distanceMeters: 0, durationSeconds: 0, geometry: [[Number(a.lng), Number(a.lat)], [Number(b.lng), Number(b.lat)]] });
+        }
       }
       const visitSeconds = day.points.reduce((s,p)=>s+((p.visitMinutes||0)*60),0);
       day.routeSegments = routeSegments;
@@ -8176,16 +8203,25 @@ function getTripPointEmoji(p) {
     }
 
     function applyTripMainPinsVisibility() {
+      let removedLayersCount = 0;
       Object.values(warstwy).forEach(layer => {
-        if (!layer || layer.sourceCollection !== 'pinezki2' || !layer.layer) return;
+        if (!layer || !layer.layer) return;
         if (tripPlannerMode === 'trip' && hideMainPinsInTripMode) {
-          if (map.hasLayer(layer.layer)) map.removeLayer(layer.layer);
+          try {
+            if (map.hasLayer(layer.layer)) {
+              map.removeLayer(layer.layer);
+              removedLayersCount += 1;
+            }
+          } catch {}
           return;
         }
         if (layer.visible !== false && !map.hasLayer(layer.layer) && typeof layer.layer.addTo === 'function') {
           layer.layer.addTo(map);
         }
       });
+      if (tripPlannerMode === 'trip' && hideMainPinsInTripMode) {
+        console.log('Trip planner hidden main layers', removedLayersCount);
+      }
     }
 
     function applyTripPlannerPinVisibility() {
@@ -8203,7 +8239,10 @@ function getTripPointEmoji(p) {
       const lng = Number(point.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
       console.log('Trip planner: clicked point, lat/lng', lat, lng);
-      map.flyTo([lat, lng], 16);
+      map.flyTo([lat, lng], 16, {
+        duration: 0.35,
+        easeLinearity: 0.8
+      });
       const marker = tripPointMarkers.get(point.id);
       if (marker) {
         marker.setStyle?.({ radius: 9, weight: 3 });
@@ -10518,7 +10557,10 @@ function confirmLayerDelete() {
           const day = trip.days.find(x => x.id === actionEl.dataset.dayId);
           const point = day?.points?.find(x => x.id === actionEl.dataset.pointId);
           if (Number.isFinite(lat) && Number.isFinite(lng)) {
-            map.flyTo([lat, lng], 16);
+            map.flyTo([lat, lng], 16, {
+              duration: 0.35,
+              easeLinearity: 0.8
+            });
           }
           if (point) focusTripPointOnMap(point);
           return;
@@ -10527,19 +10569,28 @@ function confirmLayerDelete() {
           const dayId = actionEl.dataset.dayId;
           const pointId = actionEl.dataset.pointId;
           const direction = Number(actionEl.dataset.direction);
-          const day = trip.days.find(x => x.id === dayId);
-          if (!day || !Array.isArray(day.points)) return;
+          console.log('Trip move point', { dayId, pointId, direction });
+          const activeTrip = getActiveTrip();
+          if (!activeTrip) return;
+          const day = activeTrip.days.find(x => x.id === dayId);
+          if (!day || !Array.isArray(day.points)) {
+            console.warn('Trip move point: day not found', { dayId, pointId, direction });
+            return;
+          }
           day.points.sort((a, b) => (a.order || 0) - (b.order || 0));
           const idx = day.points.findIndex(x => x.id === pointId);
           const next = idx + direction;
-          if (idx < 0 || next < 0 || next >= day.points.length) return;
+          if (idx < 0 || next < 0 || next >= day.points.length) {
+            console.warn('Trip move point: point not found or out of range', { dayId, pointId, direction });
+            return;
+          }
           [day.points[idx], day.points[next]] = [day.points[next], day.points[idx]];
           day.points.forEach((p, i) => { p.order = i; });
-          await saveTripDayPointOrder(trip.id, day.id, day.points);
+          await saveTripDayPointOrder(activeTrip.id, day.id, day.points);
           renderTripPlannerPanel();
+          await recalculateTripDay(activeTrip.id, day.id);
           renderTripMapLayers();
           applyTripPlannerPinVisibility();
-          await recalculateTripDay(trip.id, day.id);
           return;
         }
       }
