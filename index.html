@@ -7939,6 +7939,42 @@ function showRoutePopup(pinId, tr, latlng) {
       const day = String(baseDate.getUTCDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     }
+    function convertNestedLatLngArray(value) {
+      if (!Array.isArray(value)) return value;
+      if (!value.length) return [];
+      const looksLikeNestedLatLng = value.every(item =>
+        Array.isArray(item) &&
+        item.length >= 2 &&
+        Number.isFinite(Number(item[0])) &&
+        Number.isFinite(Number(item[1]))
+      );
+      if (looksLikeNestedLatLng) {
+        return value.map(item => ({ lat: Number(item[0]), lng: Number(item[1]) }));
+      }
+      return value.map(item => sanitizeNestedArraysDeep(item));
+    }
+    function sanitizeNestedArraysDeep(value) {
+      if (Array.isArray(value)) return convertNestedLatLngArray(value);
+      if (!value || typeof value !== 'object') return value;
+      const out = {};
+      for (const [key, innerValue] of Object.entries(value)) {
+        out[key] = sanitizeNestedArraysDeep(innerValue);
+      }
+      return out;
+    }
+    function sanitizeTripDayForFirestore(day) {
+      if (!day || typeof day !== 'object') return day;
+      const cleaned = sanitizeNestedArraysDeep(day);
+      cleaned.routeSegments = (cleaned.routeSegments || []).map(seg => {
+        const safeSegment = { ...(seg || {}) };
+        if (safeSegment.geometry) safeSegment.geometry = sanitizeNestedArraysDeep(safeSegment.geometry);
+        if (safeSegment.geometryEncoded && typeof safeSegment.geometryEncoded !== 'string') {
+          safeSegment.geometryEncoded = String(safeSegment.geometryEncoded || '');
+        }
+        return safeSegment;
+      });
+      return cleaned;
+    }
     function showCreateTripDialog() {
       return new Promise(resolve => {
         const overlay = document.createElement('div');
@@ -7948,7 +7984,6 @@ function showRoutePopup(pinId, tr, latlng) {
           <label>Nazwa<br><input id="tripCreateName" type="text" style="width:100%"></label><br>
           <label>Liczba dni<br><input id="tripCreateDays" type="number" min="1" value="3" style="width:100%"></label><br>
           <label>📅 Start<br><input id="tripCreateStart" type="date" style="width:100%"></label><br>
-          <label>📅 Koniec<br><input id="tripCreateEnd" type="date" style="width:100%"></label><br>
           <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;"><button id="tripCreateCancel" type="button">Anuluj</button><button id="tripCreateOk" type="button">Utwórz</button></div>
         </div>`;
         document.body.appendChild(overlay);
@@ -7957,9 +7992,8 @@ function showRoutePopup(pinId, tr, latlng) {
           const name = (overlay.querySelector('#tripCreateName')?.value || '').trim();
           const daysCount = parseInt(overlay.querySelector('#tripCreateDays')?.value || '', 10);
           const startDate = (overlay.querySelector('#tripCreateStart')?.value || '').trim();
-          const endDate = (overlay.querySelector('#tripCreateEnd')?.value || '').trim();
           overlay.remove();
-          resolve({ name, daysCount, startDate, endDate });
+          resolve({ name, daysCount, startDate });
         });
       });
     }
@@ -8012,7 +8046,11 @@ function getTripPointEmoji(p) {
         if (day.visible === false) return;
         const pointsSorted = [...(day.points || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
         (day.routeSegments || []).forEach((seg, segIdx) => {
-          let coords = (seg.geometry || []).map(c => [c[1], c[0]]);
+          let coords = (seg.geometry || []).map(c => {
+            if (Array.isArray(c)) return [Number(c[0]), Number(c[1])];
+            if (c && typeof c === 'object' && Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng))) return [Number(c.lat), Number(c.lng)];
+            return null;
+          }).filter(Boolean);
           if (!coords.length) {
             const a = pointsSorted[segIdx];
             const b = pointsSorted[segIdx + 1];
@@ -8061,9 +8099,10 @@ function getTripPointEmoji(p) {
       const trip = tripPlannerTrips.find(t => t.id === tripId); if (!trip) return;
       await compatDb.collection('trips').doc(tripId).set({ name: trip.name, description: trip.description || '', startDate: trip.startDate || '', endDate: trip.endDate || '', ownerEmail: trip.ownerEmail, createdAt: trip.createdAt || firebase.firestore.FieldValue.serverTimestamp(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
       for (const [di, day] of (trip.days || []).entries()) {
+        const safeDay = sanitizeTripDayForFirestore(day);
         const dayRef = compatDb.collection('trips').doc(tripId).collection('days').doc(day.id);
-        await dayRef.set({ name: day.name, date: day.date || '', order: di, color: day.color || '#ff3b3b', visible: day.visible !== false, routeSummary: day.routeSummary || {}, routeSegments: day.routeSegments || [], updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
-        for (const [pi, point] of (day.points || []).entries()) await dayRef.collection('points').doc(point.id).set({ ...point, order: pi }, { merge: true });
+        await dayRef.set({ name: safeDay.name, date: safeDay.date || '', order: di, color: safeDay.color || '#ff3b3b', visible: safeDay.visible !== false, routeSummary: safeDay.routeSummary || {}, routeSegments: safeDay.routeSegments || [], updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        for (const [pi, point] of (safeDay.points || []).entries()) await dayRef.collection('points').doc(point.id).set({ ...point, order: pi }, { merge: true });
       }
       showToast('Zapisano trip');
     }
@@ -8087,13 +8126,16 @@ function getTripPointEmoji(p) {
         const a = day.points[i], b = day.points[i+1];
         try {
           const route = await fetchOsrmRoute('driving', a.lat, a.lng, b.lat, b.lng);
-          const fallbackGeometry = [[Number(a.lng), Number(a.lat)], [Number(b.lng), Number(b.lat)]];
-          const geometry = route?.geometry?.coordinates?.length ? route.geometry.coordinates : fallbackGeometry;
+          const fallbackGeometry = [{ lat: Number(a.lat), lng: Number(a.lng) }, { lat: Number(b.lat), lng: Number(b.lng) }];
+          const rawGeometry = route?.geometry?.coordinates?.length ? route.geometry.coordinates : null;
+          const geometry = rawGeometry
+            ? rawGeometry.map(p => ({ lat: Number(p[1]), lng: Number(p[0]) }))
+            : fallbackGeometry;
           distanceMeters += route?.distance || 0; durationSeconds += route?.duration || 0;
           routeSegments.push({ fromPointId: a.id, toPointId: b.id, distanceMeters: route?.distance || 0, durationSeconds: route?.duration || 0, geometry });
         } catch (err) {
           console.warn('Trip planner: route segment recalc error', { tripId, dayId, fromPointId: a?.id, toPointId: b?.id, err });
-          routeSegments.push({ fromPointId: a.id, toPointId: b.id, distanceMeters: 0, durationSeconds: 0, geometry: [[Number(a.lng), Number(a.lat)], [Number(b.lng), Number(b.lat)]] });
+          routeSegments.push({ fromPointId: a.id, toPointId: b.id, distanceMeters: 0, durationSeconds: 0, geometry: [{ lat: Number(a.lat), lng: Number(a.lng) }, { lat: Number(b.lat), lng: Number(b.lng) }] });
         }
       }
       const visitSeconds = day.points.reduce((s,p)=>s+((p.visitMinutes||0)*60),0);
@@ -10489,22 +10531,18 @@ function confirmLayerDelete() {
       if (!compatDb || !user) { showToast('Najpierw zaloguj się'); return; }
       const formData = await showCreateTripDialog();
       if (!formData) return;
-      const { name, daysCount, startDate, endDate } = formData;
+      const { name, daysCount, startDate } = formData;
       if (!name) { console.warn('Trip planner: pusta nazwa tripa.'); return; }
       if (!Number.isFinite(daysCount) || daysCount < 1) { showToast('Podaj poprawną liczbę dni'); return; }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) { showToast('Podaj poprawne daty'); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) { showToast('Podaj poprawną datę startu'); return; }
       const expectedEndDate = addDaysToIsoDate(startDate, daysCount - 1);
-      if (expectedEndDate !== endDate) {
-        showToast('Zakres dat musi odpowiadać liczbie dni tripa');
-        return;
-      }
       try {
         const ref = compatDb.collection('trips').doc();
         await ref.set({
           name,
           description: '',
           startDate,
-          endDate,
+          endDate: expectedEndDate,
           ownerEmail: (user.email || '').toLowerCase(),
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
