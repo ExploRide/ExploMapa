@@ -8177,9 +8177,14 @@ function getTripPointEmoji(p) {
 
     function applyTripMainPinsVisibility() {
       Object.values(warstwy).forEach(layer => {
-        if (!layer || layer.sourceCollection !== 'pinezki2' || !layer.layer || typeof layer.layer.addTo !== 'function') return;
-        if (tripPlannerMode === 'trip' && hideMainPinsInTripMode) map.removeLayer(layer.layer);
-        else if (layer.visible !== false) layer.layer.addTo(map);
+        if (!layer || layer.sourceCollection !== 'pinezki2' || !layer.layer) return;
+        if (tripPlannerMode === 'trip' && hideMainPinsInTripMode) {
+          if (map.hasLayer(layer.layer)) map.removeLayer(layer.layer);
+          return;
+        }
+        if (layer.visible !== false && !map.hasLayer(layer.layer) && typeof layer.layer.addTo === 'function') {
+          layer.layer.addTo(map);
+        }
       });
     }
 
@@ -8198,7 +8203,7 @@ function getTripPointEmoji(p) {
       const lng = Number(point.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
       console.log('Trip planner: clicked point, lat/lng', lat, lng);
-      map.setView([lat, lng], Math.max(map.getZoom(), 16));
+      map.flyTo([lat, lng], 16);
       const marker = tripPointMarkers.get(point.id);
       if (marker) {
         marker.setStyle?.({ radius: 9, weight: 3 });
@@ -10503,41 +10508,18 @@ function confirmLayerDelete() {
         renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility();
         return;
       }
-      const dayCardEl = e.target.closest('.trip-day-card');
-      if (dayCardEl && !e.target.closest('button, input, select, textarea, a, label')) {
-        activeTripDayId = dayCardEl.dataset.dayCard;
-        trip.days.forEach(d => d.highlight = d.id === activeTripDayId);
-        await saveTrip(trip.id);
-        renderTripPlannerPanel(); renderTripMapLayers(); return;
-      }
-      if (e.target.dataset.dayDelete) {
-        if (!confirm('Na pewno usunąć ten dzień?')) return;
-        const dayId = e.target.dataset.dayDelete;
-        const dayIndex = trip.days.findIndex(d => d.id === dayId);
-        if (dayIndex < 0) return;
-        const compatDb = getCompatDb(); if (!compatDb) return;
-        const day = trip.days[dayIndex];
-        for (const pt of (day.points || [])) await compatDb.collection('trips').doc(trip.id).collection('days').doc(day.id).collection('points').doc(pt.id).delete().catch(()=>{});
-        await compatDb.collection('trips').doc(trip.id).collection('days').doc(day.id).delete().catch(()=>{});
-        trip.days.splice(dayIndex, 1);
-        if (activeTripDayId === dayId) activeTripDayId = null;
-        recalculateTripDateRange(trip);
-        await saveTrip(trip.id);
-        renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility();
-        return;
-      }
       const actionEl = e.target.closest('[data-trip-action]');
       if (actionEl) {
+        e.stopPropagation();
         const action = actionEl.dataset.tripAction;
         if (action === 'focus-point') {
           const lat = Number(actionEl.dataset.lat);
           const lng = Number(actionEl.dataset.lng);
-          if (Number.isFinite(lat) && Number.isFinite(lng)) {
-            console.log('Trip planner: clicked point, lat/lng', lat, lng);
-            map.setView([lat, lng], Math.max(map.getZoom(), 16));
-          }
           const day = trip.days.find(x => x.id === actionEl.dataset.dayId);
           const point = day?.points?.find(x => x.id === actionEl.dataset.pointId);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) {
+            map.flyTo([lat, lng], 16);
+          }
           if (point) focusTripPointOnMap(point);
           return;
         }
@@ -10560,6 +10542,30 @@ function confirmLayerDelete() {
           await recalculateTripDay(trip.id, day.id);
           return;
         }
+      }
+      const dayCardEl = e.target.closest('.trip-day-card');
+      if (dayCardEl) {
+        if (e.target.closest('.trip-point-item, button, input, select, textarea, label, a')) return;
+        activeTripDayId = dayCardEl.dataset.dayCard;
+        trip.days.forEach(d => d.highlight = d.id === activeTripDayId);
+        await saveTrip(trip.id);
+        renderTripPlannerPanel(); renderTripMapLayers(); return;
+      }
+      if (e.target.dataset.dayDelete) {
+        if (!confirm('Na pewno usunąć ten dzień?')) return;
+        const dayId = e.target.dataset.dayDelete;
+        const dayIndex = trip.days.findIndex(d => d.id === dayId);
+        if (dayIndex < 0) return;
+        const compatDb = getCompatDb(); if (!compatDb) return;
+        const day = trip.days[dayIndex];
+        for (const pt of (day.points || [])) await compatDb.collection('trips').doc(trip.id).collection('days').doc(day.id).collection('points').doc(pt.id).delete().catch(()=>{});
+        await compatDb.collection('trips').doc(trip.id).collection('days').doc(day.id).delete().catch(()=>{});
+        trip.days.splice(dayIndex, 1);
+        if (activeTripDayId === dayId) activeTripDayId = null;
+        recalculateTripDateRange(trip);
+        await saveTrip(trip.id);
+        renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility();
+        return;
       }
     });
     document.getElementById('tripActiveBox')?.addEventListener('change', async (e) => {
