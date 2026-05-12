@@ -6545,7 +6545,22 @@ function zaladujPinezkiZFirestore() {
 
     function loadNewPinsFromLocal() {
       try {
-        nowePinezki = JSON.parse(localStorage.getItem('nowePinezki')) || [];
+        const localPinsRaw = JSON.parse(localStorage.getItem('nowePinezki')) || [];
+        const invalidPins = [];
+        nowePinezki = (Array.isArray(localPinsRaw) ? localPinsRaw : []).filter(p => {
+          const lat = Number(p?.lat);
+          const lng = Number(p?.lng);
+          const hasName = Boolean((p?.nazwa || p?.name || '').toString().trim());
+          const valid = p && typeof p === 'object' && Number.isFinite(lat) && Number.isFinite(lng) && hasName;
+          if (!valid) invalidPins.push(p);
+          return valid;
+        });
+        if (invalidPins.length > 0 || nowePinezki.length !== localPinsRaw.length) {
+          console.log('unsaved debug: dropped invalid local nowePinezki', {
+            droppedCount: invalidPins.length || (localPinsRaw.length - nowePinezki.length),
+            droppedNames: invalidPins.map(p => p?.nazwa || p?.name || '[brak nazwy]')
+          });
+        }
       } catch (e) {
         nowePinezki = [];
       }
@@ -8360,9 +8375,6 @@ function getTripPointEmoji(p) {
         const ptsHtml = `<div class="trip-point-list">` + points.map((p, i) => `<div class="trip-point-item" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↑</button><button type="button" data-trip-action="move-point-down" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" title="Usuń punkt" aria-label="Usuń punkt">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
         return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
       }).join('');
-      box.querySelectorAll('[data-stop-row-click="1"]').forEach(btn => {
-        btn.addEventListener('click', ev => ev.stopPropagation());
-      });
     }
 
     async function saveTripDayPointOrder(tripId, dayId, points) {
