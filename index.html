@@ -5581,13 +5581,21 @@ function emojiHtml(str) {
           const marker = L.marker([lat, lng], { icon: getOsmIcon(names), keyboard: false });
           const popupItems = items.map((item) => `<div><strong>${escapeHtml(item.name)}</strong><br><span>${escapeHtml(item.typeLabel)}</span></div>`).join('<hr style="border:none;border-top:1px solid rgba(255,255,255,0.22);margin:6px 0;">');
           const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
-          const popupHtml = `<div class="osm-popup">${popupItems}<small>Źródło: OpenStreetMap</small><br><a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">Otwórz w Google Maps</a><br><button class="osm-import-pin">Dodaj jako pinezkę</button></div>`;
+          const popupHtml = `<div class="osm-popup">${popupItems}<small>Źródło: OpenStreetMap</small><br><a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">Otwórz w Google Maps</a><div style="height:8px"></div><button class="osm-trip-add-btn">+ Do tripa</button><br><button class="osm-import-pin">Dodaj jako pinezkę</button></div>`;
           marker.bindPopup(popupHtml);
           marker.on('popupopen', (evt) => {
-            const btn = evt.popup.getElement()?.querySelector('.osm-import-pin');
+            const popupEl = evt.popup.getElement();
+            const btn = popupEl?.querySelector('.osm-import-pin');
+            const tripBtn = popupEl?.querySelector('.osm-trip-add-btn');
+            const first = items[0];
+            if (tripBtn) {
+              tripBtn.addEventListener('click', async () => {
+                await addPointToTripFromData({ id: `cp_${Date.now()}`, type: 'custom', name: first.name, lat: first.lat, lng: first.lng, emoji: '📍', tripOnly: true, defaultPointType: 'inny', defaultVisitMinutes: 45 });
+                map.closePopup();
+              }, { once: true });
+            }
             if (!btn) return;
             btn.addEventListener('click', () => {
-              const first = items[0];
               openNewPinPopupWithDefaults(L.latLng(first.lat, first.lng), { nazwa: first.name, opis: `Źródło: OpenStreetMap\nTyp: ${first.typeLabel}`, warstwa: 'OSM import' });
               map.closePopup();
             }, { once: true });
