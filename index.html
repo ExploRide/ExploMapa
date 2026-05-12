@@ -767,6 +767,10 @@ body, #sidebar, #basemap-switcher {
 .trip-point-item.dragging { opacity:.55; }
 .trip-point-item.drag-over { border-top:2px solid var(--ui-accent); }
 .trip-icon-btn { min-width:28px; height:24px; padding:0 6px; display:inline-flex; align-items:center; justify-content:center; }
+.trip-mobile-only { display:none; }
+@media (max-width: 700px) { .trip-mobile-only { display:inline-flex; } }
+.layer-drag-handle { cursor:grab; opacity:.75; padding:2px 5px; user-select:none; margin-right:4px; }
+.layer-drag-handle:active { cursor:grabbing; }
 .trip-point-name { color:#fff; font-weight:700; font-size:13px; }
 .trip-segment-row,.trip-point-meta { color:var(--ui-text-muted); font-size:11px; }
 .trip-color-input { width:32px; height:24px; padding:0; border:0; background:none; }
@@ -6555,6 +6559,22 @@ function zaladujPinezkiZFirestore() {
       }
     }
 
+
+    async function autosaveLayerOrderToFirestore(order) {
+      if (!Array.isArray(order) || !order.length) return;
+      try {
+        await Promise.all(order.map((name, idx) => {
+          const docId = layerDocs[name];
+          if (!docId) return Promise.resolve();
+          return db.collection('layers').doc(docId).set({ order: idx }, { merge: true });
+        }));
+        initialLayerOrder = [...order];
+        layerOrderChanged = false;
+      } catch (err) {
+        console.error('Błąd autosave kolejności warstw', err);
+      }
+    }
+
     function updateLayerNumbers() {
       document.querySelectorAll('#lista-warstw .warstwa').forEach((div, idx) => {
         const num = div.querySelector('.layer-number');
@@ -6667,8 +6687,9 @@ function zaladujPinezkiZFirestore() {
         if (draggedLayer && draggedLayer !== div) {
           const lista = document.getElementById('lista-warstw');
           lista.insertBefore(draggedLayer, div);
-          saveLayerOrder();
+          saveLayerOrder({ markChange: false });
           updateLayerNumbers();
+          autosaveLayerOrderToFirestore(loadLayerOrder());
         }
       });
 
@@ -6694,8 +6715,9 @@ function zaladujPinezkiZFirestore() {
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', endPointerDrag);
         document.removeEventListener('pointercancel', endPointerDrag);
-        saveLayerOrder();
+        saveLayerOrder({ markChange: false });
         updateLayerNumbers();
+        autosaveLayerOrderToFirestore(loadLayerOrder());
       };
       handle.addEventListener('pointerdown', (event) => {
         if (event.button !== 0 && event.pointerType !== 'touch') return;
@@ -8395,7 +8417,7 @@ function getTripPointEmoji(p) {
       box.innerHTML = `<div><b>${trip.name}</b></div>${tripRange}<button id="tripAddDayBtn" type="button">+ Dodaj dzień</button><button id="tripAddPrivatePointBtn" type="button">+ Punkt tylko do tripa</button><button id="tripDeleteBtn" class="trip-icon-btn" type="button" title="Usuń trip" aria-label="Usuń trip">🗑️</button>` + trip.days.map((d, idx) => {
         const summary = d.routeSummary || {};
         const points = (d.points || []).sort((a,b)=>(a.order||0)-(b.order||0));
-        const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↑</button><button type="button" data-trip-action="move-point-down" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" title="Usuń punkt" aria-label="Usuń punkt">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
+        const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" class="trip-mobile-only">↑</button><button type="button" data-trip-action="move-point-down" class="trip-mobile-only" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" title="Usuń punkt" aria-label="Usuń punkt">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
         return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
       }).join('');
     }
@@ -9113,8 +9135,13 @@ function getTripPointEmoji(p) {
         const numberSpan = document.createElement("span");
         numberSpan.className = "layer-number";
         numberSpan.textContent = idx + 1;
+        const dragHandle = document.createElement("span");
+        dragHandle.className = "layer-drag-handle";
+        dragHandle.setAttribute("draggable", "true");
+        dragHandle.title = "Przeciągnij";
+        dragHandle.textContent = "☰";
         if (!warstwy[nazwa].temporary) {
-          setupDrag(div, numberSpan);
+          setupDrag(div, dragHandle);
         }
         const h3 = document.createElement("h3");
         const checkbox = document.createElement("input");
@@ -9181,6 +9208,7 @@ function getTripPointEmoji(p) {
         label.textContent = `${nazwa} (${warstwy[nazwa].lista.length})`;
         const left = document.createElement("span");
         left.appendChild(checkbox);
+        left.appendChild(dragHandle);
         left.appendChild(numberSpan);
         left.appendChild(label);
         if (collapseStates.hasOwnProperty(nazwa)) {
@@ -9369,6 +9397,10 @@ function getTripPointEmoji(p) {
           setLayerCollapseState(nazwa, warstwy[nazwa].collapsed);
         };
         toggleBtn.addEventListener('pointerup', toggleLayerCollapse);
+        h3.addEventListener('click', (ev) => {
+          if (ev.target.closest('button, input, .layer-drag-handle')) return;
+          toggleLayerCollapse(ev);
+        });
 
         div.appendChild(listaP);
         lista.appendChild(div);
