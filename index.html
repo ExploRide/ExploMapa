@@ -5593,6 +5593,53 @@ function emojiHtml(str) {
           });
           marker.addTo(osmOverlayLayer);
         });
+        spreadOsmOverlayMarkers();
+      }
+
+      function spreadOsmOverlayMarkers() {
+        if (!osmOverlayLayer || !map) return;
+        const markers = [];
+        osmOverlayLayer.eachLayer((layer) => {
+          if (layer instanceof L.Marker) {
+            const original = layer._osmOriginalLatLng || layer.getLatLng();
+            layer._osmOriginalLatLng = original;
+            markers.push(layer);
+          }
+        });
+        if (!markers.length) return;
+        const placedPoints = [];
+        const minDistancePx = 46;
+        const ringStepPx = 26;
+        const maxRing = 7;
+
+        markers.forEach((marker) => {
+          const originalLatLng = marker._osmOriginalLatLng || marker.getLatLng();
+          const centerPoint = map.latLngToLayerPoint(originalLatLng);
+          let chosenPoint = centerPoint;
+          let foundSpot = false;
+          for (let ring = 0; ring <= maxRing && !foundSpot; ring++) {
+            const radius = ring * ringStepPx;
+            const candidates = ring === 0
+              ? [centerPoint]
+              : Array.from({ length: Math.max(8, ring * 10) }, (_, i) => {
+                  const angle = (2 * Math.PI * i) / Math.max(8, ring * 10);
+                  return L.point(
+                    centerPoint.x + Math.cos(angle) * radius,
+                    centerPoint.y + Math.sin(angle) * radius
+                  );
+                });
+            for (const candidate of candidates) {
+              const collides = placedPoints.some((placed) => candidate.distanceTo(placed) < minDistancePx);
+              if (!collides) {
+                chosenPoint = candidate;
+                foundSpot = true;
+                break;
+              }
+            }
+          }
+          placedPoints.push(chosenPoint);
+          marker.setLatLng(map.layerPointToLatLng(chosenPoint));
+        });
       }
       const debouncedLoadOsmOverlay = debounce(async () => {
         if (!osmOverlayEnabled) return;
