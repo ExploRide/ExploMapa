@@ -774,7 +774,7 @@ body, #sidebar, #basemap-switcher {
 .duplicate-item.is-removed .duplicate-pin-link { color: #a6adbc; text-decoration: none; cursor: default; pointer-events: none; }
 .duplicate-remove-btn { min-width: 34px; }
 .duplicate-meta { color: #c3cad8; font-size: 12px; }
-.duplicate-global-actions { display:flex; flex-wrap:wrap; gap:8px; margin: 0 0 10px; }
+.duplicate-global-actions { display:flex; flex-wrap:wrap; gap:8px; margin: 0; flex: 1; }
 .duplicate-global-actions button { flex: 1 1 260px; }
 
 
@@ -1949,6 +1949,32 @@ img.emoji {
       user-select: none;
       pointer-events: auto;
     }
+    .osm-overlay-label-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      align-items: flex-start;
+      pointer-events: auto;
+    }
+    #osmOverlayStatus {
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      z-index: 1400;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.25;
+      background: rgba(10, 14, 22, 0.82);
+      color: #edf2ff;
+      border: 1px solid rgba(255,255,255,0.22);
+      pointer-events: none;
+      max-width: min(80vw, 360px);
+    }
+    #osmOverlayStatus.osm-status-success { border-color: rgba(67, 197, 110, 0.7); }
+    #osmOverlayStatus.osm-status-loading { border-color: rgba(88, 161, 255, 0.8); }
+    #osmOverlayStatus.osm-status-zoom { border-color: rgba(255, 195, 90, 0.8); }
+    #osmOverlayStatus.osm-status-disabled { border-color: rgba(180, 185, 200, 0.55); }
     body.dark-mode .osm-overlay-label {
       background: rgba(19, 24, 34, 0.82);
       border-color: rgba(255, 255, 255, 0.32);
@@ -5061,11 +5087,21 @@ function emojiHtml(str) {
       };
 
       const osmOverlayCache = new Map();
-      let osmOverlayEnabled = false;
+      const OSM_OVERLAY_MIN_ZOOM = 12;
+      let osmOverlayEnabled = true;
       let osmOverlayLoading = false;
       let lastOsmRequestKey = null;
       let osmAbortController = null;
       let osmOverlayLayer = null;
+      let osmOverlayStatusEl = null;
+
+      function setOsmOverlayStatus(message, type = '') {
+        if (!osmOverlayStatusEl) return;
+        osmOverlayStatusEl.textContent = message;
+        osmOverlayStatusEl.className = '';
+        osmOverlayStatusEl.id = 'osmOverlayStatus';
+        if (type) osmOverlayStatusEl.classList.add(`osm-status-${type}`);
+      }
 
       function stopActiveMapPan() {
         // Stop current movement first, so rapid popup switches do not queue pans.
@@ -5469,10 +5505,11 @@ function emojiHtml(str) {
         if (tags.amenity === 'parking') return 'Parking';
         return 'Obiekt OSM';
       }
-      function getOsmIcon(name) {
+      function getOsmIcon(names) {
+        const labelHtml = (Array.isArray(names) ? names : [names]).map((name) => `<div class="osm-overlay-label">${escapeHtml(name)}</div>`).join('');
         return L.divIcon({
           className: 'osm-overlay-marker',
-          html: `<div class="osm-overlay-label">${escapeHtml(name)}</div>`,
+          html: `<div class="osm-overlay-label-stack">${labelHtml}</div>`,
           iconSize: null,
           iconAnchor: [0, 0]
         });
@@ -5499,6 +5536,7 @@ function emojiHtml(str) {
         if (elements.length > 500) console.warn(`[OSM Overlay] Ograniczono render do 500 z ${elements.length} obiektów.`);
         const limitedElements = elements.slice(0, 500);
         const seen = new Set();
+        const groupedByCoord = new Map();
         limitedElements.forEach((element) => {
           const id = `${element.type}-${element.id}`; if (seen.has(id)) return; seen.add(id);
           const lat = element.lat || element.center?.lat; const lng = element.lon || element.center?.lon;
@@ -5507,14 +5545,23 @@ function emojiHtml(str) {
           const name = tags['name:pl'] || tags.name || tags['name:en'];
           const typeLabel = getOsmTypeLabel(tags);
           if (!name) return;
-          const marker = L.marker([lat,lng], { icon: getOsmIcon(name), keyboard: false });
-          const popupHtml = `<div class="osm-popup"><strong>${escapeHtml(name)}</strong><br><span>${escapeHtml(typeLabel)}</span><br><small>Źródło: OpenStreetMap</small><br><button class="osm-import-pin">Dodaj jako pinezkę</button></div>`;
+          const coordKey = `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
+          if (!groupedByCoord.has(coordKey)) groupedByCoord.set(coordKey, []);
+          groupedByCoord.get(coordKey).push({ lat, lng, name, typeLabel });
+        });
+        groupedByCoord.forEach((items) => {
+          const { lat, lng } = items[0];
+          const names = items.map((item) => item.name);
+          const marker = L.marker([lat, lng], { icon: getOsmIcon(names), keyboard: false });
+          const popupItems = items.map((item) => `<div><strong>${escapeHtml(item.name)}</strong><br><span>${escapeHtml(item.typeLabel)}</span></div>`).join('<hr style="border:none;border-top:1px solid rgba(255,255,255,0.22);margin:6px 0;">');
+          const popupHtml = `<div class="osm-popup">${popupItems}<small>Źródło: OpenStreetMap</small><br><button class="osm-import-pin">Dodaj jako pinezkę</button></div>`;
           marker.bindPopup(popupHtml);
           marker.on('popupopen', (evt) => {
             const btn = evt.popup.getElement()?.querySelector('.osm-import-pin');
             if (!btn) return;
             btn.addEventListener('click', () => {
-              openNewPinPopupWithDefaults(L.latLng(lat, lng), { nazwa: name, opis: `Źródło: OpenStreetMap\nTyp: ${typeLabel}`, warstwa: 'OSM import' });
+              const first = items[0];
+              openNewPinPopupWithDefaults(L.latLng(first.lat, first.lng), { nazwa: first.name, opis: `Źródło: OpenStreetMap\nTyp: ${first.typeLabel}`, warstwa: 'OSM import' });
               map.closePopup();
             }, { once: true });
           });
@@ -5523,13 +5570,23 @@ function emojiHtml(str) {
       }
       const debouncedLoadOsmOverlay = debounce(async () => {
         if (!osmOverlayEnabled) return;
-        if (map.getZoom() < 10) { osmOverlayLayer.clearLayers(); console.info('Przybliż mapę, żeby zobaczyć OSM'); return; }
+        if (map.getZoom() < OSM_OVERLAY_MIN_ZOOM) {
+          osmOverlayLayer.clearLayers();
+          setOsmOverlayStatus('Przybliż aby pokazać miejsca OSM', 'zoom');
+          return;
+        }
         const key = getOsmCacheKey();
-        if (osmOverlayCache.has(key)) { lastOsmRequestKey = key; renderOsmOverlay(osmOverlayCache.get(key)); return; }
+        if (osmOverlayCache.has(key)) {
+          lastOsmRequestKey = key;
+          renderOsmOverlay(osmOverlayCache.get(key));
+          setOsmOverlayStatus('Miejsca OSM załadowane dla bieżącego obszaru.', 'success');
+          return;
+        }
         if (osmAbortController) osmAbortController.abort();
         osmAbortController = new AbortController(); osmOverlayLoading = true; lastOsmRequestKey = key;
+        setOsmOverlayStatus('Wczytywanie miejsc OSM dla aktualnego obszaru…', 'loading');
         const b = map.getBounds(); const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
-        try { const data = await fetchOsmOverlay(bbox); if (lastOsmRequestKey !== key) return; osmOverlayCache.set(key, data); renderOsmOverlay(data); }
+        try { const data = await fetchOsmOverlay(bbox); if (lastOsmRequestKey !== key) return; osmOverlayCache.set(key, data); renderOsmOverlay(data); setOsmOverlayStatus('Miejsca OSM załadowane dla bieżącego obszaru.', 'success'); }
         catch (err) { if (err.name !== 'AbortError') console.warn('[OSM Overlay]', err); }
         finally { osmOverlayLoading = false; }
       }, 900);
@@ -5666,6 +5723,7 @@ function emojiHtml(str) {
         if (!enabled) {
           if (osmAbortController) osmAbortController.abort();
           osmOverlayLayer.clearLayers();
+          setOsmOverlayStatus('Nakładka miejsc OSM jest wyłączona.', 'disabled');
           return;
         }
         debouncedLoadOsmOverlay();
@@ -5673,6 +5731,8 @@ function emojiHtml(str) {
       if (osmOverlayCheckbox) {
         osmOverlayCheckbox.addEventListener('change', (e) => setOsmOverlayState(!!e.target.checked));
       }
+      osmOverlayStatusEl = document.getElementById('osmOverlayStatus');
+      setOsmOverlayState(true);
       map.on('moveend zoomend', () => { if (osmOverlayEnabled) debouncedLoadOsmOverlay(); });
 
       ['archStd','archHi','shade'].forEach(key => {
@@ -10190,9 +10250,8 @@ function getTripPointEmoji(p) {
           if (event.target === duplicateModal) duplicateModal.style.display = 'none';
         });
       }
-      const duplicatePinsList = document.getElementById('duplicatePinsList');
-      if (duplicatePinsList) {
-        duplicatePinsList.addEventListener('click', (event) => {
+      if (duplicateModal) {
+        duplicateModal.addEventListener('click', (event) => {
           const target = event.target.closest('button');
           if (!target) return;
           const action = target.dataset.action;
@@ -10970,11 +11029,11 @@ function confirmLayerDelete() {
     <div id="duplicatePinsModalContent">
 	      <div class="duplicate-modal-header">
         <h3 style="margin:0;">Duplikaty pinezek (te same współrzędne)</h3>
+        <div class="duplicate-global-actions">
+          <button type="button" class="duplicate-remove-all-btn" data-action="remove-all-same-name-location">Usuń wszystkie z tą samą nazwą i lokalizacją</button>
+          <button type="button" class="duplicate-remove-all-btn" data-action="remove-all-same-location">Usuń wszystkie z tą samą lokalizacją</button>
+        </div>
         <button id="closeDuplicatePinsModal" type="button">Zamknij</button>
-      </div>
-      <div class="duplicate-global-actions">
-        <button type="button" class="duplicate-remove-all-btn" data-action="remove-all-same-name-location">Usuń wszystkie z tą samą nazwą i lokalizacją</button>
-        <button type="button" class="duplicate-remove-all-btn" data-action="remove-all-same-location">Usuń wszystkie z tą samą lokalizacją</button>
       </div>
       <div id="duplicatePinsList"></div>
     </div>
@@ -11003,6 +11062,7 @@ function confirmLayerDelete() {
   <button id="savePinBtn">ZAPISZ PIN</button>
   <div id="pinSavedMessage">Zapisano pinezkę</div>
   <div id="gpsLoadingMessage">Wczytuję lokalizację GPS...</div>
+  <div id="osmOverlayStatus" class="osm-status-loading">Wczytywanie miejsc OSM dla aktualnego obszaru…</div>
   <div id="mobilePinModal" class="mobile-modal">
     <div class="mobile-modal-content">
       <input type="text" id="mobilePinName" placeholder="Nazwa pinezki" style="width: 100%">
