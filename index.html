@@ -1940,10 +1940,13 @@ img.emoji {
       display: inline-block;
       padding: 2px 6px;
       border-radius: 6px;
-      background: rgba(255, 255, 255, 0.78);
-      border: 1px solid rgba(0, 0, 0, 0.26);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.22);
-      color: #1f2328;
+      color: #a6f6ffc9;
+      text-shadow:
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000,
+        0 0 2px #000;
       font-size: 11px;
       line-height: 1.2;
       font-weight: 500;
@@ -1978,9 +1981,7 @@ img.emoji {
     #osmOverlayStatus.osm-status-zoom { border-color: rgba(255, 195, 90, 0.8); }
     #osmOverlayStatus.osm-status-disabled { border-color: rgba(180, 185, 200, 0.55); }
     body.dark-mode .osm-overlay-label {
-      background: rgba(19, 24, 34, 0.82);
-      border-color: rgba(255, 255, 255, 0.32);
-      color: #f2f4f8;
+      color: #a6f6ffc9;
     }
     #overlay-item-osm.active {
       box-shadow: inset 0 0 0 1px var(--ui-accent, #007bff);
