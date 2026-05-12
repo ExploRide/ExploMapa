@@ -693,12 +693,45 @@ body, #sidebar, #basemap-switcher {
 #lista-warstw::-webkit-scrollbar-thumb:hover {
   background-color: #777;
 }
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 0 0 10px 0;
+    }
     #logoNaglowek {
   text-align: center;
   font-weight: bold;
   font-size: 20px;
-  margin: 0 0 10px 0;
+  margin: 0;
   color: #f0f0f0;
+  flex: 1;
+}
+#specialMenuToggle {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 2px 8px;
+}
+#specialMenu {
+  position: relative;
+  margin-bottom: 8px;
+}
+#specialMenuContent {
+  display: none;
+  position: absolute;
+  top: 34px;
+  left: 0;
+  min-width: 180px;
+  background: #1d212c;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 6px;
+  z-index: 1200;
+}
+#specialMenuContent.open {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .emoji-obrys {
   filter: drop-shadow(0 0 0.1px black)
@@ -1860,7 +1893,16 @@ img.emoji {
   <div id="loading"><div class="loader"></div></div>
   <div id="sidebar">
     <div id="sidebar-inner">
-      <h2 id="logoNaglowek">ExploMapy</h2>
+      <div class="sidebar-header">
+        <div id="specialMenu">
+          <button id="specialMenuToggle" type="button" aria-label="Menu specjalne" aria-expanded="false">☰</button>
+          <div id="specialMenuContent" aria-label="Opcje specjalne">
+            <button id="emojiToolBtn">Emoji Tool</button>
+            <button id="exportKML">Zapisz do .KML</button>
+          </div>
+        </div>
+        <h2 id="logoNaglowek">ExploMapy</h2>
+      </div>
       <div class="trip-mode-toggle">
         <button id="modePinsBtn" class="active" type="button">Pinezki</button>
         <button id="modeTripBtn" type="button">Plan tripu</button>
@@ -1939,7 +1981,6 @@ img.emoji {
       </div>
       <div id="pinTotalCounter" class="pin-total-counter">Liczba miejsc: 0</div>
       <div id="lista-warstw"></div>
-      <button id="emojiToolBtn">Emoji Tool</button>
       <button id="syncBtn">Synchronizuj (<span id="syncCount">0</span>)</button>
     </div>
   </div>
@@ -2071,7 +2112,6 @@ img.emoji {
       <div id="history-log"></div>
     </div>
     <div id="basemap-actions">
-      <button id="exportKML">Zapisz do .KML</button>
       <button id="saveChanges">Zapisz edycję mapy</button>
     </div>
   </div>
@@ -2092,6 +2132,7 @@ img.emoji {
       <label><input type="radio" name="layerDefaultVisibility" id="layerDefaultHidden" value="hidden"> Domyślnie ukryta</label>
     </div>
     <button id="layerEditDelete">Usuń warstwę</button>
+    <button id="layerEditExportKml">Eksportuj warstwę do .KML</button>
     <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button>
     <button id="layerEditClose" onclick="closeLayerEditor()">Zamknij</button>
   </div>
@@ -4483,6 +4524,7 @@ function emojiHtml(str) {
         <div class="popup-info-item">${formatCoords(p.lat, p.lng)}</div>
         <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
         <div class="popup-edit-row">
+          <button class="popup-edit-btn popup-delete-btn" title="Usuń pinezkę">🗑️</button>
           <button class="popup-edit-btn">✏️</button>
         </div>
         <div class="popup-route-actions">
@@ -4505,6 +4547,13 @@ function emojiHtml(str) {
           btn.addEventListener('click', ev => {
             ev.stopPropagation();
             edytuj(p.id, p.lat, p.lng);
+          });
+        }
+        const deleteBtn = container.querySelector('.popup-delete-btn');
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', ev => {
+            ev.stopPropagation();
+            openDeleteModal(p.id);
           });
         }
         const rbtn = container.querySelector('.popup-route-add-btn');
@@ -9764,8 +9813,26 @@ function getTripPointEmoji(p) {
         alert('Błąd eksportu: ' + err.message);
       }
     }
+    async function exportLayerPinsToKML(layerName) {
+      if (!layerName || !warstwy[layerName] || !Array.isArray(warstwy[layerName].lista)) return;
+      try {
+        const pins = warstwy[layerName].lista.map(pin => ({ ...pin }));
+        const kml = buildKml(pins);
+        const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const safeName = slugify(layerName || 'warstwa') || 'warstwa';
+        a.download = `${safeName}.kml`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+      } catch (err) {
+        alert('Błąd eksportu warstwy: ' + err.message);
+      }
+    }
 
     document.getElementById('exportKML').addEventListener('click', exportPinsToKML);
+    document.getElementById('layerEditExportKml').addEventListener('click', () => exportLayerPinsToKML(editedLayer));
 
   document.addEventListener("DOMContentLoaded", () => {
     if (window.twemoji && typeof window.twemoji.parse === 'function') {
@@ -9777,6 +9844,23 @@ function getTripPointEmoji(p) {
       } catch (err) {
         console.warn('twemoji.parse failed', err);
       }
+    }
+    const specialMenu = document.getElementById('specialMenu');
+    const specialMenuToggle = document.getElementById('specialMenuToggle');
+    const specialMenuContent = document.getElementById('specialMenuContent');
+    if (specialMenu && specialMenuToggle && specialMenuContent) {
+      specialMenuToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const willOpen = !specialMenuContent.classList.contains('open');
+        specialMenuContent.classList.toggle('open', willOpen);
+        specialMenuToggle.setAttribute('aria-expanded', String(willOpen));
+      });
+      document.addEventListener('click', (e) => {
+        if (!specialMenu.contains(e.target)) {
+          specialMenuContent.classList.remove('open');
+          specialMenuToggle.setAttribute('aria-expanded', 'false');
+        }
+      });
     }
     const modal = document.getElementById('photoModal');
     if (modal) {
