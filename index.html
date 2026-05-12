@@ -733,6 +733,33 @@ body, #sidebar, #basemap-switcher {
   flex-direction: column;
   gap: 6px;
 }
+
+#duplicatePinsModal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1600;
+}
+#duplicatePinsModalContent {
+  width: min(760px, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: #1d212c;
+  border: 1px solid #4d5568;
+  border-radius: 8px;
+  padding: 14px;
+}
+.duplicate-group { border: 1px solid #3a4153; border-radius: 6px; padding: 8px; margin-bottom: 10px; }
+.duplicate-group h4 { margin: 0 0 8px; font-size: 14px; }
+.duplicate-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
+.duplicate-pin-link { background: transparent; border: 0; color: #8bc5ff; text-align: left; cursor: pointer; padding: 0; }
+.duplicate-pin-link:hover { text-decoration: underline; }
+.duplicate-remove-btn { min-width: 34px; }
+.duplicate-meta { color: #c3cad8; font-size: 12px; }
+
 .emoji-obrys {
   filter: drop-shadow(0 0 0.1px black)
           drop-shadow(1px 1px 1px black)
@@ -1899,6 +1926,7 @@ img.emoji {
           <div id="specialMenuContent" aria-label="Opcje specjalne">
             <button id="emojiToolBtn">Emoji Tool</button>
             <button id="exportKML">Zapisz do .KML</button>
+            <button id="findDuplicatePinsBtn">Znajdź duplikaty pinezek</button>
           </div>
         </div>
         <h2 id="logoNaglowek">ExploMapy</h2>
@@ -9831,6 +9859,53 @@ function getTripPointEmoji(p) {
       }
     }
 
+
+    function buildDuplicateCoordinateGroups() {
+      const groups = new Map();
+      wszystkiePinezki.forEach(pin => {
+        const lat = Number(pin.lat);
+        const lng = Number(pin.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(pin);
+      });
+      return Array.from(groups.entries())
+        .filter(([, pins]) => pins.length > 1)
+        .sort((a, b) => b[1].length - a[1].length);
+    }
+
+    function renderDuplicatePinsList() {
+      const container = document.getElementById('duplicatePinsList');
+      if (!container) return;
+      const groups = buildDuplicateCoordinateGroups();
+      if (!groups.length) {
+        container.innerHTML = '<div>Brak duplikatów współrzędnych.</div>';
+        return;
+      }
+      container.innerHTML = groups.map(([coords, pins]) => {
+        const items = pins.map(pin => {
+          const pinId = String(pin.id || '');
+          const layer = resolveLayerInfo(pin.warstwa, pin.warstwaId).warstwaName || pin.warstwa || 'Inne';
+          const name = pin.nazwa || pin.name || '(bez nazwy)';
+          return `<div class="duplicate-item" data-dup-pin-id="${escapeHtml(pinId)}">
+            <div>
+              <button type="button" class="duplicate-pin-link" data-action="focus">${escapeHtml(name)}</button>
+              <div class="duplicate-meta">Warstwa: ${escapeHtml(layer)}</div>
+            </div>
+            <button type="button" class="duplicate-remove-btn" data-action="remove" title="Usuń pinezkę">🗑️</button>
+          </div>`;
+        }).join('');
+        return `<div class="duplicate-group"><h4>Współrzędne: ${coords} (${pins.length})</h4>${items}</div>`;
+      }).join('');
+    }
+
+    function openDuplicatePinsModal() {
+      renderDuplicatePinsList();
+      const modal = document.getElementById('duplicatePinsModal');
+      if (modal) modal.style.display = 'flex';
+    }
+
     document.getElementById('exportKML').addEventListener('click', exportPinsToKML);
     document.getElementById('layerEditExportKml').addEventListener('click', () => exportLayerPinsToKML(editedLayer));
 
@@ -9862,6 +9937,38 @@ function getTripPointEmoji(p) {
         }
       });
     }
+
+    const duplicateModal = document.getElementById('duplicatePinsModal');
+      const findDuplicatePinsBtn = document.getElementById('findDuplicatePinsBtn');
+      const closeDuplicatePinsModalBtn = document.getElementById('closeDuplicatePinsModal');
+      if (findDuplicatePinsBtn) findDuplicatePinsBtn.addEventListener('click', openDuplicatePinsModal);
+      if (closeDuplicatePinsModalBtn) closeDuplicatePinsModalBtn.addEventListener('click', () => {
+        if (duplicateModal) duplicateModal.style.display = 'none';
+      });
+      if (duplicateModal) {
+        duplicateModal.addEventListener('click', (event) => {
+          if (event.target === duplicateModal) duplicateModal.style.display = 'none';
+        });
+      }
+      const duplicatePinsList = document.getElementById('duplicatePinsList');
+      if (duplicatePinsList) {
+        duplicatePinsList.addEventListener('click', (event) => {
+          const target = event.target.closest('button');
+          if (!target) return;
+          const row = target.closest('.duplicate-item');
+          if (!row) return;
+          const pinId = row.dataset.dupPinId;
+          const pin = wszystkiePinezki.find(pp => String(pp.id) === String(pinId));
+          if (!pin) return;
+          const action = target.dataset.action;
+          if (action === 'focus') {
+            openPinFromList(pin, null);
+          } else if (action === 'remove') {
+            deletePinLocal(pin.id);
+            renderDuplicatePinsList();
+          }
+        });
+      }
     const modal = document.getElementById('photoModal');
     if (modal) {
       modal.addEventListener('click', e => {
@@ -10559,6 +10666,17 @@ function confirmLayerDelete() {
   }
 
   </script>
+
+  <div id="duplicatePinsModal">
+    <div id="duplicatePinsModalContent">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+        <h3 style="margin:0;">Duplikaty pinezek (te same współrzędne)</h3>
+        <button id="closeDuplicatePinsModal" type="button">Zamknij</button>
+      </div>
+      <div id="duplicatePinsList"></div>
+    </div>
+  </div>
+
   <div id="deleteModal">
     <div id="deleteModalContent">
       <div>Czy na pewno chcesz usunąć pinezkę?</div>
