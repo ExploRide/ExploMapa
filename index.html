@@ -10603,13 +10603,19 @@ function confirmLayerDelete() {
     });
     document.getElementById('tripActiveBox')?.addEventListener('click', async (e) => {
       const trip = getActiveTrip(); if (!trip) return;
-      if (e.target.id === 'tripAddDayBtn') {
+      const targetEl = e.target instanceof Element ? e.target : null;
+      const addDayBtn = targetEl?.closest('#tripAddDayBtn');
+      const addPrivatePointBtn = targetEl?.closest('#tripAddPrivatePointBtn');
+      const deleteTripBtn = targetEl?.closest('#tripDeleteBtn');
+      const deleteDayBtn = targetEl?.closest('[data-day-delete]');
+
+      if (addDayBtn) {
         const day = { id: `day_${Date.now()}`, name: `Dzień ${trip.days.length + 1}`, color: '#ff3b3b', visible: true, points: [], routeSummary: {} };
         if (!trip.days.length) activeTripDayId = day.id;
         trip.days.push(day); await saveTrip(trip.id); renderTripPlannerPanel(); renderTripMapLayers(); return;
       }
-      if (e.target.id === 'tripAddPrivatePointBtn') { tripPrivatePointArmed = true; showToast('Kliknij na mapie, aby dodać prywatny punkt tripa.'); return; }
-      if (e.target.id === 'tripDeleteBtn') {
+      if (addPrivatePointBtn) { tripPrivatePointArmed = true; showToast('Kliknij na mapie, aby dodać prywatny punkt tripa.'); return; }
+      if (deleteTripBtn) {
         if (!confirm('Na pewno usunąć cały trip?')) return;
         const compatDb = getCompatDb(); if (!compatDb) return;
         for (const day of (trip.days || [])) {
@@ -10622,7 +10628,7 @@ function confirmLayerDelete() {
         renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility();
         return;
       }
-      const actionEl = e.target.closest('button[data-trip-action]') || e.target.closest('[data-trip-action]');
+      const actionEl = targetEl?.closest('[data-trip-action]');
       if (actionEl) {
         e.preventDefault();
         e.stopPropagation();
@@ -10687,17 +10693,9 @@ function confirmLayerDelete() {
           return;
         }
       }
-      const dayCardEl = e.target.closest('.trip-day-card');
-      if (dayCardEl) {
-        if (e.target.closest('.trip-point-item, button, input, select, textarea, label, a')) return;
-        activeTripDayId = dayCardEl.dataset.dayCard;
-        trip.days.forEach(d => d.highlight = d.id === activeTripDayId);
-        await saveTrip(trip.id);
-        renderTripPlannerPanel(); renderTripMapLayers(); return;
-      }
-      if (e.target.dataset.dayDelete) {
+      if (deleteDayBtn) {
         if (!confirm('Na pewno usunąć ten dzień?')) return;
-        const dayId = e.target.dataset.dayDelete;
+        const dayId = deleteDayBtn.dataset.dayDelete;
         const dayIndex = trip.days.findIndex(d => d.id === dayId);
         if (dayIndex < 0) return;
         const compatDb = getCompatDb(); if (!compatDb) return;
@@ -10710,6 +10708,15 @@ function confirmLayerDelete() {
         await saveTrip(trip.id);
         renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility();
         return;
+      }
+
+      const dayCardEl = e.target.closest('.trip-day-card');
+      if (dayCardEl) {
+        if (e.target.closest('.trip-point-item, button, input, select, textarea, label, a')) return;
+        activeTripDayId = dayCardEl.dataset.dayCard;
+        trip.days.forEach(d => d.highlight = d.id === activeTripDayId);
+        await saveTrip(trip.id);
+        renderTripPlannerPanel(); renderTripMapLayers(); return;
       }
     });
     document.getElementById('tripActiveBox')?.addEventListener('change', async (e) => {
