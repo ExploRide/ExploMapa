@@ -5607,36 +5607,30 @@ function emojiHtml(str) {
           }
         });
         if (!markers.length) return;
+
         const placedPoints = [];
-        const minDistancePx = 46;
-        const ringStepPx = 26;
-        const maxRing = 7;
+        const minHorizontalDistancePx = 18;
+        const verticalStepPx = 15;
+        const maxStackLevels = 10;
 
         markers.forEach((marker) => {
           const originalLatLng = marker._osmOriginalLatLng || marker.getLatLng();
           const centerPoint = map.latLngToLayerPoint(originalLatLng);
           let chosenPoint = centerPoint;
-          let foundSpot = false;
-          for (let ring = 0; ring <= maxRing && !foundSpot; ring++) {
-            const radius = ring * ringStepPx;
-            const candidates = ring === 0
-              ? [centerPoint]
-              : Array.from({ length: Math.max(8, ring * 10) }, (_, i) => {
-                  const angle = (2 * Math.PI * i) / Math.max(8, ring * 10);
-                  return L.point(
-                    centerPoint.x + Math.cos(angle) * radius,
-                    centerPoint.y + Math.sin(angle) * radius
-                  );
-                });
-            for (const candidate of candidates) {
-              const collides = placedPoints.some((placed) => candidate.distanceTo(placed) < minDistancePx);
-              if (!collides) {
-                chosenPoint = candidate;
-                foundSpot = true;
-                break;
-              }
+
+          for (let level = 0; level <= maxStackLevels; level++) {
+            const candidate = L.point(centerPoint.x, centerPoint.y + (level * verticalStepPx));
+            const collides = placedPoints.some((placed) => {
+              const dx = Math.abs(candidate.x - placed.x);
+              const dy = Math.abs(candidate.y - placed.y);
+              return dx < minHorizontalDistancePx && dy < verticalStepPx;
+            });
+            if (!collides) {
+              chosenPoint = candidate;
+              break;
             }
           }
+
           placedPoints.push(chosenPoint);
           marker.setLatLng(map.layerPointToLatLng(chosenPoint));
         });
