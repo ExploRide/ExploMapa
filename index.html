@@ -5931,6 +5931,24 @@ function zaladujPinezkiZFirestore() {
       }
     }
 
+    function setupLayerDropdownByMainCategory(layerInput, mainCategoryInput) {
+      if (!layerInput || !mainCategoryInput) return;
+      const getFilteredLayers = () => {
+        const selectedMain = normalizeMainCategory(mainCategoryInput.value || MAIN_CATEGORY_URBEX);
+        return Object.keys(warstwy).filter(name => {
+          const layerMain = normalizeMainCategory((warstwy[name] && warstwy[name].mainCategory) || MAIN_CATEGORY_URBEX);
+          return layerMain === selectedMain;
+        });
+      };
+      setupDropdownInput(layerInput, getFilteredLayers);
+      const enforceLayerMatch = () => {
+        const allowed = getFilteredLayers();
+        if (layerInput.value && !allowed.includes(layerInput.value)) layerInput.value = '';
+      };
+      mainCategoryInput.addEventListener('change', enforceLayerMatch);
+      enforceLayerMatch();
+    }
+
     function edytuj(id, lat, lng) {
      /* console.log('Wywołano edytuj dla id:', id, 'lat:', lat, 'lng:', lng); // <-- dodane */
       const p = wszystkiePinezki.find(pp => pp.id === id);
@@ -5945,16 +5963,16 @@ function zaladujPinezkiZFirestore() {
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
         <textarea id="eopis" style="width: 100%; height: 50px"></textarea><br>
         <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo" style="width: 100%"><br>
-        <div style="display:flex; gap:6px; align-items:center;">
-          <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa" style="width: 100%">
-          <button id="addLayerFromPinEdit" type="button" title="Dodaj nową warstwę">＋</button>
-        </div><br>
         <label for="ekategoriaGlowna">Kategoria główna</label><br>
         <select id="ekategoriaGlowna" style="width: 100%">
           <option value="URBEX" ${getPinMainCategory(p) === MAIN_CATEGORY_URBEX ? 'selected' : ''}>URBEX</option>
           <option value="TURYSTYCZNE" ${getPinMainCategory(p) === MAIN_CATEGORY_TURYSTYCZNE ? 'selected' : ''}>TURYSTYCZNE</option>
         </select><br>
         <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Podkategoria" style="width: 100%"><br>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa" style="width: 100%">
+          <button id="addLayerFromPinEdit" type="button" title="Dodaj nową warstwę">＋</button>
+        </div><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="etrudnosc" class="trudnosc-range" min="0" max="5" step="1" value="${p.trudnosc ?? 0}">
@@ -5977,7 +5995,7 @@ function zaladujPinezkiZFirestore() {
       applyEditDraft(p, container);
       setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p);
       setupGallery(container.querySelector('.photo-gallery'));
-      setupDropdownInput(container.querySelector('#ewarstwa'), () => Object.keys(warstwy));
+      setupLayerDropdownByMainCategory(container.querySelector('#ewarstwa'), container.querySelector('#ekategoriaGlowna'));
       const editMainCategoryInput = container.querySelector('#ekategoriaGlowna');
       const editCategoryInput = container.querySelector('#ekategoria');
       const addLayerFromPinEditBtn = container.querySelector('#addLayerFromPinEdit');
@@ -6291,16 +6309,16 @@ function zaladujPinezkiZFirestore() {
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
         <textarea id="opisNew" placeholder="Opis" style="width: 100%; height: 100px"></textarea><br>
         <input id="odKogoNew" placeholder="Od kogo" style="width: 100%"><br>
-        <div style="display:flex; gap:6px; align-items:center;">
-          <input id="warstwaNew" placeholder="Warstwa" style="width: 100%">
-          <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
-        </div><br>
         <label for="kategoriaGlownaNew">Kategoria główna</label><br>
         <select id="kategoriaGlownaNew" style="width: 102%">
           <option value="URBEX">URBEX</option>
           <option value="TURYSTYCZNE">TURYSTYCZNE</option>
         </select><br>
         <input id="kategoriaNew" placeholder="Podkategoria" style="width: 102%"><br>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input id="warstwaNew" placeholder="Warstwa" style="width: 100%">
+          <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
+        </div><br>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="trudnoscNew" class="trudnosc-range" min="0" max="5" step="1" value="0">
@@ -6317,7 +6335,7 @@ function zaladujPinezkiZFirestore() {
       setupGallery(container.querySelector('.photo-gallery'));
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'));
       setupEmojiPicker(container.querySelector('#emojiPickerNew'), tempPin);
-      setupDropdownInput(container.querySelector('#warstwaNew'), () => Object.keys(warstwy));
+      setupLayerDropdownByMainCategory(container.querySelector('#warstwaNew'), container.querySelector('#kategoriaGlownaNew'));
       const addLayerFromPinNewBtn = container.querySelector('#addLayerFromPinNew');
       if (addLayerFromPinNewBtn) addLayerFromPinNewBtn.addEventListener('click', () => {
         const layerName = (container.querySelector('#warstwaNew').value || '').trim();
@@ -10969,9 +10987,10 @@ function confirmLayerDelete() {
     document.getElementById('tripActiveBox')?.addEventListener('dragover', (e) => {
       if (!tripDraggedPointId || !tripDraggedDayId) return;
       const overItem = e.target instanceof Element ? e.target.closest('.trip-point-item') : null;
-      if (!overItem || overItem.dataset.dayId !== tripDraggedDayId) return;
+      const overDayCard = e.target instanceof Element ? e.target.closest('.trip-day-card') : null;
+      if (!overItem && !overDayCard) return;
       e.preventDefault();
-      overItem.classList.add('drag-over');
+      if (overItem) overItem.classList.add('drag-over');
     });
     document.getElementById('tripActiveBox')?.addEventListener('dragleave', (e) => {
       const overItem = e.target instanceof Element ? e.target.closest('.trip-point-item') : null;
@@ -10980,24 +10999,37 @@ function confirmLayerDelete() {
     document.getElementById('tripActiveBox')?.addEventListener('drop', async (e) => {
       if (!tripDraggedPointId || !tripDraggedDayId) return;
       const overItem = e.target instanceof Element ? e.target.closest('.trip-point-item') : null;
-      if (!overItem || overItem.dataset.dayId !== tripDraggedDayId) return;
+      const overDayCard = e.target instanceof Element ? e.target.closest('.trip-day-card') : null;
+      if (!overItem && !overDayCard) return;
       e.preventDefault();
       overItem.classList.remove('drag-over');
-      const targetPointId = overItem.dataset.pointId;
-      if (!targetPointId || targetPointId === tripDraggedPointId) return;
       const trip = getActiveTrip(); if (!trip) return;
-      const day = trip.days.find(d => d.id === tripDraggedDayId);
-      if (!day || !Array.isArray(day.points)) return;
-      day.points.sort((a, b) => (a.order || 0) - (b.order || 0));
-      const fromIdx = day.points.findIndex(p => p.id === tripDraggedPointId);
-      const toIdx = day.points.findIndex(p => p.id === targetPointId);
-      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
-      const [moved] = day.points.splice(fromIdx, 1);
-      day.points.splice(toIdx, 0, moved);
-      day.points.forEach((p, idx) => { p.order = idx + 1; });
-      await saveTripDayPointOrder(trip.id, day.id, day.points);
+      const sourceDay = trip.days.find(d => d.id === tripDraggedDayId);
+      const targetDayId = overItem?.dataset.dayId || overDayCard?.dataset.dayCard;
+      const targetDay = trip.days.find(d => d.id === targetDayId);
+      if (!sourceDay || !targetDay || !Array.isArray(sourceDay.points) || !Array.isArray(targetDay.points)) return;
+      sourceDay.points.sort((a, b) => (a.order || 0) - (b.order || 0));
+      if (sourceDay !== targetDay) targetDay.points.sort((a, b) => (a.order || 0) - (b.order || 0));
+      const fromIdx = sourceDay.points.findIndex(p => p.id === tripDraggedPointId);
+      if (fromIdx < 0) return;
+      const [moved] = sourceDay.points.splice(fromIdx, 1);
+      if (overItem) {
+        const targetPointId = overItem.dataset.pointId;
+        if (!targetPointId || targetPointId === tripDraggedPointId) return;
+        let toIdx = targetDay.points.findIndex(p => p.id === targetPointId);
+        if (toIdx < 0) toIdx = targetDay.points.length;
+        if (sourceDay === targetDay && fromIdx < toIdx) toIdx -= 1;
+        targetDay.points.splice(toIdx, 0, moved);
+      } else {
+        targetDay.points.push(moved);
+      }
+      sourceDay.points.forEach((p, idx) => { p.order = idx + 1; });
+      if (targetDay !== sourceDay) targetDay.points.forEach((p, idx) => { p.order = idx + 1; });
+      await saveTripDayPointOrder(trip.id, sourceDay.id, sourceDay.points);
+      if (targetDay !== sourceDay) await saveTripDayPointOrder(trip.id, targetDay.id, targetDay.points);
       renderTripPlannerPanel();
-      await recalculateTripDay(trip.id, day.id);
+      await recalculateTripDay(trip.id, sourceDay.id);
+      if (targetDay !== sourceDay) await recalculateTripDay(trip.id, targetDay.id);
       renderTripMapLayers();
     });
     document.getElementById('tripActiveBox')?.addEventListener('dragend', () => {
