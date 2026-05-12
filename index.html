@@ -7319,6 +7319,7 @@ function zaladujPinezkiZFirestore() {
           }
         });
       }
+      persistAllLayerCollapseStates();
       generujListeWarstw();
       updateSaveButton();
       closeLayerEditor();
@@ -7347,6 +7348,7 @@ function zaladujPinezkiZFirestore() {
             zmianyDoZapisania[pin.id] = data;
             pin.unsaved = true;
           });
+          persistAllLayerCollapseStates();
           generujListeWarstw();
           updateSaveButton();
         },
@@ -7369,6 +7371,7 @@ function zaladujPinezkiZFirestore() {
               pin.unsaved = true;
             });
           }
+          persistAllLayerCollapseStates();
           generujListeWarstw();
           updateSaveButton();
         }
