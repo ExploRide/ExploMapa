@@ -10144,13 +10144,27 @@ function getTripPointEmoji(p) {
       }));
     }
 
-    function removeDuplicateItemsAndKeepFirst(items) {
+    function collectDuplicateItemsToRemoveAndKeepFirst(items, targetList) {
       items.slice(1).forEach((item) => {
-        const pinToDelete = item.pinRef;
+        if (item.removed) return;
         removedDuplicatePinIds.add(item.uiId);
         item.removed = true;
-        deletePinLocal(pinToDelete.id);
+        targetList.push(item);
       });
+    }
+
+    async function deleteDuplicateItemsInBatches(items, onProgress) {
+      const BATCH_SIZE = 25;
+      for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        const batch = items.slice(i, i + BATCH_SIZE);
+        batch.forEach((item) => {
+          const pinToDelete = item.pinRef;
+          deletePinLocal(pinToDelete.id, false, { batch: true, skipCloseModal: true });
+        });
+        if (typeof onProgress === 'function') onProgress(Math.min(i + batch.length, items.length), items.length);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      if (items.length) finalizePinsBulkMutation();
     }
 
     function renderDuplicatePinsList() {
@@ -10251,9 +10265,11 @@ function getTripPointEmoji(p) {
         });
       }
       if (duplicateModal) {
-        duplicateModal.addEventListener('click', (event) => {
+        let duplicateBulkDeleteInProgress = false;
+        duplicateModal.addEventListener('click', async (event) => {
           const target = event.target.closest('button');
           if (!target) return;
+          if (duplicateBulkDeleteInProgress) return;
           const action = target.dataset.action;
           if (action === 'remove-all-exact') {
             const exactKey = String(target.dataset.exactKey || '');
@@ -10269,11 +10285,19 @@ function getTripPointEmoji(p) {
                   if (pinName === name && pinLayer === layer) matchingPins.push(item);
                 });
               });
-              removeDuplicateItemsAndKeepFirst(matchingPins);
+              duplicateBulkDeleteInProgress = true;
+              target.disabled = true;
+              const originalText = target.textContent;
+              await deleteDuplicateItemsInBatches(matchingPins.slice(1), (done, total) => {
+                target.textContent = `Usuwanie... ${done}/${total}`;
+              });
+              target.textContent = originalText;
               renderDuplicatePinsList();
+              duplicateBulkDeleteInProgress = false;
               return;
             }
           if (action === 'remove-all-same-name-location') {
+            const itemsToDelete = [];
             duplicateModalGroupsCache.forEach((group) => {
               const byName = new Map();
               group.pins.forEach((item) => {
@@ -10283,18 +10307,35 @@ function getTripPointEmoji(p) {
                 byName.get(pinName).push(item);
               });
               byName.forEach((items) => {
-                if (items.length > 1) removeDuplicateItemsAndKeepFirst(items);
+                if (items.length > 1) collectDuplicateItemsToRemoveAndKeepFirst(items, itemsToDelete);
               });
             });
+            duplicateBulkDeleteInProgress = true;
+            target.disabled = true;
+            const originalText = target.textContent;
+            await deleteDuplicateItemsInBatches(itemsToDelete, (done, total) => {
+              target.textContent = `Usuwanie... ${done}/${total}`;
+            });
+            target.textContent = originalText;
             renderDuplicatePinsList();
+            duplicateBulkDeleteInProgress = false;
             return;
           }
           if (action === 'remove-all-same-location') {
+            const itemsToDelete = [];
             duplicateModalGroupsCache.forEach((group) => {
               const activeItems = group.pins.filter((item) => !item.removed);
-              if (activeItems.length > 1) removeDuplicateItemsAndKeepFirst(activeItems);
+              if (activeItems.length > 1) collectDuplicateItemsToRemoveAndKeepFirst(activeItems, itemsToDelete);
             });
+            duplicateBulkDeleteInProgress = true;
+            target.disabled = true;
+            const originalText = target.textContent;
+            await deleteDuplicateItemsInBatches(itemsToDelete, (done, total) => {
+              target.textContent = `Usuwanie... ${done}/${total}`;
+            });
+            target.textContent = originalText;
             renderDuplicatePinsList();
+            duplicateBulkDeleteInProgress = false;
             return;
           }
           const row = target.closest('.duplicate-item');
@@ -10550,10 +10591,24 @@ function getTripPointEmoji(p) {
     }
   }
 
-  function deletePinLocal(id, record = true) {
+  function finalizePinsBulkMutation() {
+    const collapseStatesBeforeDelete = Object.fromEntries(Object.entries(warstwy).map(([name, layerData]) => [name, !!layerData.collapsed]));
+    refreshCategoryCollectionsFromPins();
+    updateCategoryFilter();
+    refreshCountriesFromPins();
+    generujListeWarstw();
+    Object.entries(collapseStatesBeforeDelete).forEach(([name, collapsed]) => {
+      if (warstwy[name]) warstwy[name].collapsed = collapsed;
+    });
+    generujListeWarstw();
+    updateSaveButton();
+  }
+
+  function deletePinLocal(id, record = true, options = {}) {
+    const { batch = false, skipCloseModal = false } = options;
     const p = wszystkiePinezki.find(pp => String(pp.id) === String(id));
     if (!p) {
-      closeDeleteModal();
+      if (!skipCloseModal) closeDeleteModal();
       return;
     }
     const layerName = p.warstwa || 'Inne';
@@ -10579,17 +10634,8 @@ function getTripPointEmoji(p) {
       if (idx > -1) layer.lista.splice(idx, 1);
     }
     wszystkiePinezki = wszystkiePinezki.filter(pp => pp !== p);
-    const collapseStatesBeforeDelete = Object.fromEntries(Object.entries(warstwy).map(([name, layerData]) => [name, !!layerData.collapsed]));
-    refreshCategoryCollectionsFromPins();
-    updateCategoryFilter();
-    refreshCountriesFromPins();
-    generujListeWarstw();
-    Object.entries(collapseStatesBeforeDelete).forEach(([name, collapsed]) => {
-      if (warstwy[name]) warstwy[name].collapsed = collapsed;
-    });
-    generujListeWarstw();
-    updateSaveButton();
-    if (record) {
+    if (!batch) finalizePinsBulkMutation();
+    if (record && !batch) {
       pushAction({
         undo: () => {
           wszystkiePinezki = backup.prevAll;
@@ -10607,7 +10653,7 @@ function getTripPointEmoji(p) {
         redo: () => { deletePinLocal(id, false); }
       }, 'Usunięto pinezkę');
     }
-    closeDeleteModal();
+    if (!skipCloseModal) closeDeleteModal();
   }
 
 let layerDeleteName = null;
