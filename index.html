@@ -1916,8 +1916,8 @@ img.emoji {
         <button type="button" id="importKmlBtn" class="kml-import-btn">importuj z .kml</button>
         <input type="file" id="importKmlInput" accept=".kml" style="display:none;">
       </div>
-      <button id="loadPinsBtn">Załaduj pinezki</button>
       </div>
+      <button id="loadPinsBtn">Załaduj pinezki</button>
       <div id="tripPlannerPanel" class="trip-planner-panel" style="display:none;">
         <h3>Plan tripu</h3>
         <div class="trip-select-row">
@@ -10653,6 +10653,8 @@ function confirmLayerDelete() {
       document.getElementById('modePinsBtn')?.classList.toggle('active', mode === 'pins');
       document.getElementById('modeTripBtn')?.classList.toggle('active', mode === 'trip');
       document.body.classList.toggle('trip-planner-mode', mode === 'trip');
+      const tripPanel = document.getElementById('tripPlannerPanel');
+      if (tripPanel) tripPanel.style.display = mode === 'trip' ? 'block' : 'none';
       document.getElementById('toggleLayers').textContent = mode === 'trip' ? '☰ Plan tripu' : '☰ Warstwy';
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
