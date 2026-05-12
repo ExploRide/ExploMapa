@@ -1925,6 +1925,45 @@ img.emoji {
     ::-webkit-scrollbar-thumb { background-color: #353b48; border-color: #111319; }
     ::-webkit-scrollbar-thumb:hover { background-color: #484f61; }
 
+
+    .osm-overlay-marker {
+      pointer-events: auto;
+    }
+    .osm-overlay-badge {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(0, 0, 0, 0.25);
+      box-shadow: 0 1px 5px rgba(0,0,0,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      opacity: 0.85;
+      transform: scale(0.95);
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+    .osm-overlay-badge:hover {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+    .osm-popup { min-width: 160px; font-size: 13px; }
+    .osm-toggle-control {
+      background: white;
+      color: #222;
+      border-radius: 8px;
+      padding: 6px 10px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.25);
+      cursor: pointer;
+      font-size: 13px;
+      user-select: none;
+      font-weight: 600;
+    }
+    .osm-toggle-control.active {
+      background: #e8f0fe;
+    }
+
   </style>
 </head>
 <body>
@@ -5020,6 +5059,13 @@ function emojiHtml(str) {
         duringAutoPan: false
       };
 
+      const osmOverlayCache = new Map();
+      let osmOverlayEnabled = false;
+      let osmOverlayLoading = false;
+      let lastOsmRequestKey = null;
+      let osmAbortController = null;
+      let osmOverlayLayer = null;
+
       function stopActiveMapPan() {
         // Stop current movement first, so rapid popup switches do not queue pans.
         if (map && map._panAnim && map._panAnim._inProgress) map._panAnim.stop();
@@ -5163,6 +5209,7 @@ function emojiHtml(str) {
       highlightPane.style.pointerEvents = 'none';
       rysowaneTrasy.addTo(map);
       routingLayer = L.layerGroup().addTo(map);
+      osmOverlayLayer = L.layerGroup().addTo(map);
 
       // Undo/redo should ignore map view changes, so no actions are
       // recorded for map movements.
@@ -5399,6 +5446,99 @@ function emojiHtml(str) {
         }
       }
 
+      function escapeHtml(str) {
+        return String(str ?? '').replace(/[&<>"']/g, (m) => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        }[m]));
+      }
+
+      function getOsmEmoji(tags = {}) {
+        if (tags.historic === 'castle') return '🏰';
+        if (tags.historic === 'ruins') return '🪨';
+        if (tags.historic === 'manor') return '🏛️';
+        if (tags.tourism === 'viewpoint') return '📸';
+        if (tags.natural === 'cave_entrance') return '🕳️';
+        if (tags.man_made === 'adit' || tags.man_made === 'mineshaft') return '⛏️';
+        if (tags.tourism === 'museum') return '🏛️';
+        if (tags.amenity === 'parking') return '🅿️';
+        return '•';
+      }
+      function getOsmTypeLabel(tags = {}) {
+        if (tags.historic === 'castle') return 'Zamek / pałac';
+        if (tags.historic === 'ruins') return 'Ruiny';
+        if (tags.historic === 'manor') return 'Dwór / pałac';
+        if (tags.tourism === 'viewpoint') return 'Punkt widokowy';
+        if (tags.natural === 'cave_entrance') return 'Jaskinia';
+        if (tags.man_made === 'adit') return 'Sztolnia';
+        if (tags.man_made === 'mineshaft') return 'Szyb kopalniany';
+        if (tags.tourism === 'museum') return 'Muzeum';
+        if (tags.amenity === 'parking') return 'Parking';
+        return 'Obiekt OSM';
+      }
+      function getOsmIcon(element) {
+        return L.divIcon({ className: 'osm-overlay-marker', html: `<div class="osm-overlay-badge">${getOsmEmoji(element.tags || {})}</div>`, iconSize:[24,24], iconAnchor:[12,12] });
+      }
+      function buildOsmOverlayQuery(bbox) {
+        return `[out:json][timeout:25];\n(\n  node["historic"="castle"](${bbox}); way["historic"="castle"](${bbox}); relation["historic"="castle"](${bbox});\n  node["historic"="ruins"](${bbox}); way["historic"="ruins"](${bbox}); relation["historic"="ruins"](${bbox});\n  node["historic"="manor"](${bbox}); way["historic"="manor"](${bbox}); relation["historic"="manor"](${bbox});\n  node["tourism"="viewpoint"](${bbox}); way["tourism"="viewpoint"](${bbox}); relation["tourism"="viewpoint"](${bbox});\n  node["natural"="cave_entrance"](${bbox}); way["natural"="cave_entrance"](${bbox}); relation["natural"="cave_entrance"](${bbox});\n  node["man_made"="adit"](${bbox}); way["man_made"="adit"](${bbox}); relation["man_made"="adit"](${bbox});\n  node["man_made"="mineshaft"](${bbox}); way["man_made"="mineshaft"](${bbox}); relation["man_made"="mineshaft"](${bbox});\n  node["tourism"="museum"](${bbox}); way["tourism"="museum"](${bbox}); relation["tourism"="museum"](${bbox});\n  node["amenity"="parking"](${bbox}); way["amenity"="parking"](${bbox}); relation["amenity"="parking"](${bbox});\n);\nout center tags;`;
+      }
+      function getOsmCacheKey() {
+        const b = map.getBounds(); const z = map.getZoom();
+        return [z,b.getSouth().toFixed(2),b.getWest().toFixed(2),b.getNorth().toFixed(2),b.getEast().toFixed(2)].join(',');
+      }
+      async function fetchOsmOverlay(bbox) {
+        const response = await fetch('https://overpass-api.de/api/interpreter', { method:'POST', body: buildOsmOverlayQuery(bbox), headers:{'Content-Type':'text/plain;charset=UTF-8'}, signal: osmAbortController?.signal });
+        if (!response.ok) throw new Error(`Overpass API error: ${response.status}`);
+        return response.json();
+      }
+      function openNewPinPopupWithDefaults(latlng, defaults = {}) {
+        window.__osmPrefillNewPin = { latlng, defaults };
+        return openNewPinPopup(latlng);
+      }
+      function renderOsmOverlay(data) {
+        osmOverlayLayer.clearLayers();
+        const elements = Array.isArray(data?.elements) ? data.elements : [];
+        if (elements.length > 500) console.warn(`[OSM Overlay] Ograniczono render do 500 z ${elements.length} obiektów.`);
+        const limitedElements = elements.slice(0, 500);
+        const seen = new Set();
+        limitedElements.forEach((element) => {
+          const id = `${element.type}-${element.id}`; if (seen.has(id)) return; seen.add(id);
+          const lat = element.lat || element.center?.lat; const lng = element.lon || element.center?.lon;
+          if (lat == null || lng == null) return;
+          const tags = element.tags || {};
+          const name = tags['name:pl'] || tags.name || tags['name:en'] || 'Miejsce z OpenStreetMap';
+          const typeLabel = getOsmTypeLabel(tags);
+          const emoji = getOsmEmoji(tags);
+          const marker = L.marker([lat,lng], { icon: getOsmIcon(element) });
+          const popupHtml = `<div class="osm-popup"><strong>${escapeHtml(name)}</strong><br><span>${escapeHtml(typeLabel)}</span><br><small>Źródło: OpenStreetMap</small><br><button class="osm-import-pin">Dodaj jako pinezkę</button></div>`;
+          marker.bindPopup(popupHtml);
+          marker.on('popupopen', (evt) => {
+            const btn = evt.popup.getElement()?.querySelector('.osm-import-pin');
+            if (!btn) return;
+            btn.addEventListener('click', () => {
+              openNewPinPopupWithDefaults(L.latLng(lat, lng), { nazwa: name, opis: `Źródło: OpenStreetMap\nTyp: ${typeLabel}`, warstwa: 'OSM import', emoji });
+              map.closePopup();
+            }, { once: true });
+          });
+          marker.addTo(osmOverlayLayer);
+        });
+      }
+      const debouncedLoadOsmOverlay = debounce(async () => {
+        if (!osmOverlayEnabled) return;
+        if (map.getZoom() < 10) { osmOverlayLayer.clearLayers(); console.info('Przybliż mapę, żeby zobaczyć OSM'); return; }
+        const key = getOsmCacheKey();
+        if (osmOverlayCache.has(key)) { lastOsmRequestKey = key; renderOsmOverlay(osmOverlayCache.get(key)); return; }
+        if (osmAbortController) osmAbortController.abort();
+        osmAbortController = new AbortController(); osmOverlayLoading = true; lastOsmRequestKey = key;
+        const b = map.getBounds(); const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+        try { const data = await fetchOsmOverlay(bbox); if (lastOsmRequestKey !== key) return; osmOverlayCache.set(key, data); renderOsmOverlay(data); }
+        catch (err) { if (err.name !== 'AbortError') console.warn('[OSM Overlay]', err); }
+        finally { osmOverlayLoading = false; }
+      }, 900);
+
       const isTouchDevice = 'ontouchstart' in window || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
 
       function updateMapDateUI(key) {
@@ -5514,6 +5654,26 @@ function emojiHtml(str) {
 
       roadsLayer = roadsFull;
       switchBaseLayer('sat');
+      logger('🆕 Dodano opcjonalną nakładkę OSM/Overpass wyświetlającą wybrane miejsca z OpenStreetMap bez zapisywania ich do Firestore i bez dodawania do listy pinezek.');
+
+
+      const OsmOverlayControl = L.Control.extend({
+        options: { position: 'topright' },
+        onAdd: function() {
+          const btn = L.DomUtil.create('div', 'leaflet-control osm-toggle-control');
+          btn.textContent = 'OSM';
+          L.DomEvent.disableClickPropagation(btn);
+          L.DomEvent.on(btn, 'click', () => {
+            osmOverlayEnabled = !osmOverlayEnabled;
+            btn.classList.toggle('active', osmOverlayEnabled);
+            if (!osmOverlayEnabled) { if (osmAbortController) osmAbortController.abort(); osmOverlayLayer.clearLayers(); return; }
+            debouncedLoadOsmOverlay();
+          });
+          return btn;
+        }
+      });
+      map.addControl(new OsmOverlayControl());
+      map.on('moveend zoomend', () => { if (osmOverlayEnabled) debouncedLoadOsmOverlay(); });
 
       document.querySelectorAll('input[name="basemap"]').forEach(radio => {
         radio.addEventListener('change', () => switchBaseLayer(radio.value));
@@ -6442,6 +6602,14 @@ function zaladujPinezkiZFirestore() {
       setupDropdownInput(newCategoryInput, () => getCategorySuggestions(newMainCategoryInput ? newMainCategoryInput.value : MAIN_CATEGORY_URBEX));
       if (newMainCategoryInput) newMainCategoryInput.addEventListener('change', () => { if (newCategoryInput) newCategoryInput.value = ''; });
       setupTrudnoscInput(container.querySelector('#trudnoscNew'), container.querySelector('#trudnoscNewLabel'));
+      const osmPrefill = window.__osmPrefillNewPin && window.__osmPrefillNewPin.defaults ? window.__osmPrefillNewPin.defaults : null;
+      if (osmPrefill) {
+        if (osmPrefill.nazwa) container.querySelector('#nazwaNew').value = osmPrefill.nazwa;
+        if (osmPrefill.opis) container.querySelector('#opisNew').value = osmPrefill.opis;
+        if (osmPrefill.warstwa) container.querySelector('#warstwaNew').value = osmPrefill.warstwa;
+        if (osmPrefill.emoji) { tempPin.noweEmoji = osmPrefill.emoji; marker.setIcon(createEmojiIcon(osmPrefill.emoji, null, 24)); }
+        window.__osmPrefillNewPin = null;
+      }
 
       const popup = marker.bindPopup(container).openPopup();
       attachHighlight(marker, null);
