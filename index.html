@@ -9896,11 +9896,26 @@ function getTripPointEmoji(p) {
         container.innerHTML = '<div>Brak duplikatów współrzędnych.</div>';
         return;
       }
+      const getPinLayerName = (pin) => resolveLayerInfo(pin.warstwa, pin.warstwaId).warstwaName || pin.warstwa || 'Inne';
+      const getPinName = (pin) => pin.nazwa || pin.name || '(bez nazwy)';
       container.innerHTML = groups.map(([coords, pins]) => {
+        const exactDuplicateGroups = new Map();
+        pins.forEach((pin) => {
+          const layer = getPinLayerName(pin);
+          const name = getPinName(pin);
+          const exactKey = `${name}|||${layer}`;
+          if (!exactDuplicateGroups.has(exactKey)) exactDuplicateGroups.set(exactKey, []);
+          exactDuplicateGroups.get(exactKey).push(pin);
+        });
+        const exactGroupsWithDuplicates = Array.from(exactDuplicateGroups.values()).filter(groupPins => groupPins.length > 1);
+        const removeAllButtons = exactGroupsWithDuplicates.map((groupPins) => {
+          const sample = groupPins[0];
+          return `<button type="button" class="duplicate-remove-all-btn" data-action="remove-all-exact" data-exact-key="${escapeHtml(`${coords}|||${getPinName(sample)}|||${getPinLayerName(sample)}`)}">Usuń wszystkie duplikaty (${groupPins.length})</button>`;
+        }).join('');
         const items = pins.map(pin => {
           const pinId = String(pin.id || '');
-          const layer = resolveLayerInfo(pin.warstwa, pin.warstwaId).warstwaName || pin.warstwa || 'Inne';
-          const name = pin.nazwa || pin.name || '(bez nazwy)';
+          const layer = getPinLayerName(pin);
+          const name = getPinName(pin);
           return `<div class="duplicate-item" data-dup-pin-id="${escapeHtml(pinId)}">
             <div>
               <button type="button" class="duplicate-pin-link" data-action="focus">${escapeHtml(name)}</button>
@@ -9909,7 +9924,7 @@ function getTripPointEmoji(p) {
             <button type="button" class="duplicate-remove-btn" data-action="remove" title="Usuń pinezkę">🗑️</button>
           </div>`;
         }).join('');
-        return `<div class="duplicate-group"><h4>Współrzędne: ${coords} (${pins.length})</h4>${items}</div>`;
+        return `<div class="duplicate-group"><h4>Współrzędne: ${coords} (${pins.length})</h4>${removeAllButtons}${items}</div>`;
       }).join('');
     }
 
@@ -9968,12 +9983,28 @@ function getTripPointEmoji(p) {
         duplicatePinsList.addEventListener('click', (event) => {
           const target = event.target.closest('button');
           if (!target) return;
+          const action = target.dataset.action;
+          if (action === 'remove-all-exact') {
+            const exactKey = String(target.dataset.exactKey || '');
+            const [coords = '', name = '', layer = ''] = exactKey.split('|||');
+            const matchingPins = wszystkiePinezki.filter((pin) => {
+              const lat = Number(pin.lat);
+              const lng = Number(pin.lng);
+              if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+              const pinCoords = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+              const pinName = pin.nazwa || pin.name || '(bez nazwy)';
+              const pinLayer = resolveLayerInfo(pin.warstwa, pin.warstwaId).warstwaName || pin.warstwa || 'Inne';
+              return pinCoords === coords && pinName === name && pinLayer === layer;
+            });
+            matchingPins.slice(1).forEach((pinToDelete) => deletePinLocal(pinToDelete.id));
+            renderDuplicatePinsList();
+            return;
+          }
           const row = target.closest('.duplicate-item');
           if (!row) return;
           const pinId = row.dataset.dupPinId;
           const pin = wszystkiePinezki.find(pp => String(pp.id) === String(pinId));
           if (!pin) return;
-          const action = target.dataset.action;
           if (action === 'focus') {
             openPinFromList(pin, null);
           } else if (action === 'remove') {
