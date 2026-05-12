@@ -758,13 +758,14 @@ body, #sidebar, #basemap-switcher {
   z-index: 1;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin: -14px -14px 10px;
   padding: 14px;
   background: #1d212c;
   border-bottom: 1px solid #3a4153;
 }
+.duplicate-header-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1; }
 .duplicate-group { border: 1px solid #3a4153; border-radius: 6px; padding: 8px; margin-bottom: 10px; }
 .duplicate-group h4 { margin: 0 0 8px; font-size: 14px; }
 .duplicate-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
@@ -774,8 +775,9 @@ body, #sidebar, #basemap-switcher {
 .duplicate-item.is-removed .duplicate-pin-link { color: #a6adbc; text-decoration: none; cursor: default; pointer-events: none; }
 .duplicate-remove-btn { min-width: 34px; }
 .duplicate-meta { color: #c3cad8; font-size: 12px; }
-.duplicate-global-actions { display:flex; flex-wrap:wrap; gap:8px; margin: 0; flex: 1; }
+.duplicate-global-actions { display:flex; flex-direction: row; flex-wrap: wrap; gap:8px; margin: 0; }
 .duplicate-global-actions button { flex: 1 1 260px; }
+.duplicate-bulk-summary { margin: 0 0 10px; color: #9fd58f; font-size: 13px; }
 
 
 .emoji-obrys {
@@ -10160,6 +10162,7 @@ function getTripPointEmoji(p) {
 
     const removedDuplicatePinIds = new Set();
     let duplicateModalGroupsCache = [];
+    let duplicateBulkRemovedTotal = 0;
 
     function getDuplicatePinUiId(pin) {
       return String(pin.id || pin.firebaseId || pin.IDpinezki || `${Number(pin.lat).toFixed(6)},${Number(pin.lng).toFixed(6)}::${pin.nazwa || pin.name || ''}::${pin.warstwa || ''}`);
@@ -10247,6 +10250,9 @@ function getTripPointEmoji(p) {
 
     function openDuplicatePinsModal() {
       rebuildDuplicateModalGroupsCache();
+      duplicateBulkRemovedTotal = 0;
+      const summaryEl = document.getElementById('duplicateBulkSummary');
+      if (summaryEl) summaryEl.textContent = '';
       renderDuplicatePinsList();
       const modal = document.getElementById('duplicatePinsModal');
       if (modal) modal.style.display = 'flex';
@@ -10323,6 +10329,9 @@ function getTripPointEmoji(p) {
               await deleteDuplicateItemsInBatches(matchingPins.slice(1), (done, total) => {
                 target.textContent = `Usuwanie... ${done}/${total}`;
               });
+              duplicateBulkRemovedTotal += Math.max(0, matchingPins.length - 1);
+              const summaryEl = document.getElementById('duplicateBulkSummary');
+              if (summaryEl) summaryEl.textContent = `Łącznie usunięto duplikatów: ${duplicateBulkRemovedTotal}`;
               target.textContent = originalText;
               renderDuplicatePinsList();
               duplicateBulkDeleteInProgress = false;
@@ -10348,6 +10357,9 @@ function getTripPointEmoji(p) {
             await deleteDuplicateItemsInBatches(itemsToDelete, (done, total) => {
               target.textContent = `Usuwanie... ${done}/${total}`;
             });
+            duplicateBulkRemovedTotal += itemsToDelete.length;
+            const summaryEl = document.getElementById('duplicateBulkSummary');
+            if (summaryEl) summaryEl.textContent = `Łącznie usunięto duplikatów: ${duplicateBulkRemovedTotal}`;
             target.textContent = originalText;
             renderDuplicatePinsList();
             duplicateBulkDeleteInProgress = false;
@@ -10365,6 +10377,9 @@ function getTripPointEmoji(p) {
             await deleteDuplicateItemsInBatches(itemsToDelete, (done, total) => {
               target.textContent = `Usuwanie... ${done}/${total}`;
             });
+            duplicateBulkRemovedTotal += itemsToDelete.length;
+            const summaryEl = document.getElementById('duplicateBulkSummary');
+            if (summaryEl) summaryEl.textContent = `Łącznie usunięto duplikatów: ${duplicateBulkRemovedTotal}`;
             target.textContent = originalText;
             renderDuplicatePinsList();
             duplicateBulkDeleteInProgress = false;
@@ -11106,13 +11121,16 @@ function confirmLayerDelete() {
   <div id="duplicatePinsModal">
     <div id="duplicatePinsModalContent">
 	      <div class="duplicate-modal-header">
-        <h3 style="margin:0;">Duplikaty pinezek (te same współrzędne)</h3>
-        <div class="duplicate-global-actions">
-          <button type="button" class="duplicate-remove-all-btn" data-action="remove-all-same-name-location">Usuń wszystkie z tą samą nazwą i lokalizacją</button>
-          <button type="button" class="duplicate-remove-all-btn" data-action="remove-all-same-location">Usuń wszystkie z tą samą lokalizacją</button>
+        <div class="duplicate-header-main">
+          <h3 style="margin:0;">Duplikaty pinezek (te same współrzędne)</h3>
+          <div class="duplicate-global-actions">
+            <button type="button" class="duplicate-remove-all-btn" data-action="remove-all-same-name-location">Usuń wszystkie z tą samą nazwą i lokalizacją</button>
+            <button type="button" class="duplicate-remove-all-btn" data-action="remove-all-same-location">Usuń wszystkie z tą samą lokalizacją</button>
+          </div>
         </div>
         <button id="closeDuplicatePinsModal" type="button">Zamknij</button>
       </div>
+      <div id="duplicateBulkSummary" class="duplicate-bulk-summary"></div>
       <div id="duplicatePinsList"></div>
     </div>
   </div>
