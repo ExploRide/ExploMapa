@@ -752,11 +752,26 @@ body, #sidebar, #basemap-switcher {
   border-radius: 8px;
   padding: 14px;
 }
+.duplicate-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: -14px -14px 10px;
+  padding: 14px;
+  background: #1d212c;
+  border-bottom: 1px solid #3a4153;
+}
 .duplicate-group { border: 1px solid #3a4153; border-radius: 6px; padding: 8px; margin-bottom: 10px; }
 .duplicate-group h4 { margin: 0 0 8px; font-size: 14px; }
 .duplicate-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
 .duplicate-pin-link { background: transparent; border: 0; color: #8bc5ff; text-align: left; cursor: pointer; padding: 0; }
 .duplicate-pin-link:hover { text-decoration: underline; }
+.duplicate-item.is-removed { opacity: 0.55; }
+.duplicate-item.is-removed .duplicate-pin-link { color: #a6adbc; text-decoration: none; cursor: default; pointer-events: none; }
 .duplicate-remove-btn { min-width: 34px; }
 .duplicate-meta { color: #c3cad8; font-size: 12px; }
 
@@ -9888,6 +9903,8 @@ function getTripPointEmoji(p) {
         .sort((a, b) => b[1].length - a[1].length);
     }
 
+    const removedDuplicatePinIds = new Set();
+
     function renderDuplicatePinsList() {
       const container = document.getElementById('duplicatePinsList');
       if (!container) return;
@@ -9916,12 +9933,13 @@ function getTripPointEmoji(p) {
           const pinId = String(pin.id || '');
           const layer = getPinLayerName(pin);
           const name = getPinName(pin);
-          return `<div class="duplicate-item" data-dup-pin-id="${escapeHtml(pinId)}">
+          const isRemoved = removedDuplicatePinIds.has(pinId);
+          return `<div class="duplicate-item${isRemoved ? ' is-removed' : ''}" data-dup-pin-id="${escapeHtml(pinId)}" data-dup-removed="${isRemoved ? '1' : '0'}">
             <div>
-              <button type="button" class="duplicate-pin-link" data-action="focus">${escapeHtml(name)}</button>
+              <button type="button" class="duplicate-pin-link" data-action="focus">${escapeHtml(name)}${isRemoved ? ' (usunięto)' : ''}</button>
               <div class="duplicate-meta">Warstwa: ${escapeHtml(layer)}</div>
             </div>
-            <button type="button" class="duplicate-remove-btn" data-action="remove" title="Usuń pinezkę">🗑️</button>
+            <button type="button" class="duplicate-remove-btn" data-action="remove" title="Usuń pinezkę" ${isRemoved ? 'disabled' : ''}>🗑️</button>
           </div>`;
         }).join('');
         return `<div class="duplicate-group"><h4>Współrzędne: ${coords} (${pins.length})</h4>${removeAllButtons}${items}</div>`;
@@ -9986,8 +10004,8 @@ function getTripPointEmoji(p) {
           const action = target.dataset.action;
           if (action === 'remove-all-exact') {
             const exactKey = String(target.dataset.exactKey || '');
-            const [coords = '', name = '', layer = ''] = exactKey.split('|||');
-            const matchingPins = wszystkiePinezki.filter((pin) => {
+              const [coords = '', name = '', layer = ''] = exactKey.split('|||');
+              const matchingPins = wszystkiePinezki.filter((pin) => {
               const lat = Number(pin.lat);
               const lng = Number(pin.lng);
               if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
@@ -9996,21 +10014,26 @@ function getTripPointEmoji(p) {
               const pinLayer = resolveLayerInfo(pin.warstwa, pin.warstwaId).warstwaName || pin.warstwa || 'Inne';
               return pinCoords === coords && pinName === name && pinLayer === layer;
             });
-            matchingPins.slice(1).forEach((pinToDelete) => deletePinLocal(pinToDelete.id));
-            renderDuplicatePinsList();
-            return;
-          }
+              matchingPins.slice(1).forEach((pinToDelete) => {
+                removedDuplicatePinIds.add(String(pinToDelete.id || ''));
+                deletePinLocal(pinToDelete.id);
+              });
+              renderDuplicatePinsList();
+              return;
+            }
           const row = target.closest('.duplicate-item');
           if (!row) return;
           const pinId = row.dataset.dupPinId;
           const pin = wszystkiePinezki.find(pp => String(pp.id) === String(pinId));
           if (!pin) return;
-          if (action === 'focus') {
-            openPinFromList(pin, null);
-          } else if (action === 'remove') {
-            deletePinLocal(pin.id);
-            renderDuplicatePinsList();
-          }
+            if (row.dataset.dupRemoved === '1') return;
+            if (action === 'focus') {
+              openPinFromList(pin, null);
+            } else if (action === 'remove') {
+              removedDuplicatePinIds.add(String(pin.id || ''));
+              deletePinLocal(pin.id);
+              renderDuplicatePinsList();
+            }
         });
       }
     const modal = document.getElementById('photoModal');
@@ -10270,9 +10293,14 @@ function getTripPointEmoji(p) {
       if (idx > -1) layer.lista.splice(idx, 1);
     }
     wszystkiePinezki = wszystkiePinezki.filter(pp => pp !== p);
+    const collapseStatesBeforeDelete = Object.fromEntries(Object.entries(warstwy).map(([name, layerData]) => [name, !!layerData.collapsed]));
     refreshCategoryCollectionsFromPins();
     updateCategoryFilter();
     refreshCountriesFromPins();
+    generujListeWarstw();
+    Object.entries(collapseStatesBeforeDelete).forEach(([name, collapsed]) => {
+      if (warstwy[name]) warstwy[name].collapsed = collapsed;
+    });
     generujListeWarstw();
     updateSaveButton();
     if (record) {
@@ -10713,7 +10741,7 @@ function confirmLayerDelete() {
 
   <div id="duplicatePinsModal">
     <div id="duplicatePinsModalContent">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;">
+	      <div class="duplicate-modal-header">
         <h3 style="margin:0;">Duplikaty pinezek (te same współrzędne)</h3>
         <button id="closeDuplicatePinsModal" type="button">Zamknij</button>
       </div>
