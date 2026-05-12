@@ -774,6 +774,9 @@ body, #sidebar, #basemap-switcher {
 .duplicate-item.is-removed .duplicate-pin-link { color: #a6adbc; text-decoration: none; cursor: default; pointer-events: none; }
 .duplicate-remove-btn { min-width: 34px; }
 .duplicate-meta { color: #c3cad8; font-size: 12px; }
+.duplicate-global-actions { display:flex; flex-wrap:wrap; gap:8px; margin: 0 0 10px; }
+.duplicate-global-actions button { flex: 1 1 260px; }
+
 
 .emoji-obrys {
   filter: drop-shadow(0 0 0.1px black)
@@ -10081,6 +10084,15 @@ function getTripPointEmoji(p) {
       }));
     }
 
+    function removeDuplicateItemsAndKeepFirst(items) {
+      items.slice(1).forEach((item) => {
+        const pinToDelete = item.pinRef;
+        removedDuplicatePinIds.add(item.uiId);
+        item.removed = true;
+        deletePinLocal(pinToDelete.id);
+      });
+    }
+
     function renderDuplicatePinsList() {
       const container = document.getElementById('duplicatePinsList');
       if (!container) return;
@@ -10198,15 +10210,34 @@ function getTripPointEmoji(p) {
                   if (pinName === name && pinLayer === layer) matchingPins.push(item);
                 });
               });
-              matchingPins.slice(1).forEach((item) => {
-                const pinToDelete = item.pinRef;
-                removedDuplicatePinIds.add(item.uiId);
-                item.removed = true;
-                deletePinLocal(pinToDelete.id);
-              });
+              removeDuplicateItemsAndKeepFirst(matchingPins);
               renderDuplicatePinsList();
               return;
             }
+          if (action === 'remove-all-same-name-location') {
+            duplicateModalGroupsCache.forEach((group) => {
+              const byName = new Map();
+              group.pins.forEach((item) => {
+                if (item.removed) return;
+                const pinName = item.pinRef.nazwa || item.pinRef.name || '(bez nazwy)';
+                if (!byName.has(pinName)) byName.set(pinName, []);
+                byName.get(pinName).push(item);
+              });
+              byName.forEach((items) => {
+                if (items.length > 1) removeDuplicateItemsAndKeepFirst(items);
+              });
+            });
+            renderDuplicatePinsList();
+            return;
+          }
+          if (action === 'remove-all-same-location') {
+            duplicateModalGroupsCache.forEach((group) => {
+              const activeItems = group.pins.filter((item) => !item.removed);
+              if (activeItems.length > 1) removeDuplicateItemsAndKeepFirst(activeItems);
+            });
+            renderDuplicatePinsList();
+            return;
+          }
           const row = target.closest('.duplicate-item');
           if (!row) return;
           const pinId = row.dataset.dupPinId;
@@ -10940,6 +10971,10 @@ function confirmLayerDelete() {
 	      <div class="duplicate-modal-header">
         <h3 style="margin:0;">Duplikaty pinezek (te same współrzędne)</h3>
         <button id="closeDuplicatePinsModal" type="button">Zamknij</button>
+      </div>
+      <div class="duplicate-global-actions">
+        <button type="button" class="duplicate-remove-all-btn" data-action="remove-all-same-name-location">Usuń wszystkie z tą samą nazwą i lokalizacją</button>
+        <button type="button" class="duplicate-remove-all-btn" data-action="remove-all-same-location">Usuń wszystkie z tą samą lokalizacją</button>
       </div>
       <div id="duplicatePinsList"></div>
     </div>
