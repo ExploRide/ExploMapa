@@ -783,6 +783,9 @@ body.trip-planner-mode #emojiToolBtn,
 body.trip-planner-mode #syncBtn {
   display: none !important;
 }
+body.trip-planner-mode #mainCategoryFilters {
+  display: none !important;
+}
 body.trip-planner-mode .trip-planner-panel {
   display: block !important;
 }
@@ -8459,7 +8462,7 @@ function getTripPointEmoji(p) {
       if (!trip) { box.innerHTML = '<div>Brak aktywnego tripa.</div>'; return; }
       ensureActiveTripDay(trip);
       const tripRange = trip.startDate && trip.endDate ? `<div><small>${formatTripHeaderDate(trip.startDate)} → ${formatTripHeaderDate(trip.endDate)}</small></div>` : '';
-      box.innerHTML = `<div><b>${trip.name}</b></div>${tripRange}<button id="tripAddDayBtn" type="button">+ Dodaj dzień</button><button id="tripAddPrivatePointBtn" type="button">+ Punkt tylko do tripa</button><button id="tripDeleteBtn" class="trip-icon-btn" type="button" title="Usuń trip" aria-label="Usuń trip">🗑️</button>` + trip.days.map((d, idx) => {
+      box.innerHTML = `<div><b>${trip.name}</b></div>${tripRange}<button id="tripAddDayBtn" type="button">+ Dodaj dzień</button><button id="tripAddPrivatePointBtn" type="button">+ Punkt tylko do tripa</button><button id="tripExportCsvBtn" type="button">⬇️ CSV</button><button id="tripExportPdfBtn" type="button">⬇️ PDF</button><button id="tripDeleteBtn" class="trip-icon-btn" type="button" title="Usuń trip" aria-label="Usuń trip">🗑️</button>` + trip.days.map((d, idx) => {
         const summary = d.routeSummary || {};
         const points = (d.points || []).sort((a,b)=>(a.order||0)-(b.order||0));
         const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" class="trip-mobile-only">↑</button><button type="button" data-trip-action="move-point-down" class="trip-mobile-only" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" title="Usuń punkt" aria-label="Usuń punkt">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
@@ -8476,6 +8479,42 @@ function getTripPointEmoji(p) {
         await dayRef.collection('points').doc(point.id).set({ order: idx + 1 }, { merge: true });
       }
       await dayRef.set({ updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    }
+    function buildTripExportRows(trip) {
+      const rows = [];
+      (trip.days || []).forEach((day, dayIndex) => {
+        const points = day.points || [];
+        if (!points.length) rows.push({ dayNumber: dayIndex + 1, dayName: day.name || `Dzień ${dayIndex + 1}`, dayDate: day.date || '', pointOrder: '', pointName: '', pointType: '', visitMinutes: '', driveDuration: '', driveDistance: '' });
+        points.forEach((point, pointIndex) => {
+          const seg = (day.routeSegments || [])[pointIndex] || {};
+          rows.push({ dayNumber: dayIndex + 1, dayName: day.name || `Dzień ${dayIndex + 1}`, dayDate: day.date || '', pointOrder: pointIndex + 1, pointName: point.name || point.nameSnapshot || 'Punkt', pointType: point.pointType || 'inny', visitMinutes: point.visitMinutes || 0, driveDuration: seg.durationSeconds ? formatTripDuration(seg.durationSeconds) : '', driveDistance: seg.distanceMeters ? formatTripDistance(seg.distanceMeters) : '' });
+        });
+      });
+      return rows;
+    }
+    function exportTripToCsv(trip) {
+      const escapeCsv = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const headers = ['Dzień nr', 'Dzień', 'Data', 'Punkt nr', 'Punkt', 'Typ punktu', 'Zwiedzanie (min)', 'Dojazd', 'Dystans'];
+      const rows = buildTripExportRows(trip).map(r => [r.dayNumber, r.dayName, r.dayDate, r.pointOrder, r.pointName, r.pointType, r.visitMinutes, r.driveDuration, r.driveDistance]);
+      const csvBody = [headers, ...rows].map(line => line.map(escapeCsv).join(';')).join('\n');
+      const blob = new Blob(["\uFEFF" + csvBody], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeName = (trip.name || 'trip').replace(/[^\p{L}\p{N}_-]+/gu, '_');
+      a.href = url;
+      a.download = `${safeName}_plan.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    function exportTripToPdf(trip) {
+      const rows = buildTripExportRows(trip);
+      const tableRows = rows.map(r => `<tr><td>${r.dayNumber}</td><td>${r.dayName}</td><td>${r.dayDate || '-'}</td><td>${r.pointOrder || '-'}</td><td>${r.pointName || '-'}</td><td>${r.pointType || '-'}</td><td>${r.visitMinutes || 0}</td><td>${r.driveDuration || '-'}</td><td>${r.driveDistance || '-'}</td></tr>`).join('');
+      const w = window.open('', '_blank', 'noopener,noreferrer,width=980,height=720');
+      if (!w) return alert('Przeglądarka zablokowała okno eksportu PDF.');
+      w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Plan tripu - ${trip.name || ''}</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{font-size:20px;margin:0 0 10px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #bbb;padding:6px;vertical-align:top}th{background:#eee}</style></head><body><h1>Plan tripu: ${trip.name || ''}</h1><small>Zakres dat: ${trip.startDate || '-'} → ${trip.endDate || '-'}</small><table><thead><tr><th>Dzień nr</th><th>Dzień</th><th>Data</th><th>Punkt nr</th><th>Punkt</th><th>Typ</th><th>Zwiedzanie (min)</th><th>Dojazd</th><th>Dystans</th></tr></thead><tbody>${tableRows || '<tr><td colspan="9">Brak danych</td></tr>'}</tbody></table></body></html>`);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 250);
     }
 
     function captureTripPointPositions(dayId) {
@@ -10770,6 +10809,8 @@ function confirmLayerDelete() {
       const targetEl = e.target instanceof Element ? e.target : null;
       const addDayBtn = targetEl?.closest('#tripAddDayBtn');
       const addPrivatePointBtn = targetEl?.closest('#tripAddPrivatePointBtn');
+      const exportCsvBtn = targetEl?.closest('#tripExportCsvBtn');
+      const exportPdfBtn = targetEl?.closest('#tripExportPdfBtn');
       const deleteTripBtn = targetEl?.closest('#tripDeleteBtn');
       const deleteDayBtn = targetEl?.closest('[data-day-delete]');
 
@@ -10779,6 +10820,8 @@ function confirmLayerDelete() {
         trip.days.push(day); await saveTrip(trip.id); renderTripPlannerPanel(); renderTripMapLayers(); return;
       }
       if (addPrivatePointBtn) { tripPrivatePointArmed = true; showToast('Kliknij na mapie, aby dodać prywatny punkt tripa.'); return; }
+      if (exportCsvBtn) { exportTripToCsv(trip); return; }
+      if (exportPdfBtn) { exportTripToPdf(trip); return; }
       if (deleteTripBtn) {
         if (!confirm('Na pewno usunąć cały trip?')) return;
         const compatDb = getCompatDb(); if (!compatDb) return;
