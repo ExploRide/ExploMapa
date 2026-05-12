@@ -2734,10 +2734,8 @@ function slugify(str) {
     const PINTEREST_LAYER_NAME = 'pinterest_diane_g';
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
     const CLUSTER_DISABLE_AT_ZOOM = 14; // skupiaj pinezki aż do średniego przybliżenia mapy
-    const CLUSTER_MIN_MARKERS = 5; // pierwszy klaster twórz dopiero od tej liczby pinezek
+    const CLUSTER_MIN_MARKERS = 2; // prawie zawsze pokazuj grupę zamiast pojedynczych pinezek
     const BIG_CLUSTER_COUNT = 500;
-    const STRONG_CLUSTER_OVERLAP_MIN_RATIO = 0.72; // restrykcyjny próg: łącz tylko przy mocnym wejściu kół
-    const STRONG_CLUSTER_OVERLAP_SUM_RATIO = 0.4;
     const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 250;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
@@ -2927,18 +2925,8 @@ function slugify(str) {
             const sumOfRadii = radiusA + radiusB;
             if (distance >= sumOfRadii) continue;
 
-            const overlap = sumOfRadii - distance;
-            const minRadius = Math.min(radiusA, radiusB);
-            if (minRadius <= 0) continue;
-            const overlapToMinRatio = overlap / minRadius;
-            const overlapToSumRatio = overlap / sumOfRadii;
-
-            if (
-              overlapToMinRatio >= STRONG_CLUSTER_OVERLAP_MIN_RATIO &&
-              overlapToSumRatio >= STRONG_CLUSTER_OVERLAP_SUM_RATIO
-            ) {
-              union(i, j);
-            }
+            // Każde nałożenie klastrów traktujemy jako jedną grupę nadrzędną.
+            union(i, j);
           }
         }
 
@@ -3070,7 +3058,7 @@ function slugify(str) {
 
       clusterLayer = L.markerClusterGroup({
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
-        maxClusterRadius: () => 75,
+        maxClusterRadius: () => 105,
         animate: true,
         animateAddingMarkers: true,
         spiderfyOnMaxZoom: true,
