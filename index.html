@@ -6144,7 +6144,7 @@ function zaladujPinezkiZFirestore() {
       }
     }
 
-    function zapiszLokalnie(id) {
+    async function zapiszLokalnie(id) {
       const nameVal = document.getElementById("enazwa").value.trim();
       const layerVal = document.getElementById("ewarstwa").value.trim();
       const missing = [];
@@ -6208,6 +6208,7 @@ function zaladujPinezkiZFirestore() {
       if (p) {
         const oldSlug = p.slug;
         applyPinData(p, nowa);
+        await syncTripPointSnapshotsForPin(p);
         refreshCategoryCollectionsFromPins();
         updateCategoryFilter();
         getPinMainCategory(p);
@@ -8265,6 +8266,39 @@ function getTripPointEmoji(p) {
         for (const [pi, point] of (safeDay.points || []).entries()) await dayRef.collection('points').doc(point.id).set({ ...point, order: pi }, { merge: true });
       }
       showToast('Zapisano trip');
+    }
+    async function syncTripPointSnapshotsForPin(pin) {
+      if (!pin || !Array.isArray(tripPlannerTrips) || !tripPlannerTrips.length) return;
+      const pinId = String(pin.id ?? '');
+      const pinFirebaseId = String(pin.firebaseId ?? '');
+      const pinLegacyId = String(pin.IDpinezki ?? '');
+      const changedTripIds = new Set();
+      tripPlannerTrips.forEach(trip => {
+        (trip.days || []).forEach(day => {
+          (day.points || []).forEach(point => {
+            if (point?.type === 'custom' || point?.tripOnly) return;
+            const pointPinId = String(point.pinId ?? '');
+            const pointFirebaseId = String(point.pinFirebaseId ?? '');
+            const matchesPin =
+              (pinId && pointPinId && pointPinId === pinId) ||
+              (pinFirebaseId && pointFirebaseId && pointFirebaseId === pinFirebaseId) ||
+              (pinLegacyId && pointPinId && pointPinId === pinLegacyId);
+            if (!matchesPin) return;
+            if (point.nameSnapshot !== pin.nazwa || point.emojiSnapshot !== (pin.emoji || '')) {
+              point.nameSnapshot = pin.nazwa;
+              point.emojiSnapshot = pin.emoji || '';
+              changedTripIds.add(trip.id);
+            }
+          });
+        });
+      });
+      if (!changedTripIds.size) return;
+      for (const tripId of changedTripIds) {
+        await saveTrip(tripId);
+      }
+      renderTripPlannerPanel();
+      renderTripMapLayers();
+      applyTripPlannerPinVisibility();
     }
     async function recalculateTripDay(tripId, dayId) {
       const trip = tripPlannerTrips.find(t => t.id === tripId); const day = trip?.days?.find(d => d.id === dayId);
