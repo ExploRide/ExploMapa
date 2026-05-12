@@ -6724,8 +6724,8 @@ function zaladujPinezkiZFirestore() {
           const lista = document.getElementById('lista-warstw');
           lista.insertBefore(draggedLayer, div);
           saveLayerOrder({ markChange: false });
-          updateLayerNumbers();
           autosaveLayerOrderToFirestore(loadLayerOrder());
+          generujListeWarstw();
         }
       });
 
@@ -6752,8 +6752,8 @@ function zaladujPinezkiZFirestore() {
         document.removeEventListener('pointerup', endPointerDrag);
         document.removeEventListener('pointercancel', endPointerDrag);
         saveLayerOrder({ markChange: false });
-        updateLayerNumbers();
         autosaveLayerOrderToFirestore(loadLayerOrder());
+        generujListeWarstw();
       };
       handle.addEventListener('pointerdown', (event) => {
         if (event.button !== 0 && event.pointerType !== 'touch') return;
@@ -9453,9 +9453,11 @@ function getTripPointEmoji(p) {
 
         div.appendChild(listaP);
         lista.appendChild(div);
-        const sep = document.createElement('hr');
-        sep.className = 'layer-separator';
-        lista.appendChild(sep);
+        if (idx < finalNazwy.length - 1) {
+          const sep = document.createElement('hr');
+          sep.className = 'layer-separator';
+          lista.appendChild(sep);
+        }
       });
       saveLayerOrder({ markChange: false });
       updateLayerNumbers();
