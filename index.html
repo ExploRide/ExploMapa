@@ -3476,6 +3476,20 @@ function slugify(str) {
 
     function updateSaveButton() {
       const pending = hasUnsavedChanges();
+      console.log("SAVE BUTTON DEBUG", {
+        pending,
+        hasUnsavedPinChanges: hasUnsavedPinChanges(),
+        zmianyDoZapisaniaKeys: Object.keys(zmianyDoZapisania),
+        zmianyDoZapisania,
+        nowePinezkiLength: nowePinezki.length,
+        nowePinezki,
+        pinsToDeleteLength: pinsToDelete.length,
+        layersToAddLength: layersToAdd.length,
+        layersToDeleteLength: layersToDelete.length,
+        layerOrderChanged,
+        layerEmojiChangesKeys: Object.keys(layerEmojiChanges),
+        layerDefaultVisibilityChangesKeys: Object.keys(layerDefaultVisibilityChanges)
+      });
       shouldWarnBeforeUnload = pending;
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
@@ -6547,11 +6561,15 @@ function zaladujPinezkiZFirestore() {
       try {
         const localPinsRaw = JSON.parse(localStorage.getItem('nowePinezki')) || [];
         const invalidPins = [];
+        const MAX_LOCAL_PIN_AGE_MS = 1000 * 60 * 60 * 24 * 2;
+        const nowTs = Date.now();
         nowePinezki = (Array.isArray(localPinsRaw) ? localPinsRaw : []).filter(p => {
           const lat = Number(p?.lat);
           const lng = Number(p?.lng);
           const hasName = Boolean((p?.nazwa || p?.name || '').toString().trim());
-          const valid = p && typeof p === 'object' && Number.isFinite(lat) && Number.isFinite(lng) && hasName;
+          const createdAt = Number(p?.dataDodania || p?.createdAt || 0);
+          const isFreshEnough = Number.isFinite(createdAt) && createdAt > 0 && (nowTs - createdAt) <= MAX_LOCAL_PIN_AGE_MS;
+          const valid = p && typeof p === 'object' && Number.isFinite(lat) && Number.isFinite(lng) && hasName && isFreshEnough;
           if (!valid) invalidPins.push(p);
           return valid;
         });
