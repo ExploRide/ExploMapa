@@ -9815,6 +9815,19 @@ function getTripPointEmoji(p) {
       });
     }
 
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>'"]/g, c => {
+        switch (c) {
+          case '&': return '&amp;';
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '"': return '&quot;';
+          case "'": return '&#39;';
+          default: return c;
+        }
+      });
+    }
+
     function buildKml(pins) {
       const placemarks = pins.map(p => {
         const name = escapeXml(p.nazwa);
