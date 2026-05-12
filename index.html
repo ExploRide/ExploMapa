@@ -1928,41 +1928,34 @@ img.emoji {
 
     .osm-overlay-marker {
       pointer-events: auto;
+      background: transparent;
+      border: 0;
     }
-    .osm-overlay-badge {
-      width: 24px;
-      height: 24px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.85);
-      border: 1px solid rgba(0, 0, 0, 0.25);
-      box-shadow: 0 1px 5px rgba(0,0,0,0.25);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 15px;
-      opacity: 0.85;
-      transform: scale(0.95);
-      transition: transform 0.15s ease, opacity 0.15s ease;
+    .osm-overlay-label {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(0, 0, 0, 0.26);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.22);
+      color: #1f2328;
+      font-size: 11px;
+      line-height: 1.2;
+      font-weight: 500;
+      white-space: nowrap;
+      user-select: none;
+      pointer-events: auto;
     }
-    .osm-overlay-badge:hover {
-      opacity: 1;
-      transform: scale(1.08);
+    body.dark-mode .osm-overlay-label {
+      background: rgba(19, 24, 34, 0.82);
+      border-color: rgba(255, 255, 255, 0.32);
+      color: #f2f4f8;
+    }
+    #overlay-item-osm.active {
+      box-shadow: inset 0 0 0 1px var(--ui-accent, #007bff);
+      border-radius: 6px;
     }
     .osm-popup { min-width: 160px; font-size: 13px; }
-    .osm-toggle-control {
-      background: white;
-      color: #222;
-      border-radius: 8px;
-      padding: 6px 10px;
-      box-shadow: 0 1px 6px rgba(0,0,0,.25);
-      cursor: pointer;
-      font-size: 13px;
-      user-select: none;
-      font-weight: 600;
-    }
-    .osm-toggle-control.active {
-      background: #e8f0fe;
-    }
 
   </style>
 </head>
@@ -2164,6 +2157,11 @@ img.emoji {
             <button type="button" class="info-btn" data-info="Cieniowanie terenu z Geoportalu">i</button>
           </label><br>
           <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-shade">
+        </div>
+        <div class="overlay-item" id="overlay-item-osm">
+          <label><input type="checkbox" id="overlay-osm-places"> Miejsca OSM
+            <button type="button" class="info-btn" data-info="Nakładka miejsc z OpenStreetMap (Overpass)">i</button>
+          </label>
         </div>
       </details>
 
@@ -5456,17 +5454,6 @@ function emojiHtml(str) {
         }[m]));
       }
 
-      function getOsmEmoji(tags = {}) {
-        if (tags.historic === 'castle') return '🏰';
-        if (tags.historic === 'ruins') return '🪨';
-        if (tags.historic === 'manor') return '🏛️';
-        if (tags.tourism === 'viewpoint') return '📸';
-        if (tags.natural === 'cave_entrance') return '🕳️';
-        if (tags.man_made === 'adit' || tags.man_made === 'mineshaft') return '⛏️';
-        if (tags.tourism === 'museum') return '🏛️';
-        if (tags.amenity === 'parking') return '🅿️';
-        return '•';
-      }
       function getOsmTypeLabel(tags = {}) {
         if (tags.historic === 'castle') return 'Zamek / pałac';
         if (tags.historic === 'ruins') return 'Ruiny';
@@ -5479,8 +5466,13 @@ function emojiHtml(str) {
         if (tags.amenity === 'parking') return 'Parking';
         return 'Obiekt OSM';
       }
-      function getOsmIcon(element) {
-        return L.divIcon({ className: 'osm-overlay-marker', html: `<div class="osm-overlay-badge">${getOsmEmoji(element.tags || {})}</div>`, iconSize:[24,24], iconAnchor:[12,12] });
+      function getOsmIcon(name) {
+        return L.divIcon({
+          className: 'osm-overlay-marker',
+          html: `<div class="osm-overlay-label">${escapeHtml(name)}</div>`,
+          iconSize: null,
+          iconAnchor: [0, 0]
+        });
       }
       function buildOsmOverlayQuery(bbox) {
         return `[out:json][timeout:25];\n(\n  node["historic"="castle"](${bbox}); way["historic"="castle"](${bbox}); relation["historic"="castle"](${bbox});\n  node["historic"="ruins"](${bbox}); way["historic"="ruins"](${bbox}); relation["historic"="ruins"](${bbox});\n  node["historic"="manor"](${bbox}); way["historic"="manor"](${bbox}); relation["historic"="manor"](${bbox});\n  node["tourism"="viewpoint"](${bbox}); way["tourism"="viewpoint"](${bbox}); relation["tourism"="viewpoint"](${bbox});\n  node["natural"="cave_entrance"](${bbox}); way["natural"="cave_entrance"](${bbox}); relation["natural"="cave_entrance"](${bbox});\n  node["man_made"="adit"](${bbox}); way["man_made"="adit"](${bbox}); relation["man_made"="adit"](${bbox});\n  node["man_made"="mineshaft"](${bbox}); way["man_made"="mineshaft"](${bbox}); relation["man_made"="mineshaft"](${bbox});\n  node["tourism"="museum"](${bbox}); way["tourism"="museum"](${bbox}); relation["tourism"="museum"](${bbox});\n  node["amenity"="parking"](${bbox}); way["amenity"="parking"](${bbox}); relation["amenity"="parking"](${bbox});\n);\nout center tags;`;
@@ -5509,17 +5501,17 @@ function emojiHtml(str) {
           const lat = element.lat || element.center?.lat; const lng = element.lon || element.center?.lon;
           if (lat == null || lng == null) return;
           const tags = element.tags || {};
-          const name = tags['name:pl'] || tags.name || tags['name:en'] || 'Miejsce z OpenStreetMap';
+          const name = tags['name:pl'] || tags.name || tags['name:en'];
           const typeLabel = getOsmTypeLabel(tags);
-          const emoji = getOsmEmoji(tags);
-          const marker = L.marker([lat,lng], { icon: getOsmIcon(element) });
+          if (!name) return;
+          const marker = L.marker([lat,lng], { icon: getOsmIcon(name), keyboard: false });
           const popupHtml = `<div class="osm-popup"><strong>${escapeHtml(name)}</strong><br><span>${escapeHtml(typeLabel)}</span><br><small>Źródło: OpenStreetMap</small><br><button class="osm-import-pin">Dodaj jako pinezkę</button></div>`;
           marker.bindPopup(popupHtml);
           marker.on('popupopen', (evt) => {
             const btn = evt.popup.getElement()?.querySelector('.osm-import-pin');
             if (!btn) return;
             btn.addEventListener('click', () => {
-              openNewPinPopupWithDefaults(L.latLng(lat, lng), { nazwa: name, opis: `Źródło: OpenStreetMap\nTyp: ${typeLabel}`, warstwa: 'OSM import', emoji });
+              openNewPinPopupWithDefaults(L.latLng(lat, lng), { nazwa: name, opis: `Źródło: OpenStreetMap\nTyp: ${typeLabel}`, warstwa: 'OSM import' });
               map.closePopup();
             }, { once: true });
           });
@@ -5654,32 +5646,32 @@ function emojiHtml(str) {
 
       roadsLayer = roadsFull;
       switchBaseLayer('sat');
-      logger('🆕 Dodano opcjonalną nakładkę OSM/Overpass wyświetlającą wybrane miejsca z OpenStreetMap bez zapisywania ich do Firestore i bez dodawania do listy pinezek.');
+      console.log('🆕 Dodano opcjonalną nakładkę OSM/Overpass wyświetlającą wybrane miejsca z OpenStreetMap bez zapisywania ich do Firestore i bez dodawania do listy pinezek.');
 
-
-      const OsmOverlayControl = L.Control.extend({
-        options: { position: 'topright' },
-        onAdd: function() {
-          const btn = L.DomUtil.create('div', 'leaflet-control osm-toggle-control');
-          btn.textContent = 'OSM';
-          L.DomEvent.disableClickPropagation(btn);
-          L.DomEvent.on(btn, 'click', () => {
-            osmOverlayEnabled = !osmOverlayEnabled;
-            btn.classList.toggle('active', osmOverlayEnabled);
-            if (!osmOverlayEnabled) { if (osmAbortController) osmAbortController.abort(); osmOverlayLayer.clearLayers(); return; }
-            debouncedLoadOsmOverlay();
-          });
-          return btn;
-        }
-      });
-      map.addControl(new OsmOverlayControl());
-      map.on('moveend zoomend', () => { if (osmOverlayEnabled) debouncedLoadOsmOverlay(); });
 
       document.querySelectorAll('input[name="basemap"]').forEach(radio => {
         radio.addEventListener('change', () => switchBaseLayer(radio.value));
       });
 
       const overlayCheckboxIds = { archStd: 'overlay-arch-std', archHi: 'overlay-arch-hi', shade: 'overlay-shade' };
+      const osmOverlayCheckbox = document.getElementById('overlay-osm-places');
+      const osmOverlayItem = document.getElementById('overlay-item-osm');
+      function setOsmOverlayState(enabled) {
+        osmOverlayEnabled = enabled;
+        if (osmOverlayCheckbox) osmOverlayCheckbox.checked = enabled;
+        if (osmOverlayItem) osmOverlayItem.classList.toggle('active', enabled);
+        if (!enabled) {
+          if (osmAbortController) osmAbortController.abort();
+          osmOverlayLayer.clearLayers();
+          return;
+        }
+        debouncedLoadOsmOverlay();
+      }
+      if (osmOverlayCheckbox) {
+        osmOverlayCheckbox.addEventListener('change', (e) => setOsmOverlayState(!!e.target.checked));
+      }
+      map.on('moveend zoomend', () => { if (osmOverlayEnabled) debouncedLoadOsmOverlay(); });
+
       ['archStd','archHi','shade'].forEach(key => {
         const checkbox = document.getElementById(overlayCheckboxIds[key]);
         if (checkbox) {
