@@ -5580,7 +5580,8 @@ function emojiHtml(str) {
           const names = items.map((item) => item.name);
           const marker = L.marker([lat, lng], { icon: getOsmIcon(names), keyboard: false });
           const popupItems = items.map((item) => `<div><strong>${escapeHtml(item.name)}</strong><br><span>${escapeHtml(item.typeLabel)}</span></div>`).join('<hr style="border:none;border-top:1px solid rgba(255,255,255,0.22);margin:6px 0;">');
-          const popupHtml = `<div class="osm-popup">${popupItems}<small>Źródło: OpenStreetMap</small><br><button class="osm-import-pin">Dodaj jako pinezkę</button></div>`;
+          const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
+          const popupHtml = `<div class="osm-popup">${popupItems}<small>Źródło: OpenStreetMap</small><br><a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">Otwórz w Google Maps</a><br><button class="osm-import-pin">Dodaj jako pinezkę</button></div>`;
           marker.bindPopup(popupHtml);
           marker.on('popupopen', (evt) => {
             const btn = evt.popup.getElement()?.querySelector('.osm-import-pin');
