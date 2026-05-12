@@ -1881,13 +1881,6 @@ img.emoji {
           Filtry szczegółowe <span class="desktop-filter-indicator">▼</span>
         </button>
         <div id="desktopFiltersContent">
-          <div id="mainCategoryFilters" class="main-category-filters">
-            <div class="main-category-title">Kategoria główna</div>
-            <div class="main-category-options">
-              <label><input type="checkbox" id="maincat-urbex" checked> URBEX</label>
-              <label><input type="checkbox" id="maincat-turystyczne" checked> TURYSTYCZNE</label>
-            </div>
-          </div>
           <details id="filterKategorie">
             <summary>Filtruj kategorie</summary>
             <div id="kategorie-lista"></div>
@@ -1911,6 +1904,11 @@ img.emoji {
       <div id="newLayerControls" class="new-layer-controls" style="display:none;">
         <div class="new-layer-row">
           <input type="text" id="newLayerInput" placeholder="Nazwa warstwy">
+          <select id="newLayerMainCategory" style="width: 140px">
+            <option value="">Kategoria</option>
+            <option value="URBEX">URBEX</option>
+            <option value="TURYSTYCZNE">TURYSTYCZNE</option>
+          </select>
           <button type="button" id="cancelNewLayer" class="new-layer-cancel" aria-label="Anuluj wprowadzanie warstwy">✖</button>
         </div>
         <button type="button" id="importKmlBtn" class="kml-import-btn">importuj z .kml</button>
@@ -1928,6 +1926,13 @@ img.emoji {
           <button id="tripPinsVisibilityToggle" type="button">Ukryj pinezki główne</button>
         </div>
         <div id="tripActiveBox"></div>
+      </div>
+      <div id="mainCategoryFilters" class="main-category-filters">
+        <div class="main-category-title">Kategoria główna</div>
+        <div class="main-category-options">
+          <label><input type="checkbox" id="maincat-urbex" checked> URBEX</label>
+          <label><input type="checkbox" id="maincat-turystyczne" checked> TURYSTYCZNE</label>
+        </div>
       </div>
       <div id="pinTotalCounter" class="pin-total-counter">Liczba miejsc: 0</div>
       <div id="lista-warstw"></div>
@@ -3228,6 +3233,7 @@ function slugify(str) {
     const addLayerBtn = document.getElementById('addLayerBtn');
     const newLayerControls = document.getElementById('newLayerControls');
     const newLayerInput = document.getElementById('newLayerInput');
+    const newLayerMainCategory = document.getElementById('newLayerMainCategory');
     const cancelNewLayerBtn = document.getElementById('cancelNewLayer');
     const importKmlBtn = document.getElementById('importKmlBtn');
     const importKmlInput = document.getElementById('importKmlInput');
@@ -3239,6 +3245,7 @@ function slugify(str) {
       if (!newLayerControls) return;
       newLayerControls.style.display = 'none';
       if (newLayerInput) newLayerInput.value = '';
+      if (newLayerMainCategory) newLayerMainCategory.value = '';
       if (importKmlInput) importKmlInput.value = '';
     };
     const showNewLayerControls = () => {
@@ -3246,9 +3253,9 @@ function slugify(str) {
       newLayerControls.style.display = 'block';
       if (newLayerInput) newLayerInput.focus();
     };
-    const ensureLayerExists = (name) => {
+    const ensureLayerExists = (name, mainCategory = '') => {
       if (!name) return false;
-      if (!warstwy[name]) addLayer(name);
+      if (!warstwy[name]) addLayer(name, true, mainCategory);
       return true;
     };
     const parseKmlContent = (content) => {
@@ -3374,7 +3381,12 @@ function slugify(str) {
       newLayerInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
           const name = e.target.value.trim();
-          if (ensureLayerExists(name)) {
+          const selectedMain = newLayerMainCategory ? newLayerMainCategory.value : '';
+          if (!selectedMain || !MAIN_CATEGORY_OPTIONS.includes(selectedMain)) {
+            showToast('Wybierz kategorię główną warstwy.');
+            return;
+          }
+          if (ensureLayerExists(name, selectedMain)) {
             e.target.value = '';
             hideNewLayerControls();
           }
@@ -3406,7 +3418,8 @@ function slugify(str) {
             newLayerInput.value = layerName;
           }
           const finalLayerName = (newLayerInput && newLayerInput.value.trim()) || layerName || 'Inne';
-          ensureLayerExists(finalLayerName);
+          const selectedMain = (newLayerMainCategory && newLayerMainCategory.value) || MAIN_CATEGORY_URBEX;
+          ensureLayerExists(finalLayerName, selectedMain);
           const count = await addImportedPinsToMap(pins, finalLayerName);
           showToast(`Zaimportowano ${count} pinezek.`);
           hideNewLayerControls();
@@ -5505,7 +5518,7 @@ function emojiHtml(str) {
         return;
       }
       try {
-        const payload = { name: layerName, order: Array.isArray(orderList) ? orderList.length : Object.keys(layerDocs).length };
+        const payload = { name: layerName, order: Array.isArray(orderList) ? orderList.length : Object.keys(layerDocs).length, mainCategory: MAIN_CATEGORY_URBEX };
         const docRef = await db.collection('layers').add(payload);
         layerDocs[layerName] = docRef.id;
         layerNamesById[docRef.id] = layerName;
@@ -5536,7 +5549,7 @@ function emojiHtml(str) {
           if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
           order.push(data.name);
           if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: data.emoji || '', loaded: false, loading: false, defaultVisible: data.defaultVisible !== undefined ? !!data.defaultVisible : true };
+            warstwy[data.name] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: data.emoji || '', loaded: false, loading: false, defaultVisible: data.defaultVisible !== undefined ? !!data.defaultVisible : true, mainCategory: normalizeMainCategory(data.mainCategory || MAIN_CATEGORY_URBEX) };
           } else {
             if (data.emoji) {
               warstwy[data.name].emoji = data.emoji;
@@ -5546,6 +5559,7 @@ function emojiHtml(str) {
             } else if (warstwy[data.name].defaultVisible === undefined) {
               warstwy[data.name].defaultVisible = true;
             }
+            warstwy[data.name].mainCategory = normalizeMainCategory(data.mainCategory || warstwy[data.name].mainCategory || MAIN_CATEGORY_URBEX);
           }
         });
         if (order.length > 0) {
@@ -5928,7 +5942,10 @@ function zaladujPinezkiZFirestore() {
         <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
         <textarea id="eopis" style="width: 100%; height: 50px"></textarea><br>
         <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo" style="width: 100%"><br>
-        <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa" style="width: 100%"><br>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa" style="width: 100%">
+          <button id="addLayerFromPinEdit" type="button" title="Dodaj nową warstwę">＋</button>
+        </div><br>
         <label for="ekategoriaGlowna">Kategoria główna</label><br>
         <select id="ekategoriaGlowna" style="width: 100%">
           <option value="URBEX" ${getPinMainCategory(p) === MAIN_CATEGORY_URBEX ? 'selected' : ''}>URBEX</option>
@@ -5960,6 +5977,14 @@ function zaladujPinezkiZFirestore() {
       setupDropdownInput(container.querySelector('#ewarstwa'), () => Object.keys(warstwy));
       const editMainCategoryInput = container.querySelector('#ekategoriaGlowna');
       const editCategoryInput = container.querySelector('#ekategoria');
+      const addLayerFromPinEditBtn = container.querySelector('#addLayerFromPinEdit');
+      if (addLayerFromPinEditBtn) addLayerFromPinEditBtn.addEventListener('click', () => {
+        const layerName = (container.querySelector('#ewarstwa').value || '').trim();
+        const selectedMain = (container.querySelector('#ekategoriaGlowna').value || '').trim();
+        if (!layerName) return alert('Wpisz nazwę nowej warstwy.');
+        if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
+        if (!warstwy[layerName]) addLayer(layerName, true, selectedMain);
+      });
       setupDropdownInput(editCategoryInput, () => getCategorySuggestions(editMainCategoryInput ? editMainCategoryInput.value : getPinMainCategory(p)));
       if (editMainCategoryInput) {
         editMainCategoryInput.addEventListener('change', () => {
@@ -6105,7 +6130,7 @@ function zaladujPinezkiZFirestore() {
       if (!nameVal) missing.push("Wpisz nazwę pinezki");
       if (!layerVal) missing.push("Wybierz warstwę");
       if (missing.length) { alert(missing.join("\n")); return; }
-      if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
+      if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
       const resolvedCategory = resolveMainCategoryForCategory(
         document.getElementById("ekategoriaGlowna").value,
         document.getElementById("ekategoria").value
@@ -6263,7 +6288,10 @@ function zaladujPinezkiZFirestore() {
         <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
         <textarea id="opisNew" placeholder="Opis" style="width: 100%; height: 100px"></textarea><br>
         <input id="odKogoNew" placeholder="Od kogo" style="width: 100%"><br>
-        <input id="warstwaNew" placeholder="Warstwa" style="width: 102%"><br>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <input id="warstwaNew" placeholder="Warstwa" style="width: 100%">
+          <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
+        </div><br>
         <label for="kategoriaGlownaNew">Kategoria główna</label><br>
         <select id="kategoriaGlownaNew" style="width: 102%">
           <option value="URBEX">URBEX</option>
@@ -6287,6 +6315,14 @@ function zaladujPinezkiZFirestore() {
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'));
       setupEmojiPicker(container.querySelector('#emojiPickerNew'), tempPin);
       setupDropdownInput(container.querySelector('#warstwaNew'), () => Object.keys(warstwy));
+      const addLayerFromPinNewBtn = container.querySelector('#addLayerFromPinNew');
+      if (addLayerFromPinNewBtn) addLayerFromPinNewBtn.addEventListener('click', () => {
+        const layerName = (container.querySelector('#warstwaNew').value || '').trim();
+        const selectedMain = (container.querySelector('#kategoriaGlownaNew').value || '').trim();
+        if (!layerName) return alert('Wpisz nazwę nowej warstwy.');
+        if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
+        if (!warstwy[layerName]) addLayer(layerName, true, selectedMain);
+      });
       const newMainCategoryInput = container.querySelector('#kategoriaGlownaNew');
       const newCategoryInput = container.querySelector('#kategoriaNew');
       setupDropdownInput(newCategoryInput, () => getCategorySuggestions(newMainCategoryInput ? newMainCategoryInput.value : MAIN_CATEGORY_URBEX));
@@ -6349,7 +6385,7 @@ function zaladujPinezkiZFirestore() {
           if (!nameVal) missing.push("Wpisz nazwę pinezki");
           if (!layerVal) missing.push("Wybierz warstwę");
           if (missing.length) { alert(missing.join("\n")); return; }
-          if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
+          if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
           const resolvedCategory = resolveMainCategoryForCategory(
             container.querySelector('#kategoriaGlownaNew').value,
             container.querySelector("#kategoriaNew").value
@@ -7100,11 +7136,12 @@ function zaladujPinezkiZFirestore() {
       };
     }
 
-    function addLayer(name, record = true) {
+    function addLayer(name, record = true, mainCategory = MAIN_CATEGORY_URBEX) {
       if (!name || warstwy[name]) return;
+      const normalizedMain = normalizeMainCategory(mainCategory);
       const prevLayersToAdd = layersToAdd.slice();
       const prevOrder = loadLayerOrder();
-      warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
+      warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true, mainCategory: normalizedMain };
       warstwy[name].visible = true;
       setLayerCollapseState(name, true);
       setLayerVisibilityState(name, true);
@@ -7129,7 +7166,7 @@ function zaladujPinezkiZFirestore() {
             updateSaveButton();
           },
           redo: () => {
-            warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
+            warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true, mainCategory: normalizedMain };
             warstwy[name].visible = true;
             layersToAdd = prevLayersToAdd.concat(name);
             const o = prevOrder.slice();
@@ -7214,7 +7251,7 @@ function zaladujPinezkiZFirestore() {
       document.getElementById('layerEditOrder').value = idx >= 0 ? idx + 1 : (order.length + 1);
       document.getElementById('layerEditEmoji').value = warstwy[name].emoji || '';
       const mainCategoryInput = document.getElementById('layerEditMainCategory');
-      if (mainCategoryInput) mainCategoryInput.value = '';
+      if (mainCategoryInput) mainCategoryInput.value = normalizeMainCategory(warstwy[name].mainCategory || MAIN_CATEGORY_URBEX);
       const defaultVisible = getLayerDefaultVisible(name);
       const defaultVisibleInput = document.getElementById('layerDefaultVisible');
       const defaultHiddenInput = document.getElementById('layerDefaultHidden');
@@ -7235,7 +7272,8 @@ function zaladujPinezkiZFirestore() {
         name: editedLayer,
         order: loadLayerOrder(),
         emoji: warstwy[editedLayer].emoji || '',
-        defaultVisible: getLayerDefaultVisible(editedLayer)
+        defaultVisible: getLayerDefaultVisible(editedLayer),
+        mainCategory: normalizeMainCategory(warstwy[editedLayer].mainCategory || MAIN_CATEGORY_URBEX)
       };
       const newName = document.getElementById('layerEditName').value.trim();
       const newOrder = parseInt(document.getElementById('layerEditOrder').value, 10);
@@ -7262,6 +7300,9 @@ function zaladujPinezkiZFirestore() {
         warstwy[editedLayer].defaultVisible = newDefaultVisible;
         layerDefaultVisibilityChanges[editedLayer] = newDefaultVisible;
       }
+      if (MAIN_CATEGORY_OPTIONS.includes(newMainCategory)) {
+        warstwy[editedLayer].mainCategory = newMainCategory;
+      }
       const layerPins = warstwy[editedLayer] && Array.isArray(warstwy[editedLayer].lista) ? warstwy[editedLayer].lista : [];
       const previousMainCategories = {};
       let changedMainCategoryCount = 0;
@@ -7285,7 +7326,8 @@ function zaladujPinezkiZFirestore() {
         name: editedLayer,
         order: loadLayerOrder(),
         emoji: warstwy[editedLayer].emoji || '',
-        defaultVisible: getLayerDefaultVisible(editedLayer)
+        defaultVisible: getLayerDefaultVisible(editedLayer),
+        mainCategory: normalizeMainCategory(warstwy[editedLayer].mainCategory || MAIN_CATEGORY_URBEX)
       };
       pushAction({
         undo: () => {
@@ -9122,7 +9164,11 @@ function getTripPointEmoji(p) {
       const visibilityStates = shouldIgnoreStoredLayerState ? {} : loadLayerVisibilityStates();
       const nazwy = [...saved.filter(n => warstwy[n]), ...Object.keys(warstwy).filter(n => !saved.includes(n))];
       const tempLayers = nazwy.filter(n => warstwy[n].temporary);
-      const regularLayers = nazwy.filter(n => !warstwy[n].temporary);
+      const regularLayers = nazwy.filter(n => {
+        if (warstwy[n].temporary) return false;
+        const layerMain = normalizeMainCategory(warstwy[n].mainCategory || MAIN_CATEGORY_URBEX);
+        return selectedMainCategories.has(layerMain);
+      });
       const finalNazwy = [...tempLayers, ...regularLayers];
       const totalPinsCount = regularLayers.reduce((sum, name) => sum + (warstwy[name]?.lista?.length || 0), 0);
       if (pinTotalCounter) {
@@ -9538,7 +9584,7 @@ function getTripPointEmoji(p) {
         const layerUpdates = Object.keys(warstwy).map(name => {
           const order = orderList.indexOf(name);
           const docId = layerDocs[name];
-          const payload = {name, order, emoji: warstwy[name].emoji || '', defaultVisible: getLayerDefaultVisible(name)};
+          const payload = {name, order, emoji: warstwy[name].emoji || '', defaultVisible: getLayerDefaultVisible(name), mainCategory: normalizeMainCategory(warstwy[name].mainCategory || MAIN_CATEGORY_URBEX)};
           if (docId) {
             return db.collection('layers').doc(docId).set(payload);
           } else if (layersToAdd.includes(name)) {
@@ -10087,7 +10133,7 @@ function confirmLayerDelete() {
   function saveCenterPin(form) {
     const latlng = map.getCenter();
     const layerVal = form.warstwa.trim();
-    if (layerVal && !warstwy[layerVal]) addLayer(layerVal);
+    if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
     const resolvedCategory = resolveMainCategoryForCategory(form.kategoriaGlowna, form.kategoria);
     const mainCatVal = resolvedCategory.mainCategory;
     const catVal = resolvedCategory.category;
