@@ -1899,6 +1899,20 @@ img.emoji {
     }
 
     @media (max-width: 700px) {
+      .sidebar-header {
+        align-items: center;
+      }
+
+      #specialMenu {
+        order: 2;
+        margin-bottom: 0;
+        margin-left: auto;
+      }
+
+      #logoNaglowek {
+        order: 1;
+      }
+
       #mobileControlsToggle {
         display: flex;
         margin-bottom: 6px;
@@ -2094,6 +2108,14 @@ img.emoji {
       </div>
       </div>
       <button id="loadPinsBtn">Załaduj pinezki</button>
+      <div id="mainCategoryFilters" class="main-category-filters">
+        <div class="main-category-title">Kategoria główna</div>
+        <div class="main-category-options">
+          <label><input type="checkbox" id="maincat-urbex" checked> URBEX</label>
+          <label><input type="checkbox" id="maincat-turystyczne" checked> TURYSTYCZNE</label>
+        </div>
+      </div>
+      <div id="pinTotalCounter" class="pin-total-counter">Liczba miejsc: 0</div>
       <div id="tripPlannerPanel" class="trip-planner-panel" style="display:none;">
         <h3>Plan tripu</h3>
         <div class="trip-select-row">
@@ -2105,14 +2127,6 @@ img.emoji {
         </div>
         <div id="tripActiveBox"></div>
       </div>
-      <div id="mainCategoryFilters" class="main-category-filters">
-        <div class="main-category-title">Kategoria główna</div>
-        <div class="main-category-options">
-          <label><input type="checkbox" id="maincat-urbex" checked> URBEX</label>
-          <label><input type="checkbox" id="maincat-turystyczne" checked> TURYSTYCZNE</label>
-        </div>
-      </div>
-      <div id="pinTotalCounter" class="pin-total-counter">Liczba miejsc: 0</div>
       <div id="lista-warstw"></div>
       <button id="syncBtn">Synchronizuj (<span id="syncCount">0</span>)</button>
     </div>
