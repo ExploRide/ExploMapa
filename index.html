@@ -829,7 +829,6 @@ body, #sidebar, #basemap-switcher {
 }
 .trip-mode-toggle { display:flex; gap:6px; margin:8px 0; }
 .trip-mode-toggle button { flex:1; background:#1d2028; color:#ddd; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:6px; }
-.trip-mode-toggle #modePinsBtn,.trip-mode-toggle #modeTripBtn { flex:1 1 0; min-width:0; white-space:nowrap; }
 .trip-mode-toggle button.active { background:var(--ui-accent); color:#fff; border-color:var(--ui-accent); }
 body.trip-planner-mode #tripPlannerPanel { display:block !important; }
 body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
@@ -1631,11 +1630,9 @@ img.emoji {
       margin-top: 0;
       flex: 1 1 0;
       width: auto;
-      min-height: 24px;
-      font-size: 11px;
-      line-height: 1.1;
-      padding: 3px 4px;
-      white-space: nowrap;
+      min-height: 26px;
+      font-size: 12px;
+      line-height: 1.2;
     }
 
     #addLayerBtn {
@@ -3428,7 +3425,6 @@ function slugify(str) {
     const toggleVisibilityBtn = document.getElementById('toggleVisibility');
     let allLayersCollapsed = true;
     let allLayersVisible = true;
-    let layerVisibilityToggleInitialized = false;
     const hideNewLayerControls = () => {
       if (!newLayerControls) return;
       newLayerControls.style.display = 'none';
@@ -9992,12 +9988,7 @@ function getTripPointEmoji(p) {
       }
 
       applySearchFilter();
-      if (!layerVisibilityToggleInitialized) {
-        allLayersVisible = true;
-        layerVisibilityToggleInitialized = true;
-      } else {
-        allLayersVisible = Object.values(warstwy).every(w => w.visible);
-      }
+      allLayersVisible = Object.values(warstwy).every(w => w.visible);
       if (toggleVisibilityBtn) {
         toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
       }
