@@ -830,6 +830,8 @@ body, #sidebar, #basemap-switcher {
 .trip-mode-toggle { display:flex; gap:6px; margin:8px 0; }
 .trip-mode-toggle button { flex:1; background:#1d2028; color:#ddd; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:6px; }
 .trip-mode-toggle button.active { background:var(--ui-accent); color:#fff; border-color:var(--ui-accent); }
+body.trip-planner-mode #tripPlannerPanel { display:block !important; }
+body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
 .trip-planner-panel { background:#17191f; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:8px; margin-bottom:8px; }
 .trip-select-row { display:flex; gap:6px; margin-bottom:8px; }
 .trip-planner-toggle-row { margin-top:8px; padding-top:8px; border-top:1px solid var(--ui-border); }
@@ -11491,6 +11493,53 @@ function confirmLayerDelete() {
   }
 
     function reset(){ els.start.disabled=false; els.stop.disabled=true; abortFlag=false; }
+    let tripModeTapLock = 0;
+
+    async function activateTripModeFromEvent(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      const now = Date.now();
+      if (now - tripModeTapLock < 350) return;
+      tripModeTapLock = now;
+
+      console.log('Plan tripu clicked', e?.type);
+
+      setTripMode('trip');
+
+      const tripPanel = document.getElementById('tripPlannerPanel');
+      if (tripPanel) {
+        tripPanel.style.display = 'block';
+      }
+
+      const user = firebase.auth().currentUser;
+      if (!user) {
+        showToast('Najpierw zaloguj się');
+        return;
+      }
+
+      await loadTrips();
+      renderTripPlannerPanel();
+      renderTripMapLayers();
+      applyTripPlannerPinVisibility();
+
+      if (document.body.classList.contains('mobile-layout')) {
+        const sidebar = document.getElementById('sidebar');
+        sidebar?.classList.add('show');
+        setTimeout(() => tripPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+      }
+    }
+
+    function activatePinsModeFromEvent(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      console.log('Pinezki clicked', e?.type);
+      setTripMode('pins');
+    }
+
     function setTripMode(mode) {
       tripPlannerMode = mode;
       document.getElementById('modePinsBtn')?.classList.toggle('active', mode === 'pins');
@@ -11503,19 +11552,26 @@ function confirmLayerDelete() {
       const sidebar = document.getElementById('sidebar');
       if (mode === 'trip' && document.body.classList.contains('mobile-layout') && sidebar) {
         sidebar.classList.add('show');
-        requestAnimationFrame(() => tripPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
       }
       document.getElementById('toggleLayers').textContent = mode === 'trip' ? '☰ Plan tripu' : '☰ Warstwy';
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
     }
-    document.getElementById('modePinsBtn')?.addEventListener('click', () => setTripMode('pins'));
-    document.getElementById('modeTripBtn')?.addEventListener('click', async () => {
-      setTripMode('trip');
-      const user = firebase.auth().currentUser;
-      if (!user) { showToast('Najpierw zaloguj się'); return; }
-      await loadTrips();
-    });
+
+    const modePinsBtn = document.getElementById('modePinsBtn');
+    const modeTripBtn = document.getElementById('modeTripBtn');
+
+    if (modePinsBtn) {
+      modePinsBtn.addEventListener('click', activatePinsModeFromEvent);
+      modePinsBtn.addEventListener('touchend', activatePinsModeFromEvent, { passive: false });
+      modePinsBtn.addEventListener('pointerup', activatePinsModeFromEvent);
+    }
+
+    if (modeTripBtn) {
+      modeTripBtn.addEventListener('click', activateTripModeFromEvent);
+      modeTripBtn.addEventListener('touchend', activateTripModeFromEvent, { passive: false });
+      modeTripBtn.addEventListener('pointerup', activateTripModeFromEvent);
+    }
     document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; activeTripDayId = null; renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility(); });
     document.getElementById('tripPinsVisibilityToggle')?.addEventListener('click', () => { hideMainPinsInTripMode = !hideMainPinsInTripMode; applyTripPlannerPinVisibility(); });
     document.getElementById('tripNewBtn')?.addEventListener('click', async () => {
