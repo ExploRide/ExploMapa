@@ -9621,6 +9621,7 @@ function getTripPointEmoji(p) {
     }
 
     let markerViewportUpdateScheduled = false;
+    let markerVisibilityDebounceTimer = null;
 
     function pinIsInViewport(pin, paddedBounds) {
       if (!pin || typeof pin.lat !== 'number' || typeof pin.lng !== 'number') return false;
@@ -9629,46 +9630,68 @@ function getTripPointEmoji(p) {
     }
 
     function scheduleMarkerVisibilityUpdate() {
-      if (markerViewportUpdateScheduled) return;
-      markerViewportUpdateScheduled = true;
-      showLoading();
-      requestAnimationFrame(() => {
+      if (markerVisibilityDebounceTimer) clearTimeout(markerVisibilityDebounceTimer);
+      markerVisibilityDebounceTimer = setTimeout(() => {
+        if (markerViewportUpdateScheduled) return;
+        markerViewportUpdateScheduled = true;
+        showLoading();
         requestAnimationFrame(() => {
-          markerViewportUpdateScheduled = false;
-          try {
-            updateMarkerVisibility();
-          } finally {
-            hideLoading();
-          }
+          requestAnimationFrame(() => {
+            try {
+              updateMarkerVisibility();
+            } finally {
+              markerViewportUpdateScheduled = false;
+              hideLoading();
+              markerVisibilityDebounceTimer = null;
+            }
+          });
         });
-      });
+      }, 120);
     }
 
     function updateMarkerVisibility() {
       const paddedBounds = map ? map.getBounds().pad(0.15) : null;
       const changedLayers = new Set();
+      const layerOps = new Map();
+
       Object.values(warstwy).forEach(w => {
+        const toAdd = [];
+        const toRemove = [];
         w.lista.forEach(p => {
           if (!p.marker) return;
           const visibleByFilters = pinMatchesAllFilters(p, true);
           const visible = visibleByFilters && pinIsInViewport(p, paddedBounds);
           if (visible) {
-            if (!w.layer.hasLayer(p.marker)) {
-              w.layer.addLayer(p.marker);
-              changedLayers.add(w.layer);
-            }
+            if (!w.layer.hasLayer(p.marker)) toAdd.push(p.marker);
           } else {
-            if (w.layer.hasLayer(p.marker)) {
-              w.layer.removeLayer(p.marker);
-              changedLayers.add(w.layer);
-            }
+            if (w.layer.hasLayer(p.marker)) toRemove.push(p.marker);
           }
           updatePlanVisibilityForPin(p);
         });
+        if (toAdd.length || toRemove.length) {
+          layerOps.set(w.layer, { toAdd, toRemove });
+        }
       });
+
+      layerOps.forEach((ops, layer) => {
+        if (!layer) return;
+        if (ops.toRemove.length && typeof layer.removeLayers === 'function') {
+          layer.removeLayers(ops.toRemove);
+          changedLayers.add(layer);
+        } else if (ops.toRemove.length) {
+          ops.toRemove.forEach(marker => layer.removeLayer(marker));
+          changedLayers.add(layer);
+        }
+        if (ops.toAdd.length && typeof layer.addLayers === 'function') {
+          layer.addLayers(ops.toAdd);
+          changedLayers.add(layer);
+        } else if (ops.toAdd.length) {
+          ops.toAdd.forEach(marker => layer.addLayer(marker));
+          changedLayers.add(layer);
+        }
+      });
+
       changedLayers.forEach(layer => {
-        // refreshClusters() potrafi rzucać wyjątek w niektórych stanach MarkerCluster.
-        // Pomijamy odświeżanie klastrów, aby nie przerywać generowania listy warstw.
         if (layer && typeof layer.fire === 'function') {
           layer.fire('animationend');
         }
