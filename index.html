@@ -2775,7 +2775,8 @@ function slugify(str) {
     const CLUSTER_DISABLE_AT_ZOOM = 14; // skupiaj pinezki aż do średniego przybliżenia mapy
     const CLUSTER_MIN_MARKERS = 2; // prawie zawsze pokazuj grupę zamiast pojedynczych pinezek
     const BIG_CLUSTER_COUNT = 500;
-    const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 250;
+    const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 1000;
+    const CLUSTER_OVERLAP_MERGE_PADDING = 22;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
     // When the page is opened normally we want layer visibility/collapse to reset.
@@ -2929,53 +2930,49 @@ function slugify(str) {
       function buildStrongOverlapGroups(clusters) {
         const len = clusters.length;
         if (len < 2 || len > MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE) return [];
-        const points = new Array(len);
-        const radii = new Array(len);
-        const parent = Array.from({ length: len }, (_, idx) => idx);
 
-        const find = idx => {
-          while (parent[idx] !== idx) {
-            parent[idx] = parent[parent[idx]];
-            idx = parent[idx];
+        const groups = clusters.map(cluster => {
+          const totalChildren = cluster.getChildCount();
+          const point = map.latLngToLayerPoint(cluster.getLatLng());
+          return {
+            clusters: [cluster],
+            totalChildren,
+            point,
+            radius: getClusterIconSize(totalChildren) * 0.5
+          };
+        });
+
+        let merged = true;
+        while (merged) {
+          merged = false;
+
+          for (let i = 0; i < groups.length; i++) {
+            const groupA = groups[i];
+            for (let j = i + 1; j < groups.length; j++) {
+              const groupB = groups[j];
+              const distance = groupA.point.distanceTo(groupB.point);
+              const mergeDistance = groupA.radius + groupB.radius + CLUSTER_OVERLAP_MERGE_PADDING;
+              if (distance >= mergeDistance) continue;
+
+              const totalChildren = groupA.totalChildren + groupB.totalChildren;
+              const weightedX = (groupA.point.x * groupA.totalChildren) + (groupB.point.x * groupB.totalChildren);
+              const weightedY = (groupA.point.y * groupA.totalChildren) + (groupB.point.y * groupB.totalChildren);
+
+              groups[i] = {
+                clusters: groupA.clusters.concat(groupB.clusters),
+                totalChildren,
+                point: L.point(weightedX / totalChildren, weightedY / totalChildren),
+                radius: getClusterIconSize(totalChildren) * 0.5
+              };
+              groups.splice(j, 1);
+              merged = true;
+              break;
+            }
+            if (merged) break;
           }
-          return idx;
-        };
-
-        const union = (a, b) => {
-          const rootA = find(a);
-          const rootB = find(b);
-          if (rootA !== rootB) parent[rootB] = rootA;
-        };
-
-        for (let i = 0; i < len; i++) {
-          const cluster = clusters[i];
-          const count = cluster.getChildCount();
-          const size = getClusterIconSize(count);
-          points[i] = map.latLngToLayerPoint(cluster.getLatLng());
-          radii[i] = size * 0.5;
         }
 
-        for (let i = 0; i < len; i++) {
-          const pointA = points[i];
-          const radiusA = radii[i];
-          for (let j = i + 1; j < len; j++) {
-            const radiusB = radii[j];
-            const distance = pointA.distanceTo(points[j]);
-            const sumOfRadii = radiusA + radiusB;
-            if (distance >= sumOfRadii) continue;
-
-            // Każde nałożenie klastrów traktujemy jako jedną grupę nadrzędną.
-            union(i, j);
-          }
-        }
-
-        const grouped = new Map();
-        for (let i = 0; i < len; i++) {
-          const root = find(i);
-          if (!grouped.has(root)) grouped.set(root, []);
-          grouped.get(root).push(clusters[i]);
-        }
-        return Array.from(grouped.values()).filter(group => group.length > 1);
+        return groups.filter(group => group.clusters.length > 1);
       }
 
       function mergeStronglyOverlappingClusters() {
@@ -2991,6 +2988,7 @@ function slugify(str) {
 
         const clusters = getVisibleTopClusters();
         const mergedGroups = buildStrongOverlapGroups(clusters);
+        console.log('[clusters] before merge:', clusters.length, 'after merge groups:', mergedGroups.length);
         if (mergedGroups.length === 0) return;
 
         for (const group of mergedGroups) {
@@ -2999,7 +2997,7 @@ function slugify(str) {
           let weightedY = 0;
           const markerSet = new Set();
 
-          group.forEach(cluster => {
+          group.clusters.forEach(cluster => {
             const count = cluster.getChildCount();
             const centerPoint = map.latLngToLayerPoint(cluster.getLatLng());
             totalChildren += count;
@@ -3027,7 +3025,7 @@ function slugify(str) {
           });
           mergedOverlayLayer.addLayer(mergedMarker);
 
-          group.forEach(cluster => {
+          group.clusters.forEach(cluster => {
             const id = L.Util.stamp(cluster);
             hiddenClusterIds.add(id);
             mergedClusterMarkers.push({ id, cluster });
@@ -3091,8 +3089,10 @@ function slugify(str) {
       }
 
       function refreshClusterVisuals() {
-        renderSmallClustersAsSingleMarkers();
-        mergeStronglyOverlappingClusters();
+        requestAnimationFrame(() => {
+          renderSmallClustersAsSingleMarkers();
+          mergeStronglyOverlappingClusters();
+        });
       }
 
       clusterLayer = L.markerClusterGroup({
