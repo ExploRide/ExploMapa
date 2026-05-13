@@ -11497,7 +11497,14 @@ function confirmLayerDelete() {
       document.getElementById('modeTripBtn')?.classList.toggle('active', mode === 'trip');
       document.body.classList.toggle('trip-planner-mode', mode === 'trip');
       const tripPanel = document.getElementById('tripPlannerPanel');
-      if (tripPanel) tripPanel.style.display = mode === 'trip' ? 'block' : 'none';
+      if (tripPanel) {
+        tripPanel.style.display = mode === 'trip' ? 'block' : 'none';
+      }
+      const sidebar = document.getElementById('sidebar');
+      if (mode === 'trip' && document.body.classList.contains('mobile-layout') && sidebar) {
+        sidebar.classList.add('show');
+        requestAnimationFrame(() => tripPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }
       document.getElementById('toggleLayers').textContent = mode === 'trip' ? '☰ Plan tripu' : '☰ Warstwy';
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
