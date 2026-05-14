@@ -578,6 +578,10 @@
     .leaflet-zoom-anim .custom-cluster-icon {
       transition: none !important;
     }
+    .leaflet-marker-icon.marker-cluster-hidden {
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
     .emoji-inline {
 width: 15px;
     height: 15px;
@@ -3071,6 +3075,27 @@ function slugify(str) {
         return clone;
       }
 
+      function hideTinyClustersImmediately() {
+        const clusterGroup = clusterLayer;
+        const visible = clusterGroup?._featureGroup?.getLayers?.() || [];
+
+        for (const layer of visible) {
+          if (!(layer instanceof L.MarkerCluster)) continue;
+
+          const count = layer.getChildCount();
+
+          if (count < CLUSTER_MIN_MARKERS) {
+            const el = layer._icon;
+            if (el) {
+              el.classList.add('marker-cluster-hidden');
+              el.style.display = 'none';
+              el.style.opacity = '0';
+              el.style.pointerEvents = 'none';
+            }
+          }
+        }
+      }
+
       function renderSmallClustersAsSingleMarkers() {
         if (!map || !clusterLayer || !clusterLayer._featureGroup) return;
         if (!smallClusterOverlayLayer || !map.hasLayer(clusterLayer)) return;
@@ -3093,6 +3118,10 @@ function slugify(str) {
           hiddenSmallClusterIds.add(id);
           smallClusterMarkers.push({ id, cluster });
           setClusterMarkerVisibility(cluster, false);
+          if (cluster._icon) {
+            cluster._icon.classList.add('marker-cluster-hidden');
+            cluster._icon.style.display = 'none';
+          }
 
           childMarkers.forEach(childMarker => {
             const markerClone = buildSingleMarkerClone(childMarker);
@@ -3104,6 +3133,7 @@ function slugify(str) {
       function refreshClusterVisuals() {
         requestAnimationFrame(() => {
           renderSmallClustersAsSingleMarkers();
+          hideTinyClustersImmediately();
           mergeStronglyOverlappingClusters();
         });
       }
@@ -3111,8 +3141,8 @@ function slugify(str) {
       clusterLayer = L.markerClusterGroup({
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
         maxClusterRadius: () => 105,
-        animate: false,
-        animateAddingMarkers: false,
+        animate: true,
+        animateAddingMarkers: true,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: true,
         iconCreateFunction: cluster => {
@@ -3133,6 +3163,8 @@ function slugify(str) {
         mergedOverlayLayer.addTo(map);
         smallClusterOverlayLayer.addTo(map);
         map.on('zoomstart zoomend moveend', handleMapViewChange);
+        map.on('zoomstart', hideTinyClustersImmediately);
+        map.on('zoomanim', hideTinyClustersImmediately);
         refreshClusterVisuals();
       });
       clusterLayer.on('remove', () => {
@@ -3141,7 +3173,10 @@ function slugify(str) {
         mergedOverlayLayer.remove();
         smallClusterOverlayLayer.remove();
         map.off('zoomstart zoomend moveend', handleMapViewChange);
+        map.off('zoomstart', hideTinyClustersImmediately);
+        map.off('zoomanim', hideTinyClustersImmediately);
       });
+      clusterLayer.on('animationend', hideTinyClustersImmediately);
       clusterLayer.on('animationend', refreshClusterVisuals);
       clusterLayer.on('spiderfied', refreshClusterVisuals);
       clusterLayer.on('unspiderfied', refreshClusterVisuals);
