@@ -8630,9 +8630,8 @@ function getTripPointEmoji(p) {
       if (!trip || !Array.isArray(trip.days)) return;
       ensureActiveTripDay(trip);
       (trip.days || []).forEach(day => {
-        if (day.visible === false) return;
         const pointsSorted = [...(day.points || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        (day.routeSegments || []).forEach((seg, segIdx) => {
+        if (day.visible !== false) (day.routeSegments || []).forEach((seg, segIdx) => {
           let coords = (seg.geometry || []).map(c => {
             if (Array.isArray(c)) return [Number(c[0]), Number(c[1])];
             if (c && typeof c === 'object' && Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng))) return [Number(c.lat), Number(c.lng)];
