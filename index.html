@@ -236,7 +236,7 @@
     }
     .trasy-lista { margin-left: 15px; }
     .trasa-item { font-size: 12px; cursor: pointer; padding-left: 4px; }
-    .route-line { stroke-width: 4; }
+    .route-line { stroke-width: 3; }
     .route-line:hover { filter: drop-shadow(0 0 3px black); }
     .plan-item { font-size: 12px; cursor: pointer; padding-left: 4px; display: flex; align-items: center; gap: 6px; }
     .plan-item .plan-name { flex: 1; text-decoration: underline; }
@@ -835,7 +835,7 @@ body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
 .trip-planner-panel { background:#17191f; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:8px; margin-bottom:8px; }
 .trip-select-row { display:flex; gap:6px; margin-bottom:8px; }
 .trip-planner-toggle-row { margin-top:8px; padding-top:8px; border-top:1px solid var(--ui-border); }
-.trip-select-row + #tripActiveBox { border-top:1px solid var(--ui-border); margin-top:8px; padding-top:8px; }
+.trip-select-row + #tripActiveBox { border-top:1px solid var(--ui-border); margin-top:8px; padding-top:8px; max-height:52vh; overflow-y:auto; }
 .trip-select-row select,.trip-select-row button { background:#1d2028; color:#eee; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); font-size:12px; padding:5px; }
 .trip-day-card { border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:7px; margin-bottom:8px; background:#1d2028; }
 .trip-day-header,.trip-point-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
@@ -857,6 +857,7 @@ body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
 .trip-point-name { color:#fff; font-weight:700; font-size:13px; }
 .trip-segment-row,.trip-point-meta { color:var(--ui-text-muted); font-size:11px; }
 .trip-color-input { width:32px; height:24px; padding:0; border:0; background:none; }
+.trip-day-visible-toggle { display:inline-flex; align-items:center; gap:4px; font-size:11px; opacity:.9; }
 .trip-active-day { box-shadow:0 0 0 1px var(--ui-accent) inset; }
 .trip-muted-day { opacity:.7; }
 body.trip-planner-mode #sidebarTopControls,
@@ -4664,8 +4665,8 @@ function emojiHtml(str) {
         <div class="popup-info-item">${formatCoords(p.lat, p.lng)}</div>
         <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
         <div class="popup-edit-row">
+          <button class="popup-edit-btn popup-edit-pin-btn" title="Edytuj pinezkę">✏️</button>
           <button class="popup-edit-btn popup-delete-btn" title="Usuń pinezkę">🗑️</button>
-          <button class="popup-edit-btn">✏️</button>
         </div>
         <div class="popup-route-actions">
           <button class="popup-route-btn popup-route-add-btn">Dodaj trasę</button>
@@ -4682,7 +4683,7 @@ function emojiHtml(str) {
         const container = e.popup.getElement();
         if (!container) return;
         setupGallery(container.querySelector('.photo-gallery'));
-        const btn = container.querySelector('.popup-edit-btn');
+        const btn = container.querySelector('.popup-edit-pin-btn');
         if (btn) {
           btn.addEventListener('click', ev => {
             ev.stopPropagation();
@@ -8635,7 +8636,7 @@ function getTripPointEmoji(p) {
             if (a && b) coords = [[Number(a.lat), Number(a.lng)], [Number(b.lat), Number(b.lng)]];
           }
           if (!coords.length) return;
-          L.polyline(coords, { color: day.color || '#ff3b3b', weight: day.highlight ? 7 : 4, opacity: 0.9, className: 'trip-route-line' })
+          L.polyline(coords, { color: day.color || '#ff3b3b', weight: day.highlight ? 5 : 3, opacity: 0.9, className: 'trip-route-line' })
             .bindTooltip(`${formatTripDuration(seg.durationSeconds)} / ${formatTripDistance(seg.distanceMeters)}`, { className: 'trip-route-segment-tooltip' })
             .addTo(tripPlannerLayer);
         });
@@ -8946,7 +8947,7 @@ function getTripPointEmoji(p) {
         const summary = d.routeSummary || {};
         const points = (d.points || []).sort((a,b)=>(a.order||0)-(b.order||0));
         const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" class="trip-mobile-only">↑</button><button type="button" data-trip-action="move-point-down" class="trip-mobile-only" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" title="Usuń punkt" aria-label="Usuń punkt">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
-        return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
+        return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><label class="trip-day-visible-toggle" title="Pokaż/ukryj trasę dnia"><input type="checkbox" data-day-visible="${d.id}" ${d.visible === false ? '' : 'checked'}> Trasa</label><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
       }).join('');
     }
 
@@ -11814,6 +11815,15 @@ function confirmLayerDelete() {
       if (e.target.dataset.dayColor) {
         const day = trip.days.find(x => x.id === e.target.dataset.dayColor); if (!day) return;
         day.color = (e.target.value || '#ff3b3b').trim() || '#ff3b3b';
+        await saveTrip(trip.id);
+        renderTripPlannerPanel();
+        renderTripMapLayers();
+        applyTripPlannerPinVisibility();
+        return;
+      }
+      if (e.target.dataset.dayVisible) {
+        const day = trip.days.find(x => x.id === e.target.dataset.dayVisible); if (!day) return;
+        day.visible = !!e.target.checked;
         await saveTrip(trip.id);
         renderTripPlannerPanel();
         renderTripMapLayers();
