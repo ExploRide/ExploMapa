@@ -575,6 +575,9 @@
       color: #fff;
       line-height: 1;
     }
+    .leaflet-zoom-anim .custom-cluster-icon {
+      transition: none !important;
+    }
     .emoji-inline {
 width: 15px;
     height: 15px;
@@ -3108,8 +3111,8 @@ function slugify(str) {
       clusterLayer = L.markerClusterGroup({
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
         maxClusterRadius: () => 105,
-        animate: true,
-        animateAddingMarkers: true,
+        animate: false,
+        animateAddingMarkers: false,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: true,
         iconCreateFunction: cluster => {
@@ -3129,7 +3132,7 @@ function slugify(str) {
       clusterLayer.on('add', () => {
         mergedOverlayLayer.addTo(map);
         smallClusterOverlayLayer.addTo(map);
-        map.on('zoomend moveend', handleMapViewChange);
+        map.on('zoomstart zoomend moveend', handleMapViewChange);
         refreshClusterVisuals();
       });
       clusterLayer.on('remove', () => {
@@ -3137,7 +3140,7 @@ function slugify(str) {
         clearSmallClusterOverlays();
         mergedOverlayLayer.remove();
         smallClusterOverlayLayer.remove();
-        map.off('zoomend moveend', handleMapViewChange);
+        map.off('zoomstart zoomend moveend', handleMapViewChange);
       });
       clusterLayer.on('animationend', refreshClusterVisuals);
       clusterLayer.on('spiderfied', refreshClusterVisuals);
