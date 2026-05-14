@@ -2793,6 +2793,7 @@ function slugify(str) {
     const CLUSTER_MIN_MARKERS = 5; // poniżej tej liczby pokazuj pojedyncze pinezki zamiast klastra
     const BIG_CLUSTER_COUNT = 500;
     const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 1000;
+    const MAX_CLUSTERS_TO_MERGE_FAST = 500;
     const CLUSTER_OVERLAP_MERGE_PADDING = 22;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
@@ -2914,6 +2915,9 @@ function slugify(str) {
       const mergedClusterMarkers = [];
       const hiddenSmallClusterIds = new Set();
       const smallClusterMarkers = [];
+      let isZoomingClusters = false;
+      let refreshClusterRaf = null;
+      let zoomanimHideTinyRaf = null;
 
       function setClusterMarkerVisibility(cluster, visible) {
         if (!cluster || !cluster._icon) return;
@@ -2995,6 +2999,7 @@ function slugify(str) {
       function mergeStronglyOverlappingClusters() {
         if (!map || !clusterLayer || !clusterLayer._featureGroup) return;
         if (!mergedOverlayLayer || !map.hasLayer(clusterLayer)) return;
+        if (map.getZoom() >= CLUSTER_DISABLE_AT_ZOOM) return;
 
         // Przywróć widoczność klastrów ukrytych podczas poprzedniego przebiegu.
         for (const id of hiddenClusterIds) {
@@ -3004,6 +3009,7 @@ function slugify(str) {
         clearMergedClusterOverlays();
 
         const clusters = getVisibleTopClusters();
+        if (clusters.length < 2 || clusters.length > MAX_CLUSTERS_TO_MERGE_FAST) return;
         const mergedGroups = buildStrongOverlapGroups(clusters);
         console.log('[clusters] before merge:', clusters.length, 'after merge groups:', mergedGroups.length);
         if (mergedGroups.length === 0) return;
@@ -3097,6 +3103,7 @@ function slugify(str) {
       }
 
       function renderSmallClustersAsSingleMarkers() {
+        if (isZoomingClusters) return;
         if (!map || !clusterLayer || !clusterLayer._featureGroup) return;
         if (!smallClusterOverlayLayer || !map.hasLayer(clusterLayer)) return;
 
@@ -3131,9 +3138,12 @@ function slugify(str) {
       }
 
       function refreshClusterVisuals() {
-        requestAnimationFrame(() => {
-          renderSmallClustersAsSingleMarkers();
+        if (refreshClusterRaf) cancelAnimationFrame(refreshClusterRaf);
+        refreshClusterRaf = requestAnimationFrame(() => {
+          refreshClusterRaf = null;
+          if (isZoomingClusters) return;
           hideTinyClustersImmediately();
+          renderSmallClustersAsSingleMarkers();
           mergeStronglyOverlappingClusters();
         });
       }
@@ -3159,22 +3169,49 @@ function slugify(str) {
       mergedOverlayLayer = L.layerGroup();
       smallClusterOverlayLayer = L.layerGroup();
       const handleMapViewChange = () => refreshClusterVisuals();
+      const handleClusterZoomStart = () => {
+        isZoomingClusters = true;
+        clearSmallClusterOverlays();
+        hideTinyClustersImmediately();
+      };
+      const handleClusterZoomAnim = () => {
+        if (zoomanimHideTinyRaf) return;
+        zoomanimHideTinyRaf = requestAnimationFrame(() => {
+          zoomanimHideTinyRaf = null;
+          hideTinyClustersImmediately();
+        });
+      };
+      const handleClusterZoomEnd = () => {
+        isZoomingClusters = false;
+        refreshClusterVisuals();
+      };
       clusterLayer.on('add', () => {
         mergedOverlayLayer.addTo(map);
         smallClusterOverlayLayer.addTo(map);
-        map.on('zoomstart zoomend moveend', handleMapViewChange);
-        map.on('zoomstart', hideTinyClustersImmediately);
-        map.on('zoomanim', hideTinyClustersImmediately);
+        map.on('moveend', handleMapViewChange);
+        map.on('zoomstart', handleClusterZoomStart);
+        map.on('zoomanim', handleClusterZoomAnim);
+        map.on('zoomend', handleClusterZoomEnd);
         refreshClusterVisuals();
       });
       clusterLayer.on('remove', () => {
+        isZoomingClusters = false;
+        if (refreshClusterRaf) {
+          cancelAnimationFrame(refreshClusterRaf);
+          refreshClusterRaf = null;
+        }
+        if (zoomanimHideTinyRaf) {
+          cancelAnimationFrame(zoomanimHideTinyRaf);
+          zoomanimHideTinyRaf = null;
+        }
         clearMergedClusterOverlays();
         clearSmallClusterOverlays();
         mergedOverlayLayer.remove();
         smallClusterOverlayLayer.remove();
-        map.off('zoomstart zoomend moveend', handleMapViewChange);
-        map.off('zoomstart', hideTinyClustersImmediately);
-        map.off('zoomanim', hideTinyClustersImmediately);
+        map.off('moveend', handleMapViewChange);
+        map.off('zoomstart', handleClusterZoomStart);
+        map.off('zoomanim', handleClusterZoomAnim);
+        map.off('zoomend', handleClusterZoomEnd);
       });
       clusterLayer.on('animationend', hideTinyClustersImmediately);
       clusterLayer.on('animationend', refreshClusterVisuals);
