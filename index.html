@@ -810,7 +810,6 @@ body, #sidebar, #basemap-switcher {
 }
 .popup-edit-btn {
   position: static;
-  margin-left: auto;
   min-height: 24px;
   padding: 2px 8px;
   line-height: 1.2;
@@ -819,6 +818,7 @@ body, #sidebar, #basemap-switcher {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 4px;
   margin-top: 0;
   margin-bottom: 2px;
 }
@@ -835,7 +835,7 @@ body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
 .trip-planner-panel { background:#17191f; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:8px; margin-bottom:8px; }
 .trip-select-row { display:flex; gap:6px; margin-bottom:8px; }
 .trip-planner-toggle-row { margin-top:8px; padding-top:8px; border-top:1px solid var(--ui-border); }
-.trip-select-row + #tripActiveBox { border-top:1px solid var(--ui-border); margin-top:8px; padding-top:8px; max-height:52vh; overflow-y:auto; }
+.trip-select-row + #tripActiveBox { border-top:1px solid var(--ui-border); margin-top:8px; padding-top:8px; max-height:52vh; overflow-y:auto; overscroll-behavior: contain; touch-action: pan-y; }
 .trip-select-row select,.trip-select-row button { background:#1d2028; color:#eee; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); font-size:12px; padding:5px; }
 .trip-day-card { border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:7px; margin-bottom:8px; background:#1d2028; }
 .trip-day-header,.trip-point-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
@@ -8612,6 +8612,14 @@ function getTripPointEmoji(p) {
       }
       return compatDb;
     }
+    function buildTripPointNumberIcon(number, color = '#ff3b3b') {
+      return L.divIcon({
+        className: 'trip-order-marker-icon',
+        html: `<div style="width:24px;height:24px;border-radius:50%;background:${color};border:2px solid #fff;color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 4px rgba(0,0,0,0.45);">${number}</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
+      });
+    }
     function renderTripMapLayers() {
       if (!map) return;
       if (!tripPlannerLayer) tripPlannerLayer = L.layerGroup().addTo(map);
@@ -8640,22 +8648,13 @@ function getTripPointEmoji(p) {
             .bindTooltip(`${formatTripDuration(seg.durationSeconds)} / ${formatTripDistance(seg.distanceMeters)}`, { className: 'trip-route-segment-tooltip' })
             .addTo(tripPlannerLayer);
         });
-        (day.points || []).forEach(p => {
+        pointsSorted.forEach((p, idx) => {
           const lat = Number(p.lat);
           const lng = Number(p.lng);
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-          let marker = null;
-          if (p.type !== 'custom' && !p.tripOnly) {
-            const sourcePin = wszystkiePinezki.find(mp => mp.id === p.id || mp.firebaseId === p.id || mp.IDpinezki === p.id);
-            if (sourcePin?.marker?.options?.icon) {
-              marker = L.marker([lat, lng], { icon: sourcePin.marker.options.icon });
-            }
-          }
-          if (!marker) {
-            marker = L.circleMarker([lat, lng], { radius: day.highlight ? 7 : 5, color: day.color || '#ff3b3b', className: p.type === 'custom' || p.tripOnly ? 'trip-private-point-marker' : '' });
-          }
+          const marker = L.marker([lat, lng], { icon: buildTripPointNumberIcon(idx + 1, day.color || '#ff3b3b') });
           marker.addTo(tripPlannerLayer);
-          marker.bindTooltip(`${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}`);
+          marker.bindTooltip(`${idx + 1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}`);
           tripPointMarkers.set(p.id, marker);
         });
       });
@@ -8691,7 +8690,7 @@ function getTripPointEmoji(p) {
       for (const [di, day] of (trip.days || []).entries()) {
         const safeDay = sanitizeTripDayForFirestore(day);
         const dayRef = compatDb.collection('trips').doc(tripId).collection('days').doc(day.id);
-        await dayRef.set({ name: safeDay.name, date: safeDay.date || '', order: di, color: safeDay.color || '#ff3b3b', visible: safeDay.visible !== false, routeSummary: safeDay.routeSummary || {}, routeSegments: safeDay.routeSegments || [], updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+        await dayRef.set({ name: safeDay.name, date: safeDay.date || '', order: di, color: safeDay.color || '#ff3b3b', routeSummary: safeDay.routeSummary || {}, routeSegments: safeDay.routeSegments || [], updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
         for (const [pi, point] of (safeDay.points || []).entries()) await dayRef.collection('points').doc(point.id).set({ ...point, order: pi }, { merge: true });
       }
       showToast('Zapisano trip');
@@ -11824,7 +11823,6 @@ function confirmLayerDelete() {
       if (e.target.dataset.dayVisible) {
         const day = trip.days.find(x => x.id === e.target.dataset.dayVisible); if (!day) return;
         day.visible = !!e.target.checked;
-        await saveTrip(trip.id);
         renderTripPlannerPanel();
         renderTripMapLayers();
         applyTripPlannerPinVisibility();
