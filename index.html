@@ -10167,11 +10167,14 @@ function getTripPointEmoji(p) {
         layersToDelete = [];
         layerEmojiChanges = {};
         layerDefaultVisibilityChanges = {};
+        layerOrderChanged = false;
+        initialLayerOrder = [...orderList];
         pinsToDelete = [];
         window.localTrasy = [];
         localStorage.removeItem('nowePinezki');
         shouldWarnBeforeUnload = false;
         btn.textContent = 'Zapisano ✔';
+        updateSaveButton();
         persistAllLayerCollapseStates();
         persistAllLayerVisibilityStates();
         showToast('Zapisano zmiany mapy.', 5000);
