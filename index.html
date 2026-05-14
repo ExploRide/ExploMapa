@@ -2771,6 +2771,7 @@ function slugify(str) {
     const LAYER_COLLAPSE_STORAGE_KEY = 'warstwaCollapsed';
     const LAYER_VISIBILITY_STORAGE_KEY = 'warstwaVisibility';
     const LAYER_STATE_PRESERVE_FLAG_KEY = 'warstwaPreserveStateOnce';
+    const MAP_VIEW_PRESERVE_KEY = 'mapViewPreserveOnce';
     const PINTEREST_LAYER_NAME = 'pinterest_diane_g';
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
     const CLUSTER_DISABLE_AT_ZOOM = 14; // skupiaj pinezki aż do średniego przybliżenia mapy
@@ -5260,6 +5261,18 @@ function emojiHtml(str) {
       }
 
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
+      const savedMapViewRaw = localStorage.getItem(MAP_VIEW_PRESERVE_KEY);
+      if (savedMapViewRaw) {
+        localStorage.removeItem(MAP_VIEW_PRESERVE_KEY);
+        try {
+          const savedMapView = JSON.parse(savedMapViewRaw);
+          if (savedMapView && Number.isFinite(savedMapView.lat) && Number.isFinite(savedMapView.lng) && Number.isFinite(savedMapView.zoom)) {
+            map.setView([savedMapView.lat, savedMapView.lng], savedMapView.zoom, { animate: false });
+          }
+        } catch (e) {
+          console.warn('Nie udało się odczytać zapisanego widoku mapy.', e);
+        }
+      }
       map.on('popupopen', (e) => {
         if (!e || !e.popup) return;
         const token = ++popupAutoPanState.openSeq;
@@ -10161,6 +10174,14 @@ function getTripPointEmoji(p) {
         btn.textContent = 'Zapisano ✔';
         persistAllLayerCollapseStates();
         persistAllLayerVisibilityStates();
+        if (map) {
+          const center = map.getCenter();
+          localStorage.setItem(MAP_VIEW_PRESERVE_KEY, JSON.stringify({
+            lat: center.lat,
+            lng: center.lng,
+            zoom: map.getZoom()
+          }));
+        }
         localStorage.setItem(LAYER_STATE_PRESERVE_FLAG_KEY, '1');
         location.reload();
       } catch (err) {
@@ -10762,6 +10783,7 @@ function getTripPointEmoji(p) {
       return;
     }
     const layerName = p.warstwa || 'Inne';
+    const layer = warstwy[layerName];
     const backup = {
       pin: p,
       layerName,
@@ -10776,9 +10798,15 @@ function getTripPointEmoji(p) {
     const idxN = nowePinezki.indexOf(p);
     if (idxN > -1) nowePinezki.splice(idxN, 1);
     delete zmianyDoZapisania[p.id];
-    if (p.marker) map.removeLayer(p.marker);
+    if (p.marker) {
+      if (layer && layer.layer && typeof layer.layer.removeLayer === 'function') {
+        layer.layer.removeLayer(p.marker);
+      }
+      if (map && typeof map.removeLayer === 'function' && map.hasLayer(p.marker)) {
+        map.removeLayer(p.marker);
+      }
+    }
     if (p.plany) p.plany.forEach(pl => removePlanOverlay(pl));
-    const layer = warstwy[layerName];
     if (layer) {
       const idx = layer.lista.indexOf(p);
       if (idx > -1) layer.lista.splice(idx, 1);
