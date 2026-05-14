@@ -586,24 +586,26 @@ width: 15px;
       position: fixed;
       top: 10px;
       left: 292px;
-      right: 220px;
-      min-width: 240px;
+      width: min(560px, max(240px, calc((100vw - 512px) / 2)));
       padding: 4px;
       z-index: 200;
       display: flex;
+      align-items: center;
+      gap: 4px;
     }
     #geosearch {
       flex: 1;
       padding: 4px 8px;
     }
     #geosearchBtn {
-      margin-left: 4px;
+      margin-left: 0;
+      flex: 0 0 auto;
     }
     #geosearch-suggestions {
       position: absolute;
-      top: 100%;
-      left: 192px;
-      right: 42px;
+      top: calc(100% + 2px);
+      left: 4px;
+      right: 4px;
       background: #2b2b2be0;
       border: 1px solid #444;
       max-height: 200px;
@@ -1224,6 +1226,7 @@ body.mobile-layout #gpsFollowBtn {
 body.mobile-layout #exportKML { display: none; }
 body.mobile-layout #syncBtn { display: block; }
 body.mobile-layout #osmOverlayStatus { z-index: 250; }
+body.mobile-layout #toast { left: 10px; top: calc(env(safe-area-inset-top, 0px) + 92px); }
 body.mobile-layout .leaflet-popup { z-index: 2147483600 !important; }
 body.mobile-layout .leaflet-control-zoom { left: 10px; }
 body.mobile-layout #toggleLayers {
@@ -1260,6 +1263,7 @@ body.mobile-layout #toggleBasemaps {
     position: fixed;
     left: 10px;
     right: 10px;
+    width: auto;
     top: calc(env(safe-area-inset-top, 0px) + 52px);
     z-index: 200;
     display: flex !important;
@@ -1365,9 +1369,9 @@ img.emoji {
 }
 
     #toast {
-      position: absolute;
+      position: fixed;
       top: 10px;
-      right: 10px;
+      left: 302px;
       background: rgba(0,0,0,0.7);
       color: #fff;
       padding: 5px 10px;
@@ -2007,6 +2011,10 @@ img.emoji {
       border-top-color: #9bc4ff;
       animation: spin 0.9s linear infinite;
       flex: 0 0 auto;
+      display: none;
+    }
+    #osmOverlayStatus.osm-status-loading::before {
+      display: block;
     }
     #osmOverlayStatus.osm-status-success { border-color: rgba(67, 197, 110, 0.7); }
     #osmOverlayStatus.osm-status-loading { border-color: rgba(88, 161, 255, 0.8); }
