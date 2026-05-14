@@ -2760,12 +2760,12 @@ function slugify(str) {
         baseLayerLoadingCount = 0;
       }
     }
-    function showToast(msg) {
+    function showToast(msg, duration = 3000) {
       const el = document.getElementById('toast');
       if (!el) return;
       el.textContent = msg;
       el.style.display = 'block';
-      setTimeout(() => { el.style.display = 'none'; }, 3000);
+      setTimeout(() => { el.style.display = 'none'; }, duration);
     }
     const LAYER_ORDER_STORAGE_KEY = 'warstwaOrder';
     const LAYER_COLLAPSE_STORAGE_KEY = 'warstwaCollapsed';
@@ -10174,19 +10174,10 @@ function getTripPointEmoji(p) {
         btn.textContent = 'Zapisano ✔';
         persistAllLayerCollapseStates();
         persistAllLayerVisibilityStates();
-        if (map) {
-          const center = map.getCenter();
-          localStorage.setItem(MAP_VIEW_PRESERVE_KEY, JSON.stringify({
-            lat: center.lat,
-            lng: center.lng,
-            zoom: map.getZoom()
-          }));
-        }
-        localStorage.setItem(LAYER_STATE_PRESERVE_FLAG_KEY, '1');
-        location.reload();
+        showToast('Zapisano zmiany mapy.', 5000);
       } catch (err) {
         console.error(err);
-        alert('Nie udało się zapisać zmian. Spróbuj ponownie.');
+        showToast('Nie udało się zapisać zmian. Spróbuj ponownie.', 5000);
         btn.textContent = origLabel;
       } finally {
         setTimeout(() => {
