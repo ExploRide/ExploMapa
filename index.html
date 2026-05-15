@@ -3149,11 +3149,15 @@ function slugify(str) {
       }
 
       clusterLayer = L.markerClusterGroup({
+
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
         maxClusterRadius: () => 105,
-        animate: true,
-        animateAddingMarkers: true,
+        animate: false,
+        animateAddingMarkers: false,
         spiderfyOnMaxZoom: true,
+        chunkedLoading: true,
+        chunkInterval: 100,
+        chunkDelay: 25,
         showCoverageOnHover: true,
         iconCreateFunction: cluster => {
           const count = cluster.getChildCount();
@@ -3165,6 +3169,7 @@ function slugify(str) {
           });
         }
       });
+      console.log('[cluster-performance] animations disabled');
 
       mergedOverlayLayer = L.layerGroup();
       smallClusterOverlayLayer = L.layerGroup();
