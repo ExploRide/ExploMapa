@@ -2078,6 +2078,7 @@ img.emoji {
             <button id="emojiToolBtn">Emoji Tool</button>
             <button id="exportKML">Zapisz do .KML</button>
             <button id="findDuplicatePinsBtn">Znajdź duplikaty pinezek</button>
+            <button id="performanceDebugToggleBtn" type="button" aria-pressed="false">Debug wydajności: OFF</button>
           </div>
         </div>
         <h2 id="logoNaglowek">ExploMapy</h2>
@@ -2814,6 +2815,7 @@ function slugify(str) {
     const CLUSTER_OVERLAP_MERGE_PADDING = 22;
     const DISABLE_OVERLAP_MERGE = true;
     const ENABLE_PERFORMANCE_DEBUG = true;
+    let performanceDebugEnabled = false;
     const performanceDebugStats = {};
     const performanceDebugCounters = {
       totalPins: 0,
@@ -2832,11 +2834,21 @@ function slugify(str) {
       if (!ENABLE_PERFORMANCE_DEBUG || performanceDebugOverlay) return;
       performanceDebugOverlay = document.createElement('div');
       performanceDebugOverlay.id = 'performance-debug-overlay';
+      performanceDebugOverlay.style.display = 'none';
       document.body.appendChild(performanceDebugOverlay);
     }
 
+    function setPerformanceDebugOverlayEnabled(nextEnabled) {
+      if (!ENABLE_PERFORMANCE_DEBUG) return;
+      performanceDebugEnabled = Boolean(nextEnabled);
+      ensurePerformanceDebugOverlay();
+      if (!performanceDebugOverlay) return;
+      performanceDebugOverlay.style.display = performanceDebugEnabled ? 'block' : 'none';
+      if (performanceDebugEnabled) renderPerformanceDebugOverlay();
+    }
+
     function updatePerformanceDebug(label, time) {
-      if (!ENABLE_PERFORMANCE_DEBUG || !Number.isFinite(time)) return;
+      if (!ENABLE_PERFORMANCE_DEBUG || !performanceDebugEnabled || !Number.isFinite(time)) return;
       if (!performanceDebugStats[label]) performanceDebugStats[label] = { last: 0, sum: 0, count: 0, avg: 0 };
       const stat = performanceDebugStats[label];
       stat.last = time;
@@ -2849,7 +2861,7 @@ function slugify(str) {
     function updatePerformanceCounters(nextCounters = {}) {
       if (!ENABLE_PERFORMANCE_DEBUG) return;
       Object.assign(performanceDebugCounters, nextCounters);
-      renderPerformanceDebugOverlay();
+      if (performanceDebugEnabled) renderPerformanceDebugOverlay();
     }
 
     function renderPerformanceDebugOverlay() {
@@ -10892,6 +10904,19 @@ function getTripPointEmoji(p) {
           specialMenuContent.classList.remove('open');
           specialMenuToggle.setAttribute('aria-expanded', 'false');
         }
+      });
+    }
+
+    const performanceDebugToggleBtn = document.getElementById('performanceDebugToggleBtn');
+    if (performanceDebugToggleBtn) {
+      const syncPerformanceDebugToggleUi = () => {
+        performanceDebugToggleBtn.textContent = `Debug wydajności: ${performanceDebugEnabled ? 'ON' : 'OFF'}`;
+        performanceDebugToggleBtn.setAttribute('aria-pressed', String(performanceDebugEnabled));
+      };
+      syncPerformanceDebugToggleUi();
+      performanceDebugToggleBtn.addEventListener('click', () => {
+        setPerformanceDebugOverlayEnabled(!performanceDebugEnabled);
+        syncPerformanceDebugToggleUi();
       });
     }
 
