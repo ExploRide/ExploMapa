@@ -8,12 +8,25 @@ const APP_SHELL = [
   '/firestore-setup.js',
   '/offline-uploads.js'
 ];
+
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL))
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+
+    await Promise.all(
+      APP_SHELL.map(async asset => {
+        try {
+          await cache.add(asset);
+        } catch (error) {
+          console.warn(`[SW] Failed to cache asset: ${asset}`, error);
+        }
+      })
+    );
+  })());
+
   self.skipWaiting();
 });
+
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => Promise.all(
@@ -22,6 +35,7 @@ self.addEventListener('activate', event => {
   );
   self.clients.claim();
 });
+
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
