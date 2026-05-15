@@ -2791,12 +2791,9 @@ function slugify(str) {
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
     const CLUSTER_DISABLE_AT_ZOOM = 14; // skupiaj pinezki aż do średniego przybliżenia mapy
     const CLUSTER_MIN_MARKERS = 5; // poniżej tej liczby pokazuj pojedyncze pinezki zamiast klastra
-    const DISABLE_CUSTOM_CLUSTER_VISUALS = true;
     const BIG_CLUSTER_COUNT = 500;
     const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 1000;
-    const CLUSTER_POST_ZOOM_REFRESH_DELAY = 140;
-    const CLUSTER_OVERLAP_MERGE_DELAY = 260;
-    const MAX_CLUSTERS_TO_MERGE_FAST = 150;
+    const MAX_CLUSTERS_TO_MERGE_FAST = 500;
     const CLUSTER_OVERLAP_MERGE_PADDING = 22;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
@@ -2921,8 +2918,6 @@ function slugify(str) {
       let isZoomingClusters = false;
       let refreshClusterRaf = null;
       let zoomanimHideTinyRaf = null;
-      let zoomRefreshTimeout = null;
-      let overlapMergeTimeout = null;
 
       function setClusterMarkerVisibility(cluster, visible) {
         if (!cluster || !cluster._icon) return;
@@ -2940,17 +2935,6 @@ function slugify(str) {
         hiddenSmallClusterIds.clear();
         smallClusterMarkers.splice(0, smallClusterMarkers.length);
         if (smallClusterOverlayLayer) smallClusterOverlayLayer.clearLayers();
-      }
-
-      function clearClusterTimers() {
-        if (zoomRefreshTimeout) {
-          clearTimeout(zoomRefreshTimeout);
-          zoomRefreshTimeout = null;
-        }
-        if (overlapMergeTimeout) {
-          clearTimeout(overlapMergeTimeout);
-          overlapMergeTimeout = null;
-        }
       }
 
       function getVisibleTopClusters() {
@@ -3160,29 +3144,16 @@ function slugify(str) {
           if (isZoomingClusters) return;
           hideTinyClustersImmediately();
           renderSmallClustersAsSingleMarkers();
+          mergeStronglyOverlappingClusters();
         });
       }
 
-      function scheduleOverlapMerge(delay = CLUSTER_OVERLAP_MERGE_DELAY) {
-        if (DISABLE_CUSTOM_CLUSTER_VISUALS) return;
-        if (overlapMergeTimeout) clearTimeout(overlapMergeTimeout);
-        overlapMergeTimeout = setTimeout(() => {
-          overlapMergeTimeout = null;
-          if (isZoomingClusters) return;
-          mergeStronglyOverlappingClusters();
-        }, delay);
-      }
-
       clusterLayer = L.markerClusterGroup({
-
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
         maxClusterRadius: () => 105,
-        animate: false,
-        animateAddingMarkers: false,
+        animate: true,
+        animateAddingMarkers: true,
         spiderfyOnMaxZoom: true,
-        chunkedLoading: true,
-        chunkInterval: 100,
-        chunkDelay: 25,
         showCoverageOnHover: true,
         iconCreateFunction: cluster => {
           const count = cluster.getChildCount();
@@ -3194,19 +3165,10 @@ function slugify(str) {
           });
         }
       });
-      console.log('[cluster-performance] animations disabled');
 
-      if (DISABLE_CUSTOM_CLUSTER_VISUALS) {
-        console.log('[cluster-debug] custom cluster overlays disabled for animation test');
-      } else {
-        mergedOverlayLayer = L.layerGroup();
-        smallClusterOverlayLayer = L.layerGroup();
-      }
-      const handleMapViewChange = () => {
-        if (DISABLE_CUSTOM_CLUSTER_VISUALS) return;
-        refreshClusterVisuals();
-        scheduleOverlapMerge(CLUSTER_OVERLAP_MERGE_DELAY);
-      };
+      mergedOverlayLayer = L.layerGroup();
+      smallClusterOverlayLayer = L.layerGroup();
+      const handleMapViewChange = () => refreshClusterVisuals();
       const handleClusterZoomStart = () => {
         isZoomingClusters = true;
         clearSmallClusterOverlays();
@@ -3221,25 +3183,16 @@ function slugify(str) {
       };
       const handleClusterZoomEnd = () => {
         isZoomingClusters = false;
-        if (DISABLE_CUSTOM_CLUSTER_VISUALS) return;
-        if (zoomRefreshTimeout) clearTimeout(zoomRefreshTimeout);
-        zoomRefreshTimeout = setTimeout(() => {
-          zoomRefreshTimeout = null;
-          if (isZoomingClusters) return;
-          refreshClusterVisuals();
-        }, CLUSTER_POST_ZOOM_REFRESH_DELAY);
-        scheduleOverlapMerge(CLUSTER_OVERLAP_MERGE_DELAY);
+        refreshClusterVisuals();
       };
       clusterLayer.on('add', () => {
-        if (!DISABLE_CUSTOM_CLUSTER_VISUALS) {
-          mergedOverlayLayer.addTo(map);
-          smallClusterOverlayLayer.addTo(map);
-          map.on('moveend', handleMapViewChange);
-        }
+        mergedOverlayLayer.addTo(map);
+        smallClusterOverlayLayer.addTo(map);
+        map.on('moveend', handleMapViewChange);
         map.on('zoomstart', handleClusterZoomStart);
         map.on('zoomanim', handleClusterZoomAnim);
         map.on('zoomend', handleClusterZoomEnd);
-        if (!DISABLE_CUSTOM_CLUSTER_VISUALS) refreshClusterVisuals();
+        refreshClusterVisuals();
       });
       clusterLayer.on('remove', () => {
         isZoomingClusters = false;
@@ -3247,28 +3200,23 @@ function slugify(str) {
           cancelAnimationFrame(refreshClusterRaf);
           refreshClusterRaf = null;
         }
-        clearClusterTimers();
         if (zoomanimHideTinyRaf) {
           cancelAnimationFrame(zoomanimHideTinyRaf);
           zoomanimHideTinyRaf = null;
         }
-        if (!DISABLE_CUSTOM_CLUSTER_VISUALS) {
-          clearMergedClusterOverlays();
-          clearSmallClusterOverlays();
-          mergedOverlayLayer.remove();
-          smallClusterOverlayLayer.remove();
-          map.off('moveend', handleMapViewChange);
-        }
+        clearMergedClusterOverlays();
+        clearSmallClusterOverlays();
+        mergedOverlayLayer.remove();
+        smallClusterOverlayLayer.remove();
+        map.off('moveend', handleMapViewChange);
         map.off('zoomstart', handleClusterZoomStart);
         map.off('zoomanim', handleClusterZoomAnim);
         map.off('zoomend', handleClusterZoomEnd);
       });
       clusterLayer.on('animationend', hideTinyClustersImmediately);
-      if (!DISABLE_CUSTOM_CLUSTER_VISUALS) {
-        clusterLayer.on('animationend', refreshClusterVisuals);
-        clusterLayer.on('spiderfied', refreshClusterVisuals);
-        clusterLayer.on('unspiderfied', refreshClusterVisuals);
-      }
+      clusterLayer.on('animationend', refreshClusterVisuals);
+      clusterLayer.on('spiderfied', refreshClusterVisuals);
+      clusterLayer.on('unspiderfied', refreshClusterVisuals);
 
       return clusterLayer;
     }
@@ -5395,12 +5343,7 @@ function emojiHtml(str) {
         popupAutoPanState.duringAutoPan = false;
       }
 
-      map = L.map('map', {
-        crs: L.CRS.EPSG3857,
-        zoomAnimation: true,
-        fadeAnimation: true,
-        markerZoomAnimation: true
-      }).setView([52.1, 20.9], 7);
+      map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
       const savedMapViewRaw = localStorage.getItem(MAP_VIEW_PRESERVE_KEY);
       if (savedMapViewRaw) {
         localStorage.removeItem(MAP_VIEW_PRESERVE_KEY);
