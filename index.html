@@ -3294,6 +3294,9 @@ function slugify(str) {
         maxClusterRadius: () => 105,
         animate: true,
         animateAddingMarkers: true,
+        chunkedLoading: true,
+        chunkDelay: 24,
+        chunkInterval: 64,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: true,
         iconCreateFunction: cluster => {
@@ -6154,8 +6157,15 @@ function emojiHtml(str) {
     map.on("click", e => { if (currentTool === "pin" && !drawingRoute && window.innerWidth > 800) onMapClick(e); });
     map.on(L.Draw.Event.CREATED, onRouteCreated);
     map.on('draw:drawstop', () => { drawingRoute = false; activeRoutePin = null; });
+    map.on('zoomstart', () => { markerZoomInProgress = true; });
+    map.on('zoomend', () => {
+      markerZoomInProgress = false;
+      if (markerVisibilityUpdateDeferred) {
+        markerVisibilityUpdateDeferred = false;
+      }
+      scheduleMarkerVisibilityUpdate();
+    });
     map.on('moveend', scheduleMarkerVisibilityUpdate);
-    map.on('zoomend', scheduleMarkerVisibilityUpdate);
 
     if (window.innerWidth <= 700) {
       let startLatLng = null;
@@ -10059,6 +10069,8 @@ function getTripPointEmoji(p) {
 
     let markerViewportUpdateScheduled = false;
     let markerVisibilityDebounceTimer = null;
+    let markerVisibilityUpdateDeferred = false;
+    let markerZoomInProgress = false;
     let mapWhenReadyExecuted = false;
     let pinsFirestoreLoaded = false;
 
@@ -10099,23 +10111,25 @@ function getTripPointEmoji(p) {
     }
 
     function scheduleMarkerVisibilityUpdate() {
+      if (markerZoomInProgress) {
+        markerVisibilityUpdateDeferred = true;
+        return;
+      }
       if (markerVisibilityDebounceTimer) clearTimeout(markerVisibilityDebounceTimer);
       markerVisibilityDebounceTimer = setTimeout(() => {
         if (markerViewportUpdateScheduled) return;
         markerViewportUpdateScheduled = true;
-        showLoading();
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             try {
               updateMarkerVisibility();
             } finally {
               markerViewportUpdateScheduled = false;
-              hideLoading();
               markerVisibilityDebounceTimer = null;
             }
           });
         });
-      }, 120);
+      }, 80);
     }
 
     function updateMarkerVisibility() {
