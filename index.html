@@ -6242,7 +6242,7 @@ function zaladujPinezkiZFirestore() {
     ? (cb) => requestIdleCallback(cb, { timeout: 120 })
     : (cb) => setTimeout(() => cb({ timeRemaining: () => 0 }), 16);
   const createMarkerForPin = (p, warstwaNazwa) => {
-    if (!p || !warstwaNazwa || p.marker || !warstwy[warstwaNazwa]) return;
+    if (!p || !warstwaNazwa || p.marker || !warstwy[warstwaNazwa]) return null;
     const iconEmoji = warstwy[warstwaNazwa].emoji || p.emoji;
     const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p) });
     marker.on('popupopen', (evt) => {
@@ -6260,19 +6260,34 @@ function zaladujPinezkiZFirestore() {
     attachMarkerLongPress(marker, p);
     attachHighlight(marker, null);
     p.marker = marker;
-    if (warstwy[warstwaNazwa].visible !== false) {
-      warstwy[warstwaNazwa].layer.addLayer(marker);
-    }
+    return marker;
   };
   const createMarkersBatched = (pins, warstwaNazwa) => new Promise(resolve => {
     if (!Array.isArray(pins) || pins.length === 0 || !warstwy[warstwaNazwa]) return resolve();
+    const layerData = warstwy[warstwaNazwa];
+    const createdMarkers = [];
     let i = 0;
     const runBatch = () => {
       const end = Math.min(i + batchSize, pins.length);
-      for (; i < end; i++) createMarkerForPin(pins[i], warstwaNazwa);
+      for (; i < end; i++) {
+        const marker = createMarkerForPin(pins[i], warstwaNazwa);
+        if (marker) createdMarkers.push(marker);
+      }
+      if (createdMarkers.length) {
+        if (typeof layerData.layer.addLayers === 'function') {
+          layerData.layer.addLayers(createdMarkers.splice(0));
+        } else {
+          createdMarkers.splice(0).forEach(marker => layerData.layer.addLayer(marker));
+        }
+      }
       if (i < pins.length) {
         idleRunner(runBatch);
       } else {
+        const isLayerVisible = layerData.visible !== false;
+        if (isLayerVisible && !map.hasLayer(layerData.layer) && typeof layerData.layer.addTo === 'function') {
+          layerData.layer.addTo(map);
+        }
+        console.log('[lazy-markers] layer:', warstwaNazwa, 'pins:', pins.length, 'created:', pins.filter(pin => !!pin.marker).length, 'addedToMap:', isLayerVisible);
         resolve();
       }
     };
@@ -6396,9 +6411,11 @@ function zaladujPinezkiZFirestore() {
     });
     await Promise.all(markerBuildTasks);
     updatePerformanceDebug('marker batch creation total', performance.now() - createMarkersStartTs);
+    const visibleClusters = document.querySelectorAll('.leaflet-marker-pane .marker-cluster:not(.marker-cluster-hidden)').length;
     updatePerformanceCounters({
       totalPins: wszystkiePinezki.length,
-      renderedMarkers: wszystkiePinezki.filter(pin => !!pin.marker).length
+      renderedMarkers: wszystkiePinezki.filter(pin => pin.marker && pin.marker._map).length,
+      visibleClusters
     });
     if (!localPinsLoaded) loadNewPinsFromLocal();
     refreshCategoryCollectionsFromPins();
@@ -10136,6 +10153,7 @@ function getTripPointEmoji(p) {
                   });
                   attachMarkerLongPress(pin.marker, pin);
                   attachHighlight(pin.marker, null);
+                  warstwy[nazwa].layer.addLayer(pin.marker);
                 }
               });
             }
