@@ -2916,8 +2916,21 @@ function slugify(str) {
       const hiddenSmallClusterIds = new Set();
       const smallClusterMarkers = [];
       let isZoomingClusters = false;
+      let isClusterZooming = false;
+      let clusterZoomStartLevel = null;
       let refreshClusterRaf = null;
       let zoomanimHideTinyRaf = null;
+      const clusterIconHtmlCache = new Map();
+
+      function getClusterCacheKey(cluster) {
+        if (!cluster) return null;
+        const leafletId = cluster._leaflet_id ?? (typeof L?.Util?.stamp === 'function' ? L.Util.stamp(cluster) : null);
+        if (leafletId != null) return `id:${leafletId}`;
+        const latLng = typeof cluster.getLatLng === 'function' ? cluster.getLatLng() : null;
+        if (!latLng) return null;
+        const zoom = clusterZoomStartLevel ?? map?.getZoom?.() ?? 0;
+        return `fallback:${latLng.lat.toFixed(4)}:${latLng.lng.toFixed(4)}:${zoom}`;
+      }
 
       function setClusterMarkerVisibility(cluster, visible) {
         if (!cluster || !cluster._icon) return;
@@ -3157,9 +3170,13 @@ function slugify(str) {
         showCoverageOnHover: true,
         iconCreateFunction: cluster => {
           const count = cluster.getChildCount();
+          const cacheKey = getClusterCacheKey(cluster);
+          const cachedHtml = cacheKey ? clusterIconHtmlCache.get(cacheKey) : null;
+          const html = isClusterZooming && cachedHtml ? cachedHtml : `<span>${count}</span>`;
           const size = getClusterIconSize(count);
+          if (cacheKey && !isClusterZooming) clusterIconHtmlCache.set(cacheKey, html);
           return L.divIcon({
-            html: `<span>${count}</span>`,
+            html,
             className: 'custom-cluster-icon',
             iconSize: L.point(size, size)
           });
@@ -3171,6 +3188,8 @@ function slugify(str) {
       const handleMapViewChange = () => refreshClusterVisuals();
       const handleClusterZoomStart = () => {
         isZoomingClusters = true;
+        isClusterZooming = true;
+        clusterZoomStartLevel = map?.getZoom?.() ?? null;
         clearSmallClusterOverlays();
         hideTinyClustersImmediately();
       };
@@ -3183,6 +3202,10 @@ function slugify(str) {
       };
       const handleClusterZoomEnd = () => {
         isZoomingClusters = false;
+        isClusterZooming = false;
+        clusterZoomStartLevel = null;
+        clusterIconHtmlCache.clear();
+        if (typeof clusterLayer?.refreshClusters === 'function') clusterLayer.refreshClusters();
         refreshClusterVisuals();
       };
       clusterLayer.on('add', () => {
@@ -3196,6 +3219,9 @@ function slugify(str) {
       });
       clusterLayer.on('remove', () => {
         isZoomingClusters = false;
+        isClusterZooming = false;
+        clusterZoomStartLevel = null;
+        clusterIconHtmlCache.clear();
         if (refreshClusterRaf) {
           cancelAnimationFrame(refreshClusterRaf);
           refreshClusterRaf = null;
