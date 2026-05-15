@@ -9787,8 +9787,6 @@ function getTripPointEmoji(p) {
       });
 
       changedLayers.forEach(layer => {
-        // refreshClusters() potrafi rzucać wyjątek w niektórych stanach MarkerCluster.
-        // Pomijamy odświeżanie klastrów, aby nie przerywać generowania listy warstw.
         if (layer && typeof layer.fire === 'function') {
           layer.fire('animationend');
         }
