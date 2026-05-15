@@ -2815,7 +2815,16 @@ function slugify(str) {
     const DISABLE_OVERLAP_MERGE = true;
     const ENABLE_PERFORMANCE_DEBUG = true;
     const performanceDebugStats = {};
-    const performanceDebugCounters = { totalPins: 0, renderedMarkers: 0, visibleClusters: 0 };
+    const performanceDebugCounters = {
+      totalPins: 0,
+      renderedMarkers: 0,
+      visibleClusters: 0,
+      createdMarkers: 0,
+      markersAddedToLayer: 0,
+      markersRemovedByVisibility: 0,
+      visibleLayerCount: 0,
+      renderedMarkersAfterVisibility: 0
+    };
     let performanceDebugOverlay = null;
     const mapLoadStartTs = performance.now();
 
@@ -2867,7 +2876,12 @@ function slugify(str) {
         ...statLines,
         `Pins total: ${performanceDebugCounters.totalPins}`,
         `Rendered markers: ${performanceDebugCounters.renderedMarkers}`,
-        `Visible clusters: ${performanceDebugCounters.visibleClusters}`
+        `Visible clusters: ${performanceDebugCounters.visibleClusters}`,
+        `Created markers: ${performanceDebugCounters.createdMarkers}`,
+        `Markers added to layer: ${performanceDebugCounters.markersAddedToLayer}`,
+        `Markers removed by updateMarkerVisibility: ${performanceDebugCounters.markersRemovedByVisibility}`,
+        `Visible layer count: ${performanceDebugCounters.visibleLayerCount}`,
+        `Rendered markers after final visibility update: ${performanceDebugCounters.renderedMarkersAfterVisibility}`
       ].join('\n');
     }
 
@@ -6262,6 +6276,8 @@ function zaladujPinezkiZFirestore() {
     p.marker = marker;
     return marker;
   };
+  let totalCreatedMarkers = 0;
+  let totalMarkersAddedToLayer = 0;
   const createMarkersBatched = (pins, warstwaNazwa) => new Promise(resolve => {
     if (!Array.isArray(pins) || pins.length === 0 || !warstwy[warstwaNazwa]) return resolve();
     const layerData = warstwy[warstwaNazwa];
@@ -6283,10 +6299,12 @@ function zaladujPinezkiZFirestore() {
         if (typeof layerData.layer.addLayers === 'function') {
           layerData.layer.addLayers(batchMarkers);
           addedCount += batchMarkers.length;
+          totalMarkersAddedToLayer += batchMarkers.length;
         } else {
           batchMarkers.forEach(marker => {
             layerData.layer.addLayer(marker);
             addedCount++;
+            totalMarkersAddedToLayer++;
           });
         }
       }
@@ -6298,6 +6316,7 @@ function zaladujPinezkiZFirestore() {
           layerData.layer.addTo(map);
         }
         console.log(`[lazy-markers] layer=${warstwaNazwa} pins=${pins.length} batch=${batchSize} created=${createdCount} added=${addedCount} mapHasLayer=${map.hasLayer(layerData.layer)}`);
+        totalCreatedMarkers += createdCount;
         resolve();
       }
     };
@@ -6420,6 +6439,18 @@ function zaladujPinezkiZFirestore() {
       markerBuildTasks.push(createMarkersBatched(layerData.lista, layerName));
     });
     await Promise.all(markerBuildTasks);
+    Object.entries(warstwy).forEach(([layerName, layerData]) => {
+      if (!layerData || !layerData.layer) return;
+      const isLayerVisible = layerData.visible !== false;
+      if (isLayerVisible) {
+        if (!map.hasLayer(layerData.layer) && typeof layerData.layer.addTo === 'function') {
+          layerData.layer.addTo(map);
+        }
+      } else if (map.hasLayer(layerData.layer)) {
+        map.removeLayer(layerData.layer);
+      }
+      console.log(`[lazy-markers:layer-state-after-create] layer=${layerName} visible=${isLayerVisible} mapHasLayer=${map.hasLayer(layerData.layer)}`);
+    });
     updatePerformanceDebug('marker batch creation total', performance.now() - createMarkersStartTs);
     const visibleClusters = document.querySelectorAll('.leaflet-marker-pane .marker-cluster:not(.marker-cluster-hidden)').length;
     const renderedMarkers = wszystkiePinezki.reduce((sum, pin) => {
@@ -6430,7 +6461,9 @@ function zaladujPinezkiZFirestore() {
     updatePerformanceCounters({
       totalPins: wszystkiePinezki.length,
       renderedMarkers,
-      visibleClusters
+      visibleClusters,
+      createdMarkers: totalCreatedMarkers,
+      markersAddedToLayer: totalMarkersAddedToLayer
     });
     if (!localPinsLoaded) loadNewPinsFromLocal();
     refreshCategoryCollectionsFromPins();
@@ -6438,7 +6471,7 @@ function zaladujPinezkiZFirestore() {
     updateCategoryFilter();
     updateStatusFilter();
     refreshCountriesFromPins();
-    generujListeWarstw();
+    generujListeWarstw({ deferMarkerVisibilityUpdate: true });
     updatePerformanceDebug('first usable map time', performance.now() - mapLoadStartTs);
   })
   .catch(err => {
@@ -6449,7 +6482,7 @@ function zaladujPinezkiZFirestore() {
     updateCategoryFilter();
     updateStatusFilter();
     refreshCountriesFromPins();
-    generujListeWarstw();
+    generujListeWarstw({ deferMarkerVisibilityUpdate: true });
   }).finally(() => {
     hideLoading();
     updateSaveButton();
@@ -9972,6 +10005,9 @@ function getTripPointEmoji(p) {
       const paddedBounds = map ? map.getBounds().pad(0.15) : null;
       const changedLayers = new Set();
       const layerOps = new Map();
+      let totalAdded = 0;
+      let totalRemoved = 0;
+      let visibleLayerCount = 0;
 
       Object.entries(warstwy).forEach(([layerName, w]) => {
         const toAdd = [];
@@ -9982,6 +10018,7 @@ function getTripPointEmoji(p) {
         const layerVisible = w && w.visible !== false;
         const layerCheckbox = document.querySelector(`.warstwa[data-nazwa="${CSS.escape(layerName)}"] .layer-toggle`);
         const layerChecked = layerCheckbox ? !!layerCheckbox.checked : layerVisible;
+        if (layerVisible && layerChecked) visibleLayerCount++;
         w.lista.forEach(p => {
           if (!p.marker) return;
           beforeFilters++;
@@ -9989,7 +10026,7 @@ function getTripPointEmoji(p) {
           if (visibleByFilters) afterFilters++;
           const inViewport = visibleByFilters && pinIsInViewport(p, paddedBounds);
           if (inViewport) inBounds++;
-          const visible = inViewport;
+          const visible = layerVisible && layerChecked && inViewport;
           if (visible) {
             if (!w.layer.hasLayer(p.marker)) toAdd.push(p.marker);
           } else {
@@ -10007,16 +10044,20 @@ function getTripPointEmoji(p) {
         if (!layer) return;
         if (ops.toRemove.length && typeof layer.removeLayers === 'function') {
           layer.removeLayers(ops.toRemove);
+          totalRemoved += ops.toRemove.length;
           changedLayers.add(layer);
         } else if (ops.toRemove.length) {
           ops.toRemove.forEach(marker => layer.removeLayer(marker));
+          totalRemoved += ops.toRemove.length;
           changedLayers.add(layer);
         }
         if (ops.toAdd.length && typeof layer.addLayers === 'function') {
           layer.addLayers(ops.toAdd);
+          totalAdded += ops.toAdd.length;
           changedLayers.add(layer);
         } else if (ops.toAdd.length) {
           ops.toAdd.forEach(marker => layer.addLayer(marker));
+          totalAdded += ops.toAdd.length;
           changedLayers.add(layer);
         }
       });
@@ -10038,14 +10079,18 @@ function getTripPointEmoji(p) {
       updatePerformanceCounters({
         totalPins: wszystkiePinezki.length,
         renderedMarkers,
-        visibleClusters
+        visibleClusters,
+        markersAddedToLayer: totalAdded,
+        markersRemovedByVisibility: totalRemoved,
+        visibleLayerCount,
+        renderedMarkersAfterVisibility: renderedMarkers
       });
       updatePerformanceDebug('viewport render', performance.now() - viewportStartTs);
     }
 
-    function generujListeWarstw() {
+    function generujListeWarstw(options = {}) {
+      const { deferMarkerVisibilityUpdate = false } = options;
       const sidebarRenderStartTs = performance.now();
-      updateMarkerVisibility();
       layerDomRefs = {};
       const lista = document.getElementById("lista-warstw");
       const pinTotalCounter = document.getElementById("pinTotalCounter");
@@ -10123,6 +10168,7 @@ function getTripPointEmoji(p) {
         const h3 = document.createElement("h3");
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
+        checkbox.classList.add("layer-toggle");
         const hasStoredVisibility = !warstwy[nazwa].temporary && visibilityStates.hasOwnProperty(nazwa);
         if (hasStoredVisibility) {
           warstwy[nazwa].visible = !!visibilityStates[nazwa];
@@ -10317,6 +10363,11 @@ function getTripPointEmoji(p) {
       }
       persistAllLayerVisibilityStates();
       shouldIgnoreStoredLayerState = false;
+      if (deferMarkerVisibilityUpdate) {
+        scheduleMarkerVisibilityUpdate();
+      } else {
+        updateMarkerVisibility();
+      }
       updatePerformanceDebug('layers header render', performance.now() - sidebarRenderStartTs);
     }
 
