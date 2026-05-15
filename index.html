@@ -10107,7 +10107,10 @@ function getTripPointEmoji(p) {
 
     function pinIsInViewport(pin, paddedBounds) {
       if (!pin || typeof pin.lat !== 'number' || typeof pin.lng !== 'number') return false;
-      return true;
+      if (!map || typeof map.getBounds !== 'function') return true;
+      const viewportBounds = paddedBounds || map.getBounds();
+      if (!viewportBounds || typeof viewportBounds.contains !== 'function') return true;
+      return viewportBounds.contains([pin.lat, pin.lng]);
     }
 
     function scheduleMarkerVisibilityUpdate() {
@@ -10134,6 +10137,7 @@ function getTripPointEmoji(p) {
 
     function updateMarkerVisibility() {
       const viewportStartTs = performance.now();
+      const currentBounds = map?.getBounds?.() || null;
       const changedLayers = new Set();
       const layerOps = new Map();
       let totalAdded = 0;
@@ -10155,7 +10159,7 @@ function getTripPointEmoji(p) {
           beforeFilters++;
           const visibleByFilters = pinMatchesAllFilters(p, true) && p.visible !== false;
           if (visibleByFilters) afterFilters++;
-          const inViewport = visibleByFilters && pinIsInViewport(p, null);
+          const inViewport = visibleByFilters && pinIsInViewport(p, currentBounds);
           if (inViewport) inBounds++;
           const visible = layerVisible && layerChecked && inViewport;
           if (visible) {
