@@ -6282,8 +6282,16 @@ function zaladujPinezkiZFirestore() {
   });
   const createMarkerForPin = (p, warstwaNazwa) => {
     if (!p || !warstwaNazwa || p.marker || !warstwy[warstwaNazwa]) return null;
+    const lat = Number(p.lat);
+    const lng = Number(p.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      console.warn('[lazy-markers:debug] invalid lat/lng - skipping pin', { warstwaNazwa, pinId: p.id || null, lat: p.lat, lng: p.lng });
+      return null;
+    }
+    p.lat = lat;
+    p.lng = lng;
     const iconEmoji = warstwy[warstwaNazwa].emoji || p.emoji;
-    const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p) });
+    const marker = L.marker([lat, lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p) });
     marker.on('popupopen', (evt) => {
       const popupStartTs = performance.now();
       if (!marker._popupBuilt) {
@@ -6312,6 +6320,24 @@ function zaladujPinezkiZFirestore() {
     let createdCount = 0;
     let addedCount = 0;
     let i = 0;
+    const mapBounds = map?.getBounds?.() || null;
+    const paddedBounds = mapBounds ? mapBounds.pad(0.15) : null;
+    let viewportPassCount = 0;
+    let viewportSkipCount = 0;
+    const firstPin = pins[0] || null;
+    const firstPinLat = firstPin ? Number(firstPin.lat) : null;
+    const firstPinLng = firstPin ? Number(firstPin.lng) : null;
+    const firstPinContains = (paddedBounds && Number.isFinite(firstPinLat) && Number.isFinite(firstPinLng))
+      ? paddedBounds.contains([firstPinLat, firstPinLng])
+      : null;
+    console.log('[lazy-markers:hard-debug] createMarkersBatched viewport snapshot', {
+      layer: warstwaNazwa,
+      pinsTotal: pins.length,
+      mapBounds: mapBounds ? mapBounds.toBBoxString() : null,
+      paddedBounds: paddedBounds ? paddedBounds.toBBoxString() : null,
+      firstPin: firstPin ? { id: firstPin.id || null, lat: firstPin.lat, lng: firstPin.lng } : null,
+      firstPinContains
+    });
     let firstBatchStarted = false;
     const runBatch = () => {
       if (!firstBatchStarted) {
@@ -6323,7 +6349,15 @@ function zaladujPinezkiZFirestore() {
         if (i === 0 || i % 200 === 0) {
           console.log(`[lazy-markers:debug] processing pin index layer=${warstwaNazwa} index=${i}`);
         }
-        const marker = createMarkerForPin(pins[i], warstwaNazwa);
+        const pin = pins[i];
+        if (paddedBounds) {
+          const pinLat = Number(pin?.lat);
+          const pinLng = Number(pin?.lng);
+          const inViewport = Number.isFinite(pinLat) && Number.isFinite(pinLng) && paddedBounds.contains([pinLat, pinLng]);
+          if (inViewport) viewportPassCount++;
+          else viewportSkipCount++;
+        }
+        const marker = createMarkerForPin(pin, warstwaNazwa);
         if (marker) {
           createdMarkers.push(marker);
           createdCount++;
@@ -6355,6 +6389,13 @@ function zaladujPinezkiZFirestore() {
           layerData.layer.addTo(map);
         }
         console.log(`[lazy-markers:debug] all batches completed layer=${warstwaNazwa} totalCreated=${createdCount} totalAdded=${addedCount}`);
+        console.log('[lazy-markers:hard-debug] viewport test stats (not used to skip createMarker)', {
+          layer: warstwaNazwa,
+          viewportPassCount,
+          viewportSkipCount,
+          createdCount,
+          addedCount
+        });
         console.log(`[lazy-markers] layer=${warstwaNazwa} pins=${pins.length} batch=${batchSize} created=${createdCount} added=${addedCount} mapHasLayer=${map.hasLayer(layerData.layer)}`);
         totalCreatedMarkers += createdCount;
         resolve();
