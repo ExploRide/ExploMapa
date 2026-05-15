@@ -2915,7 +2915,9 @@ function slugify(str) {
       const mergedClusterMarkers = [];
       const hiddenSmallClusterIds = new Set();
       const smallClusterMarkers = [];
+      let isZoomingClusters = false;
       let refreshClusterRaf = null;
+      let zoomanimHideTinyRaf = null;
 
       function setClusterMarkerVisibility(cluster, visible) {
         if (!cluster || !cluster._icon) return;
@@ -3079,7 +3081,29 @@ function slugify(str) {
         return clone;
       }
 
+      function hideTinyClustersImmediately() {
+        const clusterGroup = clusterLayer;
+        const visible = clusterGroup?._featureGroup?.getLayers?.() || [];
+
+        for (const layer of visible) {
+          if (!(layer instanceof L.MarkerCluster)) continue;
+
+          const count = layer.getChildCount();
+
+          if (count < CLUSTER_MIN_MARKERS) {
+            const el = layer._icon;
+            if (el) {
+              el.classList.add('marker-cluster-hidden');
+              el.style.display = 'none';
+              el.style.opacity = '0';
+              el.style.pointerEvents = 'none';
+            }
+          }
+        }
+      }
+
       function renderSmallClustersAsSingleMarkers() {
+        if (isZoomingClusters) return;
         if (!map || !clusterLayer || !clusterLayer._featureGroup) return;
         if (!smallClusterOverlayLayer || !map.hasLayer(clusterLayer)) return;
 
@@ -3117,6 +3141,8 @@ function slugify(str) {
         if (refreshClusterRaf) cancelAnimationFrame(refreshClusterRaf);
         refreshClusterRaf = requestAnimationFrame(() => {
           refreshClusterRaf = null;
+          if (isZoomingClusters) return;
+          hideTinyClustersImmediately();
           renderSmallClustersAsSingleMarkers();
           mergeStronglyOverlappingClusters();
         });
@@ -3143,33 +3169,51 @@ function slugify(str) {
       mergedOverlayLayer = L.layerGroup();
       smallClusterOverlayLayer = L.layerGroup();
       const handleMapViewChange = () => refreshClusterVisuals();
+      const handleClusterZoomStart = () => {
+        isZoomingClusters = true;
+        clearSmallClusterOverlays();
+        hideTinyClustersImmediately();
+      };
       const handleClusterZoomAnim = () => {
-        console.log('[clusters] zoom animation skipped, refreshing after zoomend');
+        if (zoomanimHideTinyRaf) return;
+        zoomanimHideTinyRaf = requestAnimationFrame(() => {
+          zoomanimHideTinyRaf = null;
+          hideTinyClustersImmediately();
+        });
       };
       const handleClusterZoomEnd = () => {
+        isZoomingClusters = false;
         refreshClusterVisuals();
       };
       clusterLayer.on('add', () => {
         mergedOverlayLayer.addTo(map);
         smallClusterOverlayLayer.addTo(map);
         map.on('moveend', handleMapViewChange);
+        map.on('zoomstart', handleClusterZoomStart);
         map.on('zoomanim', handleClusterZoomAnim);
         map.on('zoomend', handleClusterZoomEnd);
         refreshClusterVisuals();
       });
       clusterLayer.on('remove', () => {
+        isZoomingClusters = false;
         if (refreshClusterRaf) {
           cancelAnimationFrame(refreshClusterRaf);
           refreshClusterRaf = null;
+        }
+        if (zoomanimHideTinyRaf) {
+          cancelAnimationFrame(zoomanimHideTinyRaf);
+          zoomanimHideTinyRaf = null;
         }
         clearMergedClusterOverlays();
         clearSmallClusterOverlays();
         mergedOverlayLayer.remove();
         smallClusterOverlayLayer.remove();
         map.off('moveend', handleMapViewChange);
+        map.off('zoomstart', handleClusterZoomStart);
         map.off('zoomanim', handleClusterZoomAnim);
         map.off('zoomend', handleClusterZoomEnd);
       });
+      clusterLayer.on('animationend', hideTinyClustersImmediately);
       clusterLayer.on('animationend', refreshClusterVisuals);
       clusterLayer.on('spiderfied', refreshClusterVisuals);
       clusterLayer.on('unspiderfied', refreshClusterVisuals);
