@@ -2849,9 +2849,12 @@ function slugify(str) {
       if (!performanceDebugOverlay) return;
       const statLines = [
         ['Firestore fetch', 'firestore fetch'],
-        ['Create markers', 'create markers'],
+        ['Layers header render', 'layers header render'],
+        ['Sidebar pin list render on demand', 'sidebar pin list render on demand'],
+        ['Marker batch creation total', 'marker batch creation total'],
+        ['First usable map time', 'first usable map time'],
+        ['Popup lazy render time', 'popup lazy render time'],
         ['Cluster init', 'cluster init'],
-        ['Sidebar render', 'sidebar render'],
         ['Viewport render', 'viewport render'],
         ['Total loading', 'total loading']
       ].map(([title, key]) => {
@@ -6233,12 +6236,54 @@ function emojiHtml(str) {
 function zaladujPinezkiZFirestore() {
   const firestoreFetchStartTs = performance.now();
   showLoading();
+  const isMobileLayout = window.innerWidth <= 700;
+  const batchSize = isMobileLayout ? 300 : 700;
+  const idleRunner = window.requestIdleCallback
+    ? (cb) => requestIdleCallback(cb, { timeout: 120 })
+    : (cb) => setTimeout(() => cb({ timeRemaining: () => 0 }), 16);
+  const createMarkerForPin = (p, warstwaNazwa) => {
+    if (!p || !warstwaNazwa || p.marker || !warstwy[warstwaNazwa]) return;
+    const iconEmoji = warstwy[warstwaNazwa].emoji || p.emoji;
+    const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p) });
+    marker.on('popupopen', (evt) => {
+      const popupStartTs = performance.now();
+      if (!marker._popupBuilt) {
+        const popupDiv = document.createElement("div");
+        popupDiv.className = "popup-container";
+        popupDiv.innerHTML = createPopupHtml(p);
+        marker.bindPopup(popupDiv);
+        attachPopupHandlers(marker, p);
+        marker._popupBuilt = true;
+      }
+      updatePerformanceDebug('popup lazy render time', performance.now() - popupStartTs);
+    });
+    attachMarkerLongPress(marker, p);
+    attachHighlight(marker, null);
+    p.marker = marker;
+    if (warstwy[warstwaNazwa].visible !== false) {
+      warstwy[warstwaNazwa].layer.addLayer(marker);
+    }
+  };
+  const createMarkersBatched = (pins, warstwaNazwa) => new Promise(resolve => {
+    if (!Array.isArray(pins) || pins.length === 0 || !warstwy[warstwaNazwa]) return resolve();
+    let i = 0;
+    const runBatch = () => {
+      const end = Math.min(i + batchSize, pins.length);
+      for (; i < end; i++) createMarkerForPin(pins[i], warstwaNazwa);
+      if (i < pins.length) {
+        idleRunner(runBatch);
+      } else {
+        resolve();
+      }
+    };
+    runBatch();
+  });
   const pinSources = [{ collection: "pinezki2", layerOverride: null }];
   if (warstwy[PINTEREST_LAYER_NAME] || layerDocs[PINTEREST_LAYER_NAME]) {
     pinSources.push({ collection: PINTEREST_PINS_COLLECTION, layerOverride: PINTEREST_LAYER_NAME });
   }
   Promise.all(pinSources.map(source => db.collection(source.collection).get()))
-  .then(snaps => {
+  .then(async snaps => {
     updatePerformanceDebug('firestore fetch', performance.now() - firestoreFetchStartTs);
     const createMarkersStartTs = performance.now();
     snaps.forEach((snapshot, idx) => {
@@ -6298,7 +6343,7 @@ function zaladujPinezkiZFirestore() {
       }
       registerPinCategory(p);
       registerPinCountry(p);
-      enqueueCountryFetch(p);
+      if (!isMobileLayout) enqueueCountryFetch(p);
       const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
       p.warstwaId = layerInfo.warstwaId || null;
       p.warstwa = layerInfo.warstwaName;
@@ -6316,8 +6361,6 @@ function zaladujPinezkiZFirestore() {
         };
       }
 
-      const iconEmoji = warstwy[warstwaNazwa].emoji || p.emoji;
-      const marker = L.marker([p.lat, p.lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p) }).addTo(warstwy[warstwaNazwa].layer);
       if (p.trasy) {
         p.trasy.forEach(tr => {
           const color = tr.kolor || DEFAULT_ROUTE_COLOR;
@@ -6339,22 +6382,20 @@ function zaladujPinezkiZFirestore() {
         p.plany = [];
       }
       p.savedPlans = serializePlans(p);
-      const popupDiv = document.createElement("div");
-      popupDiv.className = "popup-container";
-      popupDiv.innerHTML = createPopupHtml(p);
-      marker.bindPopup(popupDiv);
-      attachPopupHandlers(marker, p);
-      attachMarkerLongPress(marker, p);
-      attachHighlight(marker, null);
-
-      p.marker = marker;
       applyInactiveStyle(p);
       warstwy[warstwaNazwa].lista.push(p);
       warstwy[warstwaNazwa].loaded = true;
       wszystkiePinezki.push(p);
     });
     });
-    updatePerformanceDebug('create markers', performance.now() - createMarkersStartTs);
+    const markerBuildTasks = [];
+    Object.entries(warstwy).forEach(([layerName, layerData]) => {
+      if (!layerData || !Array.isArray(layerData.lista)) return;
+      if (isMobileLayout && layerData.visible === false) return;
+      markerBuildTasks.push(createMarkersBatched(layerData.lista, layerName));
+    });
+    await Promise.all(markerBuildTasks);
+    updatePerformanceDebug('marker batch creation total', performance.now() - createMarkersStartTs);
     updatePerformanceCounters({
       totalPins: wszystkiePinezki.length,
       renderedMarkers: wszystkiePinezki.filter(pin => !!pin.marker).length
@@ -6366,6 +6407,7 @@ function zaladujPinezkiZFirestore() {
     updateStatusFilter();
     refreshCountriesFromPins();
     generujListeWarstw();
+    updatePerformanceDebug('first usable map time', performance.now() - mapLoadStartTs);
   })
   .catch(err => {
     console.error("Błąd pobierania pinezek:", err);
@@ -9973,6 +10015,46 @@ function getTripPointEmoji(p) {
       if (pinTotalCounter) {
         pinTotalCounter.textContent = `Liczba miejsc: ${totalPinsCount}`;
       }
+      const buildLayerPinList = (nazwa, listaP) => {
+        const pinListStartTs = performance.now();
+        listaP.innerHTML = '';
+        const sorted = warstwy[nazwa].lista.slice().filter(p => {
+          return pinMatchesAllFilters(p, true);
+        }).sort((a, b) => {
+          const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
+          const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
+          const an = a.nazwa || '';
+          const bn = b.nazwa || '';
+          switch (sortMode) {
+            case 'dateAsc': return ad - bd;
+            case 'dateDesc': return bd - ad;
+            case 'nameDesc': return bn.localeCompare(an);
+            case 'nameAsc':
+            default: return an.localeCompare(bn);
+          }
+        });
+        sorted.forEach(p => {
+          const el = document.createElement("div");
+          el.className = "pinezka";
+          el.dataset.pinId = String(p.id);
+          const dispEmoji = warstwy[nazwa].emoji || p.emoji;
+          const nameRow = document.createElement('div');
+          nameRow.className = 'pin-name-row';
+          const nameSpan = document.createElement('span');
+          nameSpan.innerHTML = (dispEmoji ? emojiHtml(dispEmoji) + ' ' : '') + p.nazwa;
+          const pinEditBtn = document.createElement('button');
+          pinEditBtn.type = 'button';
+          pinEditBtn.className = 'pin-edit-btn';
+          pinEditBtn.title = 'Edytuj pinezkę';
+          pinEditBtn.innerHTML = '✎';
+          pinEditBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); edytuj(p.id, p.lat, p.lng); });
+          nameRow.appendChild(nameSpan); nameRow.appendChild(pinEditBtn); el.appendChild(nameRow);
+          el.addEventListener('click', e => { const sel = handlePinSelectionClick(e, p, el); if (!sel) openPinFromList(p, el); });
+          p.el = el;
+          listaP.appendChild(el);
+        });
+        updatePerformanceDebug('sidebar pin list render on demand', performance.now() - pinListStartTs);
+      };
       finalNazwy.forEach((nazwa, idx) => {
         const div = document.createElement("div");
         div.className = "warstwa";
@@ -10037,6 +10119,26 @@ function getTripPointEmoji(p) {
         checkbox.onchange = () => {
           warstwy[nazwa].visible = checkbox.checked;
           if (checkbox.checked) {
+            if (window.innerWidth <= 700) {
+              warstwy[nazwa].lista.forEach(pin => {
+                if (!pin.marker) {
+                  const iconEmoji = warstwy[nazwa].emoji || pin.emoji;
+                  pin.marker = L.marker([pin.lat, pin.lng], { icon: createEmojiIcon(iconEmoji, pin.warstwaId, 32, pin) });
+                  pin.marker.on('popupopen', () => {
+                    if (!pin.marker._popupBuilt) {
+                      const popupDiv = document.createElement("div");
+                      popupDiv.className = "popup-container";
+                      popupDiv.innerHTML = createPopupHtml(pin);
+                      pin.marker.bindPopup(popupDiv);
+                      attachPopupHandlers(pin.marker, pin);
+                      pin.marker._popupBuilt = true;
+                    }
+                  });
+                  attachMarkerLongPress(pin.marker, pin);
+                  attachHighlight(pin.marker, null);
+                }
+              });
+            }
             warstwy[nazwa].layer.addTo(map);
           } else {
             map.removeLayer(warstwy[nazwa].layer);
@@ -10104,128 +10206,11 @@ function getTripPointEmoji(p) {
         const listaP = document.createElement("div");
         listaP.className = "pinezki-lista";
 
-        const sorted = warstwy[nazwa].lista.slice().filter(p => {
-          return pinMatchesAllFilters(p, true);
-        }).sort((a, b) => {
-          const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
-          const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
-          const an = a.nazwa || '';
-          const bn = b.nazwa || '';
-          switch (sortMode) {
-            case 'dateAsc':
-              return ad - bd;
-            case 'dateDesc':
-              return bd - ad;
-            case 'nameDesc':
-              return bn.localeCompare(an);
-            case 'nameAsc':
-            default:
-              return an.localeCompare(bn);
-          }
-        });
-        sorted.forEach(p => {
-          const el = document.createElement("div");
-          el.className = "pinezka";
-          el.dataset.pinId = String(p.id);
-          const dispEmoji = warstwy[nazwa].emoji || p.emoji;
-          const nameRow = document.createElement('div');
-          nameRow.className = 'pin-name-row';
-          const nameSpan = document.createElement('span');
-          nameSpan.innerHTML = (dispEmoji ? emojiHtml(dispEmoji) + ' ' : '') + p.nazwa;
-          const pinEditBtn = document.createElement('button');
-          pinEditBtn.type = 'button';
-          pinEditBtn.className = 'pin-edit-btn';
-          pinEditBtn.title = 'Edytuj pinezkę';
-          pinEditBtn.innerHTML = '✎';
-          pinEditBtn.addEventListener('click', (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            edytuj(p.id, p.lat, p.lng);
-          });
-          nameRow.appendChild(nameSpan);
-          nameRow.appendChild(pinEditBtn);
-          el.appendChild(nameRow);
-          if (p.unsaved) el.classList.add('unsaved');
-          if (selectedPinIds.has(String(p.id))) {
-            el.classList.add('selected');
-          }
-          el.addEventListener('click', e => {
-            const selectionHandled = handlePinSelectionClick(e, p, el);
-            if (selectionHandled) return;
-            openPinFromList(p, el);
-          });
-          if (p.marker) {
-            attachHighlight(p.marker, el);
-          }
-          p.el = el;
-          applyInactiveStyle(p);
-          listaP.appendChild(el);
-
-          const trList = document.createElement('div');
-          trList.className = 'trasy-lista';
-          (p.trasy || []).forEach((tr, ti) => {
-            const tEl = document.createElement('div');
-            tEl.className = 'trasa-item';
-            tEl.textContent = tr.nazwa;
-            tEl.title = tr.opis || '';
-            tEl.style.borderLeft = `4px solid ${tr.kolor || DEFAULT_ROUTE_COLOR}`;
-            if (tr.unsaved) tEl.classList.add('unsaved');
-            tEl.onclick = (e) => {
-              e.stopPropagation();
-              if (tr.layer) map.fitBounds(tr.layer.getBounds());
-            };
-            const editR = document.createElement('span');
-            editR.textContent = '✏️';
-            editR.style.marginLeft = '5px';
-            editR.onclick = (e) => { e.stopPropagation(); showRouteEditor(p.id, ti); };
-            tEl.appendChild(editR);
-            trList.appendChild(tEl);
-          });
-          el.appendChild(trList);
-
-          if ((p.plany || []).length) {
-            const plansWrapper = document.createElement('div');
-            plansWrapper.className = 'trasy-lista';
-            const plansHeader = document.createElement('div');
-            plansHeader.style.fontSize = '12px';
-            plansHeader.style.margin = '4px 0';
-            plansHeader.textContent = 'Plany:';
-            plansWrapper.appendChild(plansHeader);
-            (p.plany || []).forEach(pl => {
-              const row = document.createElement('div');
-              row.className = 'plan-item';
-              if (pl.unsaved) row.classList.add('unsaved');
-              const chk = document.createElement('input');
-              chk.type = 'checkbox';
-              chk.className = 'plan-visibility';
-              chk.checked = pl.widoczny !== false;
-              chk.addEventListener('click', ev => ev.stopPropagation());
-              chk.addEventListener('change', () => {
-                pl.widoczny = chk.checked;
-                pl.unsaved = true;
-                updatePlanOverlay(p, pl);
-                markPlanChange(p);
-              });
-              const nameSpan = document.createElement('span');
-              nameSpan.className = 'plan-name';
-              nameSpan.textContent = pl.nazwa || 'Plan';
-              nameSpan.addEventListener('click', ev => {
-                ev.stopPropagation();
-                openPlanOptions(p, pl, nameSpan);
-              });
-              row.appendChild(chk);
-              row.appendChild(nameSpan);
-              plansWrapper.appendChild(row);
-            });
-            el.appendChild(plansWrapper);
-          }
-        });
-
         layerDomRefs[nazwa] = {
           name: nazwa,
           label,
           totalCount: warstwy[nazwa].lista.length,
-          items: Array.from(listaP.querySelectorAll('.pinezka')),
+          items: [],
           listEl: listaP,
           toggleBtn
         };
@@ -10237,6 +10222,16 @@ function getTripPointEmoji(p) {
             ev.stopPropagation();
           }
           warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
+          const willExpand = !warstwy[nazwa].collapsed;
+          if (willExpand && !listaP.dataset.rendered) {
+            buildLayerPinList(nazwa, listaP);
+            listaP.dataset.rendered = '1';
+            layerDomRefs[nazwa].items = Array.from(listaP.querySelectorAll('.pinezka'));
+          } else if (!willExpand) {
+            listaP.innerHTML = '';
+            listaP.dataset.rendered = '';
+            layerDomRefs[nazwa].items = [];
+          }
           listaP.classList.toggle("ukryta");
           updateLayerToggleSymbol();
           setLayerCollapseState(nazwa, warstwy[nazwa].collapsed);
@@ -10271,7 +10266,7 @@ function getTripPointEmoji(p) {
       }
       persistAllLayerVisibilityStates();
       shouldIgnoreStoredLayerState = false;
-      updatePerformanceDebug('sidebar render', performance.now() - sidebarRenderStartTs);
+      updatePerformanceDebug('layers header render', performance.now() - sidebarRenderStartTs);
     }
 
     async function zapiszZmiany() {
