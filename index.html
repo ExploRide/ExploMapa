@@ -2796,6 +2796,7 @@ function slugify(str) {
     const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 1000;
     const MAX_CLUSTERS_TO_MERGE_FAST = 500;
     const CLUSTER_OVERLAP_MERGE_PADDING = 22;
+    const DISABLE_OVERLAP_MERGE = true;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
     // When the page is opened normally we want layer visibility/collapse to reset.
@@ -3018,6 +3019,15 @@ function slugify(str) {
       }
 
       function mergeStronglyOverlappingClusters() {
+        if (DISABLE_OVERLAP_MERGE) {
+          console.log('[cluster-debug] overlap merge disabled');
+          for (const id of hiddenClusterIds) {
+            const cluster = mergedClusterMarkers.find(item => item.id === id)?.cluster;
+            if (cluster) setClusterMarkerVisibility(cluster, true);
+          }
+          clearMergedClusterOverlays();
+          return;
+        }
         if (!map || !clusterLayer || !clusterLayer._featureGroup) return;
         if (!mergedOverlayLayer || !map.hasLayer(clusterLayer)) return;
         if (map.getZoom() >= CLUSTER_DISABLE_AT_ZOOM) return;
