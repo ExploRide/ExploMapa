@@ -582,6 +582,15 @@
       opacity: 0 !important;
       pointer-events: none !important;
     }
+
+    body.single-marker-no-zoom-animation .emoji-marker,
+    body.single-marker-no-zoom-animation .leaflet-marker-icon:not(.marker-cluster),
+    body.single-marker-no-zoom-animation .leaflet-pane .leaflet-marker-icon:not(.marker-cluster),
+    #map.single-marker-no-zoom-animation .emoji-marker,
+    #map.single-marker-no-zoom-animation .leaflet-marker-icon:not(.marker-cluster) {
+      transition: none !important;
+      animation: none !important;
+    }
     .emoji-inline {
 width: 15px;
     height: 15px;
@@ -5399,6 +5408,30 @@ function emojiHtml(str) {
       }
 
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
+      let singleMarkerZoomClassTimer = null;
+      const SINGLE_MARKER_ZOOM_CLASS = 'single-marker-no-zoom-animation';
+      const setSingleMarkerZoomClass = enabled => {
+        document.body.classList.toggle(SINGLE_MARKER_ZOOM_CLASS, enabled);
+        const mapEl = map && map.getContainer ? map.getContainer() : document.getElementById('map');
+        if (mapEl) mapEl.classList.toggle(SINGLE_MARKER_ZOOM_CLASS, enabled);
+      };
+      const handleSingleMarkerZoomStart = () => {
+        if (singleMarkerZoomClassTimer) {
+          clearTimeout(singleMarkerZoomClassTimer);
+          singleMarkerZoomClassTimer = null;
+        }
+        setSingleMarkerZoomClass(true);
+        console.log('[cluster-performance] single marker zoom animations disabled');
+      };
+      const handleSingleMarkerZoomEnd = () => {
+        if (singleMarkerZoomClassTimer) clearTimeout(singleMarkerZoomClassTimer);
+        singleMarkerZoomClassTimer = setTimeout(() => {
+          setSingleMarkerZoomClass(false);
+          singleMarkerZoomClassTimer = null;
+        }, 80);
+      };
+      map.on('zoomstart', handleSingleMarkerZoomStart);
+      map.on('zoomend', handleSingleMarkerZoomEnd);
       const savedMapViewRaw = localStorage.getItem(MAP_VIEW_PRESERVE_KEY);
       if (savedMapViewRaw) {
         localStorage.removeItem(MAP_VIEW_PRESERVE_KEY);
