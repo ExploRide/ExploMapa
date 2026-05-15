@@ -1432,6 +1432,22 @@ img.emoji {
     .copernicus-time-range:disabled {
       cursor: not-allowed;
     }
+    #performance-debug-overlay {
+      position: fixed;
+      right: 10px;
+      bottom: 10px;
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 11px;
+      line-height: 1.35;
+      padding: 8px 10px;
+      border-radius: 6px;
+      pointer-events: none;
+      z-index: 2147483647;
+      white-space: pre-line;
+      min-width: 220px;
+    }
 
 
 
@@ -2797,6 +2813,60 @@ function slugify(str) {
     const MAX_CLUSTERS_TO_MERGE_FAST = 500;
     const CLUSTER_OVERLAP_MERGE_PADDING = 22;
     const DISABLE_OVERLAP_MERGE = true;
+    const ENABLE_PERFORMANCE_DEBUG = true;
+    const performanceDebugStats = {};
+    const performanceDebugCounters = { totalPins: 0, renderedMarkers: 0, visibleClusters: 0 };
+    let performanceDebugOverlay = null;
+    const mapLoadStartTs = performance.now();
+
+    function ensurePerformanceDebugOverlay() {
+      if (!ENABLE_PERFORMANCE_DEBUG || performanceDebugOverlay) return;
+      performanceDebugOverlay = document.createElement('div');
+      performanceDebugOverlay.id = 'performance-debug-overlay';
+      document.body.appendChild(performanceDebugOverlay);
+    }
+
+    function updatePerformanceDebug(label, time) {
+      if (!ENABLE_PERFORMANCE_DEBUG || !Number.isFinite(time)) return;
+      if (!performanceDebugStats[label]) performanceDebugStats[label] = { last: 0, sum: 0, count: 0, avg: 0 };
+      const stat = performanceDebugStats[label];
+      stat.last = time;
+      stat.sum += time;
+      stat.count += 1;
+      stat.avg = stat.sum / stat.count;
+      renderPerformanceDebugOverlay();
+    }
+
+    function updatePerformanceCounters(nextCounters = {}) {
+      if (!ENABLE_PERFORMANCE_DEBUG) return;
+      Object.assign(performanceDebugCounters, nextCounters);
+      renderPerformanceDebugOverlay();
+    }
+
+    function renderPerformanceDebugOverlay() {
+      if (!ENABLE_PERFORMANCE_DEBUG) return;
+      ensurePerformanceDebugOverlay();
+      if (!performanceDebugOverlay) return;
+      const statLines = [
+        ['Firestore fetch', 'firestore fetch'],
+        ['Create markers', 'create markers'],
+        ['Cluster init', 'cluster init'],
+        ['Sidebar render', 'sidebar render'],
+        ['Viewport render', 'viewport render'],
+        ['Total loading', 'total loading']
+      ].map(([title, key]) => {
+        const s = performanceDebugStats[key];
+        if (!s) return `${title}: -`;
+        return `${title}: ${s.last.toFixed(1)}ms (avg ${s.avg.toFixed(1)}ms)`;
+      });
+      performanceDebugOverlay.textContent = [
+        'PERF DEBUG',
+        ...statLines,
+        `Pins total: ${performanceDebugCounters.totalPins}`,
+        `Rendered markers: ${performanceDebugCounters.renderedMarkers}`,
+        `Visible clusters: ${performanceDebugCounters.visibleClusters}`
+      ].join('\n');
+    }
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
     // When the page is opened normally we want layer visibility/collapse to reset.
@@ -2906,6 +2976,7 @@ function slugify(str) {
     }
 
     function createPinLayer() {
+      const clusterInitStartTs = performance.now();
       if (!L.markerClusterGroup) {
         return L.layerGroup();
       }
@@ -3283,6 +3354,7 @@ function slugify(str) {
       clusterLayer.on('spiderfied', () => scheduleClusterIdleRefresh('spiderfied'));
       clusterLayer.on('unspiderfied', () => scheduleClusterIdleRefresh('unspiderfied'));
 
+      updatePerformanceDebug('cluster init', performance.now() - clusterInitStartTs);
       return clusterLayer;
     }
 
@@ -6159,6 +6231,7 @@ function emojiHtml(str) {
 
     
 function zaladujPinezkiZFirestore() {
+  const firestoreFetchStartTs = performance.now();
   showLoading();
   const pinSources = [{ collection: "pinezki2", layerOverride: null }];
   if (warstwy[PINTEREST_LAYER_NAME] || layerDocs[PINTEREST_LAYER_NAME]) {
@@ -6166,6 +6239,8 @@ function zaladujPinezkiZFirestore() {
   }
   Promise.all(pinSources.map(source => db.collection(source.collection).get()))
   .then(snaps => {
+    updatePerformanceDebug('firestore fetch', performance.now() - firestoreFetchStartTs);
+    const createMarkersStartTs = performance.now();
     snaps.forEach((snapshot, idx) => {
       const source = pinSources[idx];
       snapshot.forEach(doc => {
@@ -6279,6 +6354,11 @@ function zaladujPinezkiZFirestore() {
       wszystkiePinezki.push(p);
     });
     });
+    updatePerformanceDebug('create markers', performance.now() - createMarkersStartTs);
+    updatePerformanceCounters({
+      totalPins: wszystkiePinezki.length,
+      renderedMarkers: wszystkiePinezki.filter(pin => !!pin.marker).length
+    });
     if (!localPinsLoaded) loadNewPinsFromLocal();
     refreshCategoryCollectionsFromPins();
     updateMainCategoryFilterUI();
@@ -6309,6 +6389,9 @@ function zaladujPinezkiZFirestore() {
       layersToAdd: layersToAdd.length,
       layersToDelete: layersToDelete.length,
       pinsToDelete: pinsToDelete.length
+    });
+    requestAnimationFrame(() => {
+      updatePerformanceDebug('total loading', performance.now() - mapLoadStartTs);
     });
   });
 }
@@ -9810,6 +9893,7 @@ function getTripPointEmoji(p) {
     }
 
     function updateMarkerVisibility() {
+      const viewportStartTs = performance.now();
       const paddedBounds = map ? map.getBounds().pad(0.15) : null;
       const changedLayers = new Set();
       const layerOps = new Map();
@@ -9858,9 +9942,17 @@ function getTripPointEmoji(p) {
           layer.fire('animationend');
         }
       });
+      const visibleClusters = document.querySelectorAll('.leaflet-marker-pane .marker-cluster:not(.marker-cluster-hidden)').length;
+      updatePerformanceCounters({
+        totalPins: wszystkiePinezki.length,
+        renderedMarkers: wszystkiePinezki.filter(pin => pin.marker && pin.marker._map).length,
+        visibleClusters
+      });
+      updatePerformanceDebug('viewport render', performance.now() - viewportStartTs);
     }
 
     function generujListeWarstw() {
+      const sidebarRenderStartTs = performance.now();
       updateMarkerVisibility();
       layerDomRefs = {};
       const lista = document.getElementById("lista-warstw");
@@ -10179,6 +10271,7 @@ function getTripPointEmoji(p) {
       }
       persistAllLayerVisibilityStates();
       shouldIgnoreStoredLayerState = false;
+      updatePerformanceDebug('sidebar render', performance.now() - sidebarRenderStartTs);
     }
 
     async function zapiszZmiany() {
