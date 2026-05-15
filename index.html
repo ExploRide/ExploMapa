@@ -2795,6 +2795,8 @@ function slugify(str) {
     const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 1000;
     const MAX_CLUSTERS_TO_MERGE_FAST = 500;
     const CLUSTER_OVERLAP_MERGE_PADDING = 22;
+    const VIEWPORT_RENDER_THRESHOLD = 3000;
+    const VIEWPORT_RENDER_DEBOUNCE = 80;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
     // When the page is opened normally we want layer visibility/collapse to reset.
@@ -2918,6 +2920,15 @@ function slugify(str) {
       let isZoomingClusters = false;
       let refreshClusterRaf = null;
       let zoomanimHideTinyRaf = null;
+      const fullDatasetMarkers = new Map();
+      const markerPinMeta = new Map();
+      const markerByPinId = new Map();
+      const activePopupMarkerIds = new Set();
+      const renderedMarkerIds = new Set();
+      const visibleMarkersCache = new Map();
+      const viewportRenderedLayers = new Set();
+      let viewportRenderTimeout = null;
+      let suppressViewportRender = false;
 
       function setClusterMarkerVisibility(cluster, visible) {
         if (!cluster || !cluster._icon) return;
@@ -3147,6 +3158,71 @@ function slugify(str) {
           mergeStronglyOverlappingClusters();
         });
       }
+      function extractMarkerPinId(marker) {
+        const pinData = marker?.options?.pinData || marker?.__pinData || marker?.pinData || null;
+        if (!pinData) return null;
+        return String(pinData.id || pinData.firebaseId || pinData.IDpinezki || '');
+      }
+      function getViewportCandidateMarkers() {
+        const paddedBounds = map.getBounds().pad(0.3);
+        const candidates = [];
+        fullDatasetMarkers.forEach(marker => {
+          const latlng = marker.getLatLng();
+          if (paddedBounds.contains(latlng)) candidates.push(marker);
+        });
+        return candidates;
+      }
+      function scheduleViewportRender(force = false) {
+        if (suppressViewportRender || !map) return;
+        if (viewportRenderTimeout) clearTimeout(viewportRenderTimeout);
+        viewportRenderTimeout = setTimeout(() => {
+          viewportRenderTimeout = null;
+          refreshViewportRendering(force);
+        }, VIEWPORT_RENDER_DEBOUNCE);
+      }
+      function refreshViewportRendering(force = false) {
+        if (!map) return;
+        const totalPins = fullDatasetMarkers.size;
+        const shouldUseViewportRender = totalPins > VIEWPORT_RENDER_THRESHOLD;
+        if (!shouldUseViewportRender) {
+          if (!force) return;
+          const allMarkers = Array.from(fullDatasetMarkers.values());
+          suppressViewportRender = true;
+          baseClearLayers();
+          if (allMarkers.length) baseAddLayers(allMarkers);
+          suppressViewportRender = false;
+          renderedMarkerIds.clear();
+          allMarkers.forEach(marker => renderedMarkerIds.add(L.Util.stamp(marker)));
+          viewportRenderedLayers.delete(clusterLayer);
+          console.log('[viewport-render] total:', totalPins, 'rendered:', allMarkers.length);
+          refreshClusterVisuals();
+          return;
+        }
+
+        viewportRenderedLayers.add(clusterLayer);
+        const candidates = getViewportCandidateMarkers();
+        const mustKeepMarkers = [];
+        activePopupMarkerIds.forEach(id => {
+          const marker = markerByPinId.get(id);
+          if (marker) mustKeepMarkers.push(marker);
+        });
+        const nextMarkers = candidates.slice();
+        mustKeepMarkers.forEach(marker => {
+          if (!nextMarkers.includes(marker)) nextMarkers.push(marker);
+        });
+        const nextRenderedIds = new Set(nextMarkers.map(marker => L.Util.stamp(marker)));
+        const needsUpdate = force || nextRenderedIds.size !== renderedMarkerIds.size || Array.from(nextRenderedIds).some(id => !renderedMarkerIds.has(id));
+        if (!needsUpdate) return;
+        visibleMarkersCache.set('last', nextMarkers);
+        suppressViewportRender = true;
+        baseClearLayers();
+        if (nextMarkers.length) baseAddLayers(nextMarkers);
+        suppressViewportRender = false;
+        renderedMarkerIds.clear();
+        nextRenderedIds.forEach(id => renderedMarkerIds.add(id));
+        console.log('[viewport-render] total:', totalPins, 'rendered:', nextMarkers.length);
+        refreshClusterVisuals();
+      }
 
       clusterLayer = L.markerClusterGroup({
         disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
@@ -3192,7 +3268,10 @@ function slugify(str) {
         map.on('zoomstart', handleClusterZoomStart);
         map.on('zoomanim', handleClusterZoomAnim);
         map.on('zoomend', handleClusterZoomEnd);
+        map.on('moveend', () => scheduleViewportRender(false));
+        map.on('zoomend', () => scheduleViewportRender(false));
         refreshClusterVisuals();
+        scheduleViewportRender(true);
       });
       clusterLayer.on('remove', () => {
         isZoomingClusters = false;
@@ -3212,11 +3291,77 @@ function slugify(str) {
         map.off('zoomstart', handleClusterZoomStart);
         map.off('zoomanim', handleClusterZoomAnim);
         map.off('zoomend', handleClusterZoomEnd);
+        if (viewportRenderTimeout) {
+          clearTimeout(viewportRenderTimeout);
+          viewportRenderTimeout = null;
+        }
       });
       clusterLayer.on('animationend', hideTinyClustersImmediately);
       clusterLayer.on('animationend', refreshClusterVisuals);
       clusterLayer.on('spiderfied', refreshClusterVisuals);
       clusterLayer.on('unspiderfied', refreshClusterVisuals);
+      const baseAddLayer = clusterLayer.addLayer.bind(clusterLayer);
+      const baseAddLayers = clusterLayer.addLayers.bind(clusterLayer);
+      const baseRemoveLayer = clusterLayer.removeLayer.bind(clusterLayer);
+      const baseClearLayers = clusterLayer.clearLayers.bind(clusterLayer);
+      clusterLayer.addLayer = marker => {
+        if (!marker) return clusterLayer;
+        const stamp = L.Util.stamp(marker);
+        fullDatasetMarkers.set(stamp, marker);
+        const pinId = extractMarkerPinId(marker);
+        if (pinId) {
+          markerPinMeta.set(stamp, pinId);
+          markerByPinId.set(pinId, marker);
+        }
+        marker.on('popupopen', () => { if (pinId) activePopupMarkerIds.add(pinId); });
+        marker.on('popupclose', () => { if (pinId) { activePopupMarkerIds.delete(pinId); scheduleViewportRender(true); } });
+        if (fullDatasetMarkers.size > VIEWPORT_RENDER_THRESHOLD) {
+          scheduleViewportRender(false);
+          return clusterLayer;
+        }
+        renderedMarkerIds.add(stamp);
+        return baseAddLayer(marker);
+      };
+      clusterLayer.addLayers = markers => {
+        if (!Array.isArray(markers)) return clusterLayer;
+        markers.forEach(marker => clusterLayer.addLayer(marker));
+        if (fullDatasetMarkers.size <= VIEWPORT_RENDER_THRESHOLD) {
+          suppressViewportRender = true;
+          baseClearLayers();
+          baseAddLayers(Array.from(fullDatasetMarkers.values()));
+          suppressViewportRender = false;
+        }
+        scheduleViewportRender(true);
+        return clusterLayer;
+      };
+      clusterLayer.removeLayer = marker => {
+        if (!marker) return clusterLayer;
+        const stamp = L.Util.stamp(marker);
+        const pinId = markerPinMeta.get(stamp);
+        fullDatasetMarkers.delete(stamp);
+        markerPinMeta.delete(stamp);
+        renderedMarkerIds.delete(stamp);
+        if (pinId) {
+          markerByPinId.delete(pinId);
+          activePopupMarkerIds.delete(pinId);
+        }
+        if (fullDatasetMarkers.size > VIEWPORT_RENDER_THRESHOLD) {
+          scheduleViewportRender(true);
+          return clusterLayer;
+        }
+        return baseRemoveLayer(marker);
+      };
+      clusterLayer.clearLayers = () => {
+        fullDatasetMarkers.clear();
+        markerPinMeta.clear();
+        markerByPinId.clear();
+        activePopupMarkerIds.clear();
+        renderedMarkerIds.clear();
+        visibleMarkersCache.clear();
+        viewportRenderedLayers.delete(clusterLayer);
+        return baseClearLayers();
+      };
+      clusterLayer.refreshViewportRender = force => scheduleViewportRender(!!force);
 
       return clusterLayer;
     }
