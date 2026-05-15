@@ -3869,15 +3869,10 @@ function slugify(str) {
       toggleVisibilityBtn.addEventListener('click', () => {
         allLayersVisible = !allLayersVisible;
         Object.keys(warstwy).forEach(n => {
-          warstwy[n].visible = allLayersVisible;
-          if (allLayersVisible) {
-            warstwy[n].layer.addTo(map);
-          } else {
-            map.removeLayer(warstwy[n].layer);
-          }
-          if (!warstwy[n].temporary) {
-            setLayerVisibilityState(n, warstwy[n].visible);
-          }
+          setLayerVisible(n, allLayersVisible, {
+            persist: !warstwy[n].temporary,
+            source: 'toggle-visibility-btn'
+          });
         });
         toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
         persistAllLayerVisibilityStates();
@@ -6495,7 +6490,6 @@ function zaladujPinezkiZFirestore() {
     });
     });
     pinsFirestoreLoaded = true;
-    forceRefreshVisiblePinLayers('after-firestore-fetch');
     console.log('[pins:load] fetched pins total', wszystkiePinezki.length, getMapDiagnosticsSnapshot());
     const markerBuildTasks = [];
     Object.entries(warstwy).forEach(([layerName, layerData]) => {
@@ -6504,7 +6498,6 @@ function zaladujPinezkiZFirestore() {
       markerBuildTasks.push(createMarkersBatched(layerData.lista, layerName));
     });
     await Promise.all(markerBuildTasks);
-    forceRefreshVisiblePinLayers('after-create-markers-batched');
     Object.entries(warstwy).forEach(([layerName, layerData]) => {
       if (!layerData || !layerData.layer) return;
       const isLayerVisible = layerData.visible !== false;
@@ -6539,10 +6532,18 @@ function zaladujPinezkiZFirestore() {
     updateStatusFilter();
     refreshCountriesFromPins();
     generujListeWarstw({ deferMarkerVisibilityUpdate: true });
-    forceRefreshVisiblePinLayers('after-load-pins');
-    updateMarkerVisibility();
-    map.invalidateSize();
-    requestAnimationFrame(() => updateMarkerVisibility());
+    let reappliedVisibleLayers = 0;
+    Object.entries(warstwy).forEach(([layerName, layerData]) => {
+      if (!layerData || layerData.visible === false) return;
+      if (setLayerVisible(layerName, true, {
+        force: true,
+        persist: false,
+        source: 'after-load-pins'
+      })) {
+        reappliedVisibleLayers++;
+      }
+    });
+    console.log('[after-load-pins] re-applied visible layers:', reappliedVisibleLayers);
     updatePerformanceDebug('first usable map time', performance.now() - mapLoadStartTs);
   })
   .catch(err => {
@@ -10199,42 +10200,45 @@ function getTripPointEmoji(p) {
       updatePerformanceDebug('viewport render', performance.now() - viewportStartTs);
     }
 
-    function forceRefreshVisiblePinLayers(reason = 'manual') {
-      let visibleLayersCount = 0;
-      let readdedLayersCount = 0;
-      Object.entries(warstwy).forEach(([layerName, layerData]) => {
-        if (!layerData || !layerData.layer) return;
-        if (layerData.visible === false) return;
-        visibleLayersCount++;
-        const wasOnMap = map.hasLayer(layerData.layer);
-        if (!wasOnMap) {
-          map.addLayer(layerData.layer);
-          readdedLayersCount++;
-        } else if (typeof layerData.layer.refreshClusters === 'function') {
-          map.removeLayer(layerData.layer);
-          map.addLayer(layerData.layer);
-          readdedLayersCount++;
+    function setLayerVisible(layerName, visible, options = {}) {
+      const layerData = warstwy[layerName];
+      if (!layerData || !layerData.layer) return false;
+      const normalizedVisible = !!visible;
+      const normalizedOptions = {
+        force: false,
+        persist: true,
+        source: 'unknown',
+        ...options
+      };
+      console.log('[layer-visible]', layerName, normalizedVisible, normalizedOptions.source, 'force:', normalizedOptions.force);
+      layerData.visible = normalizedVisible;
+      const layer = layerData.layer;
+      const hasLayer = map.hasLayer(layer);
+
+      if (normalizedVisible) {
+        if (normalizedOptions.force && hasLayer) {
+          map.removeLayer(layer);
         }
-        if (typeof layerData.layer.refreshClusters === 'function') {
-          layerData.layer.refreshClusters();
+        if (!map.hasLayer(layer) && typeof layer.addTo === 'function') {
+          layer.addTo(map);
         }
-      });
-      if (typeof scheduleClusterIdleRefresh === 'function') {
-        scheduleClusterIdleRefresh(`force-refresh:${reason}`);
-      } else if (typeof refreshClusterVisuals === 'function') {
-        refreshClusterVisuals();
+        if (normalizedOptions.force && typeof layer.refreshClusters === 'function') {
+          layer.refreshClusters();
+        }
+      } else if (hasLayer) {
+        map.removeLayer(layer);
       }
-      const renderedMarkers = wszystkiePinezki.reduce((sum, pin) => {
-        if (!pin || !pin.marker) return sum;
-        const layer = warstwy[pin.warstwa]?.layer;
-        return sum + (layer && typeof layer.hasLayer === 'function' && layer.hasLayer(pin.marker) ? 1 : 0);
-      }, 0);
-      console.log('[force-refresh-visible-pin-layers]', {
-        reason,
-        visibleLayersCount,
-        readdedLayersCount,
-        renderedMarkers
-      });
+
+      if (normalizedOptions.persist !== false && !layerData.temporary) {
+        setLayerVisibilityState(layerName, normalizedVisible);
+      }
+
+      if (normalizedOptions.force) {
+        updateMarkerVisibility();
+        map.invalidateSize();
+        requestAnimationFrame(() => updateMarkerVisibility());
+      }
+      return true;
     }
 
     function generujListeWarstw(options = {}) {
@@ -10345,15 +10349,10 @@ function getTripPointEmoji(p) {
             layerCheckboxes.forEach(ch => {
               const layerName = ch.closest('.warstwa')?.dataset?.nazwa;
               if (!layerName || !warstwy[layerName]) return;
-              warstwy[layerName].visible = ch.checked;
-              if (ch.checked) {
-                warstwy[layerName].layer.addTo(map);
-              } else {
-                map.removeLayer(warstwy[layerName].layer);
-              }
-              if (!warstwy[layerName].temporary) {
-                setLayerVisibilityState(layerName, ch.checked);
-              }
+              setLayerVisible(layerName, ch.checked, {
+                persist: !warstwy[layerName].temporary,
+                source: 'layer-checkbox-ctrl'
+              });
             });
             allLayersVisible = Object.values(warstwy).every(w => w.visible);
             if (toggleVisibilityBtn) {
@@ -10362,36 +10361,31 @@ function getTripPointEmoji(p) {
           });
         });
         checkbox.onchange = () => {
-          warstwy[nazwa].visible = checkbox.checked;
-          if (checkbox.checked) {
-            if (window.innerWidth <= 700) {
-              warstwy[nazwa].lista.forEach(pin => {
-                if (!pin.marker) {
-                  const iconEmoji = warstwy[nazwa].emoji || pin.emoji;
-                  pin.marker = L.marker([pin.lat, pin.lng], { icon: createEmojiIcon(iconEmoji, pin.warstwaId, 32, pin) });
-                  pin.marker.on('popupopen', () => {
-                    if (!pin.marker._popupBuilt) {
-                      const popupDiv = document.createElement("div");
-                      popupDiv.className = "popup-container";
-                      popupDiv.innerHTML = createPopupHtml(pin);
-                      pin.marker.bindPopup(popupDiv);
-                      attachPopupHandlers(pin.marker, pin);
-                      pin.marker._popupBuilt = true;
-                    }
-                  });
-                  attachMarkerLongPress(pin.marker, pin);
-                  attachHighlight(pin.marker, null);
-                  warstwy[nazwa].layer.addLayer(pin.marker);
-                }
-              });
-            }
-            warstwy[nazwa].layer.addTo(map);
-          } else {
-            map.removeLayer(warstwy[nazwa].layer);
+          if (checkbox.checked && window.innerWidth <= 700) {
+            warstwy[nazwa].lista.forEach(pin => {
+              if (!pin.marker) {
+                const iconEmoji = warstwy[nazwa].emoji || pin.emoji;
+                pin.marker = L.marker([pin.lat, pin.lng], { icon: createEmojiIcon(iconEmoji, pin.warstwaId, 32, pin) });
+                pin.marker.on('popupopen', () => {
+                  if (!pin.marker._popupBuilt) {
+                    const popupDiv = document.createElement("div");
+                    popupDiv.className = "popup-container";
+                    popupDiv.innerHTML = createPopupHtml(pin);
+                    pin.marker.bindPopup(popupDiv);
+                    attachPopupHandlers(pin.marker, pin);
+                    pin.marker._popupBuilt = true;
+                  }
+                });
+                attachMarkerLongPress(pin.marker, pin);
+                attachHighlight(pin.marker, null);
+                warstwy[nazwa].layer.addLayer(pin.marker);
+              }
+            });
           }
-          if (!warstwy[nazwa].temporary) {
-            setLayerVisibilityState(nazwa, checkbox.checked);
-          }
+          setLayerVisible(nazwa, checkbox.checked, {
+            persist: !warstwy[nazwa].temporary,
+            source: 'layer-checkbox-change'
+          });
           allLayersVisible = Object.values(warstwy).every(w => w.visible);
           if (toggleVisibilityBtn) {
             toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
@@ -10512,12 +10506,9 @@ function getTripPointEmoji(p) {
       }
       persistAllLayerVisibilityStates();
       shouldIgnoreStoredLayerState = false;
-      if (deferMarkerVisibilityUpdate) {
-        scheduleMarkerVisibilityUpdate();
-      } else {
+      if (!deferMarkerVisibilityUpdate) {
         updateMarkerVisibility();
       }
-      forceRefreshVisiblePinLayers('after-generujListeWarstw');
       updatePerformanceDebug('layers header render', performance.now() - sidebarRenderStartTs);
     }
 
