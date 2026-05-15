@@ -2791,6 +2791,7 @@ function slugify(str) {
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
     const CLUSTER_DISABLE_AT_ZOOM = 14; // skupiaj pinezki aż do średniego przybliżenia mapy
     const CLUSTER_MIN_MARKERS = 5; // poniżej tej liczby pokazuj pojedyncze pinezki zamiast klastra
+    const DISABLE_CUSTOM_CLUSTER_VISUALS = true;
     const BIG_CLUSTER_COUNT = 500;
     const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 1000;
     const MAX_CLUSTERS_TO_MERGE_FAST = 500;
@@ -3171,9 +3172,15 @@ function slugify(str) {
       });
       console.log('[cluster-performance] animations disabled');
 
-      mergedOverlayLayer = L.layerGroup();
-      smallClusterOverlayLayer = L.layerGroup();
-      const handleMapViewChange = () => refreshClusterVisuals();
+      if (DISABLE_CUSTOM_CLUSTER_VISUALS) {
+        console.log('[cluster-debug] custom cluster overlays disabled for animation test');
+      } else {
+        mergedOverlayLayer = L.layerGroup();
+        smallClusterOverlayLayer = L.layerGroup();
+      }
+      const handleMapViewChange = () => {
+        if (!DISABLE_CUSTOM_CLUSTER_VISUALS) refreshClusterVisuals();
+      };
       const handleClusterZoomStart = () => {
         isZoomingClusters = true;
         clearSmallClusterOverlays();
@@ -3188,16 +3195,18 @@ function slugify(str) {
       };
       const handleClusterZoomEnd = () => {
         isZoomingClusters = false;
-        refreshClusterVisuals();
+        if (!DISABLE_CUSTOM_CLUSTER_VISUALS) refreshClusterVisuals();
       };
       clusterLayer.on('add', () => {
-        mergedOverlayLayer.addTo(map);
-        smallClusterOverlayLayer.addTo(map);
-        map.on('moveend', handleMapViewChange);
+        if (!DISABLE_CUSTOM_CLUSTER_VISUALS) {
+          mergedOverlayLayer.addTo(map);
+          smallClusterOverlayLayer.addTo(map);
+          map.on('moveend', handleMapViewChange);
+        }
         map.on('zoomstart', handleClusterZoomStart);
         map.on('zoomanim', handleClusterZoomAnim);
         map.on('zoomend', handleClusterZoomEnd);
-        refreshClusterVisuals();
+        if (!DISABLE_CUSTOM_CLUSTER_VISUALS) refreshClusterVisuals();
       });
       clusterLayer.on('remove', () => {
         isZoomingClusters = false;
@@ -3209,19 +3218,23 @@ function slugify(str) {
           cancelAnimationFrame(zoomanimHideTinyRaf);
           zoomanimHideTinyRaf = null;
         }
-        clearMergedClusterOverlays();
-        clearSmallClusterOverlays();
-        mergedOverlayLayer.remove();
-        smallClusterOverlayLayer.remove();
-        map.off('moveend', handleMapViewChange);
+        if (!DISABLE_CUSTOM_CLUSTER_VISUALS) {
+          clearMergedClusterOverlays();
+          clearSmallClusterOverlays();
+          mergedOverlayLayer.remove();
+          smallClusterOverlayLayer.remove();
+          map.off('moveend', handleMapViewChange);
+        }
         map.off('zoomstart', handleClusterZoomStart);
         map.off('zoomanim', handleClusterZoomAnim);
         map.off('zoomend', handleClusterZoomEnd);
       });
       clusterLayer.on('animationend', hideTinyClustersImmediately);
-      clusterLayer.on('animationend', refreshClusterVisuals);
-      clusterLayer.on('spiderfied', refreshClusterVisuals);
-      clusterLayer.on('unspiderfied', refreshClusterVisuals);
+      if (!DISABLE_CUSTOM_CLUSTER_VISUALS) {
+        clusterLayer.on('animationend', refreshClusterVisuals);
+        clusterLayer.on('spiderfied', refreshClusterVisuals);
+        clusterLayer.on('unspiderfied', refreshClusterVisuals);
+      }
 
       return clusterLayer;
     }
