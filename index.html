@@ -10200,6 +10200,33 @@ function getTripPointEmoji(p) {
       updatePerformanceDebug('viewport render', performance.now() - viewportStartTs);
     }
 
+    function ensureLayerMarkersCreated(layerName) {
+      const layerData = warstwy[layerName];
+      if (!layerData || !Array.isArray(layerData.lista) || !layerData.layer) return 0;
+      let count = 0;
+      layerData.lista.forEach(pin => {
+        if (pin.marker) return;
+        const iconEmoji = layerData.emoji || pin.emoji;
+        pin.marker = L.marker([pin.lat, pin.lng], { icon: createEmojiIcon(iconEmoji, pin.warstwaId, 32, pin) });
+        pin.marker.on('popupopen', () => {
+          if (!pin.marker._popupBuilt) {
+            const popupDiv = document.createElement("div");
+            popupDiv.className = "popup-container";
+            popupDiv.innerHTML = createPopupHtml(pin);
+            pin.marker.bindPopup(popupDiv);
+            attachPopupHandlers(pin.marker, pin);
+            pin.marker._popupBuilt = true;
+          }
+        });
+        attachMarkerLongPress(pin.marker, pin);
+        attachHighlight(pin.marker, null);
+        layerData.layer.addLayer(pin.marker);
+        count++;
+      });
+      console.log('[ensure-layer-markers]', layerName, 'created:', count, 'total:', layerData.lista.length);
+      return count;
+    }
+
     function setLayerVisible(layerName, visible, options = {}) {
       const layerData = warstwy[layerName];
       if (!layerData || !layerData.layer) return false;
@@ -10216,6 +10243,7 @@ function getTripPointEmoji(p) {
       const hasLayer = map.hasLayer(layer);
 
       if (normalizedVisible) {
+        ensureLayerMarkersCreated(layerName);
         if (normalizedOptions.force && hasLayer) {
           map.removeLayer(layer);
         }
@@ -10361,27 +10389,7 @@ function getTripPointEmoji(p) {
           });
         });
         checkbox.onchange = () => {
-          if (checkbox.checked && window.innerWidth <= 700) {
-            warstwy[nazwa].lista.forEach(pin => {
-              if (!pin.marker) {
-                const iconEmoji = warstwy[nazwa].emoji || pin.emoji;
-                pin.marker = L.marker([pin.lat, pin.lng], { icon: createEmojiIcon(iconEmoji, pin.warstwaId, 32, pin) });
-                pin.marker.on('popupopen', () => {
-                  if (!pin.marker._popupBuilt) {
-                    const popupDiv = document.createElement("div");
-                    popupDiv.className = "popup-container";
-                    popupDiv.innerHTML = createPopupHtml(pin);
-                    pin.marker.bindPopup(popupDiv);
-                    attachPopupHandlers(pin.marker, pin);
-                    pin.marker._popupBuilt = true;
-                  }
-                });
-                attachMarkerLongPress(pin.marker, pin);
-                attachHighlight(pin.marker, null);
-                warstwy[nazwa].layer.addLayer(pin.marker);
-              }
-            });
-          }
+          if (checkbox.checked) ensureLayerMarkersCreated(nazwa);
           setLayerVisible(nazwa, checkbox.checked, {
             persist: !warstwy[nazwa].temporary,
             source: 'layer-checkbox-change'
