@@ -6320,24 +6320,7 @@ function zaladujPinezkiZFirestore() {
     let createdCount = 0;
     let addedCount = 0;
     let i = 0;
-    const mapBounds = map?.getBounds?.() || null;
-    const paddedBounds = mapBounds ? mapBounds.pad(0.15) : null;
-    let viewportPassCount = 0;
-    let viewportSkipCount = 0;
-    const firstPin = pins[0] || null;
-    const firstPinLat = firstPin ? Number(firstPin.lat) : null;
-    const firstPinLng = firstPin ? Number(firstPin.lng) : null;
-    const firstPinContains = (paddedBounds && Number.isFinite(firstPinLat) && Number.isFinite(firstPinLng))
-      ? paddedBounds.contains([firstPinLat, firstPinLng])
-      : null;
-    console.log('[lazy-markers:hard-debug] createMarkersBatched viewport snapshot', {
-      layer: warstwaNazwa,
-      pinsTotal: pins.length,
-      mapBounds: mapBounds ? mapBounds.toBBoxString() : null,
-      paddedBounds: paddedBounds ? paddedBounds.toBBoxString() : null,
-      firstPin: firstPin ? { id: firstPin.id || null, lat: firstPin.lat, lng: firstPin.lng } : null,
-      firstPinContains
-    });
+    console.log('[lazy-markers:debug] createMarkersBatched start', { layer: warstwaNazwa, pinsTotal: pins.length, batchSize });
     let firstBatchStarted = false;
     const runBatch = () => {
       if (!firstBatchStarted) {
@@ -6350,17 +6333,13 @@ function zaladujPinezkiZFirestore() {
           console.log(`[lazy-markers:debug] processing pin index layer=${warstwaNazwa} index=${i}`);
         }
         const pin = pins[i];
-        if (paddedBounds) {
-          const pinLat = Number(pin?.lat);
-          const pinLng = Number(pin?.lng);
-          const inViewport = Number.isFinite(pinLat) && Number.isFinite(pinLng) && paddedBounds.contains([pinLat, pinLng]);
-          if (inViewport) viewportPassCount++;
-          else viewportSkipCount++;
-        }
         const marker = createMarkerForPin(pin, warstwaNazwa);
         if (marker) {
           createdMarkers.push(marker);
           createdCount++;
+          if (createdCount === 1) {
+            console.log(`[markers-debug] first marker created layer=${warstwaNazwa} pinId=${pin?.id || 'n/a'}`);
+          }
           if (createdCount <= 3 || createdCount % 200 === 0) {
             console.log(`[lazy-markers:debug] marker created successfully layer=${warstwaNazwa} createdCount=${createdCount}`);
           }
@@ -6389,14 +6368,9 @@ function zaladujPinezkiZFirestore() {
           layerData.layer.addTo(map);
         }
         console.log(`[lazy-markers:debug] all batches completed layer=${warstwaNazwa} totalCreated=${createdCount} totalAdded=${addedCount}`);
-        console.log('[lazy-markers:hard-debug] viewport test stats (not used to skip createMarker)', {
-          layer: warstwaNazwa,
-          viewportPassCount,
-          viewportSkipCount,
-          createdCount,
-          addedCount
-        });
         console.log(`[lazy-markers] layer=${warstwaNazwa} pins=${pins.length} batch=${batchSize} created=${createdCount} added=${addedCount} mapHasLayer=${map.hasLayer(layerData.layer)}`);
+        console.log(`[markers-debug] total markers created layer=${warstwaNazwa} count=${createdCount}`);
+        console.log(`[markers-debug] total markers added layer=${warstwaNazwa} count=${addedCount}`);
         totalCreatedMarkers += createdCount;
         resolve();
       }
@@ -10102,10 +10076,7 @@ function getTripPointEmoji(p) {
 
     function pinIsInViewport(pin, paddedBounds) {
       if (!pin || typeof pin.lat !== 'number' || typeof pin.lng !== 'number') return false;
-      // HOTFIX: tymczasowe wyłączenie viewport virtualization, aby nie blokować renderu markerów na mobile.
       return true;
-      if (!map || !paddedBounds) return true;
-      return paddedBounds.contains([pin.lat, pin.lng]);
     }
 
     function scheduleMarkerVisibilityUpdate() {
@@ -10130,7 +10101,6 @@ function getTripPointEmoji(p) {
 
     function updateMarkerVisibility() {
       const viewportStartTs = performance.now();
-      const paddedBounds = map ? map.getBounds().pad(0.15) : null;
       const changedLayers = new Set();
       const layerOps = new Map();
       let totalAdded = 0;
@@ -10152,7 +10122,7 @@ function getTripPointEmoji(p) {
           beforeFilters++;
           const visibleByFilters = pinMatchesAllFilters(p, true) && p.visible !== false;
           if (visibleByFilters) afterFilters++;
-          const inViewport = visibleByFilters && pinIsInViewport(p, paddedBounds);
+          const inViewport = visibleByFilters && pinIsInViewport(p, null);
           if (inViewport) inBounds++;
           const visible = layerVisible && layerChecked && inViewport;
           if (visible) {
