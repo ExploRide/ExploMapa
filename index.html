@@ -2794,7 +2794,9 @@ function slugify(str) {
     const DISABLE_CUSTOM_CLUSTER_VISUALS = true;
     const BIG_CLUSTER_COUNT = 500;
     const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 1000;
-    const MAX_CLUSTERS_TO_MERGE_FAST = 500;
+    const CLUSTER_POST_ZOOM_REFRESH_DELAY = 140;
+    const CLUSTER_OVERLAP_MERGE_DELAY = 260;
+    const MAX_CLUSTERS_TO_MERGE_FAST = 150;
     const CLUSTER_OVERLAP_MERGE_PADDING = 22;
 
     const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
@@ -2919,6 +2921,8 @@ function slugify(str) {
       let isZoomingClusters = false;
       let refreshClusterRaf = null;
       let zoomanimHideTinyRaf = null;
+      let zoomRefreshTimeout = null;
+      let overlapMergeTimeout = null;
 
       function setClusterMarkerVisibility(cluster, visible) {
         if (!cluster || !cluster._icon) return;
@@ -2936,6 +2940,17 @@ function slugify(str) {
         hiddenSmallClusterIds.clear();
         smallClusterMarkers.splice(0, smallClusterMarkers.length);
         if (smallClusterOverlayLayer) smallClusterOverlayLayer.clearLayers();
+      }
+
+      function clearClusterTimers() {
+        if (zoomRefreshTimeout) {
+          clearTimeout(zoomRefreshTimeout);
+          zoomRefreshTimeout = null;
+        }
+        if (overlapMergeTimeout) {
+          clearTimeout(overlapMergeTimeout);
+          overlapMergeTimeout = null;
+        }
       }
 
       function getVisibleTopClusters() {
@@ -3145,8 +3160,17 @@ function slugify(str) {
           if (isZoomingClusters) return;
           hideTinyClustersImmediately();
           renderSmallClustersAsSingleMarkers();
-          mergeStronglyOverlappingClusters();
         });
+      }
+
+      function scheduleOverlapMerge(delay = CLUSTER_OVERLAP_MERGE_DELAY) {
+        if (DISABLE_CUSTOM_CLUSTER_VISUALS) return;
+        if (overlapMergeTimeout) clearTimeout(overlapMergeTimeout);
+        overlapMergeTimeout = setTimeout(() => {
+          overlapMergeTimeout = null;
+          if (isZoomingClusters) return;
+          mergeStronglyOverlappingClusters();
+        }, delay);
       }
 
       clusterLayer = L.markerClusterGroup({
@@ -3179,7 +3203,9 @@ function slugify(str) {
         smallClusterOverlayLayer = L.layerGroup();
       }
       const handleMapViewChange = () => {
-        if (!DISABLE_CUSTOM_CLUSTER_VISUALS) refreshClusterVisuals();
+        if (DISABLE_CUSTOM_CLUSTER_VISUALS) return;
+        refreshClusterVisuals();
+        scheduleOverlapMerge(CLUSTER_OVERLAP_MERGE_DELAY);
       };
       const handleClusterZoomStart = () => {
         isZoomingClusters = true;
@@ -3195,7 +3221,14 @@ function slugify(str) {
       };
       const handleClusterZoomEnd = () => {
         isZoomingClusters = false;
-        if (!DISABLE_CUSTOM_CLUSTER_VISUALS) refreshClusterVisuals();
+        if (DISABLE_CUSTOM_CLUSTER_VISUALS) return;
+        if (zoomRefreshTimeout) clearTimeout(zoomRefreshTimeout);
+        zoomRefreshTimeout = setTimeout(() => {
+          zoomRefreshTimeout = null;
+          if (isZoomingClusters) return;
+          refreshClusterVisuals();
+        }, CLUSTER_POST_ZOOM_REFRESH_DELAY);
+        scheduleOverlapMerge(CLUSTER_OVERLAP_MERGE_DELAY);
       };
       clusterLayer.on('add', () => {
         if (!DISABLE_CUSTOM_CLUSTER_VISUALS) {
@@ -3214,6 +3247,7 @@ function slugify(str) {
           cancelAnimationFrame(refreshClusterRaf);
           refreshClusterRaf = null;
         }
+        clearClusterTimers();
         if (zoomanimHideTinyRaf) {
           cancelAnimationFrame(zoomanimHideTinyRaf);
           zoomanimHideTinyRaf = null;
@@ -5361,7 +5395,12 @@ function emojiHtml(str) {
         popupAutoPanState.duringAutoPan = false;
       }
 
-      map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
+      map = L.map('map', {
+        crs: L.CRS.EPSG3857,
+        zoomAnimation: true,
+        fadeAnimation: true,
+        markerZoomAnimation: true
+      }).setView([52.1, 20.9], 7);
       const savedMapViewRaw = localStorage.getItem(MAP_VIEW_PRESERVE_KEY);
       if (savedMapViewRaw) {
         localStorage.removeItem(MAP_VIEW_PRESERVE_KEY);
