@@ -6266,18 +6266,28 @@ function zaladujPinezkiZFirestore() {
     if (!Array.isArray(pins) || pins.length === 0 || !warstwy[warstwaNazwa]) return resolve();
     const layerData = warstwy[warstwaNazwa];
     const createdMarkers = [];
+    let createdCount = 0;
+    let addedCount = 0;
     let i = 0;
     const runBatch = () => {
       const end = Math.min(i + batchSize, pins.length);
       for (; i < end; i++) {
         const marker = createMarkerForPin(pins[i], warstwaNazwa);
-        if (marker) createdMarkers.push(marker);
+        if (marker) {
+          createdMarkers.push(marker);
+          createdCount++;
+        }
       }
       if (createdMarkers.length) {
+        const batchMarkers = createdMarkers.splice(0);
         if (typeof layerData.layer.addLayers === 'function') {
-          layerData.layer.addLayers(createdMarkers.splice(0));
+          layerData.layer.addLayers(batchMarkers);
+          addedCount += batchMarkers.length;
         } else {
-          createdMarkers.splice(0).forEach(marker => layerData.layer.addLayer(marker));
+          batchMarkers.forEach(marker => {
+            layerData.layer.addLayer(marker);
+            addedCount++;
+          });
         }
       }
       if (i < pins.length) {
@@ -6287,7 +6297,7 @@ function zaladujPinezkiZFirestore() {
         if (isLayerVisible && !map.hasLayer(layerData.layer) && typeof layerData.layer.addTo === 'function') {
           layerData.layer.addTo(map);
         }
-        console.log('[lazy-markers] layer:', warstwaNazwa, 'pins:', pins.length, 'created:', pins.filter(pin => !!pin.marker).length, 'addedToMap:', isLayerVisible);
+        console.log(`[lazy-markers] layer=${warstwaNazwa} pins=${pins.length} batch=${batchSize} created=${createdCount} added=${addedCount} mapHasLayer=${map.hasLayer(layerData.layer)}`);
         resolve();
       }
     };
@@ -6412,9 +6422,14 @@ function zaladujPinezkiZFirestore() {
     await Promise.all(markerBuildTasks);
     updatePerformanceDebug('marker batch creation total', performance.now() - createMarkersStartTs);
     const visibleClusters = document.querySelectorAll('.leaflet-marker-pane .marker-cluster:not(.marker-cluster-hidden)').length;
+    const renderedMarkers = wszystkiePinezki.reduce((sum, pin) => {
+      if (!pin || !pin.marker) return sum;
+      const layer = warstwy[pin.warstwa]?.layer;
+      return sum + (layer && typeof layer.hasLayer === 'function' && layer.hasLayer(pin.marker) ? 1 : 0);
+    }, 0);
     updatePerformanceCounters({
       totalPins: wszystkiePinezki.length,
-      renderedMarkers: wszystkiePinezki.filter(pin => pin.marker && pin.marker._map).length,
+      renderedMarkers,
       visibleClusters
     });
     if (!localPinsLoaded) loadNewPinsFromLocal();
@@ -9597,7 +9612,8 @@ function getTripPointEmoji(p) {
     }
 
     function pinMatchesCountry(p) {
-      if (selectedCountries.size === 0) return false;
+      if (countries.size === 0) return true;
+      if (selectedCountries.size === 0) return !countryFilterTouched;
       if (selectedCountries.size === countries.size && countries.size > 0) return true;
       const country = getPinCountry(p);
       if (!country) return false;
@@ -9957,13 +9973,23 @@ function getTripPointEmoji(p) {
       const changedLayers = new Set();
       const layerOps = new Map();
 
-      Object.values(warstwy).forEach(w => {
+      Object.entries(warstwy).forEach(([layerName, w]) => {
         const toAdd = [];
         const toRemove = [];
+        let beforeFilters = 0;
+        let afterFilters = 0;
+        let inBounds = 0;
+        const layerVisible = w && w.visible !== false;
+        const layerCheckbox = document.querySelector(`.warstwa[data-nazwa="${CSS.escape(layerName)}"] .layer-toggle`);
+        const layerChecked = layerCheckbox ? !!layerCheckbox.checked : layerVisible;
         w.lista.forEach(p => {
           if (!p.marker) return;
+          beforeFilters++;
           const visibleByFilters = pinMatchesAllFilters(p, true);
-          const visible = visibleByFilters && pinIsInViewport(p, paddedBounds);
+          if (visibleByFilters) afterFilters++;
+          const inViewport = visibleByFilters && pinIsInViewport(p, paddedBounds);
+          if (inViewport) inBounds++;
+          const visible = inViewport;
           if (visible) {
             if (!w.layer.hasLayer(p.marker)) toAdd.push(p.marker);
           } else {
@@ -9974,6 +10000,7 @@ function getTripPointEmoji(p) {
         if (toAdd.length || toRemove.length) {
           layerOps.set(w.layer, { toAdd, toRemove });
         }
+        console.log(`[lazy-markers:filters] layer=${layerName} pinsBefore=${beforeFilters} pinsAfter=${afterFilters} pinsInBounds=${inBounds} layerVisible=${layerVisible} mainSelected=${Array.from(selectedMainCategories).join(',')} checkboxChecked=${layerChecked}`);
       });
 
       layerOps.forEach((ops, layer) => {
@@ -10002,9 +10029,15 @@ function getTripPointEmoji(p) {
         }
       });
       const visibleClusters = document.querySelectorAll('.leaflet-marker-pane .marker-cluster:not(.marker-cluster-hidden)').length;
+      const renderedMarkers = wszystkiePinezki.reduce((sum, pin) => {
+        if (!pin || !pin.marker) return sum;
+        const layer = warstwy[pin.warstwa]?.layer;
+        return sum + (layer && typeof layer.hasLayer === 'function' && layer.hasLayer(pin.marker) ? 1 : 0);
+      }, 0);
+      console.log(`[viewport-render] pins in bounds: ${renderedMarkers}`);
       updatePerformanceCounters({
         totalPins: wszystkiePinezki.length,
-        renderedMarkers: wszystkiePinezki.filter(pin => pin.marker && pin.marker._map).length,
+        renderedMarkers,
         visibleClusters
       });
       updatePerformanceDebug('viewport render', performance.now() - viewportStartTs);
