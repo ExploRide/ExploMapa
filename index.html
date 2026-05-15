@@ -5498,6 +5498,11 @@ function emojiHtml(str) {
       }
 
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
+      map.whenReady(() => {
+        mapWhenReadyExecuted = true;
+        console.log('[map:whenReady] Map ready', getMapDiagnosticsSnapshot());
+        if (pinsFirestoreLoaded) triggerMarkerRender('map-whenReady-after-pins');
+      });
       const savedMapViewRaw = localStorage.getItem(MAP_VIEW_PRESERVE_KEY);
       if (savedMapViewRaw) {
         localStorage.removeItem(MAP_VIEW_PRESERVE_KEY);
@@ -6357,6 +6362,13 @@ function zaladujPinezkiZFirestore() {
       p.zdewastowane = p.zdewastowane === true;
       p.zwiedzone = p.zwiedzone === true;
       p.wyroznione = p.wyroznione === true;
+      p.visible = p.visible !== false;
+      p.lat = Number(p.lat);
+      p.lng = Number(p.lng);
+      if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) {
+        console.warn('[pins:invalid-coords] Odrzucono pinezkę z błędnymi współrzędnymi', { id: p.id || doc.id, lat: p.lat, lng: p.lng });
+        return;
+      }
       getPinMainCategory(p);
       p.slug = slugify(p.nazwa);
       if (!photosMap[p.slug]) {
@@ -6432,6 +6444,8 @@ function zaladujPinezkiZFirestore() {
       wszystkiePinezki.push(p);
     });
     });
+    pinsFirestoreLoaded = true;
+    console.log('[pins:load] fetched pins total', wszystkiePinezki.length, getMapDiagnosticsSnapshot());
     const markerBuildTasks = [];
     Object.entries(warstwy).forEach(([layerName, layerData]) => {
       if (!layerData || !Array.isArray(layerData.lista)) return;
@@ -6465,6 +6479,7 @@ function zaladujPinezkiZFirestore() {
       createdMarkers: totalCreatedMarkers,
       markersAddedToLayer: totalMarkersAddedToLayer
     });
+    triggerMarkerRender('after-firestore-load');
     if (!localPinsLoaded) loadNewPinsFromLocal();
     refreshCategoryCollectionsFromPins();
     updateMainCategoryFilterUI();
@@ -9249,10 +9264,12 @@ function getTripPointEmoji(p) {
     function applyTripPlannerPinVisibility() {
       if (tripPlannerMode !== 'trip') {
         applyTripMainPinsVisibility();
+        triggerMarkerRender('trip-visibility:pins-mode');
         return;
       }
       applyTripMainPinsVisibility();
       updateTripPinsVisibilityToggleLabel();
+      triggerMarkerRender('trip-visibility:trip-mode');
     }
 
     function focusTripPointOnMap(point) {
@@ -9973,6 +9990,39 @@ function getTripPointEmoji(p) {
 
     let markerViewportUpdateScheduled = false;
     let markerVisibilityDebounceTimer = null;
+    let mapWhenReadyExecuted = false;
+    let pinsFirestoreLoaded = false;
+
+    // Changelog (mobile marker render fix, 2026-05-15):
+    // 1) Dodano diagnostykę renderu markerów/klastrów oraz stanu mapy i filtrów.
+    // 2) Wymuszono domyślne pin.visible=true i walidację/konwersję lat,lng -> Number.
+    // 3) Dodano mobile invalidateSize + opóźnione odświeżenie renderu po kluczowych zdarzeniach.
+    function getMapDiagnosticsSnapshot() {
+      const activeLayerNames = Object.entries(warstwy || {})
+        .filter(([, w]) => w && w.visible !== false)
+        .map(([name]) => name);
+      const bounds = map?.getBounds?.();
+      return {
+        mode: tripPlannerMode,
+        hideMainPinsInTripMode,
+        selectedMainCategories: Array.from(selectedMainCategories || []),
+        activeLayers: activeLayerNames,
+        mapWhenReadyExecuted,
+        mapBounds: bounds ? bounds.toBBoxString() : 'n/a'
+      };
+    }
+
+    function triggerMarkerRender(reason = 'unknown') {
+      const isMobileLayout = document.body.classList.contains('mobile-layout') || window.innerWidth <= 700;
+      const runRender = () => scheduleMarkerVisibilityUpdate();
+      if (isMobileLayout && map) {
+        map.invalidateSize();
+        setTimeout(runRender, 180);
+      } else {
+        runRender();
+      }
+      console.log('[marker-render:trigger]', reason, getMapDiagnosticsSnapshot());
+    }
 
     function pinIsInViewport(pin, paddedBounds) {
       if (!pin || typeof pin.lat !== 'number' || typeof pin.lng !== 'number') return false;
@@ -10022,7 +10072,7 @@ function getTripPointEmoji(p) {
         w.lista.forEach(p => {
           if (!p.marker) return;
           beforeFilters++;
-          const visibleByFilters = pinMatchesAllFilters(p, true);
+          const visibleByFilters = pinMatchesAllFilters(p, true) && p.visible !== false;
           if (visibleByFilters) afterFilters++;
           const inViewport = visibleByFilters && pinIsInViewport(p, paddedBounds);
           if (inViewport) inBounds++;
@@ -10037,7 +10087,7 @@ function getTripPointEmoji(p) {
         if (toAdd.length || toRemove.length) {
           layerOps.set(w.layer, { toAdd, toRemove });
         }
-        console.log(`[lazy-markers:filters] layer=${layerName} pinsBefore=${beforeFilters} pinsAfter=${afterFilters} pinsInBounds=${inBounds} layerVisible=${layerVisible} mainSelected=${Array.from(selectedMainCategories).join(',')} checkboxChecked=${layerChecked}`);
+        console.log(`[lazy-markers:filters] layer=${layerName} pinsBefore=${beforeFilters} pinsAfter=${afterFilters} pinsInBounds=${inBounds} layerVisible=${layerVisible} mainSelected=${Array.from(selectedMainCategories).join(',')} checkboxChecked=${layerChecked} mode=${tripPlannerMode}`);
       });
 
       layerOps.forEach((ops, layer) => {
@@ -10075,7 +10125,14 @@ function getTripPointEmoji(p) {
         const layer = warstwy[pin.warstwa]?.layer;
         return sum + (layer && typeof layer.hasLayer === 'function' && layer.hasLayer(pin.marker) ? 1 : 0);
       }, 0);
-      console.log(`[viewport-render] pins in bounds: ${renderedMarkers}`);
+      console.log('[viewport-render:diagnostics]', {
+        totalPins: wszystkiePinezki.length,
+        pinsAfterFilters: Object.values(warstwy).reduce((acc, w) => acc + (w?.lista?.filter(p => pinMatchesAllFilters(p, true) && p.visible !== false).length || 0), 0),
+        markersPassedToRenderer: totalAdded,
+        renderedMarkers,
+        visibleClusters,
+        ...getMapDiagnosticsSnapshot()
+      });
       updatePerformanceCounters({
         totalPins: wszystkiePinezki.length,
         renderedMarkers,
