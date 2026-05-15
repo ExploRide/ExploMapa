@@ -6495,6 +6495,7 @@ function zaladujPinezkiZFirestore() {
     });
     });
     pinsFirestoreLoaded = true;
+    forceRefreshVisiblePinLayers('after-firestore-fetch');
     console.log('[pins:load] fetched pins total', wszystkiePinezki.length, getMapDiagnosticsSnapshot());
     const markerBuildTasks = [];
     Object.entries(warstwy).forEach(([layerName, layerData]) => {
@@ -6503,6 +6504,7 @@ function zaladujPinezkiZFirestore() {
       markerBuildTasks.push(createMarkersBatched(layerData.lista, layerName));
     });
     await Promise.all(markerBuildTasks);
+    forceRefreshVisiblePinLayers('after-create-markers-batched');
     Object.entries(warstwy).forEach(([layerName, layerData]) => {
       if (!layerData || !layerData.layer) return;
       const isLayerVisible = layerData.visible !== false;
@@ -6537,6 +6539,10 @@ function zaladujPinezkiZFirestore() {
     updateStatusFilter();
     refreshCountriesFromPins();
     generujListeWarstw({ deferMarkerVisibilityUpdate: true });
+    forceRefreshVisiblePinLayers('after-load-pins');
+    updateMarkerVisibility();
+    map.invalidateSize();
+    requestAnimationFrame(() => updateMarkerVisibility());
     updatePerformanceDebug('first usable map time', performance.now() - mapLoadStartTs);
   })
   .catch(err => {
@@ -10193,6 +10199,44 @@ function getTripPointEmoji(p) {
       updatePerformanceDebug('viewport render', performance.now() - viewportStartTs);
     }
 
+    function forceRefreshVisiblePinLayers(reason = 'manual') {
+      let visibleLayersCount = 0;
+      let readdedLayersCount = 0;
+      Object.entries(warstwy).forEach(([layerName, layerData]) => {
+        if (!layerData || !layerData.layer) return;
+        if (layerData.visible === false) return;
+        visibleLayersCount++;
+        const wasOnMap = map.hasLayer(layerData.layer);
+        if (!wasOnMap) {
+          map.addLayer(layerData.layer);
+          readdedLayersCount++;
+        } else if (typeof layerData.layer.refreshClusters === 'function') {
+          map.removeLayer(layerData.layer);
+          map.addLayer(layerData.layer);
+          readdedLayersCount++;
+        }
+        if (typeof layerData.layer.refreshClusters === 'function') {
+          layerData.layer.refreshClusters();
+        }
+      });
+      if (typeof scheduleClusterIdleRefresh === 'function') {
+        scheduleClusterIdleRefresh(`force-refresh:${reason}`);
+      } else if (typeof refreshClusterVisuals === 'function') {
+        refreshClusterVisuals();
+      }
+      const renderedMarkers = wszystkiePinezki.reduce((sum, pin) => {
+        if (!pin || !pin.marker) return sum;
+        const layer = warstwy[pin.warstwa]?.layer;
+        return sum + (layer && typeof layer.hasLayer === 'function' && layer.hasLayer(pin.marker) ? 1 : 0);
+      }, 0);
+      console.log('[force-refresh-visible-pin-layers]', {
+        reason,
+        visibleLayersCount,
+        readdedLayersCount,
+        renderedMarkers
+      });
+    }
+
     function generujListeWarstw(options = {}) {
       const { deferMarkerVisibilityUpdate = false } = options;
       const sidebarRenderStartTs = performance.now();
@@ -10473,6 +10517,7 @@ function getTripPointEmoji(p) {
       } else {
         updateMarkerVisibility();
       }
+      forceRefreshVisiblePinLayers('after-generujListeWarstw');
       updatePerformanceDebug('layers header render', performance.now() - sidebarRenderStartTs);
     }
 
