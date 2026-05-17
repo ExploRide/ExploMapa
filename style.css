@@ -289,6 +289,9 @@
   max-width: 500px;
   position: relative;
   z-index: 2147483601;
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .mobile-modal-content button {
   padding: 8px 12px;
@@ -299,6 +302,49 @@
 .mobile-modal-content button,
 .mobile-modal-content label {
   font-size: 24px;
+}
+
+.mobile-pin-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  position: sticky;
+  bottom: 0;
+  background: #2b2b2b;
+  padding: 10px 0 calc(12px + env(safe-area-inset-bottom));
+  margin-top: 6px;
+}
+
+@media (max-width: 800px) {
+  #mobilePinModal .mobile-modal-content {
+    width: min(92vw, 500px);
+    gap: 8px;
+    padding: 12px;
+  }
+
+  #mobilePinModal .mobile-modal-content input,
+  #mobilePinModal .mobile-modal-content select,
+  #mobilePinModal .mobile-modal-content textarea,
+  #mobilePinModal .mobile-modal-content button,
+  #mobilePinModal .mobile-modal-content label {
+    font-size: 16px;
+  }
+
+  #mobilePinModal .mobile-modal-content input,
+  #mobilePinModal .mobile-modal-content select,
+  #mobilePinModal .mobile-modal-content textarea {
+    min-height: 38px;
+    padding: 8px 10px;
+  }
+
+  #mobilePinModal .mobile-modal-content textarea {
+    min-height: 84px;
+    height: 84px !important;
+  }
+
+  #mobilePinModal .status-grid {
+    gap: 6px;
+  }
 }
 
 .gps-marker {
