@@ -6817,6 +6817,48 @@ function zaladujPinezkiZFirestore() {
       enforceLayerMatch();
     }
 
+    function isMobilePinFormPreferred() {
+      const narrow = window.matchMedia('(max-width: 800px)').matches;
+      const coarse = window.matchMedia('(pointer: coarse)').matches;
+      const touch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      return narrow || coarse || touch;
+    }
+
+    let activeMobileFormCleanup = null;
+    function closeMobileFormModalIfNeeded() {
+      if (typeof activeMobileFormCleanup === 'function') {
+        const cleanup = activeMobileFormCleanup;
+        activeMobileFormCleanup = null;
+        cleanup();
+      }
+    }
+
+    function openFormInMobileModal(formContainer, onClose) {
+      const modal = document.getElementById('mobilePinModal');
+      const modalContent = document.getElementById('mobilePinModalContent');
+      if (!modal || !modalContent) return false;
+      const originalContent = Array.from(modalContent.childNodes);
+      const cleanup = () => {
+        if (modal.dataset.customFormOpen !== '1') return;
+        modal.style.display = 'none';
+        modalContent.innerHTML = '';
+        originalContent.forEach(node => modalContent.appendChild(node));
+        modal.dataset.customFormOpen = '0';
+        modal.removeEventListener('click', backdropHandler);
+        if (typeof onClose === 'function') onClose();
+      };
+      const backdropHandler = (ev) => {
+        if (ev.target === modal) cleanup();
+      };
+      modalContent.innerHTML = '';
+      modalContent.appendChild(formContainer);
+      modal.dataset.customFormOpen = '1';
+      modal.style.display = 'flex';
+      modal.addEventListener('click', backdropHandler);
+      activeMobileFormCleanup = cleanup;
+      return cleanup;
+    }
+
     function edytuj(id, lat, lng) {
      /* console.log('Wywołano edytuj dla id:', id, 'lat:', lat, 'lng:', lng); // <-- dodane */
       const p = wszystkiePinezki.find(pp => pp.id === id);
@@ -6957,6 +6999,13 @@ function zaladujPinezkiZFirestore() {
       const marker = p.marker || findMarkerByLatLng(lat, lng);
       if (marker) {
         p.marker = marker;
+        if (isMobilePinFormPreferred()) {
+          map.closePopup();
+          openFormInMobileModal(container, () => {
+            delete p._editDraft;
+          });
+          return;
+        }
         if (marker._editCloseHandler) {
           marker.off('popupclose', marker._editCloseHandler);
         }
@@ -7096,6 +7145,7 @@ function zaladujPinezkiZFirestore() {
       generujListeWarstw();
       updateSaveButton();
       map.closePopup();
+      closeMobileFormModalIfNeeded();
     }
 
 
@@ -7227,7 +7277,14 @@ function zaladujPinezkiZFirestore() {
         window.__osmPrefillNewPin = null;
       }
 
-      const popup = marker.bindPopup(container).openPopup();
+      if (isMobilePinFormPreferred()) {
+        openFormInMobileModal(container, () => {
+          if (!saved && map.hasLayer(marker)) map.removeLayer(marker);
+          updateSaveButton();
+        });
+      } else {
+        marker.bindPopup(container).openPopup();
+      }
       attachHighlight(marker, null);
 
       const chkNewInactive = container.querySelector('#nieaktywneNew');
@@ -7353,11 +7410,13 @@ function zaladujPinezkiZFirestore() {
         generujListeWarstw();
         updateSaveButton();
         map.closePopup();
+        closeMobileFormModalIfNeeded();
       });
 
       container.querySelector("#cancelNew").addEventListener("click", (e) => {
         e.stopPropagation();
         map.closePopup();
+        closeMobileFormModalIfNeeded();
       });
     }
     async function onMapClick(e) {
@@ -11830,7 +11889,7 @@ function confirmLayerDelete() {
   <div id="gpsLoadingMessage">Wczytuję lokalizację GPS...</div>
   <div id="osmOverlayStatus" class="osm-status-loading">Wczytywanie miejsc OSM dla aktualnego obszaru…</div>
   <div id="mobilePinModal" class="mobile-modal">
-    <div class="mobile-modal-content">
+    <div id="mobilePinModalContent" class="mobile-modal-content">
       <div class="photo-gallery mobile-pin-photo-gallery" id="mobilePinPhotoGallery"></div>
       <button id="mobilePinAddPhotoBtn" class="popup-add-photo mobile-pin-add-photo-btn" type="button">📷</button>
       <input type="text" id="mobilePinName" placeholder="Nazwa pinezki" style="width: 100%">
