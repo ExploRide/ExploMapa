@@ -5463,15 +5463,10 @@ function emojiHtml(str) {
         const maxWidth = Math.max(1, maxRight - maxLeft);
         const maxHeight = Math.max(1, maxBottom - minTop);
 
+        // Utrzymuj pełną skalę popupu — CSS zoom potrafi rozjechać hitboxy przycisków
+        // (np. edycja/usuwanie) na części przeglądarek i poziomów mapy.
         popupEl.style.zoom = '';
-        let popupRect = popupEl.getBoundingClientRect();
-        const widthScale = maxWidth / Math.max(1, popupRect.width);
-        const heightScale = maxHeight / Math.max(1, popupRect.height);
-        const popupScale = Math.max(0.55, Math.min(1, widthScale, heightScale));
-        if (popupScale < 1) {
-          popupEl.style.zoom = String(popupScale);
-          popupRect = popupEl.getBoundingClientRect();
-        }
+        const popupRect = popupEl.getBoundingClientRect();
 
         let dx = 0;
         let dy = 0;
