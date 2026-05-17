@@ -10299,12 +10299,13 @@ function getTripPointEmoji(p) {
         if (pin.marker) return;
         const iconEmoji = layerData.emoji || pin.emoji;
         pin.marker = L.marker([pin.lat, pin.lng], { icon: createEmojiIcon(iconEmoji, pin.warstwaId, 32, pin) });
-        pin.marker.on('popupopen', () => {
+        pin.marker.bindPopup('<div class="popup-container">Ładowanie…</div>');
+        pin.marker.on('popupopen', (evt) => {
           if (!pin.marker._popupBuilt) {
             const popupDiv = document.createElement("div");
             popupDiv.className = "popup-container";
             popupDiv.innerHTML = createPopupHtml(pin);
-            pin.marker.bindPopup(popupDiv);
+            evt.popup.setContent(popupDiv);
             attachPopupHandlers(pin.marker, pin);
             pin.marker._popupBuilt = true;
           }
@@ -11545,7 +11546,7 @@ function confirmLayerDelete() {
         kategoria: '',
         kategoriaGlowna: MAIN_CATEGORY_URBEX,
         kraj: '',
-        emoji: '',
+        emoji: 'emoji39',
         trudnosc: 0,
         lat: currentLocation[0],
         lng: currentLocation[1],
@@ -11563,14 +11564,14 @@ function confirmLayerDelete() {
         kategoria: '',
         kategoriaGlowna: MAIN_CATEGORY_URBEX,
         kraj: '',
-        emoji: '',
+        emoji: 'emoji39',
         trudnosc: 0,
         lat: currentLocation[0],
         lng: currentLocation[1],
         dataDodania: Date.now(),
         slug: slugify(name)
       };
-    const marker = L.marker(currentLocation, {icon: createEmojiIcon('', movingLayerId)}).addTo(warstwy['Tryb w ruchu'].layer);
+    const marker = L.marker(currentLocation, {icon: createEmojiIcon('emoji39', movingLayerId)}).addTo(warstwy['Tryb w ruchu'].layer);
     const popupDiv = document.createElement('div');
     popupDiv.className = 'popup-container';
     popupDiv.innerHTML = createPopupHtml(data);
@@ -11714,6 +11715,10 @@ function confirmLayerDelete() {
 
     function openGpsModal() {
       nameInput.value = '';
+      storePhotos(mobileDraftPhotosSlug, []);
+      if (mobilePhotoGallery) renderGallery(mobilePhotoGallery);
+      if (mobilePhotoGallery) mobilePhotoGallery.style.display = 'none';
+      if (mobileAddPhotoBtn) mobileAddPhotoBtn.style.display = 'none';
       descInput.style.display = 'none';
       layerInput.style.display = 'none';
       mainCatInput.style.display = 'none';
@@ -11753,6 +11758,8 @@ function confirmLayerDelete() {
       highlightedInput.checked = false;
       storePhotos(mobileDraftPhotosSlug, []);
       if (mobilePhotoGallery) renderGallery(mobilePhotoGallery);
+      if (mobilePhotoGallery) mobilePhotoGallery.style.display = '';
+      if (mobileAddPhotoBtn) mobileAddPhotoBtn.style.display = '';
       descInput.style.display = '';
       layerInput.style.display = '';
       mainCatInput.style.display = '';
