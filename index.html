@@ -6310,13 +6310,14 @@ function zaladujPinezkiZFirestore() {
     p.lng = lng;
     const iconEmoji = warstwy[warstwaNazwa].emoji || p.emoji;
     const marker = L.marker([lat, lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p) });
+    marker.bindPopup('<div class="popup-container">Ładowanie…</div>');
     marker.on('popupopen', (evt) => {
       const popupStartTs = performance.now();
       if (!marker._popupBuilt) {
         const popupDiv = document.createElement("div");
         popupDiv.className = "popup-container";
         popupDiv.innerHTML = createPopupHtml(p);
-        marker.bindPopup(popupDiv);
+        evt.popup.setContent(popupDiv);
         attachPopupHandlers(marker, p);
         marker._popupBuilt = true;
       }
