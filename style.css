@@ -315,6 +315,18 @@
   margin-top: 6px;
 }
 
+#mobilePinModal .mobile-pin-photo-gallery {
+  width: 100%;
+  min-height: 56px;
+  max-height: 180px;
+  overflow-y: auto;
+  border-radius: 8px;
+}
+
+#mobilePinModal .mobile-pin-add-photo-btn {
+  align-self: flex-start;
+}
+
 @media (max-width: 800px) {
   #mobilePinModal .mobile-modal-content {
     width: min(92vw, 500px);
