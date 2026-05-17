@@ -3199,6 +3199,14 @@ function slugify(str) {
         // If clone has its own popup, it gets destroyed on cluster refresh
         // after auto-pan/moveend and closes unexpectedly.
         clone.on('click', () => {
+          const visibleParent = clusterLayer && typeof clusterLayer.getVisibleParent === 'function'
+            ? clusterLayer.getVisibleParent(marker)
+            : null;
+          if (visibleParent === marker) {
+            marker.fire('click');
+            marker.openPopup();
+            return;
+          }
           if (clusterLayer && typeof clusterLayer.zoomToShowLayer === 'function') {
             clusterLayer.zoomToShowLayer(marker, () => {
               marker.fire('click');
@@ -6838,6 +6846,7 @@ function zaladujPinezkiZFirestore() {
       const modalContent = document.getElementById('mobilePinModalContent');
       if (!modal || !modalContent) return false;
       const originalContent = Array.from(modalContent.childNodes);
+      let closeBtn = null;
       const cleanup = () => {
         if (modal.dataset.customFormOpen !== '1') return;
         modal.style.display = 'none';
@@ -6845,12 +6854,21 @@ function zaladujPinezkiZFirestore() {
         originalContent.forEach(node => modalContent.appendChild(node));
         modal.dataset.customFormOpen = '0';
         modal.removeEventListener('click', backdropHandler);
+        if (closeBtn) closeBtn.removeEventListener('click', cleanup);
         if (typeof onClose === 'function') onClose();
       };
       const backdropHandler = (ev) => {
         if (ev.target === modal) cleanup();
       };
       modalContent.innerHTML = '';
+      closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.id = 'mobileCustomFormCancel';
+      closeBtn.textContent = 'Anuluj';
+      closeBtn.style.alignSelf = 'flex-end';
+      closeBtn.style.marginBottom = '8px';
+      closeBtn.addEventListener('click', cleanup);
+      modalContent.appendChild(closeBtn);
       modalContent.appendChild(formContainer);
       modal.dataset.customFormOpen = '1';
       modal.style.display = 'flex';
