@@ -10239,7 +10239,8 @@ function getTripPointEmoji(p) {
           if (visibleByFilters) afterFilters++;
           const inViewport = visibleByFilters && pinIsInViewport(p, currentBounds);
           if (inViewport) inBounds++;
-          const visible = layerVisible && layerChecked && inViewport;
+          const markerHasOpenPopup = typeof p.marker.isPopupOpen === 'function' && p.marker.isPopupOpen();
+          const visible = layerVisible && layerChecked && (inViewport || markerHasOpenPopup);
           if (visible) {
             if (!w.layer.hasLayer(p.marker)) toAdd.push(p.marker);
           } else {
