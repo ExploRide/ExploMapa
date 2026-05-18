@@ -127,6 +127,18 @@
   padding: 0;
 }
 
+.popup-media-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.popup-media-row .emoji-picker {
+  margin-left: auto;
+}
+
 .dropdown-arrow {
   position: absolute;
   right: 4px;
