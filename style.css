@@ -345,7 +345,7 @@
   #mobilePinModal .mobile-modal-content input,
   #mobilePinModal .mobile-modal-content select,
   #mobilePinModal .mobile-modal-content textarea {
-    min-height: 38px;
+  /*  min-height: 38px;*/
     padding: 8px 10px;
   }
 
