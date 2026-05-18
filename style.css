@@ -56,15 +56,16 @@
     position: absolute;
     top: auto;
     bottom: 34px;
-    left: 0;
+    left: auto;
+    right: 0;
   background: #2b2b2b;
   border: 1px solid #444;
-  padding: 4px;
+  padding: 8px;
   display: none;
   z-index: 2000;
   grid-template-columns: repeat(8, 24px);
-  gap: 4px;
-  width: calc(8 * 24px + 7 * 4px);
+  gap: 8px;
+  width: calc(8 * 24px + 7 * 8px);
 }
 
 .emoji-picker-grid img {
