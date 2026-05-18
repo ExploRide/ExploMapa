@@ -5245,10 +5245,17 @@ function emojiHtml(str) {
       if (!preview || !grid || grid.style.display !== 'grid') return;
       const isMobile = window.matchMedia('(max-width: 700px)').matches;
       if (!isMobile) {
+        grid.style.left = '0';
+        grid.style.right = 'auto';
         grid.style.top = 'auto';
         grid.style.bottom = '34px';
         return;
       }
+
+      // Na mobile popup jest zwykle przy prawej krawędzi, więc otwieramy picker w lewo.
+      grid.style.left = 'auto';
+      grid.style.right = '0';
+
       const rect = preview.getBoundingClientRect();
       const openDown = rect.bottom + 260 < window.innerHeight;
       if (openDown) {
