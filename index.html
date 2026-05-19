@@ -5060,6 +5060,11 @@ function emojiHtml(str) {
       };
 
       const handler = e => {
+        const popupElement = marker.getPopup && marker.getPopup() ? marker.getPopup().getElement() : null;
+        if (popupElement && popupElement.querySelector('.edit-popup') && !p._isEditing) {
+          restoreViewPopup(marker, p);
+          return;
+        }
         bindCurrentPopupButtons();
         setTimeout(bindCurrentPopupButtons, 0);
         map.once('moveend', bindCurrentPopupButtons);
