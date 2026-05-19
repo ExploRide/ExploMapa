@@ -4936,24 +4936,63 @@ function emojiHtml(str) {
       `;
     }
 
+    function rebindPinPopupAfterOpen(marker, p) {
+      if (!marker || !p) return;
+      attachPopupHandlers(marker, p);
+
+      setTimeout(() => {
+        if (marker.getPopup && marker.getPopup()) {
+          marker.openPopup();
+        }
+      }, 0);
+
+      if (map) {
+        map.once('moveend', () => {
+          attachPopupHandlers(marker, p);
+          setTimeout(() => {
+            const popup = marker.getPopup && marker.getPopup();
+            if (popup && popup.getElement()) {
+              marker.fire('popupopen', { popup });
+            }
+          }, 0);
+        });
+      }
+
+      setTimeout(() => {
+        const popup = marker.getPopup && marker.getPopup();
+        if (popup && popup.getElement()) {
+          marker.fire('popupopen', { popup });
+        }
+      }, 150);
+    }
+
     function attachPopupHandlers(marker, p) {
     /*  console.log('Wywołano attachPopupHandlers dla pinezki:', p); // <-- dodane */
       const bindPopupAction = (element, action) => {
         if (!element || element.dataset.popupActionBound === '1') return;
         element.dataset.popupActionBound = '1';
-        let triggered = false;
-        const invoke = ev => {
+
+        const blockEvent = ev => {
           ev.preventDefault();
           ev.stopPropagation();
           if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
-          if (triggered) return;
-          triggered = true;
-          setTimeout(() => { triggered = false; }, 0);
+        };
+
+        const runAction = ev => {
+          blockEvent(ev);
+          if (element.dataset.popupActionRunning === '1') return;
+          element.dataset.popupActionRunning = '1';
+          setTimeout(() => {
+            element.dataset.popupActionRunning = '0';
+          }, 250);
           action(ev);
         };
-        ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(type => {
-          element.addEventListener(type, invoke, { passive: false });
-        });
+
+        element.addEventListener('pointerdown', blockEvent, { passive: false });
+        element.addEventListener('mousedown', blockEvent, { passive: false });
+        element.addEventListener('touchstart', blockEvent, { passive: false });
+        element.addEventListener('click', runAction);
+        element.addEventListener('touchend', runAction, { passive: false });
       };
 
       const bindCurrentPopupButtons = () => {
@@ -7791,10 +7830,16 @@ function zaladujPinezkiZFirestore() {
       const openPopupForPin = () => {
         updateMarkerVisibility();
         if (!p.marker || !layerData || typeof layerData.layer.zoomToShowLayer !== 'function') {
-          if (p.marker) p.marker.openPopup();
+          if (p.marker) {
+            p.marker.openPopup();
+            rebindPinPopupAfterOpen(p.marker, p);
+          }
           return;
         }
-        layerData.layer.zoomToShowLayer(p.marker, () => p.marker.openPopup());
+        layerData.layer.zoomToShowLayer(p.marker, () => {
+          p.marker.openPopup();
+          rebindPinPopupAfterOpen(p.marker, p);
+        });
       };
       let popupOpened = false;
       const openPopupOnce = () => {
