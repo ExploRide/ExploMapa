@@ -1260,6 +1260,15 @@ body.mobile-layout #toggleBasemaps {
   padding: 5px 10px;
   display: block !important;
 }
+body.mobile-layout #saveChanges {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 400;
+  width: auto;
+  min-width: 150px;
+}
 
 @media (max-width: 700px) {
   #map { left: 0 !important; right: 0 !important; }
@@ -1299,6 +1308,15 @@ body.mobile-layout #toggleBasemaps {
   .leaflet-control-zoom { left: 10px; }
   #toggleLayers { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 10px; z-index: 400; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block !important; }
   #toggleBasemaps { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); right: 10px; z-index: 400; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block !important; }
+  #saveChanges {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 400;
+    width: auto;
+    min-width: 150px;
+  }
 }
 
 @media (max-width: 1200px) {
