@@ -3206,18 +3206,18 @@ function slugify(str) {
             : null;
           if (visibleParent === marker) {
             marker.fire('click');
-            marker.openPopup();
+            openPinViewPopup(marker);
             return;
           }
           if (clusterLayer && typeof clusterLayer.zoomToShowLayer === 'function') {
             clusterLayer.zoomToShowLayer(marker, () => {
               marker.fire('click');
-              marker.openPopup();
+              openPinViewPopup(marker);
             });
             return;
           }
           marker.fire('click');
-          marker.openPopup();
+          openPinViewPopup(marker);
         });
         return clone;
       }
@@ -5044,7 +5044,7 @@ function emojiHtml(str) {
       const handler = e => {
         const popupElement = marker.getPopup && marker.getPopup() ? marker.getPopup().getElement() : null;
         if (popupElement && popupElement.querySelector('.edit-popup') && !p._isEditing) {
-          restoreViewPopup(marker, p);
+          ensureViewPopup(marker, p);
           return;
         }
         bindCurrentPopupButtons();
@@ -5429,10 +5429,9 @@ function emojiHtml(str) {
         pendingToken: 0,
         duringAutoPan: false
       };
-      function restoreViewPopup(marker, p) {
+      function ensureViewPopup(marker, p) {
         if (!marker || !p) return;
-
-        p._isEditing = false;
+        if (p._isEditing === true) return;
         delete p._editDraft;
 
         if (marker._editCloseHandler) {
@@ -5454,6 +5453,16 @@ function emojiHtml(str) {
 
         attachPopupHandlers(marker, p);
         attachMarkerLongPress(marker, p);
+      }
+
+      function openPinViewPopup(marker, p) {
+        if (!marker) return;
+        const pin = p || marker.__pinRef || wszystkiePinezki.find(item => item && item.marker === marker);
+        if (!pin) return;
+        marker.__pinRef = pin;
+        pin._isEditing = false;
+        ensureViewPopup(marker, pin);
+        marker.openPopup();
       }
 
       const osmOverlayCache = new Map();
@@ -7122,7 +7131,7 @@ function zaladujPinezkiZFirestore() {
           marker._editCloseHandler = null;
 
           if (p._isEditing) {
-            restoreViewPopup(marker, p);
+            ensureViewPopup(marker, p);
           }
         };
 
@@ -7288,8 +7297,7 @@ function zaladujPinezkiZFirestore() {
           p.marker.off('popupclose', p.marker._editCloseHandler);
           p.marker._editCloseHandler = null;
         }
-        restoreViewPopup(p.marker, p);
-        p.marker.openPopup();
+        openPinViewPopup(p.marker, p);
       } else {
         map.closePopup();
       }
@@ -7889,13 +7897,13 @@ function zaladujPinezkiZFirestore() {
         updateMarkerVisibility();
         if (!p.marker || !layerData || typeof layerData.layer.zoomToShowLayer !== 'function') {
           if (p.marker) {
-            p.marker.openPopup();
+            openPinViewPopup(p.marker, p);
             rebindPinPopupAfterOpen(p.marker, p);
           }
           return;
         }
         layerData.layer.zoomToShowLayer(p.marker, () => {
-          p.marker.openPopup();
+          openPinViewPopup(p.marker, p);
           rebindPinPopupAfterOpen(p.marker, p);
         });
       };
@@ -8020,7 +8028,7 @@ function zaladujPinezkiZFirestore() {
       }
       marker._highlightHandler = () => {
         if (drawingRoute) return;
-        marker.openPopup();
+        openPinViewPopup(marker, marker.__pinRef || null);
       };
       marker.on('click', marker._highlightHandler);
 
