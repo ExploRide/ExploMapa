@@ -5442,7 +5442,28 @@ function emojiHtml(str) {
         pendingToken: 0,
         duringAutoPan: false
       };
-      let suppressPopupCloseUntil = 0;
+      function restoreViewPopup(marker, p) {
+        if (!marker || !p) return;
+        p._isEditing = false;
+        delete p._editDraft;
+        const popupDiv = document.createElement('div');
+        popupDiv.className = 'popup-container';
+        popupDiv.innerHTML = createPopupHtml(p);
+        const popup = marker.getPopup();
+        if (popup) {
+          popup.setContent(popupDiv);
+          popup.options.maxWidth = 300;
+          popup.options.minWidth = undefined;
+          popup.options.autoPan = true;
+          popup.options.autoPanPadding = [30, 30];
+          popup.options.keepInView = false;
+          popup.update();
+        } else {
+          marker.bindPopup(popupDiv);
+        }
+        attachPopupHandlers(marker, p);
+        attachMarkerLongPress(marker, p);
+      }
 
       const osmOverlayCache = new Map();
       const OSM_OVERLAY_MIN_ZOOM = 14;
@@ -7089,9 +7110,11 @@ function zaladujPinezkiZFirestore() {
       const marker = p.marker || findMarkerByLatLng(lat, lng);
       if (marker) {
         p.marker = marker;
+        p._isEditing = true;
         if (isMobilePinFormPreferred()) {
           map.closePopup();
           openFormInMobileModal(container, () => {
+            p._isEditing = false;
             delete p._editDraft;
           });
           return;
@@ -7099,27 +7122,35 @@ function zaladujPinezkiZFirestore() {
         if (marker._editCloseHandler) {
           marker.off('popupclose', marker._editCloseHandler);
         }
-        const onClose = () => {
-          if (Date.now() < suppressPopupCloseUntil) return;
+        const editPopup = marker.getPopup();
+        const onClose = (e) => {
+          if (e && e.popup && e.popup !== editPopup) return;
+          if (!p._isEditing) return;
+          p._isEditing = false;
           delete p._editDraft;
-          const popupDiv = document.createElement('div');
-          popupDiv.className = 'popup-container';
-          popupDiv.innerHTML = createPopupHtml(p);
-          marker.bindPopup(popupDiv);
-          attachPopupHandlers(marker, p);
-          attachMarkerLongPress(marker, p);
           marker.off('popupclose', onClose);
           marker._editCloseHandler = null;
         };
         marker._editCloseHandler = onClose;
-        suppressPopupCloseUntil = Date.now() + 400;
-        marker.bindPopup(container, {
-          maxWidth: 400,
-          minWidth: 400,
-          autoPan: true,
-          autoPanPadding: [30, 30],
-          keepInView: false
-        }).openPopup();
+        const popup = marker.getPopup();
+        if (popup) {
+          popup.setContent(container);
+          popup.options.maxWidth = 400;
+          popup.options.minWidth = 400;
+          popup.options.autoPan = true;
+          popup.options.autoPanPadding = L.point(30, 30);
+          popup.options.keepInView = false;
+        } else {
+          marker.bindPopup(container, {
+            maxWidth: 400,
+            minWidth: 400,
+            autoPan: true,
+            autoPanPadding: L.point(30, 30),
+            keepInView: false
+          });
+        }
+        marker.openPopup();
+        if (marker.getPopup()) marker.getPopup().update();
         marker.on('popupclose', onClose);
       }
     }
@@ -7242,8 +7273,15 @@ function zaladujPinezkiZFirestore() {
       }
       generujListeWarstw();
       updateSaveButton();
-      map.closePopup();
-      closeMobileFormModalIfNeeded();
+      const mobileModalOpen = document.getElementById('mobilePinModal')?.dataset?.customFormOpen === '1';
+      if (mobileModalOpen) {
+        closeMobileFormModalIfNeeded();
+      } else if (p && p.marker) {
+        restoreViewPopup(p.marker, p);
+        p.marker.openPopup();
+      } else {
+        map.closePopup();
+      }
     }
 
 
