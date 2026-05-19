@@ -4936,34 +4936,16 @@ function emojiHtml(str) {
       `;
     }
 
-    function rebindPinPopupAfterOpen(marker, p) {
+    function bindCurrentPopupButtons(marker, p) {
       if (!marker || !p) return;
+      const popup = marker.getPopup && marker.getPopup();
+      if (!popup || !popup.getElement || !popup.getElement()) return;
       attachPopupHandlers(marker, p);
+      attachMarkerLongPress(marker, p);
+    }
 
-      setTimeout(() => {
-        if (marker.getPopup && marker.getPopup()) {
-          marker.openPopup();
-        }
-      }, 0);
-
-      if (map) {
-        map.once('moveend', () => {
-          attachPopupHandlers(marker, p);
-          setTimeout(() => {
-            const popup = marker.getPopup && marker.getPopup();
-            if (popup && popup.getElement()) {
-              marker.fire('popupopen', { popup });
-            }
-          }, 0);
-        });
-      }
-
-      setTimeout(() => {
-        const popup = marker.getPopup && marker.getPopup();
-        if (popup && popup.getElement()) {
-          marker.fire('popupopen', { popup });
-        }
-      }, 150);
+    function rebindPinPopupAfterOpen(marker, p) {
+      bindCurrentPopupButtons(marker, p);
     }
 
     function attachPopupHandlers(marker, p) {
@@ -5450,28 +5432,26 @@ function emojiHtml(str) {
       function restoreViewPopup(marker, p) {
         if (!marker || !p) return;
 
-        // BEZWZGLĘDNY RESET STANU (Naprawa błędu otwierania edycji)
         p._isEditing = false;
-        if (p._editDraft) delete p._editDraft;
+        delete p._editDraft;
+
         if (marker._editCloseHandler) {
           marker.off('popupclose', marker._editCloseHandler);
+          if (map) map.off('popupclose', marker._editCloseHandler);
           marker._editCloseHandler = null;
         }
 
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
-        const popup = marker.getPopup && marker.getPopup();
-        if (popup) {
-          popup.setContent(popupDiv);
-          popup.options.maxWidth = 300;
-          delete popup.options.minWidth;
-          popup.options.autoPan = true;
-          popup.options.keepInView = false;
-          popup.update();
-        } else {
-          marker.bindPopup(popupDiv);
-        }
+
+        marker.unbindPopup();
+        marker.bindPopup(popupDiv, {
+          maxWidth: 300,
+          autoPan: true,
+          keepInView: false
+        });
+
         attachPopupHandlers(marker, p);
         attachMarkerLongPress(marker, p);
       }
@@ -7176,7 +7156,7 @@ function zaladujPinezkiZFirestore() {
         const closeBtn = popupEl?.querySelector('.leaflet-popup-close-button');
         if (closeBtn) {
           closeBtn.addEventListener('click', () => {
-            restoreViewPopup(marker, p);
+            // popupclose obsłuży twardy reset widoku
           }, { once: true });
         }
       }
