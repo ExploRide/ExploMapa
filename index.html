@@ -5449,13 +5449,12 @@ function emojiHtml(str) {
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
-        const popup = marker.getPopup();
+        const popup = marker.getPopup && marker.getPopup();
         if (popup) {
           popup.setContent(popupDiv);
           popup.options.maxWidth = 300;
-          popup.options.minWidth = undefined;
+          delete popup.options.minWidth;
           popup.options.autoPan = true;
-          popup.options.autoPanPadding = [30, 30];
           popup.options.keepInView = false;
           popup.update();
         } else {
@@ -6788,6 +6787,7 @@ function zaladujPinezkiZFirestore() {
       const marker = pin.marker;
       if (marker._editCloseHandler) {
         marker.off('popupclose', marker._editCloseHandler);
+        marker._editCloseHandler = null;
       }
       marker.closePopup();
       const originalLatLng = marker.getLatLng();
@@ -7121,17 +7121,20 @@ function zaladujPinezkiZFirestore() {
         }
         if (marker._editCloseHandler) {
           marker.off('popupclose', marker._editCloseHandler);
+          marker._editCloseHandler = null;
         }
         const editPopup = marker.getPopup();
-        const onClose = (e) => {
+        const onEditPopupClose = (e) => {
           if (e && e.popup && e.popup !== editPopup) return;
           if (!p._isEditing) return;
-          p._isEditing = false;
-          delete p._editDraft;
-          marker.off('popupclose', onClose);
+
+          marker.off('popupclose', onEditPopupClose);
           marker._editCloseHandler = null;
+
+          restoreViewPopup(marker, p);
         };
-        marker._editCloseHandler = onClose;
+
+        marker._editCloseHandler = onEditPopupClose;
         const popup = marker.getPopup();
         if (popup) {
           popup.setContent(container);
@@ -7151,7 +7154,7 @@ function zaladujPinezkiZFirestore() {
         }
         marker.openPopup();
         if (marker.getPopup()) marker.getPopup().update();
-        marker.on('popupclose', onClose);
+        marker.on('popupclose', onEditPopupClose);
       }
     }
 
@@ -7277,6 +7280,10 @@ function zaladujPinezkiZFirestore() {
       if (mobileModalOpen) {
         closeMobileFormModalIfNeeded();
       } else if (p && p.marker) {
+        if (p.marker._editCloseHandler) {
+          p.marker.off('popupclose', p.marker._editCloseHandler);
+          p.marker._editCloseHandler = null;
+        }
         restoreViewPopup(p.marker, p);
         p.marker.openPopup();
       } else {
