@@ -7124,11 +7124,8 @@ function zaladujPinezkiZFirestore() {
           marker._editCloseHandler = null;
         }
         const onEditPopupClose = () => {
-          if (!p._isEditing) return;
-
           marker.off('popupclose', onEditPopupClose);
           marker._editCloseHandler = null;
-
           restoreViewPopup(marker, p);
         };
 
