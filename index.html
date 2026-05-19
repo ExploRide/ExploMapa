@@ -5450,7 +5450,7 @@ function emojiHtml(str) {
       function restoreViewPopup(marker, p) {
         if (!marker || !p) return;
 
-        // BEZWZGLĘDNY RESET STANU EDYCJI (Naprawa błędu otwierania starej edycji)
+        // BEZWZGLĘDNY RESET STANU (Naprawa błędu otwierania edycji)
         p._isEditing = false;
         if (p._editDraft) delete p._editDraft;
         if (marker._editCloseHandler) marker._editCloseHandler = null;
@@ -7160,7 +7160,7 @@ function zaladujPinezkiZFirestore() {
           marker.bindPopup(container, { maxWidth: 400, minWidth: 400, autoPan: true, autoPanPadding: L.point(30, 30), keepInView: false });
         }
 
-        // Bezpieczne podwójne nasłuchiwanie - na markerze i globalnie na mapie
+        // Bezpieczne nasłuchiwanie na markerze oraz globalnie na mapie
         marker.on('popupclose', onEditPopupClose);
         map.on('popupclose', onEditPopupCloseGlobal);
 
