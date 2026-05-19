@@ -4938,29 +4938,33 @@ function emojiHtml(str) {
 
     function attachPopupHandlers(marker, p) {
     /*  console.log('Wywołano attachPopupHandlers dla pinezki:', p); // <-- dodane */
-      const handler = e => {
-        const container = e.popup.getElement();
+      const bindPopupAction = (element, action) => {
+        if (!element || element.dataset.popupActionBound === '1') return;
+        element.dataset.popupActionBound = '1';
+        let triggered = false;
+        const invoke = ev => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+          if (triggered) return;
+          triggered = true;
+          setTimeout(() => { triggered = false; }, 0);
+          action(ev);
+        };
+        ['pointerdown', 'touchstart', 'mousedown', 'click'].forEach(type => {
+          element.addEventListener(type, invoke, { passive: false });
+        });
+      };
+
+      const bindCurrentPopupButtons = () => {
+        const currentPopup = marker.getPopup();
+        const container = currentPopup?.getElement?.();
         if (!container) return;
         // Zapobiega przechwyceniu pierwszego kliknięcia przez mapę (zwłaszcza na mobile),
         // przez co przyciski w popupie reagują od razu po otwarciu.
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
         setupGallery(container.querySelector('.photo-gallery'));
-        const bindPopupAction = (element, action) => {
-          if (!element) return;
-          let triggered = false;
-          const invoke = ev => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
-            if (triggered) return;
-            triggered = true;
-            setTimeout(() => { triggered = false; }, 0);
-            action(ev);
-          };
-          element.addEventListener('pointerup', invoke);
-          element.addEventListener('click', invoke);
-        };
 
         const btn = container.querySelector('.popup-edit-pin-btn');
         bindPopupAction(btn, () => {
@@ -4989,18 +4993,17 @@ function emojiHtml(str) {
           map.closePopup();
           startPlanUpload(p);
         });
+
         const tripBtn = container.querySelector('.popup-trip-add-btn');
-        if (tripBtn) {
-          const tripBtnClean = tripBtn.cloneNode(true);
-          tripBtn.replaceWith(tripBtnClean);
-          bindPopupAction(tripBtnClean, async () => {
-            await addPointToTripFromData({ type: 'existing', pinId: p.id, pinFirebaseId: p.firebaseId || null, nameSnapshot: p.nazwa, lat: p.lat, lng: p.lng, emojiSnapshot: p.emoji || '', defaultPointType: 'urbex', defaultVisitMinutes: 60 });
-          });
-        }
+        bindPopupAction(tripBtn, async () => {
+          await addPointToTripFromData({ type: 'existing', pinId: p.id, pinFirebaseId: p.firebaseId || null, nameSnapshot: p.nazwa, lat: p.lat, lng: p.lng, emojiSnapshot: p.emoji || '', defaultPointType: 'urbex', defaultVisitMinutes: 60 });
+        });
+
         updatePopupAddress(container, p.lat, p.lng);
         const range = container.querySelector(`#trudnoscRange-${p.id}`);
         const label = container.querySelector(`#trudnoscLabel-${p.id}`);
-        if (range && label) {
+        if (range && label && range.dataset.popupActionBound !== '1') {
+          range.dataset.popupActionBound = '1';
           label.textContent = trudnoscText(range.value);
           range.addEventListener('input', () => {
             const val = parseInt(range.value);
@@ -5012,7 +5015,16 @@ function emojiHtml(str) {
             p.unsaved = true;
             updateSaveButton();
           });
+        } else if (range && label) {
+          label.textContent = trudnoscText(range.value);
         }
+      };
+
+      const handler = e => {
+        bindCurrentPopupButtons();
+        setTimeout(bindCurrentPopupButtons, 0);
+        map.once('moveend', bindCurrentPopupButtons);
+        setTimeout(bindCurrentPopupButtons, 150);
       };
       if (marker._editHandler) {
         marker.off('popupopen', marker._editHandler);
