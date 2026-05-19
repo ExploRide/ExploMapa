@@ -4946,50 +4946,54 @@ function emojiHtml(str) {
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
         setupGallery(container.querySelector('.photo-gallery'));
+        const bindPopupAction = (element, action) => {
+          if (!element) return;
+          let triggered = false;
+          const invoke = ev => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
+            if (triggered) return;
+            triggered = true;
+            setTimeout(() => { triggered = false; }, 0);
+            action(ev);
+          };
+          element.addEventListener('pointerup', invoke);
+          element.addEventListener('click', invoke);
+        };
+
         const btn = container.querySelector('.popup-edit-pin-btn');
-        if (btn) {
-          btn.addEventListener('click', ev => {
-            ev.stopPropagation();
-            edytuj(p.id, p.lat, p.lng);
-          });
-        }
+        bindPopupAction(btn, () => {
+          edytuj(p.id, p.lat, p.lng);
+        });
+
         const deleteBtn = container.querySelector('.popup-delete-btn');
-        if (deleteBtn) {
-          deleteBtn.addEventListener('click', ev => {
-            ev.stopPropagation();
-            openDeleteModal(p.id);
-          });
-        }
+        bindPopupAction(deleteBtn, () => {
+          openDeleteModal(p.id);
+        });
+
         const rbtn = container.querySelector('.popup-route-add-btn');
-        if (rbtn) {
-          rbtn.addEventListener('click', ev => {
-            ev.stopPropagation();
-            map.closePopup();
-            startRouteDrawing(p);
-          });
-        }
+        bindPopupAction(rbtn, () => {
+          map.closePopup();
+          startRouteDrawing(p);
+        });
+
         const directBtn = container.querySelector('.popup-route-direct-btn');
-        if (directBtn) {
-          directBtn.addEventListener('click', ev => {
-            ev.stopPropagation();
-            map.closePopup();
-            routeToPin(p, directBtn);
-          });
-        }
+        bindPopupAction(directBtn, () => {
+          map.closePopup();
+          routeToPin(p, directBtn);
+        });
+
         const planBtn = container.querySelector('.popup-plan-btn');
-        if (planBtn) {
-          planBtn.addEventListener('click', ev => {
-            ev.stopPropagation();
-            map.closePopup();
-            startPlanUpload(p);
-          });
-        }
+        bindPopupAction(planBtn, () => {
+          map.closePopup();
+          startPlanUpload(p);
+        });
         const tripBtn = container.querySelector('.popup-trip-add-btn');
         if (tripBtn) {
           const tripBtnClean = tripBtn.cloneNode(true);
           tripBtn.replaceWith(tripBtnClean);
-          tripBtnClean.addEventListener('click', async ev => {
-            ev.stopPropagation();
+          bindPopupAction(tripBtnClean, async () => {
             await addPointToTripFromData({ type: 'existing', pinId: p.id, pinFirebaseId: p.firebaseId || null, nameSnapshot: p.nazwa, lat: p.lat, lng: p.lng, emojiSnapshot: p.emoji || '', defaultPointType: 'urbex', defaultVisitMinutes: 60 });
           });
         }
