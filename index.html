@@ -5442,6 +5442,7 @@ function emojiHtml(str) {
         pendingToken: 0,
         duringAutoPan: false
       };
+      let suppressPopupCloseUntil = 0;
 
       const osmOverlayCache = new Map();
       const OSM_OVERLAY_MIN_ZOOM = 14;
@@ -7099,6 +7100,7 @@ function zaladujPinezkiZFirestore() {
           marker.off('popupclose', marker._editCloseHandler);
         }
         const onClose = () => {
+          if (Date.now() < suppressPopupCloseUntil) return;
           delete p._editDraft;
           const popupDiv = document.createElement('div');
           popupDiv.className = 'popup-container';
@@ -7110,7 +7112,14 @@ function zaladujPinezkiZFirestore() {
           marker._editCloseHandler = null;
         };
         marker._editCloseHandler = onClose;
-        marker.bindPopup(container, {maxWidth: 400, minWidth: 400}).openPopup();
+        suppressPopupCloseUntil = Date.now() + 400;
+        marker.bindPopup(container, {
+          maxWidth: 400,
+          minWidth: 400,
+          autoPan: true,
+          autoPanPadding: [30, 30],
+          keepInView: false
+        }).openPopup();
         marker.on('popupclose', onClose);
       }
     }
