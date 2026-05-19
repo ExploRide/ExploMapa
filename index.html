@@ -2063,6 +2063,146 @@ img.emoji {
     }
     .osm-popup { min-width: 160px; font-size: 13px; }
 
+
+
+/* Unified button sizing/alignment fixes */
+.popup-route-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 0;
+}
+
+.trip-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 8px 0;
+}
+
+.trip-mode-toggle button {
+  width: 100%;
+  height: 58px;
+  min-height: 58px;
+  background: #1d2028;
+  color: #ddd;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.15;
+  box-sizing: border-box;
+}
+
+.trip-mode-toggle button.active { background:var(--ui-accent); color:#fff; border-color:var(--ui-accent); }
+
+.tool-btn,
+.popup-tool-btn,
+.icon-btn,
+.popup-route-actions button,
+.trip-mode-toggle button,
+.popup-route-btn,
+.popup-direct-route-btn,
+.trip-icon-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  line-height: 1;
+  border-radius: 14px;
+  font-weight: 600;
+}
+
+.popup-route-actions button,
+.popup-route-btn,
+.popup-direct-route-btn {
+  width: 100%;
+  min-width: 0;
+  min-height: 64px;
+  height: 64px;
+  padding: 8px 6px;
+  text-align: center;
+  line-height: 1.15;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.icon-btn,
+.popup-tool-btn {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.tool-btn {
+  min-height: 48px;
+  padding: 0 16px;
+}
+
+.trip-icon-btn {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.tool-btn img,
+.popup-tool-btn img,
+.icon-btn img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: block;
+}
+
+.tool-btn span,
+.popup-tool-btn span,
+.icon-btn span {
+  line-height: 1;
+}
+
+@media (max-width: 700px) {
+  .popup-route-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .popup-route-actions button,
+  .popup-route-btn,
+  .popup-direct-route-btn {
+    min-height: 56px;
+    height: 56px;
+    font-size: 13px;
+  }
+
+  .trip-mode-toggle button {
+    height: 52px;
+    min-height: 52px;
+  }
+
+  .icon-btn,
+  .popup-tool-btn,
+  .trip-icon-btn {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .tool-btn {
+    min-height: 44px;
+  }
+}
+
   </style>
 </head>
 <body>
