@@ -7129,6 +7129,8 @@ function zaladujPinezkiZFirestore() {
           marker._editCloseHandler = null;
         }
         const onEditPopupClose = () => {
+          p._isEditing = false;
+          if (p._editDraft) delete p._editDraft;
           marker.off('popupclose', onEditPopupClose);
           marker._editCloseHandler = null;
           restoreViewPopup(marker, p);
