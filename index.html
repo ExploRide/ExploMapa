@@ -5439,6 +5439,14 @@ function emojiHtml(str) {
           if (map) map.off('popupclose', marker._editCloseHandler);
           marker._editCloseHandler = null;
         }
+        if (marker._editPopupRemoveHandler && marker._editPopup) {
+          marker._editPopup.off('remove', marker._editPopupRemoveHandler);
+          marker._editPopupRemoveHandler = null;
+        }
+        if (marker._editPopup) {
+          map.closePopup(marker._editPopup);
+          marker._editPopup = null;
+        }
 
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
@@ -6790,6 +6798,14 @@ function zaladujPinezkiZFirestore() {
         marker.off('popupclose', marker._editCloseHandler);
         marker._editCloseHandler = null;
       }
+      if (marker._editPopupRemoveHandler && marker._editPopup) {
+        marker._editPopup.off('remove', marker._editPopupRemoveHandler);
+        marker._editPopupRemoveHandler = null;
+      }
+      if (marker._editPopup) {
+        map.closePopup(marker._editPopup);
+        marker._editPopup = null;
+      }
       marker.closePopup();
       const originalLatLng = marker.getLatLng();
       const existing = zmianyDoZapisania[pin.id];
@@ -7117,57 +7133,44 @@ function zaladujPinezkiZFirestore() {
           openFormInMobileModal(container, () => {
             p._isEditing = false;
             delete p._editDraft;
+            ensureViewPopup(marker, p);
           });
           return;
         }
-        if (marker._editCloseHandler) {
-          marker.off('popupclose', marker._editCloseHandler);
-          marker._editCloseHandler = null;
-        }
-        // --- POPRAWIONY HANDLER ZAMKNIĘCIA POPUPU EDYCJI ---
-        const onEditPopupClose = () => {
-          marker.off('popupclose', onEditPopupClose);
-          map.off('popupclose', onEditPopupCloseGlobal);
-          marker._editCloseHandler = null;
 
-          if (p._isEditing) {
-            ensureViewPopup(marker, p);
-          }
+        if (marker._editPopupRemoveHandler && marker._editPopup) {
+          marker._editPopup.off('remove', marker._editPopupRemoveHandler);
+          marker._editPopupRemoveHandler = null;
+        }
+        if (marker._editPopup) {
+          map.closePopup(marker._editPopup);
+          marker._editPopup = null;
+        }
+
+        const editPopup = L.popup({
+          maxWidth: 400,
+          minWidth: 400,
+          autoPan: true,
+          autoPanPadding: L.point(30, 30),
+          keepInView: false,
+          closeButton: true
+        })
+          .setLatLng(marker.getLatLng())
+          .setContent(container)
+          .openOn(map);
+
+        const onEditPopupRemove = () => {
+          p._isEditing = false;
+          delete p._editDraft;
+          marker._editPopup = null;
+          marker._editPopupRemoveHandler = null;
+          ensureViewPopup(marker, p);
         };
 
-        const onEditPopupCloseGlobal = (e) => {
-          if (e.popup === marker.getPopup()) {
-            onEditPopupClose();
-          }
-        };
-
-        marker._editCloseHandler = onEditPopupClose;
-
-        const popup = marker.getPopup();
-        if (popup) {
-          popup.setContent(container);
-          popup.options.maxWidth = 400;
-          popup.options.minWidth = 400;
-          popup.options.autoPan = true;
-          popup.options.autoPanPadding = L.point(30, 30);
-          popup.options.keepInView = false;
-        } else {
-          marker.bindPopup(container, { maxWidth: 400, minWidth: 400, autoPan: true, autoPanPadding: L.point(30, 30), keepInView: false });
-        }
-
-        // Bezpieczne nasłuchiwanie na markerze oraz globalnie na mapie
-        marker.on('popupclose', onEditPopupClose);
-        map.on('popupclose', onEditPopupCloseGlobal);
-
-        marker.openPopup();
-        if (marker.getPopup()) marker.getPopup().update();
-        const popupEl = marker.getPopup()?.getElement?.();
-        const closeBtn = popupEl?.querySelector('.leaflet-popup-close-button');
-        if (closeBtn) {
-          closeBtn.addEventListener('click', () => {
-            // popupclose obsłuży twardy reset widoku
-          }, { once: true });
-        }
+        marker._editPopup = editPopup;
+        marker._editPopupRemoveHandler = onEditPopupRemove;
+        editPopup.on('remove', onEditPopupRemove);
+        editPopup.update();
       }
     }
 
@@ -7293,9 +7296,13 @@ function zaladujPinezkiZFirestore() {
       if (mobileModalOpen) {
         closeMobileFormModalIfNeeded();
       } else if (p && p.marker) {
-        if (p.marker._editCloseHandler) {
-          p.marker.off('popupclose', p.marker._editCloseHandler);
-          p.marker._editCloseHandler = null;
+        if (p.marker._editPopupRemoveHandler && p.marker._editPopup) {
+          p.marker._editPopup.off('remove', p.marker._editPopupRemoveHandler);
+          p.marker._editPopupRemoveHandler = null;
+        }
+        if (p.marker._editPopup) {
+          map.closePopup(p.marker._editPopup);
+          p.marker._editPopup = null;
         }
         openPinViewPopup(p.marker, p);
       } else {
