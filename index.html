@@ -5449,8 +5449,12 @@ function emojiHtml(str) {
       };
       function restoreViewPopup(marker, p) {
         if (!marker || !p) return;
+
+        // BEZWZGLĘDNY RESET STANU EDYCJI (Naprawa błędu otwierania starej edycji)
         p._isEditing = false;
-        delete p._editDraft;
+        if (p._editDraft) delete p._editDraft;
+        if (marker._editCloseHandler) marker._editCloseHandler = null;
+
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
@@ -7128,15 +7132,22 @@ function zaladujPinezkiZFirestore() {
           marker.off('popupclose', marker._editCloseHandler);
           marker._editCloseHandler = null;
         }
+        // --- POPRAWIONY HANDLER ZAMKNIĘCIA POPUPU EDYCJI ---
         const onEditPopupClose = () => {
-          p._isEditing = false;
-          if (p._editDraft) delete p._editDraft;
+          map.off('popupclose', onEditPopupCloseGlobal);
           marker.off('popupclose', onEditPopupClose);
           marker._editCloseHandler = null;
           restoreViewPopup(marker, p);
         };
 
+        const onEditPopupCloseGlobal = (e) => {
+          if (e.popup === marker.getPopup()) {
+            onEditPopupClose();
+          }
+        };
+
         marker._editCloseHandler = onEditPopupClose;
+
         const popup = marker.getPopup();
         if (popup) {
           popup.setContent(container);
@@ -7146,17 +7157,15 @@ function zaladujPinezkiZFirestore() {
           popup.options.autoPanPadding = L.point(30, 30);
           popup.options.keepInView = false;
         } else {
-          marker.bindPopup(container, {
-            maxWidth: 400,
-            minWidth: 400,
-            autoPan: true,
-            autoPanPadding: L.point(30, 30),
-            keepInView: false
-          });
+          marker.bindPopup(container, { maxWidth: 400, minWidth: 400, autoPan: true, autoPanPadding: L.point(30, 30), keepInView: false });
         }
+
+        // Bezpieczne podwójne nasłuchiwanie - na markerze i globalnie na mapie
+        marker.on('popupclose', onEditPopupClose);
+        map.on('popupclose', onEditPopupCloseGlobal);
+
         marker.openPopup();
         if (marker.getPopup()) marker.getPopup().update();
-        marker.on('popupclose', onEditPopupClose);
       }
     }
 
