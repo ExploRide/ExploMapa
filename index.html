@@ -5453,7 +5453,10 @@ function emojiHtml(str) {
         // BEZWZGLĘDNY RESET STANU (Naprawa błędu otwierania edycji)
         p._isEditing = false;
         if (p._editDraft) delete p._editDraft;
-        if (marker._editCloseHandler) marker._editCloseHandler = null;
+        if (marker._editCloseHandler) {
+          marker.off('popupclose', marker._editCloseHandler);
+          marker._editCloseHandler = null;
+        }
 
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
@@ -7134,10 +7137,13 @@ function zaladujPinezkiZFirestore() {
         }
         // --- POPRAWIONY HANDLER ZAMKNIĘCIA POPUPU EDYCJI ---
         const onEditPopupClose = () => {
-          map.off('popupclose', onEditPopupCloseGlobal);
           marker.off('popupclose', onEditPopupClose);
+          map.off('popupclose', onEditPopupCloseGlobal);
           marker._editCloseHandler = null;
-          restoreViewPopup(marker, p);
+
+          if (p._isEditing) {
+            restoreViewPopup(marker, p);
+          }
         };
 
         const onEditPopupCloseGlobal = (e) => {
@@ -7166,6 +7172,13 @@ function zaladujPinezkiZFirestore() {
 
         marker.openPopup();
         if (marker.getPopup()) marker.getPopup().update();
+        const popupEl = marker.getPopup()?.getElement?.();
+        const closeBtn = popupEl?.querySelector('.leaflet-popup-close-button');
+        if (closeBtn) {
+          closeBtn.addEventListener('click', () => {
+            restoreViewPopup(marker, p);
+          }, { once: true });
+        }
       }
     }
 
