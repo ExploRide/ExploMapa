@@ -1069,11 +1069,28 @@ body:not(.trip-planner-mode) .trip-planner-panel {
   z-index: 20;
 }
 
+	  /*
 @media (max-width: 600px) {
   .status-icon {
    transform: scale(1);
     transform-origin: top left;
   }
+}
+	  */
+
+	  .status-icon {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  bottom: auto;
+  z-index: 20;
+  line-height: 1;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000,
+               -1px 1px 0 #000, 1px 1px 0 #000,
+               0 0 1px #000;
+  filter: drop-shadow(0 0 0.5px black)
+          drop-shadow(1px 1px 0 black)
+          drop-shadow(-1px -1px 0 black);
 }
 
 .checkmark-obrys {
