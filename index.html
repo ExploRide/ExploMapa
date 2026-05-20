@@ -84,23 +84,6 @@
       overflow-y: auto;
       padding-right: 4px;
     }
-    #basemap-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: auto;
-    }
-    #basemap-actions button {
-      width: 100%;
-      background: #2b2b2b;
-      border: 1px solid #444;
-      border-radius: 4px;
-      color: #f0f0f0;
-      cursor: pointer;
-      padding: 8px 10px;
-      font-size: 13px;
-      font-weight: 600;
-    }
     #history-log {
       border-top: 1px solid #444;
       margin-top: 10px;
@@ -2240,6 +2223,7 @@ img.emoji {
   <div id="planOptions" class="plan-option-panel" style="display:none;"></div>
   <button id="toggleLayers">☰ Warstwy</button>
   <button id="toggleBasemaps">☰ Mapy</button>
+  <button id="saveChanges">Zapisz edycję mapy</button>
   <div id="basemap-switcher">
     <div id="basemap-content">
       <h3>Rodzaj mapy</h3>
@@ -2316,9 +2300,6 @@ img.emoji {
       </div>
       <h3>Historia edycji</h3>
       <div id="history-log"></div>
-    </div>
-    <div id="basemap-actions">
-      <button id="saveChanges">Zapisz edycję mapy</button>
     </div>
   </div>
   <div id="layer-editor">
