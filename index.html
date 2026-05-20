@@ -4990,6 +4990,7 @@ function emojiHtml(str) {
         };
 
         element.addEventListener('pointerdown', blockEvent, { passive: false });
+        element.addEventListener('pointerup', runAction, { passive: false });
         element.addEventListener('mousedown', blockEvent, { passive: false });
         element.addEventListener('touchstart', blockEvent, { passive: false });
         element.addEventListener('click', runAction);
