@@ -12361,24 +12361,29 @@ function confirmLayerDelete() {
   }
 
     function reset(){ els.start.disabled=false; els.stop.disabled=true; abortFlag=false; }
-    let tripModeTapLock = 0;
+    function isTouchOrPointerEvent(e) {
+      return !!e && (e.type === 'touchend' || e.type === 'pointerup');
+    }
 
     async function activateTripModeFromEvent(e) {
-      if (e) {
+      if (isTouchOrPointerEvent(e)) {
         e.preventDefault();
         e.stopPropagation();
       }
-      const now = Date.now();
-      if (now - tripModeTapLock < 350) return;
-      tripModeTapLock = now;
 
-      console.log('Plan tripu clicked', e?.type);
+      console.log(`Trip mode activated by: ${e?.type || 'unknown'}`);
 
       setTripMode('trip');
+      document.body.classList.add('trip-planner-mode');
 
       const tripPanel = document.getElementById('tripPlannerPanel');
       if (tripPanel) {
         tripPanel.style.display = 'block';
+      }
+
+      if (document.body.classList.contains('mobile-layout')) {
+        const sidebar = document.getElementById('sidebar');
+        sidebar?.classList.add('show');
       }
 
       const user = firebase.auth().currentUser;
@@ -12393,18 +12398,16 @@ function confirmLayerDelete() {
       applyTripPlannerPinVisibility();
 
       if (document.body.classList.contains('mobile-layout')) {
-        const sidebar = document.getElementById('sidebar');
-        sidebar?.classList.add('show');
         setTimeout(() => tripPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
       }
     }
 
     function activatePinsModeFromEvent(e) {
-      if (e) {
+      if (isTouchOrPointerEvent(e)) {
         e.preventDefault();
         e.stopPropagation();
       }
-      console.log('Pinezki clicked', e?.type);
+      console.log(`Pins mode activated by: ${e?.type || 'unknown'}`);
       setTripMode('pins');
     }
 
@@ -12429,16 +12432,24 @@ function confirmLayerDelete() {
     const modePinsBtn = document.getElementById('modePinsBtn');
     const modeTripBtn = document.getElementById('modeTripBtn');
 
+    const supportsPointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
+
     if (modePinsBtn) {
-      modePinsBtn.addEventListener('click', activatePinsModeFromEvent);
-      modePinsBtn.addEventListener('touchend', activatePinsModeFromEvent, { passive: false });
-      modePinsBtn.addEventListener('pointerup', activatePinsModeFromEvent);
+      if (supportsPointerEvents) {
+        modePinsBtn.addEventListener('pointerup', activatePinsModeFromEvent);
+      } else {
+        modePinsBtn.addEventListener('touchend', activatePinsModeFromEvent, { passive: false });
+        modePinsBtn.addEventListener('click', activatePinsModeFromEvent);
+      }
     }
 
     if (modeTripBtn) {
-      modeTripBtn.addEventListener('click', activateTripModeFromEvent);
-      modeTripBtn.addEventListener('touchend', activateTripModeFromEvent, { passive: false });
-      modeTripBtn.addEventListener('pointerup', activateTripModeFromEvent);
+      if (supportsPointerEvents) {
+        modeTripBtn.addEventListener('pointerup', activateTripModeFromEvent);
+      } else {
+        modeTripBtn.addEventListener('touchend', activateTripModeFromEvent, { passive: false });
+        modeTripBtn.addEventListener('click', activateTripModeFromEvent);
+      }
     }
     document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; activeTripDayId = null; renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility(); });
     document.getElementById('tripPinsVisibilityToggle')?.addEventListener('click', () => { hideMainPinsInTripMode = !hideMainPinsInTripMode; applyTripPlannerPinVisibility(); });
