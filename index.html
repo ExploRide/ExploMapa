@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v12" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v13" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2149,7 +2149,11 @@ HTML DEBUG V12
         <h2 id="logoNaglowek">ExploMapy</h2>
       </div>
       <div class="trip-mode-toggle">
-        <button id="modePinsBtn" class="active" type="button">Pinezki</button>
+        <button id="modePinsBtn" class="active" type="button"
+  onpointerup="window.forcePinsFromInline(event)"
+  ontouchend="window.forcePinsFromInline(event)"
+  onclick="window.forcePinsFromInline(event)"
+>Pinezki</button>
         <button id="modeTripBtn" type="button"
   onpointerdown="window.rawTripDebug('INLINE pointerdown modeTripBtn')"
   onpointerup="window.rawTripDebug('INLINE pointerup modeTripBtn'); window.rawTripDebug('before forceTripFromInline typeof=' + typeof window.forceTripFromInline); window.forceTripFromInline(event)"
@@ -2408,15 +2412,15 @@ HTML DEBUG V12
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v12"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v12"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v13"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v13"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v12"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v13"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v12';
+    const APP_BUILD = 'trip-debug-2026-05-21-v13';
     window.rawTripDebug = function(msg) {
       // Debug wyłączony. Funkcja musi istnieć, bo używają jej inline handlery #modeTripBtn.
     };
@@ -2524,8 +2528,64 @@ HTML DEBUG V12
       }
     };
 
+    window.forcePinsFromInline = function(e) {
+      if (e) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+      }
+
+      tripPlannerMode = 'pins';
+      document.body.classList.remove('trip-planner-mode');
+
+      const modePinsBtn = document.getElementById('modePinsBtn');
+      const modeTripBtn = document.getElementById('modeTripBtn');
+      const tripPlannerPanel = document.getElementById('tripPlannerPanel');
+
+      if (modePinsBtn) modePinsBtn.classList.add('active');
+      if (modeTripBtn) modeTripBtn.classList.remove('active');
+
+      if (tripPlannerPanel) {
+        tripPlannerPanel.style.display = 'none';
+        tripPlannerPanel.style.visibility = '';
+        tripPlannerPanel.style.opacity = '';
+      }
+
+      if (typeof applyTripPlannerPinVisibility === 'function') {
+        applyTripPlannerPinVisibility();
+      } else if (typeof window.applyTripPlannerPinVisibility === 'function') {
+        window.applyTripPlannerPinVisibility();
+      }
+    };
+
+    window.forceTripPointFocusFromMobile = function(e, el) {
+      if (e) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+      }
+
+      const item = el?.closest?.('.trip-point-item, [data-trip-point-id], [data-point-id], [data-trip-day-id]');
+      if (!item) return;
+
+      const lat = parseFloat(item.dataset.lat || item.getAttribute('data-lat'));
+      const lng = parseFloat(item.dataset.lng || item.getAttribute('data-lng'));
+
+      if (Number.isFinite(lat) && Number.isFinite(lng) && window.map) {
+        window.map.flyTo([lat, lng], 16);
+        return;
+      }
+
+      const pointId = item.dataset.tripPointId || item.dataset.pointId || item.getAttribute('data-point-id');
+      const dayId = item.dataset.tripDayId || item.getAttribute('data-trip-day-id');
+
+      if (typeof focusTripPointOnMap === 'function') {
+        focusTripPointOnMap(pointId, dayId);
+      } else if (typeof window.focusTripPointOnMap === 'function') {
+        window.focusTripPointOnMap(pointId, dayId);
+      }
+    };
+
     document.addEventListener('DOMContentLoaded', function() {
-      window.rawTripDebug('DOM READY V12');
+      window.rawTripDebug('DOM READY V13');
       window.rawTripDebug('modeTripBtn exists: ' + !!document.getElementById('modeTripBtn'));
       window.rawTripDebug('modeTripBtn count: ' + document.querySelectorAll('#modeTripBtn').length);
       window.rawTripDebug('typeof forceTripFromInline: ' + typeof window.forceTripFromInline);
@@ -5830,6 +5890,7 @@ function emojiHtml(str) {
       }
 
       map = L.map('map', { crs: L.CRS.EPSG3857 }).setView([52.1, 20.9], 7);
+      window.map = map;
       map.whenReady(() => {
         mapWhenReadyExecuted = true;
         console.log('[map:whenReady] Map ready', getMapDiagnosticsSnapshot());
@@ -9832,10 +9893,16 @@ function getTripPointEmoji(p) {
       return true;
     }
 
-    function focusTripPointOnMap(point) {
-      if (!point || !map) return;
-      const lat = Number(point.lat);
-      const lng = Number(point.lng);
+    function focusTripPointOnMap(point, dayId) {
+      let targetPoint = point;
+      if (typeof point === 'string') {
+        const trip = getActiveTrip?.();
+        const day = trip?.days?.find?.(d => d.id === dayId) || trip?.days?.find?.(d => (d.points || []).some(pt => pt.id === point));
+        targetPoint = day?.points?.find?.(pt => pt.id === point) || null;
+      }
+      if (!targetPoint || !map) return;
+      const lat = Number(targetPoint.lat);
+      const lng = Number(targetPoint.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
       console.log('Trip planner: clicked point, lat/lng', lat, lng);
       try {
@@ -9847,13 +9914,13 @@ function getTripPointEmoji(p) {
         console.warn('Trip planner: flyTo failed, fallback to setView', err);
         map.setView([lat, lng], 16);
       }
-      const marker = tripPointMarkers.get(point.id);
+      const marker = tripPointMarkers.get(targetPoint.id);
       if (marker) {
         marker.setStyle?.({ radius: 9, weight: 3 });
         setTimeout(() => marker.setStyle?.({ radius: 7, weight: 1 }), 900);
         marker.openPopup?.();
       }
-      const mainPin = Object.values(warstwy).flatMap(l => l.lista || []).find(p => String(p.id) === String(point.pinId));
+      const mainPin = Object.values(warstwy).flatMap(l => l.lista || []).find(p => String(p.id) === String(targetPoint.pinId));
       if (mainPin?.marker) {
         mainPin.marker.openPopup?.();
         mainPin.marker.getElement?.()?.classList?.add('trip-active-pin');
@@ -9875,7 +9942,7 @@ function getTripPointEmoji(p) {
       box.innerHTML = `<div><b>${trip.name}</b></div>${tripRange}<button id="tripAddDayBtn" type="button">+ Dodaj dzień</button><button id="tripAddPrivatePointBtn" type="button">+ Punkt tylko do tripa</button><button id="tripExportCsvBtn" type="button">⬇️ CSV</button><button id="tripExportPdfBtn" type="button">⬇️ PDF</button><button id="tripDeleteBtn" class="trip-icon-btn" type="button" title="Usuń trip" aria-label="Usuń trip">🗑️</button>` + trip.days.map((d, idx) => {
         const summary = d.routeSummary || {};
         const points = (d.points || []).sort((a,b)=>(a.order||0)-(b.order||0));
-        const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" class="trip-mobile-only">↑</button><button type="button" data-trip-action="move-point-down" class="trip-mobile-only" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" title="Usuń punkt" aria-label="Usuń punkt">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
+        const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-trip-action="focus-point" data-day-id="${d.id}" data-trip-day-id="${d.id}" data-point-id="${p.id}" data-trip-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" onpointerup="window.forceTripPointFocusFromMobile(event, this)" ontouchend="window.forceTripPointFocusFromMobile(event, this)" onclick="window.forceTripPointFocusFromMobile(event, this)"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" class="trip-mobile-only">↑</button><button type="button" data-trip-action="move-point-down" class="trip-mobile-only" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" title="Usuń punkt" aria-label="Usuń punkt">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
         return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><label class="trip-day-visible-toggle" title="Pokaż/ukryj trasę dnia"><input type="checkbox" data-day-visible="${d.id}" ${d.visible === false ? '' : 'checked'}> Trasa</label><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
       }).join('');
     }
@@ -13218,6 +13285,16 @@ function confirmLayerDelete() {
     document.getElementById('tripActiveBox')?.addEventListener('click', handleTripActiveBoxAction);
     document.getElementById('tripActiveBox')?.addEventListener('pointerup', handleTripActiveBoxAction);
     document.getElementById('tripActiveBox')?.addEventListener('touchend', handleTripActiveBoxAction, { passive: false });
+    const mobileTripPointCaptureFallback = (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      if (target.closest('.trip-point-item')) {
+        window.forceTripPointFocusFromMobile(event, target);
+      }
+    };
+    document.getElementById('tripActiveBox')?.addEventListener('pointerup', mobileTripPointCaptureFallback, true);
+    document.getElementById('tripActiveBox')?.addEventListener('touchend', mobileTripPointCaptureFallback, { capture: true, passive: false });
+    document.getElementById('tripActiveBox')?.addEventListener('click', mobileTripPointCaptureFallback, true);
     document.getElementById('tripActiveBox')?.addEventListener('change', async (e) => {
       const trip = getActiveTrip(); if (!trip) return;
       if (e.target.dataset.dayColor) {
