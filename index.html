@@ -834,6 +834,9 @@ body, #sidebar, #basemap-switcher {
 #htmlHardDebugV3,
 #tripDebugTest {
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 #mobileTripDebug {
   position: fixed !important;
@@ -2115,9 +2118,9 @@ img.emoji {
   </style>
 </head>
 <body>
-  <div id="mobileTripDebug">MOBILE TRIP DEBUG V10 - HTML STATIC</div>
+  <div id="mobileTripDebug">MOBILE TRIP DEBUG V11 - HTML STATIC</div>
 <div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
-HTML DEBUG V10
+HTML DEBUG V11
 </div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="banner" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 12px;border-radius:4px;z-index:2000;"></div>
@@ -2408,15 +2411,7 @@ HTML DEBUG V10
   <script>
     const APP_BUILD = 'trip-debug-2026-05-21-v11';
     window.rawTripDebug = function(msg) {
-      var el = document.getElementById('mobileTripDebug');
-      if (!el) {
-        el = document.createElement('div');
-        el.id = 'mobileTripDebug';
-        document.body.appendChild(el);
-      }
-      el.style.cssText = 'position:fixed!important;top:180px!important;left:10px!important;z-index:2147483647!important;background:rgba(255,0,255,0.95)!important;color:white!important;font-size:13px!important;padding:10px!important;width:calc(100vw - 20px)!important;max-width:calc(100vw - 20px)!important;height:45vh!important;max-height:45vh!important;overflow-y:auto!important;overflow-x:hidden!important;white-space:pre-wrap!important;word-break:break-word!important;pointer-events:auto!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch!important;border:2px solid white!important;display:block!important;visibility:visible!important;opacity:1!important;';
-      el.textContent += '\n' + msg;
-      el.scrollTop = el.scrollHeight;
+      // Debug wyłączony. Funkcja musi istnieć, bo używają jej inline handlery #modeTripBtn.
     };
 
     window.onerror = function(msg, src, line, col, err) {
@@ -2524,7 +2519,7 @@ HTML DEBUG V10
     };
 
     document.addEventListener('DOMContentLoaded', function() {
-      window.rawTripDebug('DOM READY V10');
+      window.rawTripDebug('DOM READY V11');
       window.rawTripDebug('modeTripBtn exists: ' + !!document.getElementById('modeTripBtn'));
       window.rawTripDebug('modeTripBtn count: ' + document.querySelectorAll('#modeTripBtn').length);
       window.rawTripDebug('typeof forceTripFromInline: ' + typeof window.forceTripFromInline);
