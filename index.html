@@ -9629,7 +9629,10 @@ function getTripPointEmoji(p) {
       if (!sel || !box) return;
       sel.innerHTML = '<option value="">Wybierz trip</option>' + tripPlannerTrips.map(t => `<option value="${t.id}" ${t.id===activeTripId?'selected':''}>${t.name}</option>`).join('');
       const trip = getActiveTrip();
-      if (!trip) { box.innerHTML = '<div>Brak aktywnego tripa.</div>'; return; }
+      if (!trip) {
+        box.innerHTML = '<div class="trip-empty-state"><b>Wybierz albo utwórz trip</b><div><small>Użyj listy „Wybierz trip” albo przycisku „+ Nowy trip”.</small></div></div>';
+        return;
+      }
       ensureActiveTripDay(trip);
       const tripRange = trip.startDate && trip.endDate ? `<div><small>${formatTripHeaderDate(trip.startDate)} → ${formatTripHeaderDate(trip.endDate)}</small></div>` : '';
       box.innerHTML = `<div><b>${trip.name}</b></div>${tripRange}<button id="tripAddDayBtn" type="button">+ Dodaj dzień</button><button id="tripAddPrivatePointBtn" type="button">+ Punkt tylko do tripa</button><button id="tripExportCsvBtn" type="button">⬇️ CSV</button><button id="tripExportPdfBtn" type="button">⬇️ PDF</button><button id="tripDeleteBtn" class="trip-icon-btn" type="button" title="Usuń trip" aria-label="Usuń trip">🗑️</button>` + trip.days.map((d, idx) => {
@@ -12377,13 +12380,60 @@ function confirmLayerDelete() {
       return !!e && (e.type === 'touchend' || e.type === 'pointerup');
     }
 
+    let tripModeMutationObserverAttached = false;
+    function attachTripModeMutationObserver() {
+      if (tripModeMutationObserverAttached || typeof MutationObserver === 'undefined') return;
+      const tripPanel = document.getElementById('tripPlannerPanel');
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type !== 'attributes') return;
+          if (mutation.target === document.body && mutation.attributeName === 'class') {
+            console.log('[trip-mode][observer] body.class changed', document.body.className);
+          }
+          if (tripPanel && mutation.target === tripPanel && mutation.attributeName === 'style') {
+            console.log('[trip-mode][observer] tripPlannerPanel.style changed', tripPanel.getAttribute('style') || '');
+          }
+        });
+      });
+      observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+      if (tripPanel) observer.observe(tripPanel, { attributes: true, attributeFilter: ['style'] });
+      tripModeMutationObserverAttached = true;
+      console.log('[trip-mode] mutation observers attached');
+    }
+
+    function logTripModeDiagnostics(eventType) {
+      const tripPanel = document.getElementById('tripPlannerPanel');
+      const tripActiveBox = document.getElementById('tripActiveBox');
+      const sidebar = document.getElementById('sidebar');
+      const styles = tripPanel ? window.getComputedStyle(tripPanel) : null;
+      console.log('[trip-mode][diagnostics]', {
+        eventType,
+        bodyHasTripPlannerMode: document.body.classList.contains('trip-planner-mode'),
+        bodyClassName: document.body.className,
+        tripPlannerPanelExists: !!tripPanel,
+        tripPlannerPanelComputedDisplay: styles?.display,
+        tripPlannerPanelInlineDisplay: tripPanel?.style?.display ?? null,
+        tripPlannerPanelComputedVisibility: styles?.visibility,
+        tripPlannerPanelComputedOpacity: styles?.opacity,
+        tripActiveBoxExists: !!tripActiveBox,
+        tripActiveBoxInnerHtmlLength: tripActiveBox?.innerHTML?.length ?? 0,
+        tripPlannerTripsLength: Array.isArray(tripPlannerTrips) ? tripPlannerTrips.length : -1,
+        activeTripId,
+        sidebarHasShow: !!sidebar?.classList?.contains('show'),
+        windowInnerWidth: window.innerWidth,
+        pointerCoarse: window.matchMedia('(pointer: coarse)').matches,
+        userAgent: navigator.userAgent
+      });
+    }
+
     async function activateTripModeFromEvent(e) {
       if (isTouchOrPointerEvent(e)) {
         e.preventDefault();
         e.stopPropagation();
       }
 
-      console.log(`Trip mode activated by: ${e?.type || 'unknown'}`);
+      attachTripModeMutationObserver();
+      logTripModeDiagnostics(e?.type || 'unknown:before');
 
       setTripMode('trip');
       document.body.classList.add('trip-planner-mode');
@@ -12401,17 +12451,51 @@ function confirmLayerDelete() {
       const user = firebase.auth().currentUser;
       if (!user) {
         showToast('Najpierw zaloguj się');
+        logTripModeDiagnostics(e?.type || 'unknown:no-user');
         return;
       }
 
-      await loadTrips();
-      renderTripPlannerPanel();
-      renderTripMapLayers();
-      applyTripPlannerPinVisibility();
+      try {
+        await loadTrips();
+      } catch (err) {
+        console.error('[trip-mode] loadTrips failed', err);
+        showToast('Błąd ładowania planu tripu: ' + (err?.message || err));
+      }
+      try {
+        renderTripPlannerPanel();
+      } catch (err) {
+        console.error('[trip-mode] renderTripPlannerPanel failed', err);
+        showToast('Błąd renderowania planu tripu: ' + (err?.message || err));
+      }
+      try {
+        renderTripMapLayers();
+      } catch (err) {
+        console.error('[trip-mode] renderTripMapLayers failed', err);
+        showToast('Błąd renderowania warstw tripu: ' + (err?.message || err));
+      }
+      try {
+        applyTripPlannerPinVisibility();
+      } catch (err) {
+        console.error('[trip-mode] applyTripPlannerPinVisibility failed', err);
+        showToast('Błąd widoczności pinezek tripu: ' + (err?.message || err));
+      }
+
+      document.body.classList.add('trip-planner-mode');
+      if (tripPanel) {
+        tripPanel.style.removeProperty('display');
+        tripPanel.offsetHeight;
+        tripPanel.style.display = 'block';
+      }
 
       if (document.body.classList.contains('mobile-layout')) {
-        setTimeout(() => tripPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+        const sidebar = document.getElementById('sidebar');
+        setTimeout(() => {
+          sidebar?.classList.add('show');
+          tripPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150);
       }
+
+      logTripModeDiagnostics(e?.type || 'unknown:after');
     }
 
     function activatePinsModeFromEvent(e) {
@@ -12424,6 +12508,10 @@ function confirmLayerDelete() {
     }
 
     function setTripMode(mode) {
+      const prevMode = tripPlannerMode;
+      if (prevMode !== mode) {
+        console.log('[trip-mode] setTripMode', { prevMode, nextMode: mode });
+      }
       tripPlannerMode = mode;
       document.getElementById('modePinsBtn')?.classList.toggle('active', mode === 'pins');
       document.getElementById('modeTripBtn')?.classList.toggle('active', mode === 'trip');
