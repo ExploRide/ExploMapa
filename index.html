@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v11" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v12" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2101,7 +2101,7 @@ img.emoji {
       </div>
       <div class="trip-mode-toggle">
         <button id="modePinsBtn" class="active" type="button">Pinezki</button>
-        <button id="modeTripBtn" type="button">Plan tripu</button>
+        <button id="modeTripBtn" type="button" onpointerup="window.forceTripFromMobile(event)" ontouchend="window.forceTripFromMobile(event)" onclick="window.forceTripFromMobile(event)">Plan tripu</button>
       </div>
       <button id="mobileControlsToggle" type="button" aria-expanded="false" aria-controls="sidebarTopControls">
         Filtry i akcje <span class="mobile-controls-indicator">▼</span>
@@ -2349,19 +2349,21 @@ img.emoji {
   </div>
   <button id="gpsFollowBtn">GPS</button>
 
+  <div id="appVersionBadge" aria-label="Wersja aplikacji">trip-debug-2026-05-21-v12</div>
+
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v11"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v11"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v12"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v12"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v11"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v12"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v11';
+    const APP_BUILD = 'trip-debug-2026-05-21-v12';
 
     const DEFAULT_ROUTE_COLOR = '#00ccff';
     const DEFAULT_ROUTE_OPACITY = 1;
@@ -12491,39 +12493,82 @@ function confirmLayerDelete() {
 
     const modePinsBtn = document.getElementById('modePinsBtn');
     const modeTripBtn = document.getElementById('modeTripBtn');
-    let mobileTripForceLock = false;
-    async function forceActivateTripMode(sourceEvent) {
-      if (mobileTripForceLock) return;
-      mobileTripForceLock = true;
-      setTimeout(() => { mobileTripForceLock = false; }, 500);
 
-      try { sourceEvent?.preventDefault?.(); } catch (_) {}
-      try { sourceEvent?.stopPropagation?.(); } catch (_) {}
-      try { sourceEvent?.stopImmediatePropagation?.(); } catch (_) {}
+    window.activateTripModeFallback = async function() {
+      tripPlannerMode = 'trip';
 
-      try { setTripMode('trip'); } catch (_) { return; }
       document.body.classList.add('trip-planner-mode');
+
+      const modePinsBtn = document.getElementById('modePinsBtn');
+      const modeTripBtn = document.getElementById('modeTripBtn');
       const tripPlannerPanel = document.getElementById('tripPlannerPanel');
       const sidebar = document.getElementById('sidebar');
-      if (tripPlannerPanel) tripPlannerPanel.style.display = 'block';
-      sidebar?.classList.add('show');
 
-      try { await loadTrips(); } catch (_) { return; }
-      try { renderTripPlannerPanel(); } catch (_) { return; }
-      try { renderTripMapLayers(); } catch (_) { return; }
-      try { applyTripPlannerPinVisibility(); } catch (_) { return; }
-    }
+      if (modePinsBtn) modePinsBtn.classList.remove('active');
+      if (modeTripBtn) modeTripBtn.classList.add('active');
 
-    window.activateTripModeFallback = forceActivateTripMode;
+      if (tripPlannerPanel) {
+        tripPlannerPanel.style.display = 'block';
+        tripPlannerPanel.style.visibility = 'visible';
+        tripPlannerPanel.style.opacity = '1';
+      }
 
-    function mobileTripGlobalCaptureHandler(event) {
-      const target = event?.target instanceof Element ? event.target : null;
-      const closestModeTripBtn = target?.closest?.('#modeTripBtn');
-      const pointX = Number.isFinite(event?.clientX) ? event.clientX : (event?.changedTouches?.[0]?.clientX ?? null);
-      const pointY = Number.isFinite(event?.clientY) ? event.clientY : (event?.changedTouches?.[0]?.clientY ?? null);
-      const pointedEl = (Number.isFinite(pointX) && Number.isFinite(pointY)) ? document.elementFromPoint(pointX, pointY) : null;
-      const pointHitsTripBtn = !!(pointedEl && (pointedEl.id === 'modeTripBtn' || pointedEl.closest?.('#modeTripBtn')));
-      if (closestModeTripBtn || pointHitsTripBtn) forceActivateTripMode(event);
+      if (sidebar) sidebar.classList.add('show');
+
+      if (typeof window.loadTrips === 'function') {
+        await window.loadTrips();
+      } else if (typeof loadTrips === 'function') {
+        await loadTrips();
+      }
+
+      if (typeof window.renderTripPlannerPanel === 'function') {
+        window.renderTripPlannerPanel();
+      } else if (typeof renderTripPlannerPanel === 'function') {
+        renderTripPlannerPanel();
+      }
+
+      if (typeof window.renderTripMapLayers === 'function') {
+        window.renderTripMapLayers();
+      } else if (typeof renderTripMapLayers === 'function') {
+        renderTripMapLayers();
+      }
+
+      if (typeof window.applyTripPlannerPinVisibility === 'function') {
+        window.applyTripPlannerPinVisibility();
+      } else if (typeof applyTripPlannerPinVisibility === 'function') {
+        applyTripPlannerPinVisibility();
+      }
+    };
+
+    window.forceTripFromMobile = async function(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      }
+
+      if (window.__tripMobileLock) return;
+      window.__tripMobileLock = true;
+
+      try {
+        if (typeof window.setTripMode === 'function') {
+          window.setTripMode('trip');
+        } else {
+          await window.activateTripModeFallback();
+        }
+      } finally {
+        setTimeout(() => {
+          window.__tripMobileLock = false;
+        }, 500);
+      }
+    };
+
+    function activatePinsModeFromEvent(e) {
+      if (isTouchOrPointerEvent(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      setTripMode('pins');
     }
 
     const supportsPointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
@@ -12537,19 +12582,10 @@ function confirmLayerDelete() {
       }
     }
 
-    document.addEventListener('pointerdown', mobileTripGlobalCaptureHandler, true);
-    document.addEventListener('pointerup', mobileTripGlobalCaptureHandler, true);
-    document.addEventListener('touchstart', mobileTripGlobalCaptureHandler, true);
-    document.addEventListener('touchend', mobileTripGlobalCaptureHandler, true);
-    document.addEventListener('click', mobileTripGlobalCaptureHandler, true);
-
     if (modeTripBtn) {
-      if (supportsPointerEvents) {
-        modeTripBtn.addEventListener('pointerup', activateTripModeFromEvent);
-      } else {
-        modeTripBtn.addEventListener('touchend', activateTripModeFromEvent, { passive: false });
-        modeTripBtn.addEventListener('click', activateTripModeFromEvent);
-      }
+      modeTripBtn.addEventListener('pointerup', window.forceTripFromMobile, { passive: false });
+      modeTripBtn.addEventListener('touchend', window.forceTripFromMobile, { passive: false });
+      modeTripBtn.addEventListener('click', window.forceTripFromMobile);
     }
     document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; activeTripDayId = null; renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility(); });
     document.getElementById('tripPinsVisibilityToggle')?.addEventListener('click', () => { hideMainPinsInTripMode = !hideMainPinsInTripMode; applyTripPlannerPinVisibility(); });
