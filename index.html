@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v3" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v4" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -831,20 +831,24 @@ body, #sidebar, #basemap-switcher {
   touch-action: manipulation !important;
 }
 #mobileTripDebug {
-  position: fixed;
-  left: 8px;
-  bottom: 8px;
-  z-index: 2147483647;
+  position: fixed !important;
+  top: 180px !important;
+  left: 10px !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 2147483647 !important;
   display: block !important;
-  pointer-events: none;
-  background: rgba(0,0,0,0.85);
-  color: white;
-  font-size: 11px;
-  padding: 6px;
-  max-width: 90vw;
-  white-space: pre-wrap;
-  max-height: 40vh;
-  overflow: auto;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background: magenta !important;
+  color: white !important;
+  font-size: 14px !important;
+  padding: 10px !important;
+  max-width: 90vw !important;
+  max-height: 45vh !important;
+  overflow: auto !important;
+  white-space: pre-wrap !important;
+  pointer-events: none !important;
 }
 body.trip-planner-mode #tripPlannerPanel { display:block !important; }
 body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
@@ -2104,8 +2108,9 @@ img.emoji {
   </style>
 </head>
 <body>
+  <div id="mobileTripDebug">MOBILE TRIP DEBUG V4 - HTML STATIC</div>
 <div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
-HTML DEBUG V3
+HTML DEBUG V4
 </div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="banner" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 12px;border-radius:4px;z-index:2000;"></div>
@@ -2380,15 +2385,15 @@ HTML DEBUG V3
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v3"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v3"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v4"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v4"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v3"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v4"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v3';
+    const APP_BUILD = 'trip-debug-2026-05-21-v4';
     console.log('APP BUILD:', APP_BUILD, new Date().toISOString());
 
     const buildBadge = document.createElement('div');
@@ -12498,6 +12503,29 @@ function confirmLayerDelete() {
         panel.id = 'mobileTripDebug';
         document.body.appendChild(panel);
       }
+      Object.assign(panel.style, {
+        position: 'fixed',
+        top: '180px',
+        left: '10px',
+        right: 'auto',
+        bottom: 'auto',
+        zIndex: '2147483647',
+        display: 'block',
+        visibility: 'visible',
+        opacity: '1',
+        background: 'magenta',
+        color: 'white',
+        fontSize: '14px',
+        padding: '10px',
+        maxWidth: '90vw',
+        maxHeight: '45vh',
+        overflow: 'auto',
+        whiteSpace: 'pre-wrap',
+        pointerEvents: 'none'
+      });
+      if (!panel.textContent || !panel.textContent.trim()) {
+        panel.textContent = 'mobile trip debug ready v4';
+      }
       return panel;
     }
 
@@ -12511,7 +12539,7 @@ function confirmLayerDelete() {
       } catch (_) {}
     }
     ensureMobileTripDebugPanel();
-    mobileTripDebug('mobile trip debug ready');
+    mobileTripDebug('mobile trip debug ready v4');
 
     function mobileTripDebugState(stageLabel) {
       const tripPanel = document.getElementById('tripPlannerPanel');
