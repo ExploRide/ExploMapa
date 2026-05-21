@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v9" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v10" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2110,9 +2110,9 @@ img.emoji {
   </style>
 </head>
 <body>
-  <div id="mobileTripDebug">MOBILE TRIP DEBUG V9 - HTML STATIC</div>
+  <div id="mobileTripDebug">MOBILE TRIP DEBUG V10 - HTML STATIC</div>
 <div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
-HTML DEBUG V9
+HTML DEBUG V10
 </div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="banner" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 12px;border-radius:4px;z-index:2000;"></div>
@@ -2393,15 +2393,15 @@ HTML DEBUG V9
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v9"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v9"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v10"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v10"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v9"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v10"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v9';
+    const APP_BUILD = 'trip-debug-2026-05-21-v10';
     window.rawTripDebug = function(msg) {
       var el = document.getElementById('mobileTripDebug');
       if (!el) {
@@ -2423,53 +2423,103 @@ HTML DEBUG V9
     });
 
 
-    window.forceTripFromInline = async function(e) {
-      window.rawTripDebug('FORCE INLINE TRIP START');
-      window.rawTripDebug('window.setTripMode typeof=' + typeof window.setTripMode);
-      const retryCount = Number(e && e.__forceTripRetryCount) || 0;
-      if (typeof window.setTripMode !== 'function' || typeof window.loadTrips !== 'function') {
-        if (retryCount >= 10) {
-          throw new Error('forceTripFromInline dependencies unavailable after retries');
-        }
-        setTimeout(function() {
-          const nextEvent = e || {};
-          nextEvent.__forceTripRetryCount = retryCount + 1;
-          window.forceTripFromInline(nextEvent);
-        }, 300);
-        return;
-      }
+    let forceTripRunning = false;
 
-      if (e) {
-        e.preventDefault?.();
-        e.stopPropagation?.();
-        e.stopImmediatePropagation?.();
-      }
+    window.activateTripModeFallback = async function() {
+      window.rawTripDebug('activateTripModeFallback START');
 
-      window.setTripMode('trip');
-      window.rawTripDebug('setTripMode OK');
+      tripPlannerMode = 'trip';
       document.body.classList.add('trip-planner-mode');
-      window.rawTripDebug('body class OK');
 
-      const panel = document.getElementById('tripPlannerPanel');
+      const modePinsBtn = document.getElementById('modePinsBtn');
+      const modeTripBtn = document.getElementById('modeTripBtn');
+      const tripPlannerPanel = document.getElementById('tripPlannerPanel');
       const sidebar = document.getElementById('sidebar');
-      if (panel) {
-        panel.style.display = 'block';
-        panel.style.visibility = 'visible';
-        panel.style.opacity = '1';
+
+      if (modePinsBtn) modePinsBtn.classList.remove('active');
+      if (modeTripBtn) modeTripBtn.classList.add('active');
+
+      if (tripPlannerPanel) {
+        tripPlannerPanel.style.display = 'block';
+        tripPlannerPanel.style.visibility = 'visible';
+        tripPlannerPanel.style.opacity = '1';
       }
+
       if (sidebar) sidebar.classList.add('show');
 
-      await loadTrips();
+      window.rawTripDebug('fallback UI OK');
+
+      await window.loadTrips();
       window.rawTripDebug('loadTrips OK');
-      if (typeof renderTripPlannerPanel === 'function') renderTripPlannerPanel();
+
+      window.renderTripPlannerPanel();
       window.rawTripDebug('renderTripPlannerPanel OK');
-      if (typeof renderTripMapLayers === 'function') renderTripMapLayers();
-      if (typeof applyTripPlannerPinVisibility === 'function') applyTripPlannerPinVisibility();
-      window.rawTripDebug('DONE');
+
+      if (typeof window.renderTripMapLayers === 'function') {
+        window.renderTripMapLayers();
+        window.rawTripDebug('renderTripMapLayers OK');
+      }
+
+      if (typeof window.applyTripPlannerPinVisibility === 'function') {
+        window.applyTripPlannerPinVisibility();
+        window.rawTripDebug('applyTripPlannerPinVisibility OK');
+      }
+
+      window.rawTripDebug('activateTripModeFallback DONE');
+    };
+
+    window.forceTripFromInline = async function(e) {
+      if (forceTripRunning) {
+        window.rawTripDebug('FORCE INLINE TRIP SKIP (lock)');
+        return;
+      }
+      forceTripRunning = true;
+      window.rawTripDebug('FORCE INLINE TRIP START');
+      window.rawTripDebug('window.setTripMode typeof=' + typeof window.setTripMode);
+
+      try {
+        if (typeof window.loadTrips !== 'function' || typeof window.renderTripPlannerPanel !== 'function') {
+          throw new Error('forceTripFromInline dependencies unavailable');
+        }
+
+        if (e) {
+          e.preventDefault?.();
+          e.stopPropagation?.();
+          e.stopImmediatePropagation?.();
+        }
+
+        if (typeof window.setTripMode === 'function') {
+          window.setTripMode('trip');
+          window.rawTripDebug('setTripMode OK');
+          document.body.classList.add('trip-planner-mode');
+          window.rawTripDebug('body class OK');
+
+          const panel = document.getElementById('tripPlannerPanel');
+          const sidebar = document.getElementById('sidebar');
+          if (panel) {
+            panel.style.display = 'block';
+            panel.style.visibility = 'visible';
+            panel.style.opacity = '1';
+          }
+          if (sidebar) sidebar.classList.add('show');
+
+          await window.loadTrips();
+          window.rawTripDebug('loadTrips OK');
+          window.renderTripPlannerPanel();
+          window.rawTripDebug('renderTripPlannerPanel OK');
+          if (typeof window.renderTripMapLayers === 'function') window.renderTripMapLayers();
+          if (typeof window.applyTripPlannerPinVisibility === 'function') window.applyTripPlannerPinVisibility();
+          window.rawTripDebug('DONE');
+        } else {
+          await window.activateTripModeFallback();
+        }
+      } finally {
+        forceTripRunning = false;
+      }
     };
 
     document.addEventListener('DOMContentLoaded', function() {
-      window.rawTripDebug('DOM READY V9');
+      window.rawTripDebug('DOM READY V10');
       window.rawTripDebug('modeTripBtn exists: ' + !!document.getElementById('modeTripBtn'));
       window.rawTripDebug('modeTripBtn count: ' + document.querySelectorAll('#modeTripBtn').length);
       window.rawTripDebug('typeof forceTripFromInline: ' + typeof window.forceTripFromInline);
@@ -9498,6 +9548,7 @@ function getTripPointEmoji(p) {
         });
       });
     }
+    window.renderTripMapLayers = renderTripMapLayers;
     async function loadTrips() {
       const compatDb = getCompatDb();
       const user = firebase.auth().currentUser;
@@ -9521,6 +9572,7 @@ function getTripPointEmoji(p) {
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
     }
+    window.loadTrips = loadTrips;
     async function saveTrip(tripId) {
       const compatDb = getCompatDb();
       if (!compatDb) return;
@@ -9745,6 +9797,7 @@ function getTripPointEmoji(p) {
       updateTripPinsVisibilityToggleLabel();
       triggerMarkerRender('trip-visibility:trip-mode');
     }
+    window.applyTripPlannerPinVisibility = applyTripPlannerPinVisibility;
 
     function focusTripPointOnMap(point) {
       if (!point || !map) return;
@@ -9793,6 +9846,7 @@ function getTripPointEmoji(p) {
         return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><label class="trip-day-visible-toggle" title="Pokaż/ukryj trasę dnia"><input type="checkbox" data-day-visible="${d.id}" ${d.visible === false ? '' : 'checked'}> Trasa</label><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
       }).join('');
     }
+    window.renderTripPlannerPanel = renderTripPlannerPanel;
 
     async function saveTripDayPointOrder(tripId, dayId, points) {
       const compatDb = getCompatDb();
