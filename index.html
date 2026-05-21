@@ -2570,6 +2570,7 @@ HTML DEBUG V12
       const lng = parseFloat(item.dataset.lng || item.getAttribute('data-lng'));
 
       if (Number.isFinite(lat) && Number.isFinite(lng) && window.map) {
+        if (typeof window.stopGpsFollow === 'function') window.stopGpsFollow('mobile trip point tap');
         window.map.flyTo([lat, lng], 16);
         return;
       }
@@ -6575,11 +6576,7 @@ function emojiHtml(str) {
         startPoint = null;
       });
       map.on('dragstart', () => {
-        if (followGps) {
-          followGps = false;
-          const btn = document.getElementById('gpsFollowBtn');
-          if (btn) btn.style.display = 'block';
-        }
+        stopGpsFollow('map dragstart');
       });
     }
 
@@ -8171,10 +8168,8 @@ function zaladujPinezkiZFirestore() {
 
     function openPinFromList(p, el) {
       if (!p) return;
-      if (isMobile && followGps) {
-        followGps = false;
-        const gpsBtn = document.getElementById('gpsFollowBtn');
-        if (gpsBtn) gpsBtn.style.display = 'block';
+      if (isMobile) {
+        stopGpsFollow('open pin from list');
       }
       const layerName = p.warstwa || "Inne";
       const layerData = warstwy[layerName];
@@ -9003,11 +8998,7 @@ function showRoutePopup(pinId, tr, latlng) {
     });
 
     function showSearchMarker(lat, lng, label) {
-      if (followGps) {
-        followGps = false;
-        const btn = document.getElementById('gpsFollowBtn');
-        if (btn) btn.style.display = 'block';
-      }
+      stopGpsFollow('show search marker');
       const latNum = typeof lat === 'string' ? parseFloat(lat) : lat;
       const lngNum = typeof lng === 'string' ? parseFloat(lng) : lng;
       if (searchLayer) {
@@ -9905,6 +9896,7 @@ function getTripPointEmoji(p) {
       const lng = Number(targetPoint.lng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
       console.log('Trip planner: clicked point, lat/lng', lat, lng);
+      stopGpsFollow('trip point focus');
       try {
         map.flyTo([lat, lng], 16, {
           duration: 0.75,
@@ -11945,6 +11937,15 @@ function confirmLayerDelete() {
     iconAnchor: [12, 12]
   });
   let followGps = true;
+  window.stopGpsFollow = stopGpsFollow;
+
+  function stopGpsFollow(reason = '') {
+    if (!followGps) return;
+    followGps = false;
+    const gpsBtn = document.getElementById('gpsFollowBtn');
+    if (gpsBtn) gpsBtn.style.display = 'block';
+    if (reason) console.log('GPS follow disabled:', reason);
+  }
 
   function updateGpsHeading(heading) {
     if (!currentMarker) return;
