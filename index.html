@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <title>ExploRide – Wielka Mapa Urbexu</title>
+  <title>ExploMapa V3 DEBUG</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="manifest" href="/ExploMapa/manifest.json" />
   <meta name="theme-color" content="#000000" />
@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v1" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v3" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2104,6 +2104,9 @@ img.emoji {
   </style>
 </head>
 <body>
+<div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
+HTML DEBUG V3
+</div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="banner" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 12px;border-radius:4px;z-index:2000;"></div>
   <div id="toast"></div>
@@ -2377,15 +2380,15 @@ img.emoji {
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v1"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v1"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v3"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v3"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v1"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v3"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v1';
+    const APP_BUILD = 'trip-debug-2026-05-21-v3';
     console.log('APP BUILD:', APP_BUILD, new Date().toISOString());
 
     const buildBadge = document.createElement('div');
