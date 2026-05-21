@@ -585,3 +585,19 @@ bottom: 2px;
     line-height: 1.5;
     z-index: 1 !important;
 }
+
+
+#appVersionBadge {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  z-index: 9999;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}
