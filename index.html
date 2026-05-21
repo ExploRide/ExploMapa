@@ -5688,7 +5688,7 @@ function emojiHtml(str) {
       }
 
       const osmOverlayCache = new Map();
-      const OSM_OVERLAY_MIN_ZOOM = 14;
+      const OSM_OVERLAY_MIN_ZOOM = 13;
       const OSM_OVERLAY_COOLDOWN_MS = 30000;
       const OVERPASS_ENDPOINTS = [
         'https://overpass-api.de/api/interpreter',
@@ -9799,6 +9799,33 @@ function getTripPointEmoji(p) {
     }
     window.applyTripPlannerPinVisibility = applyTripPlannerPinVisibility;
 
+
+    function fitMapToTripPoints(trip) {
+      if (!map || !trip || !Array.isArray(trip.days)) return false;
+      const bounds = L.latLngBounds([]);
+      (trip.days || []).forEach(day => {
+        (day.points || []).forEach(point => {
+          const lat = Number(point.lat);
+          const lng = Number(point.lng);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) bounds.extend([lat, lng]);
+        });
+      });
+      if (!bounds.isValid()) return false;
+      try {
+        map.fitBounds(bounds, {
+          animate: true,
+          duration: 0.75,
+          paddingTopLeft: [Math.round(map.getSize().x * 0.15), Math.round(map.getSize().y * 0.15)],
+          paddingBottomRight: [Math.round(map.getSize().x * 0.15), Math.round(map.getSize().y * 0.15)],
+          maxZoom: 15
+        });
+      } catch (err) {
+        console.warn('Trip planner: fitBounds failed, fallback to map.fitBounds with pad', err);
+        map.fitBounds(bounds.pad(0.3));
+      }
+      return true;
+    }
+
     function focusTripPointOnMap(point) {
       if (!point || !map) return;
       const lat = Number(point.lat);
@@ -12868,6 +12895,7 @@ function confirmLayerDelete() {
         }, 150);
       }
 
+      fitMapToTripPoints(getActiveTrip());
       logTripModeDiagnostics(`${eventType}:after`);
       mobileTripDebug('DONE');
       mobileTripDebugState('DONE');
@@ -12941,6 +12969,7 @@ function confirmLayerDelete() {
       try { renderTripPlannerPanel(); mobileTripDebug('FORCE renderTripPlannerPanel OK'); } catch (error) { mobileTripDebug(`FORCE ERROR renderTripPlannerPanel: ${error?.message || error}`); return; }
       try { renderTripMapLayers(); mobileTripDebug('FORCE renderTripMapLayers OK'); } catch (error) { mobileTripDebug(`FORCE ERROR renderTripMapLayers: ${error?.message || error}`); return; }
       try { applyTripPlannerPinVisibility(); mobileTripDebug('FORCE applyTripPlannerPinVisibility OK'); } catch (error) { mobileTripDebug(`FORCE ERROR applyTripPlannerPinVisibility: ${error?.message || error}`); return; }
+      fitMapToTripPoints(getActiveTrip());
       mobileTripDebugState(`FORCE DONE ${sourceName}`);
     }
 
@@ -13003,7 +13032,7 @@ function confirmLayerDelete() {
       }
       mobileTripDebug(`modeTripBtn query count: ${document.querySelectorAll('#modeTripBtn').length}`);
     }
-    document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; activeTripDayId = null; renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility(); });
+    document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; activeTripDayId = null; renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility(); fitMapToTripPoints(getActiveTrip()); });
     document.getElementById('tripPinsVisibilityToggle')?.addEventListener('click', () => { hideMainPinsInTripMode = !hideMainPinsInTripMode; applyTripPlannerPinVisibility(); });
     document.getElementById('tripNewBtn')?.addEventListener('click', async () => {
       const compatDb = getCompatDb();
@@ -13084,7 +13113,7 @@ function confirmLayerDelete() {
       }
       const eventPath = (typeof e.composedPath === 'function') ? e.composedPath() : [];
       const pathActionEl = eventPath.find(node => node instanceof Element && node.hasAttribute?.('data-trip-action')) || null;
-      const actionEl = pathActionEl || targetEl?.closest('[data-trip-action]');
+      const actionEl = pathActionEl || targetEl?.closest('[data-trip-action]') || targetEl?.closest('.trip-point-name')?.closest('[data-trip-action]');
       if (actionEl) {
         e.preventDefault();
         e.stopPropagation();
