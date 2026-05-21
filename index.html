@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v10" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v11" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -829,6 +829,11 @@ body, #sidebar, #basemap-switcher {
   z-index: 2147483647 !important;
   pointer-events: auto !important;
   touch-action: manipulation !important;
+}
+#mobileTripDebug,
+#htmlHardDebugV3,
+#tripDebugTest {
+  display: none !important;
 }
 #mobileTripDebug {
   position: fixed !important;
@@ -2393,15 +2398,15 @@ HTML DEBUG V10
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v10"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v10"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v11"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v11"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v10"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v11"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v10';
+    const APP_BUILD = 'trip-debug-2026-05-21-v11';
     window.rawTripDebug = function(msg) {
       var el = document.getElementById('mobileTripDebug');
       if (!el) {
