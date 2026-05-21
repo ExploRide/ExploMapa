@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v7" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v8" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -834,21 +834,23 @@ body, #sidebar, #basemap-switcher {
   position: fixed !important;
   top: 180px !important;
   left: 10px !important;
-  right: auto !important;
-  bottom: auto !important;
   z-index: 2147483647 !important;
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  background: magenta !important;
+  background: rgba(255,0,255,0.95) !important;
   color: white !important;
-  font-size: 14px !important;
+  font-size: 13px !important;
   padding: 10px !important;
-  max-width: 90vw !important;
+  width: calc(100vw - 20px) !important;
+  max-width: calc(100vw - 20px) !important;
+  height: 45vh !important;
   max-height: 45vh !important;
-  overflow: auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   white-space: pre-wrap !important;
-  pointer-events: none !important;
+  word-break: break-word !important;
+  pointer-events: auto !important;
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+  border: 2px solid white !important;
 }
 body.trip-planner-mode #tripPlannerPanel { display:block !important; }
 body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
@@ -2108,9 +2110,9 @@ img.emoji {
   </style>
 </head>
 <body>
-  <div id="mobileTripDebug">MOBILE TRIP DEBUG V7 - HTML STATIC</div>
+  <div id="mobileTripDebug">MOBILE TRIP DEBUG V8 - HTML STATIC</div>
 <div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
-HTML DEBUG V7
+HTML DEBUG V8
 </div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="banner" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 12px;border-radius:4px;z-index:2000;"></div>
@@ -2391,15 +2393,15 @@ HTML DEBUG V7
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v7"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v7"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v8"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v8"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v7"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v8"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v7';
+    const APP_BUILD = 'trip-debug-2026-05-21-v8';
     window.rawTripDebug = function(msg) {
       var el = document.getElementById('mobileTripDebug');
       if (!el) {
@@ -2407,8 +2409,9 @@ HTML DEBUG V7
         el.id = 'mobileTripDebug';
         document.body.appendChild(el);
       }
-      el.style.cssText = 'position:fixed!important;top:180px!important;left:10px!important;z-index:2147483647!important;background:magenta!important;color:white!important;font-size:14px!important;padding:10px!important;max-width:90vw!important;white-space:pre-wrap!important;display:block!important;visibility:visible!important;opacity:1!important;';
+      el.style.cssText = 'position:fixed!important;top:180px!important;left:10px!important;z-index:2147483647!important;background:rgba(255,0,255,0.95)!important;color:white!important;font-size:13px!important;padding:10px!important;width:calc(100vw - 20px)!important;max-width:calc(100vw - 20px)!important;height:45vh!important;max-height:45vh!important;overflow-y:auto!important;overflow-x:hidden!important;white-space:pre-wrap!important;word-break:break-word!important;pointer-events:auto!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch!important;border:2px solid white!important;display:block!important;visibility:visible!important;opacity:1!important;';
       el.textContent += '\n' + msg;
+      el.scrollTop = el.scrollHeight;
     };
 
     window.onerror = function(msg, src, line, col, err) {
@@ -12575,6 +12578,16 @@ function confirmLayerDelete() {
 
 
     const mobileTripDebugLines = [];
+    let mobileTripDebugOffsetX = 0;
+    let mobileTripDebugOffsetY = 0;
+    let mobileTripDebugDragActive = false;
+    let mobileTripDebugDragStartX = 0;
+    let mobileTripDebugDragStartY = 0;
+
+    function applyMobileTripDebugTransform(panel) {
+      panel.style.transform = `translate(${mobileTripDebugOffsetX}px, ${mobileTripDebugOffsetY}px)`;
+    }
+
     function ensureMobileTripDebugPanel() {
       let panel = document.getElementById('mobileTripDebug');
       if (!panel) {
@@ -12586,24 +12599,82 @@ function confirmLayerDelete() {
         position: 'fixed',
         top: '180px',
         left: '10px',
-        right: 'auto',
-        bottom: 'auto',
         zIndex: '2147483647',
         display: 'block',
         visibility: 'visible',
         opacity: '1',
-        background: 'magenta',
+        background: 'rgba(255,0,255,0.95)',
         color: 'white',
-        fontSize: '14px',
+        fontSize: '13px',
         padding: '10px',
-        maxWidth: '90vw',
+        width: 'calc(100vw - 20px)',
+        maxWidth: 'calc(100vw - 20px)',
+        height: '45vh',
         maxHeight: '45vh',
-        overflow: 'auto',
+        overflowY: 'auto',
+        overflowX: 'hidden',
         whiteSpace: 'pre-wrap',
-        pointerEvents: 'none'
+        wordBreak: 'break-word',
+        pointerEvents: 'auto',
+        touchAction: 'pan-y',
+        WebkitOverflowScrolling: 'touch',
+        border: '2px solid white'
       });
-      if (!panel.textContent || !panel.textContent.trim()) {
-        panel.textContent = 'mobile trip debug ready v5';
+      applyMobileTripDebugTransform(panel);
+
+      if (!panel.dataset.closeButtonBound) {
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.textContent = 'X';
+        closeBtn.setAttribute('aria-label', 'Zamknij mobile trip debug');
+        Object.assign(closeBtn.style, {
+          position: 'absolute',
+          top: '4px',
+          right: '6px',
+          zIndex: '2147483647',
+          border: '1px solid white',
+          background: 'transparent',
+          color: 'white',
+          cursor: 'pointer',
+          fontWeight: '700',
+          padding: '0 6px'
+        });
+        closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
+        panel.appendChild(closeBtn);
+        panel.dataset.closeButtonBound = '1';
+      }
+
+      if (!panel.dataset.dragBound) {
+        panel.addEventListener('touchstart', (event) => {
+          if (event.target && event.target.tagName === 'BUTTON') return;
+          const touch = event.touches && event.touches[0];
+          if (!touch) return;
+          mobileTripDebugDragActive = true;
+          mobileTripDebugDragStartX = touch.clientX - mobileTripDebugOffsetX;
+          mobileTripDebugDragStartY = touch.clientY - mobileTripDebugOffsetY;
+        }, { passive: true });
+        panel.addEventListener('touchmove', (event) => {
+          if (!mobileTripDebugDragActive) return;
+          const touch = event.touches && event.touches[0];
+          if (!touch) return;
+          mobileTripDebugOffsetX = touch.clientX - mobileTripDebugDragStartX;
+          mobileTripDebugOffsetY = touch.clientY - mobileTripDebugDragStartY;
+          applyMobileTripDebugTransform(panel);
+        }, { passive: true });
+        panel.addEventListener('touchend', () => { mobileTripDebugDragActive = false; }, { passive: true });
+        panel.addEventListener('touchcancel', () => { mobileTripDebugDragActive = false; }, { passive: true });
+        panel.dataset.dragBound = '1';
+      }
+
+      let logEl = panel.querySelector('[data-role="mobile-trip-debug-log"]');
+      if (!logEl) {
+        logEl = document.createElement('div');
+        logEl.dataset.role = 'mobile-trip-debug-log';
+        logEl.style.paddingTop = '22px';
+        panel.appendChild(logEl);
+      }
+      if (!logEl.textContent || !logEl.textContent.trim()) {
+        logEl.textContent = 'mobile trip debug ready v5';
       }
       return panel;
     }
@@ -12614,7 +12685,9 @@ function confirmLayerDelete() {
         mobileTripDebugLines.push(line);
         if (mobileTripDebugLines.length > 80) mobileTripDebugLines.shift();
         const panel = ensureMobileTripDebugPanel();
-        panel.textContent = mobileTripDebugLines.join('\n');
+        const logEl = panel.querySelector('[data-role="mobile-trip-debug-log"]') || panel;
+        logEl.textContent = mobileTripDebugLines.join('\n');
+        panel.scrollTop = panel.scrollHeight;
       } catch (_) {}
     }
     ensureMobileTripDebugPanel();
