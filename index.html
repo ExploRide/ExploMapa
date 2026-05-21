@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v11" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v12" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -823,12 +823,19 @@ body, #sidebar, #basemap-switcher {
 .trip-mode-toggle button { flex:1; background:#1d2028; color:#ddd; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:6px; }
 .trip-mode-toggle button.active { background:var(--ui-accent); color:#fff; border-color:var(--ui-accent); }
 #modeTripBtn,
-#modePinsBtn,
+#modePinsBtn {
+  position: relative;
+  z-index: 50;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
 .trip-mode-toggle {
-  position: relative !important;
-  z-index: 2147483647 !important;
-  pointer-events: auto !important;
-  touch-action: manipulation !important;
+  position: relative;
+  z-index: 10;
+  pointer-events: none;
+}
+.trip-mode-toggle button {
+  pointer-events: auto;
 }
 #mobileTripDebug,
 #htmlHardDebugV3,
@@ -842,7 +849,7 @@ body, #sidebar, #basemap-switcher {
   position: fixed !important;
   top: 180px !important;
   left: 10px !important;
-  z-index: 2147483647 !important;
+  z-index: 1 !important;
   background: rgba(255,0,255,0.95) !important;
   color: white !important;
   font-size: 13px !important;
@@ -855,8 +862,8 @@ body, #sidebar, #basemap-switcher {
   overflow-x: hidden !important;
   white-space: pre-wrap !important;
   word-break: break-word !important;
-  pointer-events: auto !important;
-  touch-action: pan-y !important;
+  pointer-events: none !important;
+  touch-action: none !important;
   -webkit-overflow-scrolling: touch !important;
   border: 2px solid white !important;
 }
@@ -2118,9 +2125,9 @@ img.emoji {
   </style>
 </head>
 <body>
-  <div id="mobileTripDebug">MOBILE TRIP DEBUG V11 - HTML STATIC</div>
+  <div id="mobileTripDebug">MOBILE TRIP DEBUG V12 - HTML STATIC</div>
 <div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
-HTML DEBUG V11
+HTML DEBUG V12
 </div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="banner" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 12px;border-radius:4px;z-index:2000;"></div>
@@ -2401,15 +2408,15 @@ HTML DEBUG V11
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v11"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v11"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v12"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v12"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v11"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v12"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v11';
+    const APP_BUILD = 'trip-debug-2026-05-21-v12';
     window.rawTripDebug = function(msg) {
       // Debug wyłączony. Funkcja musi istnieć, bo używają jej inline handlery #modeTripBtn.
     };
@@ -2474,6 +2481,7 @@ HTML DEBUG V11
         return;
       }
       forceTripRunning = true;
+      setTimeout(() => { forceTripRunning = false; }, 400);
       window.rawTripDebug('FORCE INLINE TRIP START');
       window.rawTripDebug('window.setTripMode typeof=' + typeof window.setTripMode);
 
@@ -2485,7 +2493,6 @@ HTML DEBUG V11
         if (e) {
           e.preventDefault?.();
           e.stopPropagation?.();
-          e.stopImmediatePropagation?.();
         }
 
         if (typeof window.setTripMode === 'function') {
@@ -2514,12 +2521,11 @@ HTML DEBUG V11
           await window.activateTripModeFallback();
         }
       } finally {
-        forceTripRunning = false;
       }
     };
 
     document.addEventListener('DOMContentLoaded', function() {
-      window.rawTripDebug('DOM READY V11');
+      window.rawTripDebug('DOM READY V12');
       window.rawTripDebug('modeTripBtn exists: ' + !!document.getElementById('modeTripBtn'));
       window.rawTripDebug('modeTripBtn count: ' + document.querySelectorAll('#modeTripBtn').length);
       window.rawTripDebug('typeof forceTripFromInline: ' + typeof window.forceTripFromInline);
@@ -12907,7 +12913,17 @@ function confirmLayerDelete() {
         e.stopPropagation();
       }
       console.log(`Pins mode activated by: ${e?.type || 'unknown'}`);
-      setTripMode('pins');
+      if (typeof window.setTripMode === 'function') {
+        window.setTripMode('pins');
+      } else {
+        tripPlannerMode = 'pins';
+        document.body.classList.remove('trip-planner-mode');
+        document.getElementById('modePinsBtn')?.classList.add('active');
+        document.getElementById('modeTripBtn')?.classList.remove('active');
+        const tripPlannerPanel = document.getElementById('tripPlannerPanel');
+        if (tripPlannerPanel) tripPlannerPanel.style.display = 'none';
+        if (typeof window.applyTripPlannerPinVisibility === 'function') window.applyTripPlannerPinVisibility();
+      }
     }
 
     function setTripMode(mode) {
@@ -12953,7 +12969,6 @@ function confirmLayerDelete() {
 
       try { sourceEvent?.preventDefault?.(); } catch (_) {}
       try { sourceEvent?.stopPropagation?.(); } catch (_) {}
-      try { sourceEvent?.stopImmediatePropagation?.(); } catch (_) {}
 
       mobileTripDebug(`FORCE TRIP ACTIVATION from: ${sourceName}`);
       const tripBtnCount = document.querySelectorAll('#modeTripBtn').length;
@@ -12992,19 +13007,12 @@ function confirmLayerDelete() {
     const supportsPointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
 
     if (modePinsBtn) {
-      if (supportsPointerEvents) {
-        modePinsBtn.addEventListener('pointerup', activatePinsModeFromEvent);
-      } else {
-        modePinsBtn.addEventListener('touchend', activatePinsModeFromEvent, { passive: false });
-        modePinsBtn.addEventListener('click', activatePinsModeFromEvent);
-      }
+      modePinsBtn.addEventListener('pointerup', activatePinsModeFromEvent);
+      modePinsBtn.addEventListener('touchend', activatePinsModeFromEvent, { passive: false });
+      modePinsBtn.addEventListener('click', activatePinsModeFromEvent);
     }
 
-    document.addEventListener('pointerdown', mobileTripGlobalCaptureHandler, true);
-    document.addEventListener('pointerup', mobileTripGlobalCaptureHandler, true);
-    document.addEventListener('touchstart', mobileTripGlobalCaptureHandler, true);
-    document.addEventListener('touchend', mobileTripGlobalCaptureHandler, true);
-    document.addEventListener('click', mobileTripGlobalCaptureHandler, true);
+    // Global capture listeners disabled to avoid blocking interactions in trip planner UI.
 
     if (modeTripBtn) {
       modeTripBtn.onclick = function(e) {
@@ -13080,7 +13088,7 @@ function confirmLayerDelete() {
         console.error('Trip planner: błąd zapisu Firestore przy tworzeniu tripa.', err);
       }
     });
-    document.getElementById('tripActiveBox')?.addEventListener('click', async (e) => {
+    const handleTripActiveBoxAction = async (e) => {
       const trip = getActiveTrip(); if (!trip) return;
       const targetEl = e.target instanceof Element ? e.target : null;
       const addDayBtn = targetEl?.closest('#tripAddDayBtn');
@@ -13206,7 +13214,10 @@ function confirmLayerDelete() {
         await saveTrip(trip.id);
         renderTripPlannerPanel(); renderTripMapLayers(); return;
       }
-    });
+    };
+    document.getElementById('tripActiveBox')?.addEventListener('click', handleTripActiveBoxAction);
+    document.getElementById('tripActiveBox')?.addEventListener('pointerup', handleTripActiveBoxAction);
+    document.getElementById('tripActiveBox')?.addEventListener('touchend', handleTripActiveBoxAction, { passive: false });
     document.getElementById('tripActiveBox')?.addEventListener('change', async (e) => {
       const trip = getActiveTrip(); if (!trip) return;
       if (e.target.dataset.dayColor) {
