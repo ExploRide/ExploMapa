@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <title>ExploMapa V3 DEBUG</title>
+  <title>ExploMapa V3</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="manifest" href="/ExploMapa/manifest.json" />
   <meta name="theme-color" content="#000000" />
@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v10" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v11" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -822,36 +822,6 @@ body, #sidebar, #basemap-switcher {
 .trip-mode-toggle { display:flex; gap:6px; margin:8px 0; }
 .trip-mode-toggle button { flex:1; background:#1d2028; color:#ddd; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:6px; }
 .trip-mode-toggle button.active { background:var(--ui-accent); color:#fff; border-color:var(--ui-accent); }
-#modeTripBtn,
-#modePinsBtn,
-.trip-mode-toggle {
-  position: relative !important;
-  z-index: 2147483647 !important;
-  pointer-events: auto !important;
-  touch-action: manipulation !important;
-}
-#mobileTripDebug {
-  position: fixed !important;
-  top: 180px !important;
-  left: 10px !important;
-  z-index: 2147483647 !important;
-  background: rgba(255,0,255,0.95) !important;
-  color: white !important;
-  font-size: 13px !important;
-  padding: 10px !important;
-  width: calc(100vw - 20px) !important;
-  max-width: calc(100vw - 20px) !important;
-  height: 45vh !important;
-  max-height: 45vh !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  white-space: pre-wrap !important;
-  word-break: break-word !important;
-  pointer-events: auto !important;
-  touch-action: pan-y !important;
-  -webkit-overflow-scrolling: touch !important;
-  border: 2px solid white !important;
-}
 body.trip-planner-mode #tripPlannerPanel { display:block !important; }
 body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
 .trip-planner-panel { background:#17191f; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:8px; margin-bottom:8px; }
@@ -2110,10 +2080,6 @@ img.emoji {
   </style>
 </head>
 <body>
-  <div id="mobileTripDebug">MOBILE TRIP DEBUG V10 - HTML STATIC</div>
-<div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
-HTML DEBUG V10
-</div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="banner" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 12px;border-radius:4px;z-index:2000;"></div>
   <div id="toast"></div>
@@ -2135,13 +2101,7 @@ HTML DEBUG V10
       </div>
       <div class="trip-mode-toggle">
         <button id="modePinsBtn" class="active" type="button">Pinezki</button>
-        <button id="modeTripBtn" type="button"
-  onpointerdown="window.rawTripDebug('INLINE pointerdown modeTripBtn')"
-  onpointerup="window.rawTripDebug('INLINE pointerup modeTripBtn'); window.rawTripDebug('before forceTripFromInline typeof=' + typeof window.forceTripFromInline); window.forceTripFromInline(event)"
-  ontouchstart="window.rawTripDebug('INLINE touchstart modeTripBtn')"
-  ontouchend="window.rawTripDebug('INLINE touchend modeTripBtn'); window.rawTripDebug('before forceTripFromInline typeof=' + typeof window.forceTripFromInline); window.forceTripFromInline(event)"
-  onclick="window.rawTripDebug('INLINE click modeTripBtn'); window.rawTripDebug('before forceTripFromInline typeof=' + typeof window.forceTripFromInline); window.forceTripFromInline(event)"
->Plan tripu</button>
+        <button id="modeTripBtn" type="button">Plan tripu</button>
       </div>
       <button id="mobileControlsToggle" type="button" aria-expanded="false" aria-controls="sidebarTopControls">
         Filtry i akcje <span class="mobile-controls-indicator">▼</span>
@@ -2393,174 +2353,15 @@ HTML DEBUG V10
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v10"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v10"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v11"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v11"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v10"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v11"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v10';
-    window.rawTripDebug = function(msg) {
-      var el = document.getElementById('mobileTripDebug');
-      if (!el) {
-        el = document.createElement('div');
-        el.id = 'mobileTripDebug';
-        document.body.appendChild(el);
-      }
-      el.style.cssText = 'position:fixed!important;top:180px!important;left:10px!important;z-index:2147483647!important;background:rgba(255,0,255,0.95)!important;color:white!important;font-size:13px!important;padding:10px!important;width:calc(100vw - 20px)!important;max-width:calc(100vw - 20px)!important;height:45vh!important;max-height:45vh!important;overflow-y:auto!important;overflow-x:hidden!important;white-space:pre-wrap!important;word-break:break-word!important;pointer-events:auto!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch!important;border:2px solid white!important;display:block!important;visibility:visible!important;opacity:1!important;';
-      el.textContent += '\n' + msg;
-      el.scrollTop = el.scrollHeight;
-    };
-
-    window.onerror = function(msg, src, line, col, err) {
-      window.rawTripDebug('WINDOW ERROR: ' + msg + ' line:' + line);
-    };
-
-    window.addEventListener('unhandledrejection', function(e) {
-      window.rawTripDebug('PROMISE ERROR: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
-    });
-
-
-    let forceTripRunning = false;
-
-    window.activateTripModeFallback = async function() {
-      window.rawTripDebug('activateTripModeFallback START');
-
-      tripPlannerMode = 'trip';
-      document.body.classList.add('trip-planner-mode');
-
-      const modePinsBtn = document.getElementById('modePinsBtn');
-      const modeTripBtn = document.getElementById('modeTripBtn');
-      const tripPlannerPanel = document.getElementById('tripPlannerPanel');
-      const sidebar = document.getElementById('sidebar');
-
-      if (modePinsBtn) modePinsBtn.classList.remove('active');
-      if (modeTripBtn) modeTripBtn.classList.add('active');
-
-      if (tripPlannerPanel) {
-        tripPlannerPanel.style.display = 'block';
-        tripPlannerPanel.style.visibility = 'visible';
-        tripPlannerPanel.style.opacity = '1';
-      }
-
-      if (sidebar) sidebar.classList.add('show');
-
-      window.rawTripDebug('fallback UI OK');
-
-      await window.loadTrips();
-      window.rawTripDebug('loadTrips OK');
-
-      window.renderTripPlannerPanel();
-      window.rawTripDebug('renderTripPlannerPanel OK');
-
-      if (typeof window.renderTripMapLayers === 'function') {
-        window.renderTripMapLayers();
-        window.rawTripDebug('renderTripMapLayers OK');
-      }
-
-      if (typeof window.applyTripPlannerPinVisibility === 'function') {
-        window.applyTripPlannerPinVisibility();
-        window.rawTripDebug('applyTripPlannerPinVisibility OK');
-      }
-
-      window.rawTripDebug('activateTripModeFallback DONE');
-    };
-
-    window.forceTripFromInline = async function(e) {
-      if (forceTripRunning) {
-        window.rawTripDebug('FORCE INLINE TRIP SKIP (lock)');
-        return;
-      }
-      forceTripRunning = true;
-      window.rawTripDebug('FORCE INLINE TRIP START');
-      window.rawTripDebug('window.setTripMode typeof=' + typeof window.setTripMode);
-
-      try {
-        if (typeof window.loadTrips !== 'function' || typeof window.renderTripPlannerPanel !== 'function') {
-          throw new Error('forceTripFromInline dependencies unavailable');
-        }
-
-        if (e) {
-          e.preventDefault?.();
-          e.stopPropagation?.();
-          e.stopImmediatePropagation?.();
-        }
-
-        if (typeof window.setTripMode === 'function') {
-          window.setTripMode('trip');
-          window.rawTripDebug('setTripMode OK');
-          document.body.classList.add('trip-planner-mode');
-          window.rawTripDebug('body class OK');
-
-          const panel = document.getElementById('tripPlannerPanel');
-          const sidebar = document.getElementById('sidebar');
-          if (panel) {
-            panel.style.display = 'block';
-            panel.style.visibility = 'visible';
-            panel.style.opacity = '1';
-          }
-          if (sidebar) sidebar.classList.add('show');
-
-          await window.loadTrips();
-          window.rawTripDebug('loadTrips OK');
-          window.renderTripPlannerPanel();
-          window.rawTripDebug('renderTripPlannerPanel OK');
-          if (typeof window.renderTripMapLayers === 'function') window.renderTripMapLayers();
-          if (typeof window.applyTripPlannerPinVisibility === 'function') window.applyTripPlannerPinVisibility();
-          window.rawTripDebug('DONE');
-        } else {
-          await window.activateTripModeFallback();
-        }
-      } finally {
-        forceTripRunning = false;
-      }
-    };
-
-    document.addEventListener('DOMContentLoaded', function() {
-      window.rawTripDebug('DOM READY V10');
-      window.rawTripDebug('modeTripBtn exists: ' + !!document.getElementById('modeTripBtn'));
-      window.rawTripDebug('modeTripBtn count: ' + document.querySelectorAll('#modeTripBtn').length);
-      window.rawTripDebug('typeof forceTripFromInline: ' + typeof window.forceTripFromInline);
-      window.rawTripDebug('typeof window.setTripMode: ' + typeof window.setTripMode);
-      window.rawTripDebug('typeof window.loadTrips: ' + typeof window.loadTrips);
-      window.rawTripDebug('typeof window.renderTripPlannerPanel: ' + typeof window.renderTripPlannerPanel);
-    });
-    console.log('APP BUILD:', APP_BUILD, new Date().toISOString());
-
-    const buildBadge = document.createElement('div');
-    buildBadge.id = 'app-build-badge';
-    buildBadge.textContent = APP_BUILD;
-    Object.assign(buildBadge.style, {
-      position: 'fixed',
-      right: '8px',
-      bottom: '8px',
-      zIndex: '99999',
-      background: 'rgba(0, 0, 0, 0.7)',
-      color: '#7CFF7C',
-      font: '11px/1.2 monospace',
-      padding: '3px 6px',
-      borderRadius: '4px',
-      pointerEvents: 'none'
-    });
-    document.addEventListener('DOMContentLoaded', () => {
-      document.body.appendChild(buildBadge);
-    });
-
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(reg => reg.unregister());
-        console.log('Service workers unregistered:', regs.length);
-      });
-    }
-
-    if ('caches' in window) {
-      caches.keys().then(keys => {
-        keys.forEach(key => caches.delete(key));
-        console.log('Caches cleared:', keys);
-      });
-    }
+    const APP_BUILD = 'trip-debug-2026-05-21-v11';
 
     const DEFAULT_ROUTE_COLOR = '#00ccff';
     const DEFAULT_ROUTE_OPACITY = 1;
@@ -12584,215 +12385,24 @@ function confirmLayerDelete() {
     function isTouchOrPointerEvent(e) {
       return !!e && (e.type === 'touchend' || e.type === 'pointerup');
     }
-
-    let tripModeMutationObserverAttached = false;
-    function attachTripModeMutationObserver() {
-      if (tripModeMutationObserverAttached || typeof MutationObserver === 'undefined') return;
-      const tripPanel = document.getElementById('tripPlannerPanel');
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.type !== 'attributes') return;
-          if (mutation.target === document.body && mutation.attributeName === 'class') {
-            console.log('[trip-mode][observer] body.class changed', document.body.className);
-          }
-          if (tripPanel && mutation.target === tripPanel && mutation.attributeName === 'style') {
-            console.log('[trip-mode][observer] tripPlannerPanel.style changed', tripPanel.getAttribute('style') || '');
-          }
-        });
-      });
-      observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-      if (tripPanel) observer.observe(tripPanel, { attributes: true, attributeFilter: ['style'] });
-      tripModeMutationObserverAttached = true;
-      console.log('[trip-mode] mutation observers attached');
-    }
-
-    function logTripModeDiagnostics(eventType) {
-      const tripPanel = document.getElementById('tripPlannerPanel');
-      const tripActiveBox = document.getElementById('tripActiveBox');
-      const sidebar = document.getElementById('sidebar');
-      const styles = tripPanel ? window.getComputedStyle(tripPanel) : null;
-      console.log('[trip-mode][diagnostics]', {
-        eventType,
-        bodyHasTripPlannerMode: document.body.classList.contains('trip-planner-mode'),
-        bodyClassName: document.body.className,
-        tripPlannerPanelExists: !!tripPanel,
-        tripPlannerPanelComputedDisplay: styles?.display,
-        tripPlannerPanelInlineDisplay: tripPanel?.style?.display ?? null,
-        tripPlannerPanelComputedVisibility: styles?.visibility,
-        tripPlannerPanelComputedOpacity: styles?.opacity,
-        tripActiveBoxExists: !!tripActiveBox,
-        tripActiveBoxInnerHtmlLength: tripActiveBox?.innerHTML?.length ?? 0,
-        tripPlannerTripsLength: Array.isArray(tripPlannerTrips) ? tripPlannerTrips.length : -1,
-        activeTripId,
-        sidebarHasShow: !!sidebar?.classList?.contains('show'),
-        windowInnerWidth: window.innerWidth,
-        pointerCoarse: window.matchMedia('(pointer: coarse)').matches,
-        userAgent: navigator.userAgent
-      });
-    }
-
-
-    const mobileTripDebugLines = [];
-    let mobileTripDebugOffsetX = 0;
-    let mobileTripDebugOffsetY = 0;
-    let mobileTripDebugDragActive = false;
-    let mobileTripDebugDragStartX = 0;
-    let mobileTripDebugDragStartY = 0;
-
-    function applyMobileTripDebugTransform(panel) {
-      panel.style.transform = `translate(${mobileTripDebugOffsetX}px, ${mobileTripDebugOffsetY}px)`;
-    }
-
-    function ensureMobileTripDebugPanel() {
-      let panel = document.getElementById('mobileTripDebug');
-      if (!panel) {
-        panel = document.createElement('div');
-        panel.id = 'mobileTripDebug';
-        document.body.appendChild(panel);
-      }
-      Object.assign(panel.style, {
-        position: 'fixed',
-        top: '180px',
-        left: '10px',
-        zIndex: '2147483647',
-        display: 'block',
-        visibility: 'visible',
-        opacity: '1',
-        background: 'rgba(255,0,255,0.95)',
-        color: 'white',
-        fontSize: '13px',
-        padding: '10px',
-        width: 'calc(100vw - 20px)',
-        maxWidth: 'calc(100vw - 20px)',
-        height: '45vh',
-        maxHeight: '45vh',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-        pointerEvents: 'auto',
-        touchAction: 'pan-y',
-        WebkitOverflowScrolling: 'touch',
-        border: '2px solid white'
-      });
-      applyMobileTripDebugTransform(panel);
-
-      if (!panel.dataset.closeButtonBound) {
-        const closeBtn = document.createElement('button');
-        closeBtn.type = 'button';
-        closeBtn.textContent = 'X';
-        closeBtn.setAttribute('aria-label', 'Zamknij mobile trip debug');
-        Object.assign(closeBtn.style, {
-          position: 'absolute',
-          top: '4px',
-          right: '6px',
-          zIndex: '2147483647',
-          border: '1px solid white',
-          background: 'transparent',
-          color: 'white',
-          cursor: 'pointer',
-          fontWeight: '700',
-          padding: '0 6px'
-        });
-        closeBtn.addEventListener('click', () => { panel.style.display = 'none'; });
-        panel.appendChild(closeBtn);
-        panel.dataset.closeButtonBound = '1';
-      }
-
-      if (!panel.dataset.dragBound) {
-        panel.addEventListener('touchstart', (event) => {
-          if (event.target && event.target.tagName === 'BUTTON') return;
-          const touch = event.touches && event.touches[0];
-          if (!touch) return;
-          mobileTripDebugDragActive = true;
-          mobileTripDebugDragStartX = touch.clientX - mobileTripDebugOffsetX;
-          mobileTripDebugDragStartY = touch.clientY - mobileTripDebugOffsetY;
-        }, { passive: true });
-        panel.addEventListener('touchmove', (event) => {
-          if (!mobileTripDebugDragActive) return;
-          const touch = event.touches && event.touches[0];
-          if (!touch) return;
-          mobileTripDebugOffsetX = touch.clientX - mobileTripDebugDragStartX;
-          mobileTripDebugOffsetY = touch.clientY - mobileTripDebugDragStartY;
-          applyMobileTripDebugTransform(panel);
-        }, { passive: true });
-        panel.addEventListener('touchend', () => { mobileTripDebugDragActive = false; }, { passive: true });
-        panel.addEventListener('touchcancel', () => { mobileTripDebugDragActive = false; }, { passive: true });
-        panel.dataset.dragBound = '1';
-      }
-
-      let logEl = panel.querySelector('[data-role="mobile-trip-debug-log"]');
-      if (!logEl) {
-        logEl = document.createElement('div');
-        logEl.dataset.role = 'mobile-trip-debug-log';
-        logEl.style.paddingTop = '22px';
-        panel.appendChild(logEl);
-      }
-      if (!logEl.textContent || !logEl.textContent.trim()) {
-        logEl.textContent = 'mobile trip debug ready v5';
-      }
-      return panel;
-    }
-
-    function mobileTripDebug(message) {
-      try {
-        const line = `[${new Date().toLocaleTimeString('pl-PL', { hour12: false })}] ${String(message)}`;
-        mobileTripDebugLines.push(line);
-        if (mobileTripDebugLines.length > 80) mobileTripDebugLines.shift();
-        const panel = ensureMobileTripDebugPanel();
-        const logEl = panel.querySelector('[data-role="mobile-trip-debug-log"]') || panel;
-        logEl.textContent = mobileTripDebugLines.join('\n');
-        panel.scrollTop = panel.scrollHeight;
-      } catch (_) {}
-    }
-    ensureMobileTripDebugPanel();
-    mobileTripDebug('mobile trip debug ready v5');
-
-    function mobileTripDebugState(stageLabel) {
-      const tripPanel = document.getElementById('tripPlannerPanel');
-      const tripActiveBox = document.getElementById('tripActiveBox');
-      const sidebar = document.getElementById('sidebar');
-      const computedDisplay = tripPanel ? getComputedStyle(tripPanel).display : 'n/a';
-      const inlineDisplay = tripPanel?.style?.display ?? 'n/a';
-      const activeLen = tripActiveBox?.innerHTML?.length ?? 0;
-      const tripsLen = Array.isArray(tripPlannerTrips) ? tripPlannerTrips.length : -1;
-      const sidebarShow = !!sidebar?.classList?.contains('show');
-      const pointerCoarse = window.matchMedia('(pointer: coarse)').matches;
-      mobileTripDebug(`${stageLabel} | body.trip=${document.body.classList.contains('trip-planner-mode')} | computed=${computedDisplay} | inline=${inlineDisplay} | activeLen=${activeLen} | trips=${tripsLen} | activeTripId=${activeTripId ?? 'null'} | sidebar.show=${sidebarShow} | w=${window.innerWidth} | coarse=${pointerCoarse}`);
-    }
-
     async function activateTripModeFromEvent(e) {
       const eventType = e?.type || 'unknown';
-      mobileTripDebug(`click modeTripBtn (${eventType})`);
-      mobileTripDebugState('handler start');
 
       if (isTouchOrPointerEvent(e)) {
         e.preventDefault();
         e.stopPropagation();
       }
 
-      try {
-        attachTripModeMutationObserver();
-        logTripModeDiagnostics(`${eventType}:before`);
-      } catch (error) {
-        mobileTripDebug(`ERROR na etapie diagnostics before: ${error?.message || error}`);
-      }
 
       try {
         setTripMode('trip');
-        mobileTripDebug('setTripMode trip OK');
-        mobileTripDebugState('after setTripMode');
       } catch (error) {
-        mobileTripDebug(`ERROR na etapie setTripMode: ${error?.message || error}`);
         return;
       }
 
       try {
         document.body.classList.add('trip-planner-mode');
-        mobileTripDebug('body class OK');
-        mobileTripDebugState('after body class');
       } catch (error) {
-        mobileTripDebug(`ERROR na etapie body class add: ${error?.message || error}`);
         return;
       }
 
@@ -12807,48 +12417,30 @@ function confirmLayerDelete() {
       const user = firebase.auth().currentUser;
       if (!user) {
         showToast('Najpierw zaloguj się');
-        mobileTripDebug('ERROR na etapie user check: brak zalogowanego użytkownika');
-        mobileTripDebugState('no-user');
         return;
       }
 
       try {
-        mobileTripDebug('loadTrips start');
-        mobileTripDebugState('before loadTrips');
         await loadTrips();
-        mobileTripDebug('loadTrips OK');
-        mobileTripDebugState('after loadTrips');
       } catch (error) {
-        mobileTripDebug(`ERROR na etapie loadTrips: ${error?.message || error}`);
         return;
       }
 
       try {
-        mobileTripDebug('renderTripPlannerPanel start');
-        mobileTripDebugState('before renderTripPlannerPanel');
         renderTripPlannerPanel();
-        mobileTripDebug('renderTripPlannerPanel OK');
-        mobileTripDebugState('after renderTripPlannerPanel');
       } catch (error) {
-        mobileTripDebug(`ERROR na etapie renderTripPlannerPanel: ${error?.message || error}`);
         return;
       }
 
       try {
         renderTripMapLayers();
-        mobileTripDebug('renderTripMapLayers OK');
-        mobileTripDebugState('after renderTripMapLayers');
       } catch (error) {
-        mobileTripDebug(`ERROR na etapie renderTripMapLayers: ${error?.message || error}`);
         return;
       }
 
       try {
         applyTripPlannerPinVisibility();
-        mobileTripDebug('applyTripPlannerPinVisibility OK');
-        mobileTripDebugState('after applyTripPlannerPinVisibility');
       } catch (error) {
-        mobileTripDebug(`ERROR na etapie applyTripPlannerPinVisibility: ${error?.message || error}`);
         return;
       }
 
@@ -12864,13 +12456,9 @@ function confirmLayerDelete() {
         setTimeout(() => {
           sidebar?.classList.add('show');
           tripPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          mobileTripDebugState('after mobile timeout');
         }, 150);
       }
 
-      logTripModeDiagnostics(`${eventType}:after`);
-      mobileTripDebug('DONE');
-      mobileTripDebugState('DONE');
     }
 
     function activatePinsModeFromEvent(e) {
@@ -12878,15 +12466,10 @@ function confirmLayerDelete() {
         e.preventDefault();
         e.stopPropagation();
       }
-      console.log(`Pins mode activated by: ${e?.type || 'unknown'}`);
       setTripMode('pins');
     }
 
     function setTripMode(mode) {
-      const prevMode = tripPlannerMode;
-      if (prevMode !== mode) {
-        console.log('[trip-mode] setTripMode', { prevMode, nextMode: mode });
-      }
       tripPlannerMode = mode;
       document.getElementById('modePinsBtn')?.classList.toggle('active', mode === 'pins');
       document.getElementById('modeTripBtn')?.classList.toggle('active', mode === 'trip');
@@ -12909,17 +12492,8 @@ function confirmLayerDelete() {
     const modePinsBtn = document.getElementById('modePinsBtn');
     const modeTripBtn = document.getElementById('modeTripBtn');
     let mobileTripForceLock = false;
-
-    function describeElementForMobileDebug(element) {
-      if (!(element instanceof Element)) return 'null';
-      return `${element.tagName || 'UNKNOWN'}#${element.id || ''}.${element.className || ''}`;
-    }
-
-    async function forceActivateTripModeFromMobileDebug(sourceEvent, sourceName) {
-      if (mobileTripForceLock) {
-        mobileTripDebug(`force activate ignored (lock): ${sourceName}`);
-        return;
-      }
+    async function forceActivateTripMode(sourceEvent) {
+      if (mobileTripForceLock) return;
       mobileTripForceLock = true;
       setTimeout(() => { mobileTripForceLock = false; }, 500);
 
@@ -12927,37 +12501,29 @@ function confirmLayerDelete() {
       try { sourceEvent?.stopPropagation?.(); } catch (_) {}
       try { sourceEvent?.stopImmediatePropagation?.(); } catch (_) {}
 
-      mobileTripDebug(`FORCE TRIP ACTIVATION from: ${sourceName}`);
-      const tripBtnCount = document.querySelectorAll('#modeTripBtn').length;
-      mobileTripDebug(`modeTripBtn count: ${tripBtnCount}`);
-
-      try { setTripMode('trip'); mobileTripDebug('FORCE setTripMode trip OK'); } catch (error) { mobileTripDebug(`FORCE ERROR setTripMode: ${error?.message || error}`); return; }
-      try { document.body.classList.add('trip-planner-mode'); mobileTripDebug('FORCE body class OK'); } catch (error) { mobileTripDebug(`FORCE ERROR body class: ${error?.message || error}`); return; }
+      try { setTripMode('trip'); } catch (_) { return; }
+      document.body.classList.add('trip-planner-mode');
       const tripPlannerPanel = document.getElementById('tripPlannerPanel');
       const sidebar = document.getElementById('sidebar');
-      try { if (tripPlannerPanel) tripPlannerPanel.style.display = 'block'; mobileTripDebug('FORCE tripPlannerPanel display block OK'); } catch (error) { mobileTripDebug(`FORCE ERROR panel display: ${error?.message || error}`); }
-      try { sidebar?.classList.add('show'); mobileTripDebug('FORCE sidebar show OK'); } catch (error) { mobileTripDebug(`FORCE ERROR sidebar show: ${error?.message || error}`); }
-      try { mobileTripDebug('FORCE loadTrips start'); await loadTrips(); mobileTripDebug('FORCE loadTrips OK'); } catch (error) { mobileTripDebug(`FORCE ERROR loadTrips: ${error?.message || error}`); return; }
-      try { renderTripPlannerPanel(); mobileTripDebug('FORCE renderTripPlannerPanel OK'); } catch (error) { mobileTripDebug(`FORCE ERROR renderTripPlannerPanel: ${error?.message || error}`); return; }
-      try { renderTripMapLayers(); mobileTripDebug('FORCE renderTripMapLayers OK'); } catch (error) { mobileTripDebug(`FORCE ERROR renderTripMapLayers: ${error?.message || error}`); return; }
-      try { applyTripPlannerPinVisibility(); mobileTripDebug('FORCE applyTripPlannerPinVisibility OK'); } catch (error) { mobileTripDebug(`FORCE ERROR applyTripPlannerPinVisibility: ${error?.message || error}`); return; }
-      mobileTripDebugState(`FORCE DONE ${sourceName}`);
+      if (tripPlannerPanel) tripPlannerPanel.style.display = 'block';
+      sidebar?.classList.add('show');
+
+      try { await loadTrips(); } catch (_) { return; }
+      try { renderTripPlannerPanel(); } catch (_) { return; }
+      try { renderTripMapLayers(); } catch (_) { return; }
+      try { applyTripPlannerPinVisibility(); } catch (_) { return; }
     }
+
+    window.activateTripModeFallback = forceActivateTripMode;
 
     function mobileTripGlobalCaptureHandler(event) {
       const target = event?.target instanceof Element ? event.target : null;
-      const targetDesc = describeElementForMobileDebug(target);
       const closestModeTripBtn = target?.closest?.('#modeTripBtn');
-      const closestTripToggle = target?.closest?.('.trip-mode-toggle');
       const pointX = Number.isFinite(event?.clientX) ? event.clientX : (event?.changedTouches?.[0]?.clientX ?? null);
       const pointY = Number.isFinite(event?.clientY) ? event.clientY : (event?.changedTouches?.[0]?.clientY ?? null);
       const pointedEl = (Number.isFinite(pointX) && Number.isFinite(pointY)) ? document.elementFromPoint(pointX, pointY) : null;
-      mobileTripDebug(`GLOBAL ${event.type} | target=${targetDesc} | closest(#modeTripBtn)=${!!closestModeTripBtn} | closest(.trip-mode-toggle)=${!!closestTripToggle} | elementFromPoint=${describeElementForMobileDebug(pointedEl)}`);
-
       const pointHitsTripBtn = !!(pointedEl && (pointedEl.id === 'modeTripBtn' || pointedEl.closest?.('#modeTripBtn')));
-      if (closestModeTripBtn || pointHitsTripBtn) {
-        forceActivateTripModeFromMobileDebug(event, `global-capture:${event.type}`);
-      }
+      if (closestModeTripBtn || pointHitsTripBtn) forceActivateTripMode(event);
     }
 
     const supportsPointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
@@ -12978,30 +12544,12 @@ function confirmLayerDelete() {
     document.addEventListener('click', mobileTripGlobalCaptureHandler, true);
 
     if (modeTripBtn) {
-      modeTripBtn.onclick = function(e) {
-        mobileTripDebug('INLINE onclick modeTripBtn');
-      };
-      modeTripBtn.addEventListener('pointerdown', (event) => {
-        mobileTripDebug('pointerdown modeTripBtn');
-        const el = document.elementFromPoint(event.clientX, event.clientY);
-        mobileTripDebug(`elementFromPoint: ${el?.tagName || 'null'}#${el?.id || ''}.${el?.className || ''}`);
-        mobileTripDebugState('pointerdown');
-      });
-      modeTripBtn.addEventListener('pointerup', () => {
-        mobileTripDebug('pointerup modeTripBtn');
-        mobileTripDebugState('pointerup');
-      });
-      modeTripBtn.addEventListener('click', () => {
-        mobileTripDebug('click modeTripBtn');
-        mobileTripDebugState('click');
-      });
       if (supportsPointerEvents) {
         modeTripBtn.addEventListener('pointerup', activateTripModeFromEvent);
       } else {
         modeTripBtn.addEventListener('touchend', activateTripModeFromEvent, { passive: false });
         modeTripBtn.addEventListener('click', activateTripModeFromEvent);
       }
-      mobileTripDebug(`modeTripBtn query count: ${document.querySelectorAll('#modeTripBtn').length}`);
     }
     document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; activeTripDayId = null; renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility(); });
     document.getElementById('tripPinsVisibilityToggle')?.addEventListener('click', () => { hideMainPinsInTripMode = !hideMainPinsInTripMode; applyTripPlannerPinVisibility(); });
