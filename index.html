@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v8" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v9" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2110,9 +2110,9 @@ img.emoji {
   </style>
 </head>
 <body>
-  <div id="mobileTripDebug">MOBILE TRIP DEBUG V8 - HTML STATIC</div>
+  <div id="mobileTripDebug">MOBILE TRIP DEBUG V9 - HTML STATIC</div>
 <div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
-HTML DEBUG V8
+HTML DEBUG V9
 </div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:0;right:0;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="banner" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 12px;border-radius:4px;z-index:2000;"></div>
@@ -2393,15 +2393,15 @@ HTML DEBUG V8
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v8"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v8"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v9"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v9"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v8"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v9"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v8';
+    const APP_BUILD = 'trip-debug-2026-05-21-v9';
     window.rawTripDebug = function(msg) {
       var el = document.getElementById('mobileTripDebug');
       if (!el) {
@@ -2425,8 +2425,9 @@ HTML DEBUG V8
 
     window.forceTripFromInline = async function(e) {
       window.rawTripDebug('FORCE INLINE TRIP START');
+      window.rawTripDebug('window.setTripMode typeof=' + typeof window.setTripMode);
       const retryCount = Number(e && e.__forceTripRetryCount) || 0;
-      if (typeof setTripMode !== 'function' || typeof loadTrips !== 'function') {
+      if (typeof window.setTripMode !== 'function' || typeof window.loadTrips !== 'function') {
         if (retryCount >= 10) {
           throw new Error('forceTripFromInline dependencies unavailable after retries');
         }
@@ -2444,7 +2445,7 @@ HTML DEBUG V8
         e.stopImmediatePropagation?.();
       }
 
-      setTripMode('trip');
+      window.setTripMode('trip');
       window.rawTripDebug('setTripMode OK');
       document.body.classList.add('trip-planner-mode');
       window.rawTripDebug('body class OK');
@@ -2468,13 +2469,13 @@ HTML DEBUG V8
     };
 
     document.addEventListener('DOMContentLoaded', function() {
-      window.rawTripDebug('DOM READY V7');
+      window.rawTripDebug('DOM READY V9');
       window.rawTripDebug('modeTripBtn exists: ' + !!document.getElementById('modeTripBtn'));
       window.rawTripDebug('modeTripBtn count: ' + document.querySelectorAll('#modeTripBtn').length);
       window.rawTripDebug('typeof forceTripFromInline: ' + typeof window.forceTripFromInline);
-      window.rawTripDebug('typeof setTripMode: ' + typeof setTripMode);
-      window.rawTripDebug('typeof loadTrips: ' + typeof loadTrips);
-      window.rawTripDebug('typeof renderTripPlannerPanel: ' + typeof renderTripPlannerPanel);
+      window.rawTripDebug('typeof window.setTripMode: ' + typeof window.setTripMode);
+      window.rawTripDebug('typeof window.loadTrips: ' + typeof window.loadTrips);
+      window.rawTripDebug('typeof window.renderTripPlannerPanel: ' + typeof window.renderTripPlannerPanel);
     });
     console.log('APP BUILD:', APP_BUILD, new Date().toISOString());
 
@@ -12848,6 +12849,8 @@ function confirmLayerDelete() {
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
     }
+
+    window.setTripMode = setTripMode;
 
     const modePinsBtn = document.getElementById('modePinsBtn');
     const modeTripBtn = document.getElementById('modeTripBtn');
