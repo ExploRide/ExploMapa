@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v1" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2353,14 +2353,50 @@ img.emoji {
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js"></script>
-  <script src="firestore-setup.js"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v1"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v1"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v1"></script>
 
   <script>
+    const APP_BUILD = 'trip-debug-2026-05-21-v1';
+    console.log('APP BUILD:', APP_BUILD, new Date().toISOString());
+
+    const buildBadge = document.createElement('div');
+    buildBadge.id = 'app-build-badge';
+    buildBadge.textContent = APP_BUILD;
+    Object.assign(buildBadge.style, {
+      position: 'fixed',
+      right: '8px',
+      bottom: '8px',
+      zIndex: '99999',
+      background: 'rgba(0, 0, 0, 0.7)',
+      color: '#7CFF7C',
+      font: '11px/1.2 monospace',
+      padding: '3px 6px',
+      borderRadius: '4px',
+      pointerEvents: 'none'
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+      document.body.appendChild(buildBadge);
+    });
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister());
+        console.log('Service workers unregistered:', regs.length);
+      });
+    }
+
+    if ('caches' in window) {
+      caches.keys().then(keys => {
+        keys.forEach(key => caches.delete(key));
+        console.log('Caches cleared:', keys);
+      });
+    }
+
     const DEFAULT_ROUTE_COLOR = '#00ccff';
     const DEFAULT_ROUTE_OPACITY = 1;
 
