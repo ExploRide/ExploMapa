@@ -835,6 +835,8 @@ body, #sidebar, #basemap-switcher {
   left: 8px;
   bottom: 8px;
   z-index: 2147483647;
+  display: block !important;
+  pointer-events: none;
   background: rgba(0,0,0,0.85);
   color: white;
   font-size: 11px;
@@ -12486,20 +12488,27 @@ function confirmLayerDelete() {
 
 
     const mobileTripDebugLines = [];
+    function ensureMobileTripDebugPanel() {
+      let panel = document.getElementById('mobileTripDebug');
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'mobileTripDebug';
+        document.body.appendChild(panel);
+      }
+      return panel;
+    }
+
     function mobileTripDebug(message) {
       try {
         const line = `[${new Date().toLocaleTimeString('pl-PL', { hour12: false })}] ${String(message)}`;
         mobileTripDebugLines.push(line);
         if (mobileTripDebugLines.length > 80) mobileTripDebugLines.shift();
-        let panel = document.getElementById('mobileTripDebug');
-        if (!panel) {
-          panel = document.createElement('div');
-          panel.id = 'mobileTripDebug';
-          document.body.appendChild(panel);
-        }
+        const panel = ensureMobileTripDebugPanel();
         panel.textContent = mobileTripDebugLines.join('\n');
       } catch (_) {}
     }
+    ensureMobileTripDebugPanel();
+    mobileTripDebug('mobile trip debug ready');
 
     function mobileTripDebugState(stageLabel) {
       const tripPanel = document.getElementById('tripPlannerPanel');
