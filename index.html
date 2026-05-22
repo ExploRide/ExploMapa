@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v14" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v15" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2412,15 +2412,15 @@ HTML DEBUG V12
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v14"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v14"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v15"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v15"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v14"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v15"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v14';
+    const APP_BUILD = 'trip-debug-2026-05-21-v15';
     window.rawTripDebug = function(msg) {
       // Debug wyłączony. Funkcja musi istnieć, bo używają jej inline handlery #modeTripBtn.
     };
@@ -13286,9 +13286,6 @@ function confirmLayerDelete() {
         renderTripPlannerPanel(); renderTripMapLayers(); return;
       }
     };
-    function shouldIgnoreTripTapBecauseScrolled(startX, startY, endX, endY) {
-      return Math.hypot(endX - startX, endY - startY) > 8;
-    }
     function updateTripActiveBoxMaxHeight() {
       const box = document.getElementById('tripActiveBox');
       if (!box) return;
@@ -13304,58 +13301,47 @@ function confirmLayerDelete() {
     window.visualViewport?.addEventListener('resize', updateTripActiveBoxMaxHeight);
     window.visualViewport?.addEventListener('scroll', updateTripActiveBoxMaxHeight);
     const tripActiveBoxEl = document.getElementById('tripActiveBox');
-    let tripTouchMoved = false;
     let tripTouchStartX = 0;
     let tripTouchStartY = 0;
-    let tripTouchEndX = 0;
-    let tripTouchEndY = 0;
-    let tripBlockNextClickAfterScroll = false;
-    tripActiveBoxEl?.addEventListener('touchstart', (event) => {
-      const touch = event.changedTouches?.[0];
-      if (!touch) return;
-      tripTouchStartX = touch.clientX;
-      tripTouchStartY = touch.clientY;
-      tripTouchEndX = touch.clientX;
-      tripTouchEndY = touch.clientY;
+    let tripTouchMoved = false;
+    let lastTripTouchActionAt = 0;
+    function getTripEventPoint(e) {
+      const t = e.changedTouches && e.changedTouches[0];
+      return {
+        x: t ? t.clientX : e.clientX,
+        y: t ? t.clientY : e.clientY
+      };
+    }
+    function isTripInteractiveTarget(target) {
+      return !!(target instanceof Element && target.closest(
+        '[data-trip-action], button, .trip-point-name, .trip-icon-btn, .trip-point-item button'
+      ));
+    }
+    tripActiveBoxEl?.addEventListener('touchstart', (e) => {
+      const p = getTripEventPoint(e);
+      tripTouchStartX = p.x || 0;
+      tripTouchStartY = p.y || 0;
       tripTouchMoved = false;
-      tripBlockNextClickAfterScroll = false;
     }, { passive: true });
-    tripActiveBoxEl?.addEventListener('touchmove', (event) => {
-      const touch = event.changedTouches?.[0];
-      if (!touch) return;
-      tripTouchEndX = touch.clientX;
-      tripTouchEndY = touch.clientY;
-      if (shouldIgnoreTripTapBecauseScrolled(tripTouchStartX, tripTouchStartY, tripTouchEndX, tripTouchEndY)) {
+    tripActiveBoxEl?.addEventListener('touchmove', (e) => {
+      const p = getTripEventPoint(e);
+      if (Math.hypot((p.x || 0) - tripTouchStartX, (p.y || 0) - tripTouchStartY) > 8) {
         tripTouchMoved = true;
       }
     }, { passive: true });
-    tripActiveBoxEl?.addEventListener('touchend', (event) => {
-      const touch = event.changedTouches?.[0];
-      if (touch) {
-        tripTouchEndX = touch.clientX;
-        tripTouchEndY = touch.clientY;
-      }
-      if (shouldIgnoreTripTapBecauseScrolled(tripTouchStartX, tripTouchStartY, tripTouchEndX, tripTouchEndY)) {
-        tripTouchMoved = true;
-      }
-      tripBlockNextClickAfterScroll = tripTouchMoved === true;
-      if (!tripTouchMoved) handleTripActiveBoxAction(event);
-    }, { passive: true });
-    tripActiveBoxEl?.addEventListener('click', (event) => {
-      if (!tripBlockNextClickAfterScroll) {
-        handleTripActiveBoxAction(event);
-        return;
-      }
-      const target = event.target instanceof Element ? event.target : null;
-      const allowDuringScroll = !!target?.closest('[data-trip-action], button, .trip-point-name, .trip-icon-btn, .trip-point-item button');
-      if (allowDuringScroll) {
-        tripBlockNextClickAfterScroll = false;
-        handleTripActiveBoxAction(event);
-        return;
-      }
-      tripBlockNextClickAfterScroll = false;
-    }, true);
-    tripActiveBoxEl?.addEventListener('pointerup', handleTripActiveBoxAction);
+    tripActiveBoxEl?.addEventListener('touchend', (e) => {
+      const p = getTripEventPoint(e);
+      const moved = tripTouchMoved || Math.hypot((p.x || 0) - tripTouchStartX, (p.y || 0) - tripTouchStartY) > 8;
+      if (moved) return;
+      const target = e.target;
+      if (!isTripInteractiveTarget(target)) return;
+      lastTripTouchActionAt = Date.now();
+      handleTripActiveBoxAction(e);
+    }, { passive: false });
+    tripActiveBoxEl?.addEventListener('click', (e) => {
+      if (Date.now() - lastTripTouchActionAt < 350) return;
+      handleTripActiveBoxAction(e);
+    });
     tripActiveBoxEl?.addEventListener('change', async (e) => {
       const trip = getActiveTrip(); if (!trip) return;
       if (e.target.dataset.dayColor) {
