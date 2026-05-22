@@ -13158,7 +13158,8 @@ function confirmLayerDelete() {
     });
     const handleTripActiveBoxAction = async (e) => {
       const trip = getActiveTrip(); if (!trip) return;
-      const targetEl = e.target instanceof Element ? e.target : null;
+      const eventTarget = e.target;
+      const targetEl = eventTarget instanceof Element ? eventTarget : eventTarget?.parentElement || null;
       const addDayBtn = targetEl?.closest('#tripAddDayBtn');
       const addPrivatePointBtn = targetEl?.closest('#tripAddPrivatePointBtn');
       const exportCsvBtn = targetEl?.closest('#tripExportCsvBtn');
@@ -13195,7 +13196,6 @@ function confirmLayerDelete() {
         e.stopPropagation();
         const action = actionEl.dataset.tripAction;
         if (action === 'focus-point') {
-          if (tripActiveBoxIsScrolling) return;
           const lat = Number(actionEl.dataset.lat);
           const lng = Number(actionEl.dataset.lng);
           const day = trip.days.find(x => x.id === actionEl.dataset.dayId);
@@ -13248,6 +13248,8 @@ function confirmLayerDelete() {
           if (!day || !Array.isArray(day.points)) return;
           const pointIndex = day.points.findIndex(x => x.id === pointId);
           if (pointIndex < 0) return;
+          const pointName = day.points[pointIndex]?.name || day.points[pointIndex]?.nameSnapshot || 'Punkt';
+          if (!confirm(`Czy na pewno chcesz usunąć ${pointName}?`)) return;
           const compatDb = getCompatDb();
           if (!compatDb) return;
           await compatDb.collection('trips').doc(activeTrip.id).collection('days').doc(day.id).collection('points').doc(pointId).delete().catch(() => {});
@@ -13275,9 +13277,9 @@ function confirmLayerDelete() {
         return;
       }
 
-      const dayCardEl = e.target.closest('.trip-day-card');
+      const dayCardEl = targetEl?.closest('.trip-day-card');
       if (dayCardEl) {
-        if (e.target.closest('.trip-point-item, button, input, select, textarea, label, a')) return;
+        if (targetEl?.closest('.trip-point-item, button, input, select, textarea, label, a')) return;
         activeTripDayId = dayCardEl.dataset.dayCard;
         trip.days.forEach(d => d.highlight = d.id === activeTripDayId);
         await saveTrip(trip.id);
