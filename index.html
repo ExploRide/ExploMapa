@@ -9975,17 +9975,8 @@ function getTripPointEmoji(p) {
     window.applyTripPlannerPinVisibility = applyTripPlannerPinVisibility;
 
 
-    function fitMapToTripPoints(trip) {
-      if (!map || !trip || !Array.isArray(trip.days)) return false;
-      const bounds = L.latLngBounds([]);
-      (trip.days || []).forEach(day => {
-        (day.points || []).forEach(point => {
-          const lat = Number(point.lat);
-          const lng = Number(point.lng);
-          if (Number.isFinite(lat) && Number.isFinite(lng)) bounds.extend([lat, lng]);
-        });
-      });
-      if (!bounds.isValid()) return false;
+    function fitMapToBounds(bounds) {
+      if (!map || !bounds?.isValid?.()) return false;
       try {
         map.fitBounds(bounds, {
           animate: true,
@@ -9999,6 +9990,30 @@ function getTripPointEmoji(p) {
         map.fitBounds(bounds.pad(0.3));
       }
       return true;
+    }
+
+    function fitMapToTripPoints(trip) {
+      if (!map || !trip || !Array.isArray(trip.days)) return false;
+      const bounds = L.latLngBounds([]);
+      (trip.days || []).forEach(day => {
+        (day.points || []).forEach(point => {
+          const lat = Number(point.lat);
+          const lng = Number(point.lng);
+          if (Number.isFinite(lat) && Number.isFinite(lng)) bounds.extend([lat, lng]);
+        });
+      });
+      return fitMapToBounds(bounds);
+    }
+
+    function fitMapToTripDayPoints(day) {
+      if (!map || !day || !Array.isArray(day.points)) return false;
+      const bounds = L.latLngBounds([]);
+      (day.points || []).forEach(point => {
+        const lat = Number(point.lat);
+        const lng = Number(point.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) bounds.extend([lat, lng]);
+      });
+      return fitMapToBounds(bounds);
     }
 
     function focusTripPointOnMap(point, dayId) {
@@ -13131,6 +13146,7 @@ function confirmLayerDelete() {
       document.getElementById('toggleLayers').textContent = mode === 'trip' ? '☰ Plan tripu' : '☰ Warstwy';
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
+      if (tripPlannerMode === 'trip') fitMapToTripPoints(getActiveTrip());
     }
 
     window.setTripMode = setTripMode;
@@ -13400,7 +13416,10 @@ function confirmLayerDelete() {
         activeTripDayId = dayCardEl.dataset.dayCard;
         trip.days.forEach(d => d.highlight = d.id === activeTripDayId);
         await saveTrip(trip.id);
-        renderTripPlannerPanel(); renderTripMapLayers(); return;
+        renderTripPlannerPanel();
+        renderTripMapLayers();
+        fitMapToTripDayPoints(trip.days.find(d => d.id === activeTripDayId));
+        return;
       }
     };
     function updateTripActiveBoxMaxHeight() {
@@ -13486,6 +13505,7 @@ function confirmLayerDelete() {
       renderTripPlannerPanel();
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
+      if (tripPlannerMode === 'trip') fitMapToTripPoints(getActiveTrip());
     });
     let tripDraggedPointId = null;
     let tripDraggedDayId = null;
