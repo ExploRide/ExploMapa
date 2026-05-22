@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v15" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v16" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2412,15 +2412,15 @@ HTML DEBUG V12
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v15"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v15"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v16"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v16"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v15"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v16"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v15';
+    const APP_BUILD = 'trip-debug-2026-05-21-v16';
     window.rawTripDebug = function(msg) {
       // Debug wyłączony. Funkcja musi istnieć, bo używają jej inline handlery #modeTripBtn.
     };
@@ -2554,6 +2554,123 @@ HTML DEBUG V12
         applyTripPlannerPinVisibility();
       } else if (typeof window.applyTripPlannerPinVisibility === 'function') {
         window.applyTripPlannerPinVisibility();
+      }
+    };
+
+    let lastInlineTripActionKey = '';
+    let lastInlineTripActionAt = 0;
+
+    window.forceTripActionFromInline = async function(e, el) {
+      if (e) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+      }
+
+      const actionEl = el?.closest?.('[data-trip-action]');
+      if (!actionEl) return;
+
+      const action = actionEl.dataset.tripAction;
+      const trip = typeof getActiveTrip === 'function' ? getActiveTrip() : null;
+      if (!trip) return;
+
+      const dayId = actionEl.dataset.dayId || actionEl.dataset.tripDayId;
+      const pointId = actionEl.dataset.pointId || actionEl.dataset.tripPointId;
+      const actionKey = `${action}:${dayId}:${pointId}`;
+      const now = Date.now();
+      if (actionKey === lastInlineTripActionKey && (now - lastInlineTripActionAt) < 350) return;
+      lastInlineTripActionKey = actionKey;
+      lastInlineTripActionAt = now;
+
+      const day = trip.days?.find?.(d => d.id === dayId);
+      const point = day?.points?.find?.(p => p.id === pointId);
+
+      if (action === 'focus-point') {
+        if (point && typeof focusTripPointOnMap === 'function') {
+          focusTripPointOnMap(point);
+          return;
+        }
+
+        const lat = Number(actionEl.dataset.lat);
+        const lng = Number(actionEl.dataset.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && map) {
+          if (typeof stopGpsFollow === 'function') stopGpsFollow('trip point inline focus');
+          try {
+            map.flyTo([lat, lng], 16, { duration: 0.75, easeLinearity: 0.45 });
+          } catch (err) {
+            map.setView([lat, lng], 16);
+          }
+        }
+        return;
+      }
+
+      if (action === 'move-point-up' || action === 'move-point-down') {
+        if (!day || !Array.isArray(day.points)) return;
+
+        const direction = action === 'move-point-up' ? -1 : 1;
+        day.points.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        const idx = day.points.findIndex(p => p.id === pointId);
+        const next = idx + direction;
+        if (idx < 0 || next < 0 || next >= day.points.length) return;
+
+        const beforePositions = typeof captureTripPointPositions === 'function'
+          ? captureTripPointPositions(day.id)
+          : null;
+
+        [day.points[idx], day.points[next]] = [day.points[next], day.points[idx]];
+        day.points.forEach((p, i) => { p.order = i + 1; });
+
+        renderTripPlannerPanel();
+
+        if (beforePositions && typeof animateTripPointReorder === 'function') {
+          animateTripPointReorder(day.id, beforePositions);
+        }
+
+        if (typeof saveTripDayPointOrder === 'function') {
+          await saveTripDayPointOrder(trip.id, day.id, day.points);
+        }
+
+        if (typeof recalculateTripDay === 'function') {
+          await recalculateTripDay(trip.id, day.id);
+        }
+
+        return;
+      }
+
+      if (action === 'delete-point') {
+        if (!day || !Array.isArray(day.points)) return;
+
+        const pointIndex = day.points.findIndex(p => p.id === pointId);
+        if (pointIndex < 0) return;
+
+        const pointName = day.points[pointIndex]?.name || day.points[pointIndex]?.nameSnapshot || 'Punkt';
+        if (!confirm(`Czy na pewno chcesz usunąć ${pointName}?`)) return;
+
+        const compatDb = typeof getCompatDb === 'function' ? getCompatDb() : null;
+        if (compatDb) {
+          await compatDb.collection('trips')
+            .doc(trip.id)
+            .collection('days')
+            .doc(day.id)
+            .collection('points')
+            .doc(pointId)
+            .delete()
+            .catch(() => {});
+        }
+
+        day.points.splice(pointIndex, 1);
+
+        if (typeof saveTripDayPointOrder === 'function') {
+          await saveTripDayPointOrder(trip.id, day.id, day.points);
+        }
+
+        if (typeof recalculateTripDay === 'function') {
+          await recalculateTripDay(trip.id, day.id);
+        }
+
+        if (typeof showToast === 'function') showToast('Usunięto punkt z tripa');
+
+        return;
       }
     };
 
@@ -9934,7 +10051,7 @@ function getTripPointEmoji(p) {
       box.innerHTML = `<div><b>${trip.name}</b></div>${tripRange}<button id="tripAddDayBtn" type="button">+ Dodaj dzień</button><button id="tripAddPrivatePointBtn" type="button">+ Punkt tylko do tripa</button><button id="tripExportCsvBtn" type="button">⬇️ CSV</button><button id="tripExportPdfBtn" type="button">⬇️ PDF</button><button id="tripDeleteBtn" class="trip-icon-btn" type="button" title="Usuń trip" aria-label="Usuń trip">🗑️</button>` + trip.days.map((d, idx) => {
         const summary = d.routeSummary || {};
         const points = (d.points || []).sort((a,b)=>(a.order||0)-(b.order||0));
-        const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-day-id="${d.id}" data-trip-day-id="${d.id}" data-point-id="${p.id}" data-trip-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-trip-day-id="${d.id}" data-trip-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" data-stop-row-click="1" class="trip-mobile-only trip-icon-btn">↑</button><button type="button" data-trip-action="move-point-down" class="trip-mobile-only trip-icon-btn" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" data-stop-row-click="1">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" data-stop-row-click="1" class="trip-icon-btn" title="Usuń punkt" aria-label="Usuń punkt">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
+        const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-day-id="${d.id}" data-trip-day-id="${d.id}" data-point-id="${p.id}" data-trip-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name" onpointerup="window.forceTripActionFromInline(event, this)" ontouchend="window.forceTripActionFromInline(event, this)" onclick="window.forceTripActionFromInline(event, this)" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-trip-day-id="${d.id}" data-trip-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" data-stop-row-click="1" class="trip-mobile-only trip-icon-btn" onpointerup="window.forceTripActionFromInline(event, this)" ontouchend="window.forceTripActionFromInline(event, this)" onclick="window.forceTripActionFromInline(event, this)">↑</button><button type="button" data-trip-action="move-point-down" class="trip-mobile-only trip-icon-btn" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" data-stop-row-click="1" onpointerup="window.forceTripActionFromInline(event, this)" ontouchend="window.forceTripActionFromInline(event, this)" onclick="window.forceTripActionFromInline(event, this)">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" data-stop-row-click="1" class="trip-icon-btn" title="Usuń punkt" aria-label="Usuń punkt" onpointerup="window.forceTripActionFromInline(event, this)" ontouchend="window.forceTripActionFromInline(event, this)" onclick="window.forceTripActionFromInline(event, this)">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
         return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><label class="trip-day-visible-toggle" title="Pokaż/ukryj trasę dnia"><input type="checkbox" data-day-visible="${d.id}" ${d.visible === false ? '' : 'checked'}> Trasa</label><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
       }).join('');
     }
