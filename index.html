@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v16" />
+  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v17" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2412,15 +2412,15 @@ HTML DEBUG V12
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v16"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v16"></script>
+  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v17"></script>
+  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v17"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v16"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v17"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v16';
+    const APP_BUILD = 'trip-debug-2026-05-21-v17';
     window.rawTripDebug = function(msg) {
       // Debug wyłączony. Funkcja musi istnieć, bo używają jej inline handlery #modeTripBtn.
     };
@@ -2475,6 +2475,11 @@ HTML DEBUG V12
         window.applyTripPlannerPinVisibility();
         window.rawTripDebug('applyTripPlannerPinVisibility OK');
       }
+      const trip = getActiveTrip();
+      if (trip) {
+        const points = getAllActiveTripPoints(trip);
+        fitMapToTripPoints(points, { maxZoom: 15, pad: 0.2 });
+      }
 
       window.rawTripDebug('activateTripModeFallback DONE');
     };
@@ -2520,6 +2525,11 @@ HTML DEBUG V12
           window.rawTripDebug('renderTripPlannerPanel OK');
           if (typeof window.renderTripMapLayers === 'function') window.renderTripMapLayers();
           if (typeof window.applyTripPlannerPinVisibility === 'function') window.applyTripPlannerPinVisibility();
+          const trip = getActiveTrip();
+          if (trip) {
+            const points = getAllActiveTripPoints(trip);
+            fitMapToTripPoints(points, { maxZoom: 15, pad: 0.2 });
+          }
           window.rawTripDebug('DONE');
         } else {
           await window.activateTripModeFallback();
@@ -2561,6 +2571,7 @@ HTML DEBUG V12
     let lastInlineTripActionAt = 0;
 
     window.forceTripActionFromInline = async function(e, el) {
+      if (e && (e.type === 'touchend' || e.type === 'pointerup') && tripTapWasScroll(e)) return;
       if (e) {
         e.preventDefault?.();
         e.stopPropagation?.();
@@ -2585,11 +2596,19 @@ HTML DEBUG V12
       const point = day?.points?.find?.(p => p.id === pointId);
 
       if (action === 'focus-point') {
-        if (point && typeof focusTripPointOnMap === 'function') {
-          focusTripPointOnMap(point);
+        const pointData = point ? { ...point } : null;
+        if (dayId && activeTripDayId !== dayId) {
+          activeTripDayId = dayId;
+          trip.days.forEach(d => d.highlight = d.id === activeTripDayId);
+          await saveTrip(trip.id);
+          renderTripPlannerPanel();
+          renderTripMapLayers();
+        }
+        const pointToFocus = pointData || point;
+        if (pointToFocus && typeof focusTripPointOnMap === 'function') {
+          focusTripPointOnMap(pointToFocus);
           return;
         }
-
         const lat = Number(actionEl.dataset.lat);
         const lng = Number(actionEl.dataset.lng);
         if (Number.isFinite(lat) && Number.isFinite(lng) && map) {
@@ -2700,6 +2719,24 @@ HTML DEBUG V12
       } else if (typeof window.focusTripPointOnMap === 'function') {
         window.focusTripPointOnMap(pointId, dayId);
       }
+    };
+
+    window.forceTripDayFromInline = async function(e, el) {
+      if (e && (e.type === 'touchend' || e.type === 'pointerup') && tripTapWasScroll(e)) return;
+
+      const target = e?.target instanceof Element ? e.target : null;
+      if (target?.closest('button, input, select, textarea, label, a, [data-trip-action], .trip-point-item')) return;
+
+      if (e) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+      }
+
+      const card = el?.closest?.('.trip-day-card');
+      const dayId = card?.dataset.dayCard;
+      if (!dayId) return;
+
+      await activateTripDayAndFit(dayId);
     };
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -9992,28 +10029,54 @@ function getTripPointEmoji(p) {
       return true;
     }
 
-    function fitMapToTripPoints(trip) {
-      if (!map || !trip || !Array.isArray(trip.days)) return false;
-      const bounds = L.latLngBounds([]);
-      (trip.days || []).forEach(day => {
-        (day.points || []).forEach(point => {
-          const lat = Number(point.lat);
-          const lng = Number(point.lng);
-          if (Number.isFinite(lat) && Number.isFinite(lng)) bounds.extend([lat, lng]);
-        });
-      });
-      return fitMapToBounds(bounds);
+    function getTripBoundsForPoints(points) {
+      const latLngs = (points || [])
+        .map(p => [Number(p.lat), Number(p.lng)])
+        .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+      if (!latLngs.length) return null;
+      return L.latLngBounds(latLngs);
     }
 
-    function fitMapToTripDayPoints(day) {
-      if (!map || !day || !Array.isArray(day.points)) return false;
-      const bounds = L.latLngBounds([]);
-      (day.points || []).forEach(point => {
-        const lat = Number(point.lat);
-        const lng = Number(point.lng);
-        if (Number.isFinite(lat) && Number.isFinite(lng)) bounds.extend([lat, lng]);
+    function fitMapToTripPoints(points, options = {}) {
+      const bounds = getTripBoundsForPoints(points);
+      if (!bounds || !map) return;
+
+      if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
+        map.flyTo(bounds.getCenter(), options.zoom || 16, { duration: 0.75 });
+        return;
+      }
+
+      map.fitBounds(bounds.pad(options.pad || 0.18), {
+        animate: true,
+        duration: 0.75,
+        maxZoom: options.maxZoom || 16,
+        paddingTopLeft: [20, 80],
+        paddingBottomRight: [20, 40]
       });
-      return fitMapToBounds(bounds);
+    }
+
+    function getAllActiveTripPoints(trip) {
+      return (trip?.days || []).flatMap(d => d.points || []);
+    }
+
+    async function activateTripDayAndFit(dayId, options = {}) {
+      const trip = getActiveTrip();
+      if (!trip || !dayId) return;
+
+      const day = trip.days.find(d => d.id === dayId);
+      if (!day) return;
+
+      activeTripDayId = dayId;
+      trip.days.forEach(d => d.highlight = d.id === activeTripDayId);
+
+      if (options.save !== false && typeof saveTrip === 'function') {
+        await saveTrip(trip.id);
+      }
+
+      renderTripPlannerPanel();
+      renderTripMapLayers();
+
+      fitMapToTripPoints(day.points || [], { maxZoom: 16, pad: 0.22 });
     }
 
     function focusTripPointOnMap(point, dayId) {
@@ -10067,7 +10130,7 @@ function getTripPointEmoji(p) {
         const summary = d.routeSummary || {};
         const points = (d.points || []).sort((a,b)=>(a.order||0)-(b.order||0));
         const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-day-id="${d.id}" data-trip-day-id="${d.id}" data-point-id="${p.id}" data-trip-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name" onpointerup="window.forceTripActionFromInline(event, this)" ontouchend="window.forceTripActionFromInline(event, this)" onclick="window.forceTripActionFromInline(event, this)" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-trip-day-id="${d.id}" data-trip-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" data-stop-row-click="1" class="trip-mobile-only trip-icon-btn" onpointerup="window.forceTripActionFromInline(event, this)" ontouchend="window.forceTripActionFromInline(event, this)" onclick="window.forceTripActionFromInline(event, this)">↑</button><button type="button" data-trip-action="move-point-down" class="trip-mobile-only trip-icon-btn" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" data-stop-row-click="1" onpointerup="window.forceTripActionFromInline(event, this)" ontouchend="window.forceTripActionFromInline(event, this)" onclick="window.forceTripActionFromInline(event, this)">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" data-stop-row-click="1" class="trip-icon-btn" title="Usuń punkt" aria-label="Usuń punkt" onpointerup="window.forceTripActionFromInline(event, this)" ontouchend="window.forceTripActionFromInline(event, this)" onclick="window.forceTripActionFromInline(event, this)">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
-        return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><label class="trip-day-visible-toggle" title="Pokaż/ukryj trasę dnia"><input type="checkbox" data-day-visible="${d.id}" ${d.visible === false ? '' : 'checked'}> Trasa</label><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
+        return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}" onpointerup="window.forceTripDayFromInline(event, this)" ontouchend="window.forceTripDayFromInline(event, this)" onclick="window.forceTripDayFromInline(event, this)"><div class="trip-day-header"><b class="trip-day-title">${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><label class="trip-day-visible-toggle" title="Pokaż/ukryj trasę dnia"><input type="checkbox" data-day-visible="${d.id}" ${d.visible === false ? '' : 'checked'}> Trasa</label><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
       }).join('');
     }
     window.renderTripPlannerPanel = renderTripPlannerPanel;
@@ -13101,7 +13164,7 @@ function confirmLayerDelete() {
         }, 150);
       }
 
-      fitMapToTripPoints(getActiveTrip());
+      { const trip = getActiveTrip(); if (trip) fitMapToTripPoints(getAllActiveTripPoints(trip), { maxZoom: 15, pad: 0.2 }); }
       logTripModeDiagnostics(`${eventType}:after`);
       mobileTripDebug('DONE');
       mobileTripDebugState('DONE');
@@ -13146,7 +13209,7 @@ function confirmLayerDelete() {
       document.getElementById('toggleLayers').textContent = mode === 'trip' ? '☰ Plan tripu' : '☰ Warstwy';
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
-      if (tripPlannerMode === 'trip') fitMapToTripPoints(getActiveTrip());
+      if (tripPlannerMode === 'trip') { const trip = getActiveTrip(); if (trip) fitMapToTripPoints(getAllActiveTripPoints(trip), { maxZoom: 15, pad: 0.2 }); }
     }
 
     window.setTripMode = setTripMode;
@@ -13185,7 +13248,7 @@ function confirmLayerDelete() {
       try { renderTripPlannerPanel(); mobileTripDebug('FORCE renderTripPlannerPanel OK'); } catch (error) { mobileTripDebug(`FORCE ERROR renderTripPlannerPanel: ${error?.message || error}`); return; }
       try { renderTripMapLayers(); mobileTripDebug('FORCE renderTripMapLayers OK'); } catch (error) { mobileTripDebug(`FORCE ERROR renderTripMapLayers: ${error?.message || error}`); return; }
       try { applyTripPlannerPinVisibility(); mobileTripDebug('FORCE applyTripPlannerPinVisibility OK'); } catch (error) { mobileTripDebug(`FORCE ERROR applyTripPlannerPinVisibility: ${error?.message || error}`); return; }
-      fitMapToTripPoints(getActiveTrip());
+      { const trip = getActiveTrip(); if (trip) fitMapToTripPoints(getAllActiveTripPoints(trip), { maxZoom: 15, pad: 0.2 }); }
       mobileTripDebugState(`FORCE DONE ${sourceName}`);
     }
 
@@ -13241,7 +13304,7 @@ function confirmLayerDelete() {
       }
       mobileTripDebug(`modeTripBtn query count: ${document.querySelectorAll('#modeTripBtn').length}`);
     }
-    document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; activeTripDayId = null; renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility(); fitMapToTripPoints(getActiveTrip()); });
+    document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; activeTripDayId = null; renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility(); { const trip = getActiveTrip(); if (trip) fitMapToTripPoints(getAllActiveTripPoints(trip), { maxZoom: 15, pad: 0.2 }); } });
     document.getElementById('tripPinsVisibilityToggle')?.addEventListener('click', () => { hideMainPinsInTripMode = !hideMainPinsInTripMode; applyTripPlannerPinVisibility(); });
     document.getElementById('tripNewBtn')?.addEventListener('click', async () => {
       const compatDb = getCompatDb();
@@ -13413,12 +13476,7 @@ function confirmLayerDelete() {
       const dayCardEl = targetEl?.closest('.trip-day-card');
       if (dayCardEl) {
         if (targetEl?.closest('.trip-point-item, button, input, select, textarea, label, a')) return;
-        activeTripDayId = dayCardEl.dataset.dayCard;
-        trip.days.forEach(d => d.highlight = d.id === activeTripDayId);
-        await saveTrip(trip.id);
-        renderTripPlannerPanel();
-        renderTripMapLayers();
-        fitMapToTripDayPoints(trip.days.find(d => d.id === activeTripDayId));
+        await activateTripDayAndFit(dayCardEl.dataset.dayCard);
         return;
       }
     };
@@ -13440,13 +13498,20 @@ function confirmLayerDelete() {
     let tripTouchStartX = 0;
     let tripTouchStartY = 0;
     let tripTouchMoved = false;
+    let tripTouchStartedAt = 0;
     let lastTripTouchActionAt = 0;
-    function getTripEventPoint(e) {
+    function getTripTouchPoint(e) {
       const t = e.changedTouches && e.changedTouches[0];
       return {
         x: t ? t.clientX : e.clientX,
         y: t ? t.clientY : e.clientY
       };
+    }
+    function tripTapWasScroll(e) {
+      const p = getTripTouchPoint(e);
+      const dx = (p.x || 0) - tripTouchStartX;
+      const dy = (p.y || 0) - tripTouchStartY;
+      return tripTouchMoved || Math.hypot(dx, dy) > 8;
     }
     function isTripInteractiveTarget(target) {
       return !!(target instanceof Element && target.closest(
@@ -13454,21 +13519,33 @@ function confirmLayerDelete() {
       ));
     }
     tripActiveBoxEl?.addEventListener('touchstart', (e) => {
-      const p = getTripEventPoint(e);
+      const p = getTripTouchPoint(e);
       tripTouchStartX = p.x || 0;
       tripTouchStartY = p.y || 0;
       tripTouchMoved = false;
+      tripTouchStartedAt = Date.now();
     }, { passive: true });
     tripActiveBoxEl?.addEventListener('touchmove', (e) => {
-      const p = getTripEventPoint(e);
+      const p = getTripTouchPoint(e);
       if (Math.hypot((p.x || 0) - tripTouchStartX, (p.y || 0) - tripTouchStartY) > 8) {
         tripTouchMoved = true;
       }
     }, { passive: true });
+    tripActiveBoxEl?.addEventListener('pointerdown', (e) => {
+      const p = getTripTouchPoint(e);
+      tripTouchStartX = p.x || 0;
+      tripTouchStartY = p.y || 0;
+      tripTouchMoved = false;
+      tripTouchStartedAt = Date.now();
+    });
+    tripActiveBoxEl?.addEventListener('pointermove', (e) => {
+      const p = getTripTouchPoint(e);
+      if (Math.hypot((p.x || 0) - tripTouchStartX, (p.y || 0) - tripTouchStartY) > 8) {
+        tripTouchMoved = true;
+      }
+    });
     tripActiveBoxEl?.addEventListener('touchend', (e) => {
-      const p = getTripEventPoint(e);
-      const moved = tripTouchMoved || Math.hypot((p.x || 0) - tripTouchStartX, (p.y || 0) - tripTouchStartY) > 8;
-      if (moved) return;
+      if (tripTapWasScroll(e)) return;
       const target = e.target;
       if (!isTripInteractiveTarget(target)) return;
       lastTripTouchActionAt = Date.now();
@@ -13505,7 +13582,7 @@ function confirmLayerDelete() {
       renderTripPlannerPanel();
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
-      if (tripPlannerMode === 'trip') fitMapToTripPoints(getActiveTrip());
+      if (tripPlannerMode === 'trip') { const trip = getActiveTrip(); if (trip) fitMapToTripPoints(getAllActiveTripPoints(trip), { maxZoom: 15, pad: 0.2 }); }
     });
     let tripDraggedPointId = null;
     let tripDraggedDayId = null;
