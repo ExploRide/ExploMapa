@@ -872,7 +872,7 @@ body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
 .trip-planner-panel { background:#17191f; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:8px; margin-bottom:8px; }
 .trip-select-row { display:flex; gap:6px; margin-bottom:8px; }
 .trip-planner-toggle-row { margin-top:8px; padding-top:8px; border-top:1px solid var(--ui-border); }
-#tripActiveBox { border-top:1px solid var(--ui-border); margin-top:8px; padding-top:8px; max-height:68vh; overflow-y:auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+#tripActiveBox { border-top:1px solid var(--ui-border); margin-top:8px; padding-top:8px; max-height:min(68vh, calc(100dvh - 180px)); overflow-y:auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
 .trip-select-row select,.trip-select-row button { background:#1d2028; color:#eee; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); font-size:12px; padding:5px; }
 .trip-day-card { border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:7px; margin-bottom:8px; background:#1d2028; }
 .trip-day-header,.trip-point-actions { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
@@ -13283,6 +13283,20 @@ function confirmLayerDelete() {
         renderTripPlannerPanel(); renderTripMapLayers(); return;
       }
     };
+    function updateTripActiveBoxMaxHeight() {
+      const box = document.getElementById('tripActiveBox');
+      if (!box) return;
+      const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+      const boxTop = box.getBoundingClientRect().top;
+      const bottomGap = 20;
+      const minHeight = 160;
+      const maxHeight = Math.max(minHeight, Math.floor(viewportHeight - boxTop - bottomGap));
+      box.style.maxHeight = `${maxHeight}px`;
+    }
+    updateTripActiveBoxMaxHeight();
+    window.addEventListener('resize', updateTripActiveBoxMaxHeight);
+    window.visualViewport?.addEventListener('resize', updateTripActiveBoxMaxHeight);
+    window.visualViewport?.addEventListener('scroll', updateTripActiveBoxMaxHeight);
     document.getElementById('tripActiveBox')?.addEventListener('click', handleTripActiveBoxAction);
     document.getElementById('tripActiveBox')?.addEventListener('pointerup', handleTripActiveBoxAction);
     document.getElementById('tripActiveBox')?.addEventListener('touchend', handleTripActiveBoxAction, { passive: false });
