@@ -879,7 +879,7 @@ body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
 .trip-day-summary,.trip-point-item,.trip-segment-row { font-size:12px; opacity:.95; margin:4px 0; }
 .trip-day-summary { border-top:1px solid var(--ui-border); margin-top:8px; padding-top:8px; }
 .trip-point-list { border-top:1px solid var(--ui-border); margin-top:8px; padding-top:8px; }
-.trip-point-item { cursor:pointer; transition: transform 220ms ease, background-color 220ms ease; }
+.trip-point-item { transition: transform 220ms ease, background-color 220ms ease; }
 .trip-point-item.trip-moving { background: rgba(229, 57, 53, 0.16); }
 .trip-point-item button { cursor:pointer; }
 .trip-drag-handle { cursor:grab; opacity:.75; padding:2px 5px; user-select:none; }
@@ -891,7 +891,7 @@ body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
 @media (max-width: 700px) { .trip-mobile-only { display:inline-flex; } }
 .layer-drag-handle { cursor:grab; opacity:.75; padding:2px 5px; user-select:none; margin-right:4px; }
 .layer-drag-handle:active { cursor:grabbing; }
-.trip-point-name { color:#fff; font-weight:700; font-size:13px; }
+.trip-point-name { color:#fff; font-weight:700; font-size:13px; cursor:pointer; display:inline-block; }
 .trip-segment-row,.trip-point-meta { color:var(--ui-text-muted); font-size:11px; }
 .trip-color-input { width:32px; height:24px; padding:0; border:0; background:none; }
 .trip-day-visible-toggle { display:inline-flex; align-items:center; gap:4px; font-size:11px; opacity:.9; }
@@ -9934,7 +9934,7 @@ function getTripPointEmoji(p) {
       box.innerHTML = `<div><b>${trip.name}</b></div>${tripRange}<button id="tripAddDayBtn" type="button">+ Dodaj dzień</button><button id="tripAddPrivatePointBtn" type="button">+ Punkt tylko do tripa</button><button id="tripExportCsvBtn" type="button">⬇️ CSV</button><button id="tripExportPdfBtn" type="button">⬇️ PDF</button><button id="tripDeleteBtn" class="trip-icon-btn" type="button" title="Usuń trip" aria-label="Usuń trip">🗑️</button>` + trip.days.map((d, idx) => {
         const summary = d.routeSummary || {};
         const points = (d.points || []).sort((a,b)=>(a.order||0)-(b.order||0));
-        const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-trip-action="focus-point" data-day-id="${d.id}" data-trip-day-id="${d.id}" data-point-id="${p.id}" data-trip-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}" onpointerup="window.forceTripPointFocusFromMobile(event, this)" ontouchend="window.forceTripPointFocusFromMobile(event, this)" onclick="window.forceTripPointFocusFromMobile(event, this)"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" class="trip-mobile-only">↑</button><button type="button" data-trip-action="move-point-down" class="trip-mobile-only" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" title="Usuń punkt" aria-label="Usuń punkt">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
+        const ptsHtml = `<div class="trip-point-list" data-day-id="${d.id}">` + points.map((p, i) => `<div class="trip-point-item" data-day-id="${d.id}" data-trip-day-id="${d.id}" data-point-id="${p.id}" data-trip-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}"><span class="trip-drag-handle" draggable="true" title="Przeciągnij" data-stop-row-click="1">☰</span><span class="trip-point-name" data-trip-action="focus-point" data-day-id="${d.id}" data-point-id="${p.id}" data-trip-day-id="${d.id}" data-trip-point-id="${p.id}" data-lat="${Number(p.lat)}" data-lng="${Number(p.lng)}">${i+1}. ${getTripPointEmoji(p)} ${p.name || p.nameSnapshot || 'Punkt'}</span> <span class="trip-point-meta">(${p.pointType || 'inny'})</span> <button type="button" data-trip-action="move-point-up" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" class="trip-mobile-only">↑</button><button type="button" data-trip-action="move-point-down" class="trip-mobile-only" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1">↓</button><button type="button" data-trip-action="delete-point" data-day-id="${d.id}" data-point-id="${p.id}" data-stop-row-click="1" title="Usuń punkt" aria-label="Usuń punkt">🗑️</button></div>${i < (d.routeSegments||[]).length ? `<div class="trip-segment-row">↓ Trasa: ${formatTripDuration(d.routeSegments[i].durationSeconds)} / ${formatTripDistance(d.routeSegments[i].distanceMeters)}</div>` : ''}`).join('') + `</div>`;
         return `<div class="trip-day-card ${d.highlight ? 'trip-active-day' : 'trip-muted-day'}" data-day-card="${d.id}"><div class="trip-day-header"><b>${d.name || `Dzień ${idx+1}`}</b><label><input type="date" data-day-date="${d.id}" value="${d.date || ''}"></label><input class="trip-color-input" type="color" data-day-color="${d.id}" value="${d.color || '#ff3b3b'}"><label class="trip-day-visible-toggle" title="Pokaż/ukryj trasę dnia"><input type="checkbox" data-day-visible="${d.id}" ${d.visible === false ? '' : 'checked'}> Trasa</label><button data-day-delete="${d.id}" class="trip-icon-btn" title="Usuń dzień" aria-label="Usuń dzień">🗑️</button></div><div class="trip-day-summary">Jazda: ${formatTripDuration(summary.durationSeconds || 0)} | Zwiedzanie: ${formatTripDuration(summary.visitSeconds || 0)} | Razem: ${formatTripDuration(summary.totalSeconds || 0)} | Dystans: ${formatTripDistance(summary.distanceMeters || 0)}</div>${ptsHtml}</div>`;
       }).join('');
     }
@@ -13195,6 +13195,7 @@ function confirmLayerDelete() {
         e.stopPropagation();
         const action = actionEl.dataset.tripAction;
         if (action === 'focus-point') {
+          if (tripActiveBoxIsScrolling) return;
           const lat = Number(actionEl.dataset.lat);
           const lng = Number(actionEl.dataset.lng);
           const day = trip.days.find(x => x.id === actionEl.dataset.dayId);
@@ -13297,20 +13298,42 @@ function confirmLayerDelete() {
     window.addEventListener('resize', updateTripActiveBoxMaxHeight);
     window.visualViewport?.addEventListener('resize', updateTripActiveBoxMaxHeight);
     window.visualViewport?.addEventListener('scroll', updateTripActiveBoxMaxHeight);
-    document.getElementById('tripActiveBox')?.addEventListener('click', handleTripActiveBoxAction);
-    document.getElementById('tripActiveBox')?.addEventListener('pointerup', handleTripActiveBoxAction);
-    document.getElementById('tripActiveBox')?.addEventListener('touchend', handleTripActiveBoxAction, { passive: false });
+    const tripActiveBoxEl = document.getElementById('tripActiveBox');
+    let tripActiveBoxIsScrolling = false;
+    let tripActiveBoxScrollResetTimer = null;
+    let tripActiveBoxTouchStartY = null;
+    const markTripActiveBoxScrolling = () => {
+      tripActiveBoxIsScrolling = true;
+      if (tripActiveBoxScrollResetTimer) clearTimeout(tripActiveBoxScrollResetTimer);
+      tripActiveBoxScrollResetTimer = setTimeout(() => { tripActiveBoxIsScrolling = false; }, 140);
+    };
+    tripActiveBoxEl?.addEventListener('scroll', markTripActiveBoxScrolling, { passive: true });
+    tripActiveBoxEl?.addEventListener('touchstart', (event) => {
+      tripActiveBoxTouchStartY = event.changedTouches?.[0]?.clientY ?? null;
+    }, { passive: true });
+    tripActiveBoxEl?.addEventListener('touchmove', (event) => {
+      const currentY = event.changedTouches?.[0]?.clientY;
+      if (!Number.isFinite(currentY) || !Number.isFinite(tripActiveBoxTouchStartY)) return;
+      if (Math.abs(currentY - tripActiveBoxTouchStartY) > 8) markTripActiveBoxScrolling();
+    }, { passive: true });
+    tripActiveBoxEl?.addEventListener('pointermove', (event) => {
+      if (event.pointerType === 'touch' && event.buttons === 0) markTripActiveBoxScrolling();
+    }, { passive: true });
+    tripActiveBoxEl?.addEventListener('click', handleTripActiveBoxAction);
+    tripActiveBoxEl?.addEventListener('pointerup', handleTripActiveBoxAction);
+    tripActiveBoxEl?.addEventListener('touchend', handleTripActiveBoxAction, { passive: false });
     const mobileTripPointCaptureFallback = (event) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
-      if (target.closest('.trip-point-item')) {
+      if (tripActiveBoxIsScrolling) return;
+      if (target.closest('.trip-point-name')) {
         window.forceTripPointFocusFromMobile(event, target);
       }
     };
-    document.getElementById('tripActiveBox')?.addEventListener('pointerup', mobileTripPointCaptureFallback, true);
-    document.getElementById('tripActiveBox')?.addEventListener('touchend', mobileTripPointCaptureFallback, { capture: true, passive: false });
-    document.getElementById('tripActiveBox')?.addEventListener('click', mobileTripPointCaptureFallback, true);
-    document.getElementById('tripActiveBox')?.addEventListener('change', async (e) => {
+    tripActiveBoxEl?.addEventListener('pointerup', mobileTripPointCaptureFallback, true);
+    tripActiveBoxEl?.addEventListener('touchend', mobileTripPointCaptureFallback, { capture: true, passive: false });
+    tripActiveBoxEl?.addEventListener('click', mobileTripPointCaptureFallback, true);
+    tripActiveBoxEl?.addEventListener('change', async (e) => {
       const trip = getActiveTrip(); if (!trip) return;
       if (e.target.dataset.dayColor) {
         const day = trip.days.find(x => x.id === e.target.dataset.dayColor); if (!day) return;
