@@ -1463,6 +1463,19 @@ img.emoji {
   -webkit-overflow-scrolling: touch;
 }
 
+.trip-special-point-modal {
+  overflow: visible !important;
+}
+
+.trip-special-point-modal .mobile-modal-content {
+  overflow: visible !important;
+}
+
+.trip-special-point-modal .emoji-picker-grid {
+  max-height: min(280px, 45vh);
+  overflow-y: auto;
+}
+
 @media (max-width: 700px) {
   .emoji-picker-grid {
     bottom: auto;
@@ -5721,10 +5734,11 @@ function emojiHtml(str) {
       subscribeEmojiList(renderGrid);
       container.appendChild(grid);
 
+      const useFixedViewportPosition = !!container.closest('.trip-special-point-modal');
       preview.addEventListener('click', e => {
         e.stopPropagation();
         grid.style.display = grid.style.display === 'grid' ? 'none' : 'grid';
-        positionEmojiGrid(preview, grid);
+        positionEmojiGrid(preview, grid, { fixedToViewport: useFixedViewportPosition });
       });
       document.addEventListener('click', function hide(e) {
         if (!container.contains(e.target)) grid.style.display = 'none';
@@ -5809,8 +5823,31 @@ function emojiHtml(str) {
       updatePreview();
     }
 
-    function positionEmojiGrid(preview, grid) {
+    function positionEmojiGrid(preview, grid, options = {}) {
       if (!preview || !grid || grid.style.display !== 'grid') return;
+      if (options.fixedToViewport) {
+        const rect = preview.getBoundingClientRect();
+        const viewportW = window.innerWidth || document.documentElement.clientWidth || 0;
+        const viewportH = window.innerHeight || document.documentElement.clientHeight || 0;
+        const margin = 8;
+        const spacing = 6;
+        const gridRect = grid.getBoundingClientRect();
+        const gridW = gridRect.width || 248;
+        const gridH = gridRect.height || Math.min(280, Math.floor(viewportH * 0.45));
+        const maxLeft = Math.max(margin, viewportW - gridW - margin);
+        const left = Math.min(Math.max(margin, rect.left), maxLeft);
+        const openDown = (rect.bottom + spacing + gridH) <= (viewportH - margin);
+        const top = openDown
+          ? Math.max(margin, rect.bottom + spacing)
+          : Math.max(margin, rect.top - spacing - gridH);
+        grid.style.position = 'fixed';
+        grid.style.zIndex = '2147483606';
+        grid.style.left = `${Math.round(left)}px`;
+        grid.style.top = `${Math.round(top)}px`;
+        grid.style.right = 'auto';
+        grid.style.bottom = 'auto';
+        return;
+      }
       const isMobile = window.matchMedia('(max-width: 700px)').matches;
       if (!isMobile) {
         grid.style.left = 'auto';
@@ -9782,7 +9819,7 @@ function getTripPointEmoji(p) {
       return await new Promise(resolve => {
         const overlay = document.createElement('div');
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:20000;';
-        overlay.innerHTML = `<div style="background:#1d2028;border:1px solid #3a3f4a;border-radius:10px;padding:12px;min-width:280px;max-width:90vw;"><h3 style="margin:0 0 10px 0;">Edycja punktu specjalnego</h3><label>Nazwa punktu<br><input id="tripSpecialName" type="text" style="width:100%" value="${escapeHtml(point.name || point.nameSnapshot || '')}"></label><br><label>Emoji</label><div id="tripSpecialEmojiPicker" class="emoji-picker" style="margin:6px 0 0 0;"></div><input id="tripSpecialEmojiInput" type="hidden" value="${escapeHtml(point.emoji || '📍')}"><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;"><button id="tripSpecialCancel" type="button">Anuluj</button><button id="tripSpecialOk" type="button">Zapisz</button></div></div>`;
+        overlay.innerHTML = `<div class="trip-special-point-modal mobile-modal-content" style="background:#1d2028;border:1px solid #3a3f4a;border-radius:10px;padding:12px;min-width:280px;max-width:90vw;"><h3 style="margin:0 0 10px 0;">Edycja punktu specjalnego</h3><label>Nazwa punktu<br><input id="tripSpecialName" type="text" style="width:100%" value="${escapeHtml(point.name || point.nameSnapshot || '')}"></label><br><label>Emoji</label><div id="tripSpecialEmojiPicker" class="emoji-picker" style="margin:6px 0 0 0;"></div><input id="tripSpecialEmojiInput" type="hidden" value="${escapeHtml(point.emoji || '📍')}"><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;"><button id="tripSpecialCancel" type="button">Anuluj</button><button id="tripSpecialOk" type="button">Zapisz</button></div></div>`;
         document.body.appendChild(overlay);
         const nameInput = overlay.querySelector('#tripSpecialName');
         const emojiInput = overlay.querySelector('#tripSpecialEmojiInput');
@@ -9811,7 +9848,7 @@ function getTripPointEmoji(p) {
           const checked = (d.id === fallbackDayId) ? 'checked' : '';
           return `<label style="display:flex;gap:6px;align-items:center;margin:2px 0;"><input type="radio" name="tripSpecialDay" value="${escapeHtml(d.id)}" ${checked}> ${escapeHtml(d.name || `Dzień ${i + 1}`)}</label>`;
         }).join('');
-        overlay.innerHTML = `<div style="background:#1d2028;border:1px solid #3a3f4a;border-radius:10px;padding:12px;min-width:300px;max-width:min(94vw,460px);max-height:90vh;overflow:auto;">
+        overlay.innerHTML = `<div class="trip-special-point-modal mobile-modal-content" style="background:#1d2028;border:1px solid #3a3f4a;border-radius:10px;padding:12px;min-width:300px;max-width:min(94vw,460px);max-height:90vh;overflow:auto;">
           <h3 style="margin:0 0 10px 0;">Nowy punkt specjalny</h3>
           <div style="margin-bottom:10px;"><div style="font-size:12px;opacity:.85;margin-bottom:4px;">Dzień tripu</div>${dayRadios}</div>
           <label>Nazwa punktu<br><input id="tripSpecialCreateName" type="text" style="width:100%" value="${escapeHtml(defaultName)}"></label><br>
