@@ -96,6 +96,10 @@
       width: 100%;
       min-width: 0;
     }
+    #rightStatusPanelWrap {
+      margin-bottom: 8px;
+    }
+
     #uiScaleControls .ui-scale-row {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -743,7 +747,9 @@ body, #sidebar, #basemap-switcher {
       font-size: 14px;
       padding: 0;
     }
-    .panel-toggle-btn:hover { background: #2f2f2f; }
+    .panel-toggle-btn:hover { background: #2f2f2f; color: #fff; }
+    .panel-toggle-btn:focus,
+    .panel-toggle-btn:active { color: #fff; }
     .basemap-header {
       display: flex;
       align-items: center;
@@ -1357,6 +1363,8 @@ body.mobile-layout #gpsFollowBtn {
 }
 body.mobile-layout #exportKML { display: none; }
 body.mobile-layout #syncBtn { display: block; }
+body.mobile-layout #sidebarCollapseToggle,
+body.mobile-layout #basemapCollapseToggle { display: none !important; }
 body.mobile-layout #osmOverlayStatus { z-index: 250; }
 body.mobile-layout #toast { left: 10px; top: calc(env(safe-area-inset-top, 0px) + 92px); }
 body.mobile-layout .leaflet-popup { z-index: 2147483600 !important; }
@@ -1849,8 +1857,9 @@ img.emoji {
       flex: 1 1 0;
       width: auto;
       min-height: 26px;
-      font-size: 12px;
-      line-height: 1.2;
+      font-size: 11px;
+      line-height: 1.15;
+      white-space: nowrap;
     }
 
     #addLayerBtn {
@@ -1913,6 +1922,11 @@ img.emoji {
       border-radius: 999px;
       min-height: 30px;
       padding-inline: 9px;
+    }
+
+    #wyszukiwarka {
+      background: #e9ecef;
+      color: #1f2937;
     }
 
     #desktopFiltersDropdown {
@@ -2485,16 +2499,7 @@ HTML DEBUG V12
         <div id="tripActiveBox"></div>
       </div>
       <div id="lista-warstw"></div>
-      <div id="connectionStatusPanel" class="connection-status-panel">
-        <div><strong>Połączenie:</strong> <span id="connectionState">online</span></div>
-        <div><strong>Lokalne zmiany:</strong> <span id="syncCount">0</span></div>
-        <div><strong>Status:</strong> <span id="syncStatusText">zsynchronizowano</span></div>
-      </div>
       <button id="syncBtn">Synchronizuj (<span id="syncCountBtn">0</span>)</button>
-      <div id="offlinePinsPanel" class="offline-pins-panel">
-        <h4>Niezsynchronizowane pinezki</h4>
-        <ul id="offlinePinsList"></ul>
-      </div>
     </div>
   </div>
   <div id="bulk-pin-panel">
@@ -2607,13 +2612,16 @@ HTML DEBUG V12
         </div>
       </details>
 
-      <h3>Widok ulic</h3>
-      <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
-      <label><input type="radio" name="streets" value="main"> Tylko główne trasy</label><br>
-      <label><input type="radio" name="streets" value="none"> Brak ulic</label><br>
+      <details open>
+        <summary><strong>Widok ulic</strong></summary>
+        <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
+        <label><input type="radio" name="streets" value="main"> Tylko główne trasy</label><br>
+        <label><input type="radio" name="streets" value="none"> Brak ulic</label><br>
+      </details>
 
-      <div id="route-controls">
-        <h3>Wyznacz trasę</h3>
+      <details open>
+        <summary><strong>Wyznacz trasę</strong></summary>
+        <div id="route-controls">
         <div class="route-input-group">
           <input type="text" id="routeStart" placeholder="Punkt początkowy">
           <button id="routeUseCurrent" type="button" title="Ustaw moją lokalizację">📍</button>
@@ -2629,9 +2637,23 @@ HTML DEBUG V12
           <button id="routeCalculate" type="button">Pokaż trasę</button>
           <button id="routeClear" type="button" class="route-clear" title="Usuń wyznaczoną trasę">X</button>
         </div>
+        </div>
+      </details>
+      <details open>
+        <summary><strong>Historia edycji</strong></summary>
+        <div id="history-log"></div>
+      </details>
+    </div>
+    <div id="rightStatusPanelWrap">
+      <div id="connectionStatusPanel" class="connection-status-panel">
+        <div><strong>Połączenie:</strong> <span id="connectionState">online</span></div>
+        <div><strong>Lokalne zmiany:</strong> <span id="syncCount">0</span></div>
+        <div><strong>Status:</strong> <span id="syncStatusText">zsynchronizowano</span></div>
       </div>
-      <h3>Historia edycji</h3>
-      <div id="history-log"></div>
+      <div id="offlinePinsPanel" class="offline-pins-panel">
+        <h4>Niezsynchronizowane pinezki</h4>
+        <ul id="offlinePinsList"></ul>
+      </div>
     </div>
     <div id="uiScaleControls" aria-label="Skalowanie interfejsu">
       <div class="ui-scale-row">
