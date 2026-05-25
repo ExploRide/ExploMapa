@@ -83,7 +83,24 @@
       flex: 1;
       overflow-y: auto;
       padding-right: 4px;
+      padding-bottom: 6px;
     }
+    #uiScaleControls {
+      flex-shrink: 0;
+      border-top: 1px solid var(--ui-border);
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    #uiScaleControls .ui-scale-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      align-items: center;
+      gap: 6px;
+    }
+    #uiScaleControls button { min-width: 30px; }
+    #uiScaleLabel { min-width: 46px; text-align: center; font-weight: 600; }
     #history-log {
       border-top: 1px solid #444;
       margin-top: 10px;
@@ -1581,6 +1598,7 @@ img.emoji {
       --ui-radius: 8px;
       --ui-radius-sm: 6px;
       --ui-transition: 160ms ease;
+      --ui-scale: 1;
     }
 
     html, body {
@@ -1605,6 +1623,38 @@ img.emoji {
     #sidebar,
     #basemap-switcher {
       padding: 8px 7px;
+    }
+
+    #sidebar,
+    #basemap-switcher,
+    #layer-editor,
+    #route-editor,
+    #bulk-pin-panel,
+    #geosearch-container,
+    #narzedzia,
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-content,
+    .mobile-modal-content,
+    .plan-option-panel,
+    .plan-editor-panel {
+      font-size: calc(12px * var(--ui-scale));
+    }
+
+    #sidebar,
+    #basemap-switcher { width: calc(264px * var(--ui-scale)); }
+    #layer-editor,
+    #route-editor { width: calc(188px * var(--ui-scale)); left: calc(282px * var(--ui-scale)); }
+    #bulk-pin-panel { width: calc(220px * var(--ui-scale)); left: calc(282px * var(--ui-scale)); }
+
+    input, select, textarea, button, summary {
+      font-size: calc(12px * var(--ui-scale));
+      min-height: calc(15px * var(--ui-scale));
+      padding: calc(5px * var(--ui-scale)) calc(8px * var(--ui-scale));
+    }
+
+    #lista, #lista-warstw, #tripActiveBox, #kategorie-lista, #status-lista, #kraje-lista, #desktopFiltersContent {
+      font-size: calc(12px * var(--ui-scale));
+      gap: calc(4px * var(--ui-scale));
     }
 
     #logoNaglowek {
@@ -2431,6 +2481,15 @@ HTML DEBUG V12
       <h3>Historia edycji</h3>
       <div id="history-log"></div>
     </div>
+    <div id="uiScaleControls" aria-label="Skalowanie interfejsu">
+      <div class="ui-scale-row">
+        <button id="uiScaleMinus" type="button" aria-label="Zmniejsz skalę UI">−</button>
+        <input id="uiScaleSlider" type="range" min="80" max="130" step="5" value="100" aria-label="Skala UI">
+        <span id="uiScaleLabel">100%</span>
+        <button id="uiScalePlus" type="button" aria-label="Zwiększ skalę UI">+</button>
+      </div>
+      <button id="uiScaleReset" type="button">Reset</button>
+    </div>
   </div>
   <div id="layer-editor">
     <h3>Edycja warstwy</h3>
@@ -2807,6 +2866,7 @@ HTML DEBUG V12
     };
 
     document.addEventListener('DOMContentLoaded', function() {
+      initUiScaleControls();
       window.rawTripDebug('DOM READY V13');
       window.rawTripDebug('modeTripBtn exists: ' + !!document.getElementById('modeTripBtn'));
       window.rawTripDebug('modeTripBtn count: ' + document.querySelectorAll('#modeTripBtn').length);
@@ -3174,6 +3234,7 @@ function slugify(str) {
     }
 
     function showAuthenticatedApp() {
+      initUiScaleControls();
       document.body.classList.add("authenticated");
       applyResponsiveLayoutClass();
       document.getElementById("map").style.display = "block";
@@ -3271,6 +3332,49 @@ function slugify(str) {
 
     let map, baseLayer, routingLayer, roadsLayer, baseTileErrorHandler, waymarkedErrorHandler;
     let pinRepositionState = null;
+    const UI_SCALE_STORAGE_KEY = 'exploMapaUiScale';
+    const UI_SCALE_MIN = 80;
+    const UI_SCALE_MAX = 130;
+    const UI_SCALE_STEP = 5;
+
+    function getStoredUiScale() {
+      const raw = Number(localStorage.getItem(UI_SCALE_STORAGE_KEY));
+      if (!Number.isFinite(raw)) return 100;
+      const clamped = Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, raw));
+      return Math.round(clamped / UI_SCALE_STEP) * UI_SCALE_STEP;
+    }
+
+    function setUiScale(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return;
+      const clamped = Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, numeric));
+      const rounded = Math.round(clamped / UI_SCALE_STEP) * UI_SCALE_STEP;
+      document.documentElement.style.setProperty('--ui-scale', String(rounded / 100));
+      localStorage.setItem(UI_SCALE_STORAGE_KEY, String(rounded));
+      const sliderEl = document.getElementById('uiScaleSlider');
+      const labelEl = document.getElementById('uiScaleLabel');
+      if (sliderEl) sliderEl.value = String(rounded);
+      if (labelEl) labelEl.textContent = `${rounded}%`;
+      if (typeof map !== 'undefined' && map && typeof map.invalidateSize === 'function') {
+        setTimeout(() => map.invalidateSize(), 120);
+      }
+    }
+
+    function initUiScaleControls() {
+      const sliderEl = document.getElementById('uiScaleSlider');
+      const minusEl = document.getElementById('uiScaleMinus');
+      const plusEl = document.getElementById('uiScalePlus');
+      const resetEl = document.getElementById('uiScaleReset');
+      if (!sliderEl || sliderEl.dataset.initialized === '1') return;
+      sliderEl.dataset.initialized = '1';
+      const applyByStep = (delta) => setUiScale((Number(sliderEl.value) || 100) + (delta * UI_SCALE_STEP));
+      setUiScale(getStoredUiScale());
+      sliderEl.addEventListener('input', () => setUiScale(sliderEl.value));
+      minusEl?.addEventListener('click', () => applyByStep(-1));
+      plusEl?.addEventListener('click', () => applyByStep(1));
+      resetEl?.addEventListener('click', () => setUiScale(100));
+    }
+
     let currentBase = 'sat';
     let loadingCount = 0;
     let baseLayerLoadToken = 0;
