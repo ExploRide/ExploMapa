@@ -11753,12 +11753,102 @@ function getTripPointEmoji(p) {
       updatePerformanceDebug('layers header render', performance.now() - sidebarRenderStartTs);
     }
 
+    async function enqueueApprovedOfflineChanges() {
+      const queuedAt = Date.now();
+
+      const updateOps = Object.entries(zmianyDoZapisania).map(async ([id, data]) => {
+        const p = wszystkiePinezki.find(pp => pp.id === id);
+        if (!p || !p.firebaseId) return;
+        const payload = { ...(data || {}) };
+        delete payload.plany;
+        delete payload.activeTripDay;
+        if (!Object.keys(payload).length) return;
+        await window.upsertQueueOperation({
+          localId: `update-${p.firebaseId}`,
+          operation: 'updatePin',
+          firebaseId: p.firebaseId,
+          payload,
+          createdAt: queuedAt,
+          syncStatus: 'pending'
+        });
+      });
+
+      const addOps = nowePinezki.map(async (p, idx) => {
+        const suffix = generateSuffix();
+        const firebaseId = `${sanitize(p.nazwa)}_${suffix}`;
+        p.firebaseId = firebaseId;
+        const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
+        const payload = {
+          nazwa: p.nazwa,
+          opis: p.opis,
+          warstwa: layerInfo.warstwaId || null,
+          warstwaId: layerInfo.warstwaId || null,
+          kategoria: p.kategoria,
+          kategoriaGlowna: getPinMainCategory(p),
+          kraj: p.kraj || '',
+          emoji: p.emoji,
+          nieaktywne: p.nieaktywne || false,
+          zamkniete: p.zamkniete || false,
+          tajne: p.tajne || false,
+          doSprawdzenia: p.doSprawdzenia || false,
+          zdewastowane: p.zdewastowane || false,
+          zwiedzone: p.zwiedzone || false,
+          wyroznione: p.wyroznione || false,
+          lat: p.lat,
+          lng: p.lng,
+          IDpinezki: p.id,
+          odKogo: p.odKogo || '',
+          trasy: (p.trasy || []).map(t => serializeRoute(t)),
+          plany: []
+        };
+        if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
+        await window.upsertQueueOperation({
+          localId: `create-${firebaseId}-${idx}`,
+          operation: 'createPin',
+          firebaseId,
+          payload,
+          createdAt: queuedAt + idx + 1,
+          syncStatus: 'pending'
+        });
+      });
+
+      const deleteOps = pinsToDelete.map(async (info, idx) => {
+        const p = info?.firebaseId ? null : wszystkiePinezki.find(pp => pp.id === (info ? info.id : info));
+        const firebaseId = info?.firebaseId || p?.firebaseId;
+        if (!firebaseId) return;
+        await window.upsertQueueOperation({
+          localId: `delete-${firebaseId}-${idx}`,
+          operation: 'deletePin',
+          firebaseId,
+          payload: {},
+          createdAt: queuedAt + 1000 + idx,
+          syncStatus: 'pending'
+        });
+      });
+
+      await Promise.all([...updateOps, ...addOps, ...deleteOps]);
+    }
+
     async function zapiszZmiany() {
       const btn = document.getElementById('saveChanges'); // [CODEx CHANGED] fragment w zapiszZmiany()
       const origLabel = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Zapisywanie…';
       try {
+        if (!navigator.onLine && window.upsertQueueOperation) {
+          await enqueueApprovedOfflineChanges();
+          zmianyDoZapisania = {};
+          nowePinezki = [];
+          pinsToDelete = [];
+          pendingTripDeletes.clear();
+          localStorage.removeItem('nowePinezki');
+          shouldWarnBeforeUnload = false;
+          btn.textContent = 'Zapisano offline ✔';
+          updateSaveButton();
+          showToast('Zatwierdzono zmiany offline. Użyj „Synchronizuj”, gdy wróci internet.', 5000);
+          return;
+        }
+
         let totalAll = 0;
         Object.entries(zmianyDoZapisania).forEach(([id]) => {
           const p = wszystkiePinezki.find(pp => pp.id === id);
