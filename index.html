@@ -9259,6 +9259,7 @@ function showRoutePopup(pinId, tr, latlng) {
       container.innerHTML = `
         <div>${label}</div>
         <div>${coordsDisplay}</div>
+        <div class="popup-info-item"><a href="https://maps.google.com/?q=${latNum},${lngNum}" target="_blank" rel="noopener noreferrer">📍 Google Maps</a></div>
         <div class="popup-route-actions">
           <button class="popup-direct-route-btn" id="routeSearchBtn">Wyznacz trasę do</button>
           <button class="popup-route-btn" id="addSearchPin">dodaj pinezkę</button>
