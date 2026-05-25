@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=trip-debug-2026-05-21-v18" />
+  <link rel="stylesheet" href="style.css?v=ui-fix-2026-05-25-v1" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2706,15 +2706,15 @@ HTML DEBUG V12
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=trip-debug-2026-05-21-v18"></script>
-  <script src="firestore-setup.js?v=trip-debug-2026-05-21-v18"></script>
+  <script src="offline-uploads.js?v=ui-fix-2026-05-25-v1"></script>
+  <script src="firestore-setup.js?v=ui-fix-2026-05-25-v1"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=trip-debug-2026-05-21-v18"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=ui-fix-2026-05-25-v1"></script>
 
   <script>
-    const APP_BUILD = 'trip-debug-2026-05-21-v18';
+    const APP_BUILD = 'ui-fix-2026-05-25-v1';
     window.rawTripDebug = function(msg) {
       // Debug wyłączony. Funkcja musi istnieć, bo używają jej inline handlery #modeTripBtn.
     };
@@ -3073,9 +3073,30 @@ HTML DEBUG V12
     });
 
     if ('serviceWorker' in navigator) {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/ExploMapa/service-worker.js')
-          .then(() => console.log('Service worker registered: /ExploMapa/service-worker.js'))
+          .then(reg => {
+            console.log('Service worker registered: /ExploMapa/service-worker.js');
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              if (!newWorker) return;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  const shouldReload = window.confirm('Dostępna nowa wersja aplikacji – odśwież teraz?');
+                  if (shouldReload) {
+                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                  }
+                }
+              });
+            });
+          })
           .catch(err => console.error('Service worker registration error:', err));
       });
     }

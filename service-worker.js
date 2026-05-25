@@ -1,5 +1,5 @@
-const APP_CACHE = 'explomapa-app-v2';
-const TILE_CACHE = 'explomapa-tiles-v2';
+const CACHE_NAME = 'explomapa-ui-fix-2026-05-25-v1';
+const TILE_CACHE = 'explomapa-tiles-ui-fix-2026-05-25-v1';
 
 const APP_SHELL = [
   '/ExploMapa/',
@@ -26,7 +26,7 @@ const APP_SHELL = [
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
-    const cache = await caches.open(APP_CACHE);
+    const cache = await caches.open(CACHE_NAME);
     await Promise.all(APP_SHELL.map(async (asset) => {
       try { await cache.add(asset); } catch (e) { console.warn('[SW] cache miss', asset, e); }
     }));
@@ -37,8 +37,8 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => ![APP_CACHE, TILE_CACHE].includes(k)).map(k => caches.delete(k)));
-    await self.clients.claim();
+    await Promise.all(keys.filter(k => ![CACHE_NAME, TILE_CACHE].includes(k)).map(k => caches.delete(k)));
+    await clients.claim();
   })());
 });
 
@@ -49,6 +49,13 @@ function isTileRequest(url) {
 function isFirestoreOrAuth(url) {
   return url.hostname.includes('firestore') || url.hostname.includes('googleapis.com') || url.hostname.includes('firebase') || url.pathname.includes('/auth');
 }
+
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
 
 self.addEventListener('fetch', event => {
   const { request } = event;
