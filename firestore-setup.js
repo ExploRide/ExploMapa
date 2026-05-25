@@ -49,14 +49,10 @@ window.addPinOffline = async function({ lat, lng, name, opis, warstwa, emoji, ka
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
 
-  if (!navigator.onLine && window.upsertQueueOperation) {
-    const queueEntry = await window.upsertQueueOperation({
-      operation: 'createPin',
-      payload,
-      syncStatus: 'pending'
-    });
-    window.dispatchEvent(new CustomEvent('offline-pin-created', { detail: { ...payload, localId: queueEntry.localId, offline: true } }));
-    return { id: queueEntry.localId, offline: true };
+  if (!navigator.onLine) {
+    const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    window.dispatchEvent(new CustomEvent('offline-pin-created', { detail: { ...payload, localId, offline: true } }));
+    return { id: localId, offline: true, queued: false };
   }
 
   return db.collection('pinezki2').add(payload);
