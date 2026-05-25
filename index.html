@@ -2485,7 +2485,16 @@ HTML DEBUG V12
         <div id="tripActiveBox"></div>
       </div>
       <div id="lista-warstw"></div>
-      <button id="syncBtn">Synchronizuj (<span id="syncCount">0</span>)</button>
+      <div id="connectionStatusPanel" class="connection-status-panel">
+        <div><strong>Połączenie:</strong> <span id="connectionState">online</span></div>
+        <div><strong>Lokalne zmiany:</strong> <span id="syncCount">0</span></div>
+        <div><strong>Status:</strong> <span id="syncStatusText">zsynchronizowano</span></div>
+      </div>
+      <button id="syncBtn">Synchronizuj (<span id="syncCountBtn">0</span>)</button>
+      <div id="offlinePinsPanel" class="offline-pins-panel">
+        <h4>Niezsynchronizowane pinezki</h4>
+        <ul id="offlinePinsList"></ul>
+      </div>
     </div>
   </div>
   <div id="bulk-pin-panel">
@@ -3042,16 +3051,10 @@ HTML DEBUG V12
     });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(reg => reg.unregister());
-        console.log('Service workers unregistered:', regs.length);
-      });
-    }
-
-    if ('caches' in window) {
-      caches.keys().then(keys => {
-        keys.forEach(key => caches.delete(key));
-        console.log('Caches cleared:', keys);
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/ExploMapa/service-worker.js')
+          .then(() => console.log('Service worker registered: /ExploMapa/service-worker.js'))
+          .catch(err => console.error('Service worker registration error:', err));
       });
     }
 
