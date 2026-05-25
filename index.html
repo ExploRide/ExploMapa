@@ -3685,9 +3685,6 @@ function slugify(str) {
         if (marker.options?.zIndexOffset) {
           clone.setZIndexOffset(marker.options.zIndexOffset);
         }
-        // Popup should always belong to the original marker.
-        // If clone has its own popup, it gets destroyed on cluster refresh
-        // after auto-pan/moveend and closes unexpectedly.
         clone.on('click', () => {
           const visibleParent = clusterLayer && typeof clusterLayer.getVisibleParent === 'function'
             ? clusterLayer.getVisibleParent(marker)
@@ -3697,15 +3694,22 @@ function slugify(str) {
             openPinViewPopup(marker);
             return;
           }
-          if (clusterLayer && typeof clusterLayer.zoomToShowLayer === 'function') {
-            clusterLayer.zoomToShowLayer(marker, () => {
-              marker.fire('click');
-              openPinViewPopup(marker);
-            });
-            return;
-          }
-          marker.fire('click');
-          openPinViewPopup(marker);
+
+          const pin = marker.__pinRef || wszystkiePinezki.find(item => item && item.marker === marker);
+          if (!pin) return;
+
+          const popupDiv = document.createElement('div');
+          popupDiv.className = 'popup-container';
+          popupDiv.innerHTML = createPopupHtml(pin);
+
+          clone.unbindPopup();
+          clone.bindPopup(popupDiv, {
+            maxWidth: 300,
+            autoPan: true,
+            keepInView: false
+          });
+          attachPopupHandlers(clone, pin);
+          clone.openPopup();
         });
         return clone;
       }
