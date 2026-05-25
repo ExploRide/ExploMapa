@@ -9841,19 +9841,25 @@ function getTripPointEmoji(p) {
       if (!activeTripId) return alert('Najpierw wybierz trip w trybie Plan tripu.');
       const trip = tripPlannerTrips.find(t => t.id === activeTripId);
       if (!trip || !trip.days?.length) return alert('Dodaj najpierw dzień do tripa.');
-      const dayOptions = trip.days.map((d, i) => `${i + 1}. ${d.name || 'Dzień'}`).join('\n');
-      const dayIdx = parseInt(prompt(`Wybierz numer dnia:\n${dayOptions}`), 10) - 1;
-      const day = trip.days[dayIdx];
+
+      const dialogResult = await showTripSpecialPointCreateDialog({
+        trip,
+        defaultName: pointData.name || pointData.nameSnapshot || pointData.nazwa || 'Punkt',
+        defaultPointType: pointData.defaultPointType || pointData.pointType || 'zwiedzanie',
+        defaultEmoji: pointData.emoji || pointData.emojiSnapshot || '📍',
+        defaultVisitMinutes: pointData.defaultVisitMinutes ?? pointData.visitMinutes ?? 60
+      });
+      if (!dialogResult) return;
+
+      const day = trip.days.find(d => d.id === dialogResult.dayId);
       if (!day) return;
-      const defaultPointType = pointData.defaultPointType || 'inny';
-      const visitMinutes = parseInt(prompt('Czas zwiedzania/pobytu (min):', `${pointData.defaultVisitMinutes ?? 60}`), 10) || 0;
       const isTripOnlyPoint = pointData.tripOnly || pointData.type === 'custom';
-      let customEmoji = pointData.emoji || '';
+      let customEmoji = dialogResult.emoji || '';
       if (isTripOnlyPoint) {
-        customEmoji = (pointData.emoji || '📍').trim() || '📍';
+        customEmoji = (dialogResult.emoji || pointData.emoji || '📍').trim() || '📍';
       }
       day.points = day.points || [];
-      day.points.push({ ...pointData, id: pointData.id || `pt_${Date.now()}`, pointType: defaultPointType, emoji: customEmoji, visitMinutes, note: '', order: day.points.length + 1 });
+      day.points.push({ ...pointData, id: pointData.id || `pt_${Date.now()}`, name: dialogResult.name, pointType: dialogResult.pointType, emoji: customEmoji, visitMinutes: dialogResult.visitMinutes, note: '', order: day.points.length + 1 });
       day.points.forEach((p, i) => p.order = i + 1);
       renderTripPlannerPanel();
       renderTripMapLayers();
