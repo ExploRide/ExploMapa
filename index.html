@@ -2227,7 +2227,72 @@ img.emoji {
     }
     .osm-popup { min-width: 160px; font-size: 13px; }
 
-  </style>
+  
+
+/* UI SCALE OVERRIDES */
+html body #basemap-switcher { font-size: calc(12px * var(--ui-scale)) !important; }
+html body #logoNaglowek { font-size: calc(16px * var(--ui-scale)) !important; }
+html body .warstwa h3 { font-size: calc(14px * var(--ui-scale)) !important; }
+html body .pinezka, html body .plan-item, html body .trasa-item, html body .layer-number,
+html body .layer-control-btn, html body .pin-total-counter, html body .main-category-title,
+html body .main-category-section-title, html body .filter-disabled, html body .trip-planner-panel,
+html body .trip-day-summary, html body .trip-point-item, html body .trip-segment-row,
+html body .trip-point-name, html body .trip-day-visible-toggle, html body .popup-info-item,
+html body .popup-description, html body .popup-route-btn, html body .popup-direct-route-btn,
+html body .route-time-tooltip, html body .plan-option-panel, html body .plan-editor-panel,
+html body [class*="duplicate-"], html body #history-log, html body #toast, html body #banner,
+html body #performance-debug-overlay, html body #osmOverlayStatus, html body .osm-popup,
+html body .osm-overlay-label, html body details, html body summary, html body label,
+html body button, html body input, html body select, html body textarea {
+  font-size: calc(12px * var(--ui-scale)) !important;
+}
+html body #sidebar,
+html body #basemap-switcher { width: calc(264px * var(--ui-scale)); }
+@media (max-width: 700px) {
+  html body.mobile-layout #sidebar,
+  html body.mobile-layout #basemap-switcher {
+    width: min(calc(260px * var(--ui-scale)), calc(100vw - 40px)) !important;
+  }
+}
+
+/* Nie skaluj markerów mapy */
+html body .emoji-marker,
+html body .emoji-sztosy,
+html body .custom-cluster-icon,
+html body .status-icon,
+html body .sztosy-gwiazda,
+html body .leaflet-marker-icon,
+html body .leaflet-marker-shadow {
+  font-size: initial !important;
+  transform: none !important;
+}
+
+/* Trip special point modal: bez podwójnego skalowania */
+html body .trip-special-point-modal {
+  max-width: min(calc(420px * var(--ui-scale)), calc(100vw - 24px)) !important;
+  max-height: calc(100dvh - 24px) !important;
+  overflow-y: auto !important;
+  font-size: calc(12px * var(--ui-scale)) !important;
+}
+html body .trip-special-point-modal .mobile-modal-content {
+  width: 100% !important;
+  max-width: 100% !important;
+  max-height: calc(100dvh - 24px) !important;
+  overflow-y: auto !important;
+  font-size: inherit !important;
+}
+html body .trip-special-point-modal .emoji-picker-grid {
+  max-height: min(calc(180px * var(--ui-scale)), 36dvh) !important;
+  overflow-y: auto !important;
+}
+html body .trip-special-point-modal input,
+html body .trip-special-point-modal select,
+html body .trip-special-point-modal textarea,
+html body .trip-special-point-modal button,
+html body .trip-special-point-modal label {
+  font-size: inherit !important;
+}
+</style>
 </head>
 <body>
   <div id="mobileTripDebug">MOBILE TRIP DEBUG V12 - HTML STATIC</div>
@@ -2484,7 +2549,7 @@ HTML DEBUG V12
     <div id="uiScaleControls" aria-label="Skalowanie interfejsu">
       <div class="ui-scale-row">
         <button id="uiScaleMinus" type="button" aria-label="Zmniejsz skalę UI">−</button>
-        <input id="uiScaleSlider" type="range" min="80" max="130" step="5" value="100" aria-label="Skala UI">
+        <input id="uiScaleSlider" type="range" min="50" max="150" step="5" value="100" aria-label="Skala UI">
         <span id="uiScaleLabel">100%</span>
         <button id="uiScalePlus" type="button" aria-label="Zwiększ skalę UI">+</button>
       </div>
@@ -3333,8 +3398,8 @@ function slugify(str) {
     let map, baseLayer, routingLayer, roadsLayer, baseTileErrorHandler, waymarkedErrorHandler;
     let pinRepositionState = null;
     const UI_SCALE_STORAGE_KEY = 'exploMapaUiScale';
-    const UI_SCALE_MIN = 80;
-    const UI_SCALE_MAX = 130;
+    const UI_SCALE_MIN = 50;
+    const UI_SCALE_MAX = 150;
     const UI_SCALE_STEP = 5;
 
     function getStoredUiScale() {
