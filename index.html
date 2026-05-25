@@ -9801,6 +9801,42 @@ function getTripPointEmoji(p) {
       });
     }
 
+    async function showTripSpecialPointCreateDialog({ trip, defaultName = '', defaultPointType = 'inny', defaultEmoji = '📍', defaultVisitMinutes = 60 }) {
+      if (!trip || !Array.isArray(trip.days) || !trip.days.length) return null;
+      const fallbackDayId = trip.days.find(d => d.id === activeTripDayId)?.id || trip.days.find(d => d.highlight)?.id || trip.days[0]?.id || '';
+      return await new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:20000;';
+        const dayRadios = trip.days.map((d, i) => {
+          const checked = (d.id === fallbackDayId) ? 'checked' : '';
+          return `<label style="display:flex;gap:6px;align-items:center;margin:2px 0;"><input type="radio" name="tripSpecialDay" value="${escapeHtml(d.id)}" ${checked}> ${escapeHtml(d.name || `Dzień ${i + 1}`)}</label>`;
+        }).join('');
+        overlay.innerHTML = `<div style="background:#1d2028;border:1px solid #3a3f4a;border-radius:10px;padding:12px;min-width:300px;max-width:min(94vw,460px);max-height:90vh;overflow:auto;">
+          <h3 style="margin:0 0 10px 0;">Nowy punkt specjalny</h3>
+          <div style="margin-bottom:10px;"><div style="font-size:12px;opacity:.85;margin-bottom:4px;">Dzień tripu</div>${dayRadios}</div>
+          <label>Nazwa punktu<br><input id="tripSpecialCreateName" type="text" style="width:100%" value="${escapeHtml(defaultName)}"></label><br>
+          <label>Typ punktu<br><input id="tripSpecialCreateType" type="text" style="width:100%" value="${escapeHtml(defaultPointType || '')}" placeholder="np. nocleg, parking, jedzenie"></label><br>
+          <label>Emoji</label><div id="tripSpecialCreateEmojiPicker" class="emoji-picker" style="margin:6px 0 0 0;"></div><input id="tripSpecialCreateEmojiInput" type="hidden" value="${escapeHtml(defaultEmoji || '📍')}"><br>
+          <label>Czas zwiedzania/pobytu (min)<br><input id="tripSpecialCreateMinutes" type="number" min="0" step="5" style="width:100%" value="${Number.isFinite(Number(defaultVisitMinutes)) ? Number(defaultVisitMinutes) : 60}"></label>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;"><button id="tripSpecialCreateCancel" type="button">Anuluj</button><button id="tripSpecialCreateOk" type="button">Dodaj</button></div>
+        </div>`;
+        document.body.appendChild(overlay);
+        const emojiInput = overlay.querySelector('#tripSpecialCreateEmojiInput');
+        const emojiPicker = overlay.querySelector('#tripSpecialCreateEmojiPicker');
+        if (emojiPicker && emojiInput) setupEmojiPickerForInput(emojiPicker, emojiInput);
+        const close = (result) => { overlay.remove(); resolve(result); };
+        overlay.querySelector('#tripSpecialCreateCancel')?.addEventListener('click', () => close(null));
+        overlay.querySelector('#tripSpecialCreateOk')?.addEventListener('click', () => {
+          const dayId = overlay.querySelector('input[name="tripSpecialDay"]:checked')?.value || '';
+          const name = (overlay.querySelector('#tripSpecialCreateName')?.value || '').trim() || 'Punkt';
+          const pointType = (overlay.querySelector('#tripSpecialCreateType')?.value || '').trim() || 'inny';
+          const emoji = (overlay.querySelector('#tripSpecialCreateEmojiInput')?.value || '').trim() || '📍';
+          const visitMinutes = parseInt(overlay.querySelector('#tripSpecialCreateMinutes')?.value || '', 10) || 0;
+          close({ dayId, name, pointType, emoji, visitMinutes });
+        });
+      });
+    }
+
     async function addPointToTripFromData(pointData) {
       if (!activeTripId) return alert('Najpierw wybierz trip w trybie Plan tripu.');
       const trip = tripPlannerTrips.find(t => t.id === activeTripId);
@@ -13803,21 +13839,24 @@ function confirmLayerDelete() {
     map?.on('click', async e => {
       if (!tripPrivatePointArmed || tripPlannerMode !== 'trip' || currentTool === 'pinTool' || drawingRoute) return;
       const trip = getActiveTrip(); if (!trip || !trip.days?.length) return alert('Dodaj najpierw dzień.');
-      const day = trip.days.find(d => d.highlight) || trip.days[0];
-      const rawName = prompt('Nazwa punktu prywatnego:', 'Nocleg');
-      if (rawName === null) {
+      const placeName = await resolveAddress(e.latlng.lat, e.latlng.lng);
+      const dialogResult = await showTripSpecialPointCreateDialog({
+        trip,
+        defaultName: placeName || 'Nocleg',
+        defaultPointType: 'nocleg',
+        defaultEmoji: '🏨',
+        defaultVisitMinutes: 480
+      });
+      if (!dialogResult) {
         tripPrivatePointArmed = false;
         return;
       }
-      const name = rawName.trim() || 'Punkt';
-      const rawPointType = prompt('Typ punktu (wpisz lub zostaw puste):', '');
-      if (rawPointType === null) {
+      const day = trip.days.find(d => d.id === dialogResult.dayId) || trip.days.find(d => d.highlight) || trip.days[0];
+      if (!day) {
         tripPrivatePointArmed = false;
         return;
       }
-      const pointType = rawPointType.trim();
-      const visitMinutes = parseInt(prompt('Czas pobytu (min):', '480'), 10) || 0;
-      day.points.push({ id: `cp_${Date.now()}`, type: 'custom', name, lat: e.latlng.lat, lng: e.latlng.lng, emoji: '🏨', pointType, visitMinutes, note: '', tripOnly: true, order: day.points.length + 1 });
+      day.points.push({ id: `cp_${Date.now()}`, type: 'custom', name: dialogResult.name, lat: e.latlng.lat, lng: e.latlng.lng, emoji: dialogResult.emoji, pointType: dialogResult.pointType, visitMinutes: dialogResult.visitMinutes, note: '', tripOnly: true, order: day.points.length + 1 });
       tripPrivatePointArmed = false;
       day.points.forEach((p, i) => p.order = i + 1);
       renderTripPlannerPanel();
