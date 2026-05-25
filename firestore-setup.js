@@ -37,8 +37,7 @@ auth.onAuthStateChanged(user => {
 });
 
 window.addPinOffline = async function({ lat, lng, name, opis, warstwa, emoji, kategoriaGlowna = 'URBEX' }){
-  const now = firebase.firestore.FieldValue.serverTimestamp();
-  return db.collection('pinezki2').add({
+  const payload = {
     lat,
     lng,
     nazwa: name,
@@ -46,9 +45,21 @@ window.addPinOffline = async function({ lat, lng, name, opis, warstwa, emoji, ka
     warstwa,
     kategoriaGlowna: kategoriaGlowna === 'TURYSTYCZNE' ? 'TURYSTYCZNE' : 'URBEX',
     emoji,
-    createdAt: now,
-    updatedAt: now
-  });
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  if (!navigator.onLine && window.upsertQueueOperation) {
+    const queueEntry = await window.upsertQueueOperation({
+      operation: 'createPin',
+      payload,
+      syncStatus: 'pending'
+    });
+    window.dispatchEvent(new CustomEvent('offline-pin-created', { detail: { ...payload, localId: queueEntry.localId, offline: true } }));
+    return { id: queueEntry.localId, offline: true };
+  }
+
+  return db.collection('pinezki2').add(payload);
 };
 
 window.getCurrentPositionOnce = function() {
@@ -63,6 +74,34 @@ window.getCurrentPositionOnce = function() {
 window.renderSyncQueueCount = function(count){
   const el = document.getElementById('syncCount');
   if (el) el.textContent = count;
+  const btnEl = document.getElementById('syncCountBtn');
+  if (btnEl) btnEl.textContent = count;
+};
+
+window.updateSyncStatus = function(status){
+  const el = document.getElementById('syncStatusText');
+  if (el) el.textContent = status;
+};
+
+window.updateConnectionState = function(){
+  const el = document.getElementById('connectionState');
+  if (el) el.textContent = navigator.onLine ? 'online' : 'offline';
+};
+
+window.renderOfflinePinsList = function(items){
+  const el = document.getElementById('offlinePinsList');
+  if (!el) return;
+  if (!items.length) {
+    el.innerHTML = '<li>Brak niezsynchronizowanych pinezek</li>';
+    return;
+  }
+  el.innerHTML = items.map(item => {
+    const p = item.payload || {};
+    const name = p.nazwa || p.name || 'bez nazwy';
+    const warstwa = p.warstwa || '-';
+    const err = item.errorMessage ? ` | błąd: ${item.errorMessage}` : '';
+    return `<li>⏳ ${name} [${warstwa}] — ${item.syncStatus}${err}</li>`;
+  }).join('');
 };
 
 window.showBanner = function(text, type='info'){
@@ -78,24 +117,24 @@ window.showOfflineBar = function(show){
   if (el) el.style.display = show ? 'block' : 'none';
 };
 
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js');
-    });
-  }
-
 window.addEventListener('offline', () => {
+  updateConnectionState();
+  updateSyncStatus('offline');
   showOfflineBar(true);
   showBanner('Offline', 'error');
 });
 window.addEventListener('online', () => {
+  updateConnectionState();
   showOfflineBar(false);
   showBanner('Połączono – synchronizuję…', 'info');
-  flushQueuedUploads({}).then(() => {
-    showBanner('Zsynchronizowano', 'success');
-  }).catch(() => {
-    showBanner('Błąd synchronizacji – spróbuj ponownie', 'error');
-  });
+  (window.syncOfflineQueue ? window.syncOfflineQueue() : Promise.resolve())
+    .then((result) => {
+      if (result && result.failed) throw new Error('sync fail');
+      showBanner('Zsynchronizowano', 'success');
+    })
+    .catch(() => {
+      showBanner('Błąd synchronizacji – spróbuj ponownie', 'error');
+    });
 });
 
 const syncBtn = document.getElementById('syncBtn');
@@ -103,10 +142,21 @@ if (syncBtn) {
   syncBtn.addEventListener('click', async () => {
     showBanner('Synchronizuję…', 'info');
     try {
-      await flushQueuedUploads({});
+      if (window.syncOfflineQueue) await window.syncOfflineQueue();
+      else await flushQueuedUploads({});
       showBanner('Zsynchronizowano', 'success');
     } catch (e) {
       showBanner('Błąd synchronizacji – spróbuj ponownie', 'error');
     }
   });
 }
+
+window.addEventListener('DOMContentLoaded', () => {
+  updateConnectionState();
+  if (navigator.onLine) {
+    if (window.syncOfflineQueue) window.syncOfflineQueue().catch(()=>{});
+    else updateSyncStatus('zsynchronizowano');
+  } else {
+    updateSyncStatus('offline');
+  }
+});
