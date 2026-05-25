@@ -2334,6 +2334,42 @@ html body .trip-special-point-modal button,
 html body .trip-special-point-modal label {
   font-size: inherit !important;
 }
+
+/* Tool buttons: stronger override after UI SCALE OVERRIDES */
+#narzedzia {
+  display: flex;
+  align-items: center;
+  gap: calc(6px * var(--ui-scale));
+}
+
+#narzedzia .tool-btn {
+  width: calc(36px * var(--ui-scale)) !important;
+  height: calc(36px * var(--ui-scale)) !important;
+  min-width: calc(36px * var(--ui-scale)) !important;
+  min-height: calc(36px * var(--ui-scale)) !important;
+  max-width: none !important;
+  max-height: none !important;
+  padding: 0 !important;
+  font-size: calc(24px * var(--ui-scale)) !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  transform: none !important;
+}
+
+#narzedzia .tool-btn img {
+  width: calc(24px * var(--ui-scale)) !important;
+  height: calc(24px * var(--ui-scale)) !important;
+  display: block !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
+#narzedzia .tool-btn:active {
+  transform: none !important;
+}
 </style>
 </head>
 <body>
