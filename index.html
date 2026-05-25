@@ -686,6 +686,48 @@ body, #sidebar, #basemap-switcher {
 #lista-warstw::-webkit-scrollbar-thumb:hover {
   background-color: #777;
 }
+
+    .panel-toggle-btn {
+      border: 1px solid #555;
+      background: #1f1f1f;
+      color: #f0f0f0;
+      border-radius: 4px;
+      width: 24px;
+      height: 24px;
+      line-height: 1;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      padding: 0;
+    }
+    .panel-toggle-btn:hover { background: #2f2f2f; }
+    .basemap-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .basemap-header h3 {
+      margin: 0;
+      font-size: 16px;
+    }
+    body:not(.mobile-layout) #sidebar {
+      transition: transform 0.25s ease;
+      transform: translateX(0);
+    }
+    body:not(.mobile-layout) #basemap-switcher {
+      transition: transform 0.25s ease;
+      transform: translateX(0);
+    }
+    body:not(.mobile-layout) #sidebar.sidebar-collapsed {
+      transform: translateX(calc(-100% + 30px));
+    }
+    body:not(.mobile-layout) #basemap-switcher.basemap-collapsed {
+      transform: translateX(calc(100% - 30px));
+    }
     .sidebar-header {
       display: flex;
       align-items: center;
@@ -2147,6 +2189,7 @@ HTML DEBUG V12
           </div>
         </div>
         <h2 id="logoNaglowek">ExploMapy</h2>
+        <button id="sidebarCollapseToggle" class="panel-toggle-btn" type="button" aria-label="Schowaj panel boczny" title="Schowaj panel boczny">◀</button>
       </div>
       <div class="trip-mode-toggle">
         <button id="modePinsBtn" class="active" type="button"
@@ -2297,7 +2340,10 @@ HTML DEBUG V12
   <button id="saveChanges">Zapisz edycję mapy</button>
   <div id="basemap-switcher">
     <div id="basemap-content">
-      <h3>Rodzaj mapy</h3>
+      <div class="basemap-header">
+        <button id="basemapCollapseToggle" class="panel-toggle-btn" type="button" aria-label="Schowaj panel map" title="Schowaj panel map">▶</button>
+        <h3>Rodzaj mapy</h3>
+      </div>
       <div id="map-date-controls"><span id="map-date-badge"></span><select id="map-year-select" style="display:none;"></select></div>
       <details>
         <summary><strong>Bazy</strong></summary>
@@ -4103,6 +4149,37 @@ function slugify(str) {
         basemapSwitcherEl.classList.toggle("show");
       });
     }
+
+    const sidebarCollapseToggleBtn = document.getElementById("sidebarCollapseToggle");
+    const basemapCollapseToggleBtn = document.getElementById("basemapCollapseToggle");
+    const updateDesktopPanelToggleLabels = () => {
+      if (sidebarEl && sidebarCollapseToggleBtn) {
+        const collapsed = sidebarEl.classList.contains("sidebar-collapsed");
+        sidebarCollapseToggleBtn.textContent = collapsed ? "▶" : "◀";
+        sidebarCollapseToggleBtn.setAttribute("aria-label", collapsed ? "Pokaż panel boczny" : "Schowaj panel boczny");
+      }
+      if (basemapSwitcherEl && basemapCollapseToggleBtn) {
+        const collapsed = basemapSwitcherEl.classList.contains("basemap-collapsed");
+        basemapCollapseToggleBtn.textContent = collapsed ? "◀" : "▶";
+        basemapCollapseToggleBtn.setAttribute("aria-label", collapsed ? "Pokaż panel map" : "Schowaj panel map");
+      }
+    };
+    if (sidebarCollapseToggleBtn && sidebarEl) {
+      sidebarCollapseToggleBtn.addEventListener("click", () => {
+        if (document.body.classList.contains("mobile-layout")) return;
+        sidebarEl.classList.toggle("sidebar-collapsed");
+        updateDesktopPanelToggleLabels();
+      });
+    }
+    if (basemapCollapseToggleBtn && basemapSwitcherEl) {
+      basemapCollapseToggleBtn.addEventListener("click", () => {
+        if (document.body.classList.contains("mobile-layout")) return;
+        basemapSwitcherEl.classList.toggle("basemap-collapsed");
+        updateDesktopPanelToggleLabels();
+      });
+    }
+    updateDesktopPanelToggleLabels();
+
     const mobileControlsToggleBtn = document.getElementById("mobileControlsToggle");
     const sidebarTopControlsEl = document.getElementById("sidebarTopControls");
     const desktopFiltersToggleBtn = document.getElementById("desktopFiltersToggle");
