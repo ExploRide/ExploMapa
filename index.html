@@ -92,15 +92,39 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
     }
     #uiScaleControls .ui-scale-row {
       display: grid;
-      grid-template-columns: auto 1fr auto auto;
+      grid-template-columns: auto minmax(0, 1fr) auto;
       align-items: center;
       gap: 6px;
+      width: 100%;
+      min-width: 0;
     }
-    #uiScaleControls button { min-width: 30px; }
-    #uiScaleLabel { min-width: 46px; text-align: center; font-weight: 600; }
+    #uiScaleControls .ui-scale-buttons {
+      display: inline-flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    #uiScaleControls button {
+      min-width: 28px;
+      max-width: 42px;
+      padding-left: 6px;
+      padding-right: 6px;
+    }
+    #uiScaleSlider {
+      min-width: 0;
+      width: 100%;
+    }
+    #uiScaleLabel {
+      min-width: 42px;
+      text-align: right;
+      white-space: nowrap;
+      font-weight: 600;
+    }
     #history-log {
       border-top: 1px solid #444;
       margin-top: 10px;
@@ -2255,16 +2279,34 @@ html body #basemap-switcher { width: calc(264px * var(--ui-scale)); }
   }
 }
 
-/* Nie skaluj markerów mapy */
-html body .emoji-marker,
-html body .emoji-sztosy,
-html body .custom-cluster-icon,
-html body .status-icon,
-html body .sztosy-gwiazda,
-html body .leaflet-marker-icon,
-html body .leaflet-marker-shadow {
-  font-size: initial !important;
-  transform: none !important;
+/* Map markers must not be affected by UI scale */
+html body .leaflet-marker-icon.emoji-marker,
+html body .emoji-marker {
+  font-size: 12.4px !important;
+  line-height: 25.6px !important;
+  background: none !important;
+  border: none !important;
+}
+
+html body .emoji-marker span:not(.status-icon):not(.sztosy-gwiazda),
+html body .emoji-marker .emoji-sztosy {
+  font-size: 22.4px !important;
+  line-height: 25.6px !important;
+}
+
+html body .emoji-marker img.emoji-obrys,
+html body .emoji-marker img.emoji-obrys-sztosy {
+  width: 22.4px !important;
+  height: 22.4px !important;
+}
+
+html body .emoji-marker .status-icon {
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+
+html body .emoji-marker .sztosy-gwiazda {
+  font-size: 18px !important;
 }
 
 /* Trip special point modal: bez podwójnego skalowania */
@@ -2548,10 +2590,12 @@ HTML DEBUG V12
     </div>
     <div id="uiScaleControls" aria-label="Skalowanie interfejsu">
       <div class="ui-scale-row">
-        <button id="uiScaleMinus" type="button" aria-label="Zmniejsz skalę UI">−</button>
-        <input id="uiScaleSlider" type="range" min="50" max="150" step="5" value="100" aria-label="Skala UI">
+        <div class="ui-scale-buttons">
+          <button id="uiScaleMinus" type="button" aria-label="Zmniejsz skalę UI">−</button>
+          <button id="uiScalePlus" type="button" aria-label="Zwiększ skalę UI">+</button>
+        </div>
+        <input id="uiScaleSlider" type="range" min="70" max="130" step="2" value="100" aria-label="Skala UI">
         <span id="uiScaleLabel">100%</span>
-        <button id="uiScalePlus" type="button" aria-label="Zwiększ skalę UI">+</button>
       </div>
       <button id="uiScaleReset" type="button">Reset</button>
     </div>
@@ -3398,9 +3442,9 @@ function slugify(str) {
     let map, baseLayer, routingLayer, roadsLayer, baseTileErrorHandler, waymarkedErrorHandler;
     let pinRepositionState = null;
     const UI_SCALE_STORAGE_KEY = 'exploMapaUiScale';
-    const UI_SCALE_MIN = 50;
-    const UI_SCALE_MAX = 150;
-    const UI_SCALE_STEP = 5;
+    const UI_SCALE_MIN = 70;
+    const UI_SCALE_MAX = 130;
+    const UI_SCALE_STEP = 2;
 
     function getStoredUiScale() {
       const raw = Number(localStorage.getItem(UI_SCALE_STORAGE_KEY));
