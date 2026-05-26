@@ -1,5 +1,5 @@
-const BUILD_VERSION = '2026-05-25-v2';
-const CACHE_NAME = `explomapa-app-${BUILD_VERSION}`;
+const BUILD_VERSION = new URL(self.location.href).searchParams.get('v') || Date.now().toString();
+const CACHE_NAME = `exploride-${BUILD_VERSION}`;
 const TILE_CACHE = `explomapa-tiles-${BUILD_VERSION}`;
 const RUNTIME_CACHE = `explomapa-runtime-${BUILD_VERSION}`;
 

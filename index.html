@@ -10,7 +10,12 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-  <link rel="stylesheet" href="style.css?v=ui-fix-2026-05-25-v1" />
+  <script>
+    const BUILD_VERSION = String(Date.parse(document.lastModified) || Date.now());
+    window.BUILD_VERSION = BUILD_VERSION;
+    window.APP_BUILD = BUILD_VERSION;
+  </script>
+  <link rel="stylesheet" href="style.css" data-build-asset />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2733,15 +2738,15 @@ HTML DEBUG V12
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js?v=ui-fix-2026-05-25-v1"></script>
-  <script src="firestore-setup.js?v=ui-fix-2026-05-25-v1"></script>
+  <script src="offline-uploads.js" data-build-asset></script>
+  <script src="firestore-setup.js" data-build-asset></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=ui-fix-2026-05-25-v1"></script>
+  <script src="leaflet-tilelayer-wmts.js" data-build-asset></script>
 
   <script>
-    const APP_BUILD = 'ui-fix-2026-05-25-v1';
+    const APP_BUILD = window.BUILD_VERSION;
     window.rawTripDebug = function(msg) {
       // Debug wyłączony. Funkcja musi istnieć, bo używają jej inline handlery #modeTripBtn.
     };
@@ -3078,6 +3083,14 @@ HTML DEBUG V12
       window.rawTripDebug('typeof window.loadTrips: ' + typeof window.loadTrips);
       window.rawTripDebug('typeof window.renderTripPlannerPanel: ' + typeof window.renderTripPlannerPanel);
     });
+    document.querySelectorAll('[data-build-asset]').forEach((el) => {
+      const sourceAttr = el.tagName === 'LINK' ? 'href' : 'src';
+      const currentValue = el.getAttribute(sourceAttr);
+      if (!currentValue || /^https?:\/\//i.test(currentValue)) return;
+      const separator = currentValue.includes('?') ? '&' : '?';
+      el.setAttribute(sourceAttr, `${currentValue}${separator}v=${encodeURIComponent(BUILD_VERSION)}`);
+    });
+
     console.log('APP BUILD:', APP_BUILD, new Date().toISOString());
 
     const buildBadge = document.createElement('div');
@@ -3108,18 +3121,23 @@ HTML DEBUG V12
       });
 
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/ExploMapa/service-worker.js')
-          .then(reg => {
+        navigator.serviceWorker.register(`/ExploMapa/service-worker.js?v=${encodeURIComponent(BUILD_VERSION)}`)
+          .then((registration) => {
             console.log('Service worker registered: /ExploMapa/service-worker.js');
-            reg.addEventListener('updatefound', () => {
-              const newWorker = reg.installing;
-              if (!newWorker) return;
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  const shouldReload = window.confirm('Dostępna nowa wersja aplikacji – odśwież teraz?');
-                  if (shouldReload) {
-                    newWorker.postMessage({ type: 'SKIP_WAITING' });
-                  }
+
+            const promoteWaitingWorker = () => {
+              if (registration.waiting) {
+                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+            };
+
+            promoteWaitingWorker();
+            registration.addEventListener('updatefound', () => {
+              const installing = registration.installing;
+              if (!installing) return;
+              installing.addEventListener('statechange', () => {
+                if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                  promoteWaitingWorker();
                 }
               });
             });
