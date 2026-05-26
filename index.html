@@ -11,19 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = String(Date.parse(document.lastModified) || Date.now());
+    const BUILD_VERSION = '2026-05-26-savefix-1';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
-    function writeVersionedScript(src) {
-      document.write('<script src="' + src + '?v=' + encodeURIComponent(BUILD_VERSION) + '"><\\/script>');
-    }
-    function writeVersionedCss(href) {
-      document.write('<link rel="stylesheet" href="' + href + '?v=' + encodeURIComponent(BUILD_VERSION) + '">');
-    }
   </script>
-  <script>
-    writeVersionedCss('style.css');
-  </script>
+  <link rel="stylesheet" href="style.css?v=2026-05-26-savefix-1" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -2747,16 +2739,12 @@ HTML DEBUG V12
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script>
-    writeVersionedScript('offline-uploads.js');
-    writeVersionedScript('firestore-setup.js');
-  </script>
+  <script src="offline-uploads.js?v=2026-05-26-savefix-1"></script>
+  <script src="firestore-setup.js?v=2026-05-26-savefix-1"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script>
-    writeVersionedScript('leaflet-tilelayer-wmts.js');
-  </script>
+  <script src="leaflet-tilelayer-wmts.js?v=2026-05-26-savefix-1"></script>
 
   <script>
     const APP_BUILD = window.BUILD_VERSION;
