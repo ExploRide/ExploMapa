@@ -12259,6 +12259,9 @@ function getTripPointEmoji(p) {
         console.warn('twemoji.parse failed', err);
       }
     }
+    if (typeof updateDesktopPanelToggleLabels === 'function') {
+      updateDesktopPanelToggleLabels();
+    }
     const specialMenu = document.getElementById('specialMenu');
     const specialMenuToggle = document.getElementById('specialMenuToggle');
     const specialMenuContent = document.getElementById('specialMenuContent');
