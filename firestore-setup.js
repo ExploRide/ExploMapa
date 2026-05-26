@@ -49,13 +49,9 @@ window.addPinOffline = async function({ lat, lng, name, opis, warstwa, emoji, ka
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
 
-  if (!navigator.onLine) {
-    const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-    window.dispatchEvent(new CustomEvent('offline-pin-created', { detail: { ...payload, localId, offline: true } }));
-    return { id: localId, offline: true, queued: false };
-  }
-
-  return db.collection('pinezki2').add(payload);
+  const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+  window.dispatchEvent(new CustomEvent('offline-pin-created', { detail: { ...payload, localId, offline: !navigator.onLine } }));
+  return { id: localId, offline: !navigator.onLine, queued: false };
 };
 
 window.getCurrentPositionOnce = function() {
@@ -113,6 +109,19 @@ window.showOfflineBar = function(show){
   if (el) el.style.display = show ? 'block' : 'none';
 };
 
+
+const isMobileClient = window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
+function applySyncUiVisibility(){
+  const syncBtnEl = document.getElementById('syncBtn');
+  const offlinePanelEl = document.getElementById('offlinePinsPanel');
+  const syncStatusEl = document.getElementById('syncStatus');
+  if (!isMobileClient) {
+    if (syncBtnEl) syncBtnEl.style.display = 'none';
+    if (offlinePanelEl) offlinePanelEl.style.display = 'none';
+    if (syncStatusEl) syncStatusEl.style.display = 'none';
+  }
+}
+
 window.addEventListener('offline', () => {
   updateConnectionState();
   updateSyncStatus('offline');
@@ -133,7 +142,7 @@ window.addEventListener('online', () => {
     });
 });
 
-const syncBtn = document.getElementById('syncBtn');
+const syncBtn = isMobileClient ? document.getElementById('syncBtn') : null;
 if (syncBtn) {
   syncBtn.addEventListener('click', async () => {
     showBanner('Synchronizuję…', 'info');
@@ -148,6 +157,7 @@ if (syncBtn) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  applySyncUiVisibility();
   updateConnectionState();
   if (navigator.onLine) {
     if (window.syncOfflineQueue) window.syncOfflineQueue().catch(()=>{});
