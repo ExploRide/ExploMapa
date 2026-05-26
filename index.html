@@ -14,8 +14,16 @@
     const BUILD_VERSION = String(Date.parse(document.lastModified) || Date.now());
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
+    function writeVersionedScript(src) {
+      document.write('<script src="' + src + '?v=' + encodeURIComponent(BUILD_VERSION) + '"><\\/script>');
+    }
+    function writeVersionedCss(href) {
+      document.write('<link rel="stylesheet" href="' + href + '?v=' + encodeURIComponent(BUILD_VERSION) + '">');
+    }
   </script>
-  <link rel="stylesheet" href="style.css" data-build-asset />
+  <script>
+    writeVersionedCss('style.css');
+  </script>
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -1401,7 +1409,7 @@ body.mobile-layout #saveChanges {
   top: calc(env(safe-area-inset-top, 0px) + 10px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 400;
+  z-index: 2000;
   width: auto;
   min-width: 150px;
 }
@@ -1445,13 +1453,14 @@ body.mobile-layout #saveChanges {
   #toggleLayers { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 10px; z-index: 400; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block !important; }
   #toggleBasemaps { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); right: 10px; z-index: 400; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block !important; }
   #saveChanges {
+    display: none;
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    top: 12px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 400;
+    z-index: 2000;
     width: auto;
-    min-width: 150px;
+    min-width: 180px;
   }
 }
 
@@ -2738,12 +2747,16 @@ HTML DEBUG V12
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
-  <script src="offline-uploads.js" data-build-asset></script>
-  <script src="firestore-setup.js" data-build-asset></script>
+  <script>
+    writeVersionedScript('offline-uploads.js');
+    writeVersionedScript('firestore-setup.js');
+  </script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js" data-build-asset></script>
+  <script>
+    writeVersionedScript('leaflet-tilelayer-wmts.js');
+  </script>
 
   <script>
     const APP_BUILD = window.BUILD_VERSION;
@@ -3083,15 +3096,10 @@ HTML DEBUG V12
       window.rawTripDebug('typeof window.loadTrips: ' + typeof window.loadTrips);
       window.rawTripDebug('typeof window.renderTripPlannerPanel: ' + typeof window.renderTripPlannerPanel);
     });
-    document.querySelectorAll('[data-build-asset]').forEach((el) => {
-      const sourceAttr = el.tagName === 'LINK' ? 'href' : 'src';
-      const currentValue = el.getAttribute(sourceAttr);
-      if (!currentValue || /^https?:\/\//i.test(currentValue)) return;
-      const separator = currentValue.includes('?') ? '&' : '?';
-      el.setAttribute(sourceAttr, `${currentValue}${separator}v=${encodeURIComponent(BUILD_VERSION)}`);
-    });
-
     console.log('APP BUILD:', APP_BUILD, new Date().toISOString());
+    console.log('BUILD_VERSION', BUILD_VERSION);
+    console.log('Loaded scripts', [...document.scripts].map(s => s.src).filter(Boolean));
+    console.log('Loaded styles', [...document.styleSheets].map(s => s.href).filter(Boolean));
 
     const buildBadge = document.createElement('div');
     buildBadge.id = 'app-build-badge';
@@ -4796,25 +4804,17 @@ function slugify(str) {
 
     function updateSaveButton() {
       const pending = hasUnsavedChanges();
-      console.log("SAVE BUTTON DEBUG", {
-        pending,
-        hasUnsavedPinChanges: hasUnsavedPinChanges(),
-        zmianyDoZapisaniaKeys: Object.keys(zmianyDoZapisania),
-        zmianyDoZapisania,
-        nowePinezkiLength: nowePinezki.length,
-        nowePinezki,
-        pinsToDeleteLength: pinsToDelete.length,
-        layersToAddLength: layersToAdd.length,
-        layersToDeleteLength: layersToDelete.length,
-        layerOrderChanged,
-        layerEmojiChangesKeys: Object.keys(layerEmojiChanges),
-        layerDefaultVisibilityChangesKeys: Object.keys(layerDefaultVisibilityChanges)
-      });
-      shouldWarnBeforeUnload = pending;
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
       btn.style.display = pending ? 'block' : 'none';
       btn.classList.toggle('unsaved', pending);
+      console.log('SAVE BUTTON STATE', {
+        pending,
+        display: btn.style.display,
+        nowePinezkiLength: nowePinezki.length,
+        pinsToDeleteLength: pinsToDelete.length
+      });
+      shouldWarnBeforeUnload = pending;
     }
 
     function markPinUnsaved(slug) {
@@ -12715,6 +12715,7 @@ function getTripPointEmoji(p) {
     }
     wszystkiePinezki = wszystkiePinezki.filter(pp => pp !== p);
     if (!batch) finalizePinsBulkMutation();
+    else updateSaveButton();
     if (record && !batch) {
       pushAction({
         undo: () => {
@@ -12948,6 +12949,7 @@ function confirmLayerDelete() {
     popupDiv.innerHTML = createPopupHtml(data);
     marker.bindPopup(popupDiv);
     attachPopupHandlers(marker, data);
+    data.unsaved = true;
     nowePinezki.push(data);
     localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
       const {marker, ...rest} = p;
