@@ -2097,7 +2097,7 @@ img.emoji {
     }
 
     #mobileControlsToggle {
-      display: none;
+      display: flex;
       width: 100%;
       justify-content: space-between;
       align-items: center;
@@ -2113,8 +2113,12 @@ img.emoji {
 
     @media (min-width: 701px) {
       #sidebarTopControls {
-       /* display: grid;*/
+        display: none;
         gap: 4px;
+      }
+
+      #sidebarTopControls.mobile-open {
+        display: flex;
       }
 
       #desktopFiltersToggle {
@@ -2123,10 +2127,28 @@ img.emoji {
 
       #desktopFiltersContent {
         display: none;
+        position: absolute;
+        top: 0;
+        left: calc(100% + 8px);
+        width: min(360px, calc(100vw - 330px));
+        max-height: min(80vh, 640px);
+        overflow-y: auto;
+        z-index: 900;
+        background: #171a21ed;
+        border: 1px solid var(--ui-border);
+        border-radius: var(--ui-radius);
+        box-shadow: var(--ui-shadow);
+        padding: 8px;
+        margin-top: 0;
       }
 
       #desktopFiltersDropdown.open #desktopFiltersContent {
         display: grid;
+      }
+
+      #desktopFiltersDropdown {
+        position: relative;
+        overflow: visible;
       }
     }
 
@@ -2145,10 +2167,7 @@ img.emoji {
         order: 1;
       }
 
-      #mobileControlsToggle {
-        display: flex;
-        margin-bottom: 6px;
-      }
+      #mobileControlsToggle { margin-bottom: 6px; }
 
       #sidebarTopControls {
         display: none;
@@ -2173,6 +2192,14 @@ img.emoji {
         display: grid !important;
         margin-top: 0;
         gap: 6px;
+        position: static;
+        width: auto;
+        max-height: none;
+        overflow: visible;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+        padding: 0;
       }
     }
 
@@ -2428,7 +2455,7 @@ HTML DEBUG V12
       <button id="mobileControlsToggle" type="button" aria-expanded="false" aria-controls="sidebarTopControls">
         Filtry i akcje <span class="mobile-controls-indicator">▼</span>
       </button>
-      <div id="sidebarTopControls">
+      <div id="sidebarTopControls" class="mobile-open">
       <div class="search-input-row">
         <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
         <button id="clearWyszukiwarkaBtn" type="button" aria-label="Wyczyść wyszukiwarkę">✕</button>
@@ -3398,9 +3425,6 @@ function slugify(str) {
       if (!controlsWrap || !controlsToggle) return;
       const indicator = controlsToggle.querySelector(".mobile-controls-indicator");
       const mobileMode = document.body.classList.contains("mobile-layout");
-      if (!mobileMode) {
-        controlsWrap.classList.remove("mobile-open");
-      }
       if (desktopFilterDropdown && desktopFilterToggle) {
         if (mobileMode) {
           desktopFilterDropdown.classList.add("open");
@@ -3413,8 +3437,8 @@ function slugify(str) {
         }
       }
       const isOpen = controlsWrap.classList.contains("mobile-open");
-      controlsToggle.setAttribute("aria-expanded", mobileMode ? String(isOpen) : "true");
-      if (indicator) indicator.textContent = mobileMode && isOpen ? "▲" : "▼";
+      controlsToggle.setAttribute("aria-expanded", String(isOpen));
+      if (indicator) indicator.textContent = isOpen ? "▲" : "▼";
     }
 
     function showLoginScreen() {
