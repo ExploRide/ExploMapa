@@ -1396,16 +1396,6 @@ body.mobile-layout #toggleBasemaps {
   padding: 5px 10px;
   display: block !important;
 }
-body.mobile-layout #saveChanges {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 10px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2000;
-  width: auto;
-  min-width: 150px;
-}
-
 @media (max-width: 700px) {
   #map { left: 0 !important; right: 0 !important; }
   #sidebar { position: fixed; transform: translateX(-100%); transition: transform 0.3s ease; width: 260px; z-index: 300; }
@@ -1444,16 +1434,6 @@ body.mobile-layout #saveChanges {
   .leaflet-control-zoom { left: 10px; }
   #toggleLayers { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 10px; z-index: 400; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block !important; }
   #toggleBasemaps { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); right: 10px; z-index: 400; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block !important; }
-  #saveChanges {
-    display: none;
-    position: fixed;
-    top: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 2000;
-    width: auto;
-    min-width: 180px;
-  }
 }
 
 @media (max-width: 1200px) {
@@ -2416,6 +2396,24 @@ html body .trip-special-point-modal label {
 
 #narzedzia .tool-btn:active {
   transform: none !important;
+}
+
+
+#saveChanges {
+  display: none;
+  position: fixed !important;
+  top: 12px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 2147483600 !important;
+  width: auto !important;
+  min-width: 180px !important;
+  pointer-events: auto !important;
+}
+
+body.mobile-layout #saveChanges {
+  top: calc(env(safe-area-inset-top, 0px) + 10px) !important;
+  min-width: 150px !important;
 }
 </style>
 </head>
@@ -4802,6 +4800,9 @@ function slugify(str) {
         nowePinezkiLength: nowePinezki.length,
         pinsToDeleteLength: pinsToDelete.length
       });
+      if (pending === true) {
+        console.log('SAVE BTN RECT', btn.getBoundingClientRect(), getComputedStyle(btn));
+      }
       shouldWarnBeforeUnload = pending;
     }
 
@@ -12670,6 +12671,7 @@ function getTripPointEmoji(p) {
     const p = wszystkiePinezki.find(pp => String(pp.id) === String(id));
     if (!p) {
       if (!skipCloseModal) closeDeleteModal();
+      updateSaveButton();
       return;
     }
     const layerName = p.warstwa || 'Inne';
@@ -12703,7 +12705,6 @@ function getTripPointEmoji(p) {
     }
     wszystkiePinezki = wszystkiePinezki.filter(pp => pp !== p);
     if (!batch) finalizePinsBulkMutation();
-    else updateSaveButton();
     if (record && !batch) {
       pushAction({
         undo: () => {
@@ -12722,6 +12723,7 @@ function getTripPointEmoji(p) {
         redo: () => { deletePinLocal(id, false); }
       }, 'Usunięto pinezkę');
     }
+    updateSaveButton();
     if (!skipCloseModal) closeDeleteModal();
   }
 
