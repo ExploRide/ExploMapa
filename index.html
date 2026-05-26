@@ -11660,7 +11660,7 @@ function getTripPointEmoji(p) {
             });
             allLayersVisible = Object.values(warstwy).every(w => w.visible);
             if (toggleVisibilityBtn) {
-              toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
+              toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj warstwy' : 'Pokaż warstwy';
             }
           });
         });
@@ -11672,7 +11672,7 @@ function getTripPointEmoji(p) {
           });
           allLayersVisible = Object.values(warstwy).every(w => w.visible);
           if (toggleVisibilityBtn) {
-            toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
+            toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj warstwy' : 'Pokaż warstwy';
           }
         };
         const label = document.createElement("span");
@@ -11786,7 +11786,7 @@ function getTripPointEmoji(p) {
       applySearchFilter();
       allLayersVisible = Object.values(warstwy).every(w => w.visible);
       if (toggleVisibilityBtn) {
-        toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
+        toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj warstwy' : 'Pokaż warstwy';
       }
       persistAllLayerVisibilityStates();
       shouldIgnoreStoredLayerState = false;
