@@ -4718,7 +4718,7 @@ function slugify(str) {
           warstwy[n].collapsed = allLayersCollapsed;
         });
         persistAllLayerCollapseStates();
-        collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń wszystkie warstwy' : 'Zwiń wszystkie warstwy';
+        collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń warstwy' : 'Zwiń warstwy';
         generujListeWarstw();
       });
     }
@@ -4731,7 +4731,7 @@ function slugify(str) {
             source: 'toggle-visibility-btn'
           });
         });
-        toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj wszystkie warstwy' : 'Pokaż wszystkie warstwy';
+        toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj warstwy' : 'Pokaż warstwy';
         persistAllLayerVisibilityStates();
         generujListeWarstw();
       });
