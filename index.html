@@ -4643,39 +4643,17 @@ function slugify(str) {
         wszystkiePinezki.push(data);
         return data;
       });
-      generujListeWarstw();
-      const savePromises = createdPins.map(async p => {
-        const suffix = generateSuffix();
-        const firebaseId = `${sanitize(p.nazwa)}_${suffix}`;
-        p.firebaseId = firebaseId;
-        const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
-        const payload = {
-          nazwa: p.nazwa,
-          opis: p.opis,
-          warstwa: layerInfo.warstwaId || null,
-          warstwaId: layerInfo.warstwaId || null,
-          kategoria: p.kategoria,
-        kategoriaGlowna: getPinMainCategory(p),
-          kraj: p.kraj || '',
-          emoji: p.emoji,
-          nieaktywne: p.nieaktywne || false,
-          zamkniete: p.zamkniete || false,
-          tajne: p.tajne || false,
-          doSprawdzenia: p.doSprawdzenia || false,
-          zdewastowane: p.zdewastowane || false,
-          zwiedzone: p.zwiedzone || false,
-          wyroznione: p.wyroznione || false,
-          lat: p.lat,
-          lng: p.lng,
-          dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
-          IDpinezki: p.id,
-          odKogo: p.odKogo || '',
-          trasy: [],
-          plany: []
-        };
-        await db.collection('pinezki2').doc(firebaseId).set(payload);
+      createdPins.forEach(p => {
+        p.unsaved = true;
+        p.firebaseId = null;
+        if (!nowePinezki.includes(p)) nowePinezki.push(p);
       });
-      await Promise.all(savePromises);
+      localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
+        const { marker, ...rest } = p;
+        return rest;
+      })));
+      generujListeWarstw();
+      updateSaveButton();
       return createdPins.length;
     };
     if (addLayerBtn && newLayerControls && newLayerInput) {
@@ -12852,6 +12830,7 @@ function confirmLayerDelete() {
       warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
     }
     generujListeWarstw();
+    updateSaveButton();
   }
 
   async function saveMovingPin(name) {
@@ -12864,28 +12843,11 @@ function confirmLayerDelete() {
       warstwy['Tryb w ruchu'].visible = true;
       warstwy['Tryb w ruchu'].layer.addTo(map);
     }
-    const suffix = generateSuffix();
-    const firebaseId = `${sanitize(name)}_${suffix}`;
     const IDpinezki = crypto.randomUUID();
-      await db.collection('pinezki2').doc(firebaseId).set({
-        nazwa: name,
-        opis: '',
-        warstwa: movingLayerId,
-        warstwaId: movingLayerId,
-        kategoria: '',
-        kategoriaGlowna: MAIN_CATEGORY_URBEX,
-        kraj: '',
-        emoji: 'emoji39',
-        trudnosc: 0,
-        lat: currentLocation[0],
-        lng: currentLocation[1],
-        dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
-        IDpinezki
-      });
       const data = {
         id: IDpinezki,
         IDpinezki,
-        firebaseId,
+        firebaseId: null,
         nazwa: name,
         opis: '',
         warstwa: 'Tryb w ruchu',
@@ -12907,11 +12869,14 @@ function confirmLayerDelete() {
     marker.bindPopup(popupDiv);
     attachPopupHandlers(marker, data);
     data.marker = marker;
+    data.unsaved = true;
     warstwy['Tryb w ruchu'].lista.push(data);
     wszystkiePinezki.push(data);
+    nowePinezki.push(data);
     refreshCategoryCollectionsFromPins();
     updateCategoryFilter();
     generujListeWarstw();
+    updateSaveButton();
   }
 
   function saveCenterPin(form) {
