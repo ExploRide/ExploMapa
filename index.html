@@ -11863,31 +11863,7 @@ function getTripPointEmoji(p) {
         const suffix = generateSuffix();
         const firebaseId = `${sanitize(p.nazwa)}_${suffix}`;
         p.firebaseId = firebaseId;
-        const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
-        const payload = {
-          nazwa: p.nazwa,
-          opis: p.opis,
-          warstwa: layerInfo.warstwaId || null,
-          warstwaId: layerInfo.warstwaId || null,
-          kategoria: p.kategoria,
-          kategoriaGlowna: getPinMainCategory(p),
-          kraj: p.kraj || '',
-          emoji: p.emoji,
-          nieaktywne: p.nieaktywne || false,
-          zamkniete: p.zamkniete || false,
-          tajne: p.tajne || false,
-          doSprawdzenia: p.doSprawdzenia || false,
-          zdewastowane: p.zdewastowane || false,
-          zwiedzone: p.zwiedzone || false,
-          wyroznione: p.wyroznione || false,
-          lat: p.lat,
-          lng: p.lng,
-          IDpinezki: p.id,
-          odKogo: p.odKogo || '',
-          trasy: (p.trasy || []).map(t => serializeRoute(t)),
-          plany: []
-        };
-        if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
+        const payload = buildPinCreatePayload(p);
         await window.upsertQueueOperation({
           localId: `create-${firebaseId}-${idx}`,
           operation: 'createPin',
@@ -11991,32 +11967,8 @@ function getTripPointEmoji(p) {
           const suffix = generateSuffix();
           const firebaseId = `${sanitize(p.nazwa)}_${suffix}`;
           p.firebaseId = firebaseId;
-          const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
-          const payload = {
-            nazwa: p.nazwa,
-            opis: p.opis,
-            warstwa: layerInfo.warstwaId || null,
-            warstwaId: layerInfo.warstwaId || null,
-            kategoria: p.kategoria,
-        kategoriaGlowna: getPinMainCategory(p),
-            kraj: p.kraj || '',
-            emoji: p.emoji,
-            nieaktywne: p.nieaktywne || false,
-            zamkniete: p.zamkniete || false,
-            tajne: p.tajne || false,
-            doSprawdzenia: p.doSprawdzenia || false,
-            zdewastowane: p.zdewastowane || false,
-            zwiedzone: p.zwiedzone || false,
-            wyroznione: p.wyroznione || false,
-            lat: p.lat,
-            lng: p.lng,
-            dataDodania: firebase.firestore.FieldValue.serverTimestamp(),
-            IDpinezki: p.id,
-            odKogo: p.odKogo || '',
-            trasy: (p.trasy || []).map(t => serializeRoute(t)),
-            plany: []
-          };
-          if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
+          const payload = buildPinCreatePayload(p);
+          payload.dataDodania = firebase.firestore.FieldValue.serverTimestamp();
           await db.collection('pinezki2').doc(firebaseId).set(payload);
           const localPhotos = getStoredPhotos(p.slug);
           p.photos = await savePhotosForPin(firebaseId, p.slug, localPhotos, [], onProgress, 'pinezki2');
@@ -12872,6 +12824,54 @@ function confirmLayerDelete() {
     updateSaveButton();
   }
 
+  function buildPinCreatePayload(p) {
+    const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
+    const payload = {
+      nazwa: p.nazwa,
+      opis: p.opis,
+      warstwa: layerInfo.warstwaId || null,
+      warstwaId: layerInfo.warstwaId || null,
+      kategoria: p.kategoria,
+      kategoriaGlowna: getPinMainCategory(p),
+      kraj: p.kraj || '',
+      emoji: p.emoji,
+      nieaktywne: p.nieaktywne || false,
+      zamkniete: p.zamkniete || false,
+      tajne: p.tajne || false,
+      doSprawdzenia: p.doSprawdzenia || false,
+      zdewastowane: p.zdewastowane || false,
+      zwiedzone: p.zwiedzone || false,
+      wyroznione: p.wyroznione || false,
+      lat: p.lat,
+      lng: p.lng,
+      IDpinezki: p.id,
+      odKogo: p.odKogo || '',
+      trasy: (p.trasy || []).map(t => serializeRoute(t)),
+      plany: []
+    };
+    if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
+    return payload;
+  }
+
+  async function queueAndSyncPinCreate(p, localIdSuffix = '') {
+    if (!window.upsertQueueOperation) return false;
+    const suffix = generateSuffix();
+    const firebaseId = `${sanitize(p.nazwa)}_${suffix}`;
+    p.firebaseId = firebaseId;
+    await window.upsertQueueOperation({
+      localId: `create-${firebaseId}${localIdSuffix ? `-${localIdSuffix}` : ''}`,
+      operation: 'createPin',
+      firebaseId,
+      payload: buildPinCreatePayload(p),
+      createdAt: Date.now(),
+      syncStatus: 'pending'
+    });
+    if (window.syncOfflineQueue) {
+      await window.syncOfflineQueue();
+    }
+    return true;
+  }
+
   async function saveMovingPin(name) {
     if (!currentLocation) {
       alert('Brak aktualnej lokalizacji');
@@ -12908,13 +12908,22 @@ function confirmLayerDelete() {
     marker.bindPopup(popupDiv);
     attachPopupHandlers(marker, data);
     data.marker = marker;
-    data.unsaved = true;
     warstwy['Tryb w ruchu'].lista.push(data);
     wszystkiePinezki.push(data);
-    nowePinezki.push(data);
     refreshCategoryCollectionsFromPins();
     updateCategoryFilter();
     generujListeWarstw();
+
+    const trackingModeActive = followGps && !!currentLocation;
+    if (trackingModeActive) {
+      await queueAndSyncPinCreate(data, 'moving');
+      delete data.unsaved;
+      updateSaveButton();
+      return;
+    }
+
+    data.unsaved = true;
+    nowePinezki.push(data);
     markDataDirty('pin:add');
   }
 
