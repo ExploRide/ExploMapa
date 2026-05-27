@@ -2433,9 +2433,10 @@ html body .trip-special-point-modal label {
 }
 
 body.mobile-layout #saveChanges {
-  top: calc(env(safe-area-inset-top, 0px) + 10px) !important;
-  bottom: auto !important;
-  min-width: 150px !important;
+  top: auto !important;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px) !important;
+  min-width: 170px !important;
+  z-index: 2147483646 !important;
 }
 </style>
 </head>
@@ -4807,6 +4808,7 @@ function slugify(str) {
       if (!DATA_DIRTY_REASONS.has(reason)) return;
       hasUserDataEdits = true;
       shouldWarnBeforeUnload = true;
+      console.log('[dirty]', reason);
       updateSaveButton();
     }
 
@@ -8469,7 +8471,7 @@ function zaladujPinezkiZFirestore() {
         refreshCategoryCollectionsFromPins();
         updateCategoryFilter();
         generujListeWarstw();
-        updateSaveButton();
+        markDataDirty('pin:add');
         map.closePopup();
         closeMobileFormModalIfNeeded();
       });
@@ -12913,7 +12915,7 @@ function confirmLayerDelete() {
     refreshCategoryCollectionsFromPins();
     updateCategoryFilter();
     generujListeWarstw();
-    updateSaveButton();
+    markDataDirty('pin:add');
   }
 
   function saveCenterPin(form) {
@@ -12978,7 +12980,7 @@ function confirmLayerDelete() {
     refreshCategoryCollectionsFromPins();
     updateCategoryFilter();
     generujListeWarstw();
-    updateSaveButton();
+    markDataDirty('pin:add');
   }
 
   function showPinSavedMessage() {
