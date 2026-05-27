@@ -3751,6 +3751,7 @@ function slugify(str) {
     let pinHighlightCircle = null;
     let zmianyDoZapisania = {};
     let shouldWarnBeforeUnload = false;
+    let hasUserDataEdits = false;
     let nowePinezki = [];
     let localPinsLoaded = false;
     const photosMap = {};
@@ -4313,7 +4314,7 @@ function slugify(str) {
         applyPinData(pin, pending);
       });
       generujListeWarstw();
-      updateSaveButton();
+      markDataDirty('layer:edit');
       showToast(`Zastosowano masową edycję dla ${pins.length} pinezek.`);
     }
 
@@ -4666,7 +4667,7 @@ function slugify(str) {
         return rest;
       })));
       generujListeWarstw();
-      updateSaveButton();
+      markDataDirty('pin:add');
       return createdPins.length;
     };
     if (addLayerBtn && newLayerControls && newLayerInput) {
@@ -4769,24 +4770,33 @@ function slugify(str) {
       });
     }
 
+    const DATA_DIRTY_REASONS = new Set([
+      'pin:add',
+      'pin:delete',
+      'pin:edit',
+      'layer:edit',
+      'layer:delete',
+      'trip:add',
+      'trip:delete',
+      'trip:point:add',
+      'trip:point:delete'
+    ]);
+
+    function markDataDirty(reason) {
+      if (!DATA_DIRTY_REASONS.has(reason)) return;
+      hasUserDataEdits = true;
+      shouldWarnBeforeUnload = true;
+      updateSaveButton();
+    }
+
+    function resetDirtyState() {
+      hasUserDataEdits = false;
+      shouldWarnBeforeUnload = false;
+      updateSaveButton();
+    }
+
     function hasUnsavedChanges() {
-      const layerChanges =
-        layersToAdd.length > 0 ||
-        layersToDelete.length > 0 ||
-        layerOrderChanged ||
-        Object.keys(layerEmojiChanges).length > 0 ||
-        Object.keys(layerDefaultVisibilityChanges).length > 0;
-      // `localTrasy` bywa zanieczyszczone wpisami pomocniczymi po inicjalizacji UI,
-      // dlatego o niezapisanych trasach decydujemy wyłącznie przez realne zmiany pinezek.
-      return (
-        hasUnsavedPinChanges() ||
-        wszystkiePinezki.some(pin => pin && pin.unsaved) ||
-        nowePinezki.length > 0 ||
-        pinsToDelete.length > 0 ||
-        layerChanges ||
-        pendingTripDeletes.size > 0 ||
-        tripPlannerTrips.some(t => t?.unsaved)
-      );
+      return hasUserDataEdits;
     }
 
     function updateSaveButton() {
@@ -4804,7 +4814,6 @@ function slugify(str) {
       if (pending === true) {
         console.log('SAVE BTN RECT', btn.getBoundingClientRect(), getComputedStyle(btn));
       }
-      shouldWarnBeforeUnload = pending;
     }
 
     function markPinUnsaved(slug) {
@@ -4813,7 +4822,7 @@ function slugify(str) {
         p.unsaved = true;
         if (!zmianyDoZapisania[p.id]) zmianyDoZapisania[p.id] = {};
       }
-      updateSaveButton();
+      markDataDirty('pin:edit');
     }
     function selectTool(t) {
       currentTool = t;
@@ -4840,7 +4849,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     selectTool("hand");
 
     window.addEventListener('beforeunload', e => {
-      if (hasUnsavedChanges()) {
+      if (shouldWarnBeforeUnload) {
         e.preventDefault();
         e.returnValue = 'Masz niezapisane zmiany. Czy na pewno chcesz wyjść?';
       }
@@ -7551,7 +7560,7 @@ function zaladujPinezkiZFirestore() {
     generujListeWarstw({ deferMarkerVisibilityUpdate: true });
   }).finally(() => {
     hideLoading();
-    updateSaveButton();
+    resetDirtyState();
     console.log("unsaved debug", {
       zmianyDoZapisania: Object.keys(zmianyDoZapisania).length,
       nowePinezki: nowePinezki.length,
@@ -9142,7 +9151,7 @@ function zaladujPinezkiZFirestore() {
       order.unshift(name);
       localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
       generujListeWarstw();
-      updateSaveButton();
+      markDataDirty('layer:edit');
       if (record) {
         pushAction({
           undo: () => {
@@ -9199,7 +9208,7 @@ function zaladujPinezkiZFirestore() {
       const order = loadLayerOrder().filter(n => n !== name);
       localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
       generujListeWarstw();
-      updateSaveButton();
+      markDataDirty('layer:delete');
       if (record) {
         pushAction({
           undo: () => {
@@ -11896,9 +11905,8 @@ function getTripPointEmoji(p) {
           pinsToDelete = [];
           pendingTripDeletes.clear();
           localStorage.removeItem('nowePinezki');
-          shouldWarnBeforeUnload = false;
           btn.textContent = 'Zapisano offline ✔';
-          updateSaveButton();
+          resetDirtyState();
           showToast('Zatwierdzono zmiany offline. Użyj „Synchronizuj”, gdy wróci internet.', 5000);
           return;
         }
@@ -12052,9 +12060,8 @@ function getTripPointEmoji(p) {
         pendingTripDeletes.clear();
         window.localTrasy = [];
         localStorage.removeItem('nowePinezki');
-        shouldWarnBeforeUnload = false;
         btn.textContent = 'Zapisano ✔';
-        updateSaveButton();
+        resetDirtyState();
         persistAllLayerCollapseStates();
         persistAllLayerVisibilityStates();
         showToast('Zapisano zmiany mapy.', 5000);
@@ -12704,6 +12711,7 @@ function getTripPointEmoji(p) {
     }
     wszystkiePinezki = wszystkiePinezki.filter(pp => pp !== p);
     if (!batch) finalizePinsBulkMutation();
+    markDataDirty('pin:delete');
     if (record && !batch) {
       pushAction({
         undo: () => {
@@ -13943,7 +13951,7 @@ function confirmLayerDelete() {
       renderTripPlannerPanel();
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
-      updateSaveButton();
+      markDataDirty('trip:add');
       showToast('Utworzono trip (oczekuje na Zapisz edycję mapy)');
     });
     const handleTripActiveBoxAction = async (e) => {
@@ -13960,7 +13968,7 @@ function confirmLayerDelete() {
       if (addDayBtn) {
         const day = { id: `day_${Date.now()}`, name: `Dzień ${trip.days.length + 1}`, color: '#ff3b3b', visible: true, points: [], routeSummary: {} };
         if (!trip.days.length) activeTripDayId = day.id;
-        trip.days.push(day); trip.unsaved = true; renderTripPlannerPanel(); renderTripMapLayers(); updateSaveButton(); return;
+        trip.days.push(day); trip.unsaved = true; renderTripPlannerPanel(); renderTripMapLayers(); markDataDirty('trip:point:add'); return;
       }
       if (addPrivatePointBtn) { tripPrivatePointArmed = true; showToast('Kliknij na mapie, aby dodać prywatny punkt tripa.'); return; }
       if (exportCsvBtn) { exportTripToCsv(trip); return; }
@@ -13971,7 +13979,7 @@ function confirmLayerDelete() {
         tripPlannerTrips = tripPlannerTrips.filter(t => t.id !== trip.id);
         activeTripId = tripPlannerTrips[0]?.id || null;
         renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility();
-        updateSaveButton();
+        markDataDirty('trip:delete');
         return;
       }
       const eventPath = (typeof e.composedPath === 'function') ? e.composedPath() : [];
@@ -14060,7 +14068,7 @@ function confirmLayerDelete() {
           activeTrip.unsaved = true;
           day.routeSegments = [];
           day.routeSummary = day.routeSummary || {};
-          updateSaveButton();
+          markDataDirty('trip:point:delete');
           showToast('Usunięto punkt z tripa');
           return;
         }
@@ -14076,7 +14084,7 @@ function confirmLayerDelete() {
         recalculateTripDateRange(trip);
         trip.unsaved = true;
         renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility();
-        updateSaveButton();
+        markDataDirty('trip:point:delete');
         return;
       }
 
