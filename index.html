@@ -2402,7 +2402,7 @@ html body .trip-special-point-modal label {
 #saveChanges {
   display: none;
   position: fixed !important;
-  top: 12px !important;
+  bottom: 12px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
   z-index: 2147483600 !important;
@@ -2413,6 +2413,7 @@ html body .trip-special-point-modal label {
 
 body.mobile-layout #saveChanges {
   top: calc(env(safe-area-inset-top, 0px) + 10px) !important;
+  bottom: auto !important;
   min-width: 150px !important;
 }
 </style>
@@ -8181,8 +8182,6 @@ function zaladujPinezkiZFirestore() {
 
     async function openNewPinPopup(latlng) {
       await emojiListReady;
-      const saveBtnTmp = document.getElementById('saveChanges');
-      if (saveBtnTmp) saveBtnTmp.style.display = 'block';
       const defaultEmoji = 'emoji38';
       const marker = L.marker(latlng, {icon: createEmojiIcon(defaultEmoji, null, 24)}).addTo(map);
       let addedPin = null;
