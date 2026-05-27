@@ -330,7 +330,7 @@
 
 #mobilePinModal .mobile-pin-photo-gallery {
   width: 100%;
-  min-height: 56px;
+  min-height: 1px;
   max-height: 180px;
   overflow-y: auto;
   border-radius: 8px;
