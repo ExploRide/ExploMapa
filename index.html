@@ -12734,6 +12734,7 @@ function confirmLayerDelete() {
 
   const GPS_ARROW_BASE_TRANSFORM = 'translate(-50%, calc(-50% - 8px))';
   let currentLocation = null;
+  let pendingMovingPinLocation = null;
   let currentMarker = null;
   const gpsIcon = L.divIcon({
     className: 'gps-marker',
@@ -12873,7 +12874,8 @@ function confirmLayerDelete() {
   }
 
   async function saveMovingPin(name) {
-    if (!currentLocation) {
+    const capturedLocation = pendingMovingPinLocation;
+    if (!capturedLocation) {
       alert('Brak aktualnej lokalizacji');
       return;
     }
@@ -12896,12 +12898,13 @@ function confirmLayerDelete() {
         kraj: '',
         emoji: 'emoji39',
         trudnosc: 0,
-        lat: currentLocation[0],
-        lng: currentLocation[1],
+        lat: capturedLocation.lat,
+        lng: capturedLocation.lng,
         dataDodania: Date.now(),
         slug: slugify(name)
       };
-    const marker = L.marker(currentLocation, {icon: createEmojiIcon('emoji39', movingLayerId)}).addTo(warstwy['Tryb w ruchu'].layer);
+    const markerLocation = [capturedLocation.lat, capturedLocation.lng];
+    const marker = L.marker(markerLocation, {icon: createEmojiIcon('emoji39', movingLayerId)}).addTo(warstwy['Tryb w ruchu'].layer);
     const popupDiv = document.createElement('div');
     popupDiv.className = 'popup-container';
     popupDiv.innerHTML = createPopupHtml(data);
@@ -12914,9 +12917,9 @@ function confirmLayerDelete() {
     updateCategoryFilter();
     generujListeWarstw();
 
-    const trackingModeActive = followGps && !!currentLocation;
-    if (trackingModeActive) {
+    if (followGps) {
       await queueAndSyncPinCreate(data, 'moving');
+      pendingMovingPinLocation = null;
       delete data.unsaved;
       updateSaveButton();
       return;
@@ -13144,11 +13147,25 @@ function confirmLayerDelete() {
       if (currentTool === 'pin') {
         openCenterModal();
       } else {
+        if (!followGps || !currentLocation) {
+          alert('Brak aktualnej lokalizacji');
+          return;
+        }
+        pendingMovingPinLocation = {
+          lat: currentLocation[0],
+          lng: currentLocation[1],
+          capturedAt: Date.now()
+        };
         openGpsModal();
       }
     });
 
-    cancel.addEventListener('click', () => { modal.style.display = 'none'; });
+    cancel.addEventListener('click', () => {
+      if (currentTool !== 'pin') {
+        pendingMovingPinLocation = null;
+      }
+      modal.style.display = 'none';
+    });
     ok.addEventListener('click', async () => {
       const name = nameInput.value.trim();
       const layer = layerInput.value.trim();
