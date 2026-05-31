@@ -5,6 +5,23 @@
   z-index: 1000;
 }
 
+.leaflet-control-zoom .zoom-percent-indicator {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 46px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(27, 31, 39, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #f8fafc;
+  font: 700 12px/1.1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
 .leaflet-pane.leaflet-popup-pane,
 .leaflet-popup {
   z-index: 2147483600 !important;
