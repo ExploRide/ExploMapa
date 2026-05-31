@@ -5518,6 +5518,13 @@ function emojiHtml(str) {
       syncPlanTransformOverlay(overlay);
     }
 
+    function setPlanOverlayMapPassthrough(overlay) {
+      if (!overlay || !overlay._image) return;
+      overlay._image.style.pointerEvents = 'none';
+      overlay._image.style.cursor = '';
+      overlay._image.classList.remove('leaflet-interactive');
+    }
+
     function shouldPlanBeVisible(pin, plan) {
       if (activePlanPlacement && activePlanPlacement.plan === plan) return true;
       if (!pinPlansOverlayVisible) return false;
@@ -5531,7 +5538,7 @@ function emojiHtml(str) {
       let overlay = planLayers[plan.id];
       const bounds = getPlanBounds(plan);
       if (!overlay) {
-        overlay = L.imageOverlay(plan.url, bounds, { opacity: plan.przezroczystosc || 1, interactive: true });
+        overlay = L.imageOverlay(plan.url, bounds, { opacity: plan.przezroczystosc || 1, interactive: false });
         planLayers[plan.id] = overlay;
         plan.layer = overlay;
         if (!overlay._originalReset) {
@@ -5547,6 +5554,7 @@ function emojiHtml(str) {
       }
       overlay._planRef = plan;
       applyPlanRotation(overlay, plan);
+      if (!activePlanPlacement || activePlanPlacement.plan !== plan) setPlanOverlayMapPassthrough(overlay);
       if (shouldPlanBeVisible(pin, plan)) {
         overlay.addTo(map);
       } else {
@@ -5567,6 +5575,7 @@ function emojiHtml(str) {
       overlay.setOpacity(plan.przezroczystosc || 1);
       overlay._planRef = plan;
       applyPlanRotation(overlay, plan);
+      if (!activePlanPlacement || activePlanPlacement.plan !== plan) setPlanOverlayMapPassthrough(overlay);
       if (shouldPlanBeVisible(pin, plan)) {
         overlay.addTo(map);
       } else {
@@ -5686,6 +5695,7 @@ function emojiHtml(str) {
         overlay._planControls.parentElement.removeChild(overlay._planControls);
       }
       overlay._planControls = null;
+      setPlanOverlayMapPassthrough(overlay);
     }
 
     function destroyPlanTransformControls() {
@@ -5830,6 +5840,7 @@ function emojiHtml(str) {
         overlay._image.addEventListener('mousedown', ev => startPlanMove(ev, overlay));
         overlay._planMoveBound = true;
       }
+      overlay._image.style.pointerEvents = 'auto';
       overlay._image.style.cursor = 'grab';
       syncPlanTransformOverlay(overlay);
     }
