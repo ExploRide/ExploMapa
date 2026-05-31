@@ -388,6 +388,42 @@
       border-bottom: 1px solid #555;
       margin: 1px 0;
     }
+    .archive-imagery-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px 0;
+    }
+    .archive-imagery-controls label {
+      font-size: 12px;
+      opacity: 0.92;
+    }
+    .archive-imagery-controls select,
+    .archive-imagery-controls button {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .archive-imagery-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    #archiveOpacitySlider {
+      width: 100%;
+    }
+    .archive-status {
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.06);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+    .archive-status-loading { border-color: rgba(88, 161, 255, 0.8); color: #cfe1ff; }
+    .archive-status-active { border-color: rgba(67, 197, 110, 0.75); color: #d6ffd6; }
+    .archive-status-empty { border-color: rgba(255, 195, 90, 0.8); color: #ffe2a6; }
+    .archive-status-error { border-color: rgba(255, 100, 100, 0.85); color: #ffc8c8; }
+
     .search-input-row {
       display: flex;
       align-items: center;
@@ -2667,6 +2703,32 @@ body.mobile-layout #saveChanges {
           <label><input type="checkbox" id="overlay-osm-places"> Miejsca OSM
             <button type="button" class="info-btn" data-info="Nakładka miejsc z OpenStreetMap (Overpass)">i</button>
           </label>
+        </div>
+      </details>
+
+
+      <details id="archive-imagery-section">
+        <summary><strong>Zdjęcia archiwalne</strong></summary>
+        <div class="archive-imagery-controls">
+          <label for="archiveYearSelect">Rok / data</label>
+          <select id="archiveYearSelect" disabled>
+            <option value="">Ładowanie…</option>
+          </select>
+
+          <label for="archiveSourceSelect">Źródło / nalot</label>
+          <select id="archiveSourceSelect" disabled>
+            <option value="">Najpierw wybierz rok / datę</option>
+          </select>
+
+          <div class="archive-imagery-actions">
+            <button id="archiveEnableBtn" type="button" disabled>Włącz</button>
+            <button id="archiveDisableBtn" type="button" disabled>Wyłącz</button>
+          </div>
+
+          <label for="archiveOpacitySlider">Przezroczystość: <span id="archiveOpacityValue">100%</span></label>
+          <input id="archiveOpacitySlider" type="range" min="0" max="100" value="100">
+
+          <div id="archiveImageryStatus" class="archive-status archive-status-info" aria-live="polite">Ładowanie źródeł archiwalnych…</div>
         </div>
       </details>
 
@@ -6497,6 +6559,38 @@ function emojiHtml(str) {
         'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
       ];
 
+      const ESRI_WAYBACK_WMTS_CAPABILITIES_URL = 'https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/WMTSCapabilities.xml';
+      const ARCHIVE_FALLBACK_WARNING = 'Nie udało się automatycznie pobrać listy dat — używam ręcznej listy';
+      const MANUAL_GUGIK_ARCHIVE_DATES = ['2024', '2023', '2022', '2021', '2020', '2019', '2018', '2017', '2016', '2015', '2014', '2013', '2012', '2011', '2010'];
+      const MANUAL_ESRI_WAYBACK_ITEMS = [
+        {
+          date: '2023-12-07',
+          title: 'World Imagery (Wayback 2023-12-07)',
+          itemURL: 'https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/56102/{level}/{row}/{col}'
+        },
+        {
+          date: '2014-02-20',
+          title: 'World Imagery (Wayback 2014-02-20)',
+          itemURL: 'https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/WMTS/1.0.0/default028mm/MapServer/tile/10/{level}/{row}/{col}'
+        }
+      ];
+      const ARCHIVE_IMAGERY_ITEMS = [];
+      const archiveImagerySourceState = {
+        loaded: false,
+        warning: false,
+        loadingPromise: null
+      };
+      let activeArchiveImageryLayer = null;
+      let activeArchiveImageryItemId = null;
+      let archiveYearSelect = null;
+      let archiveSourceSelect = null;
+      let archiveEnableBtn = null;
+      let archiveDisableBtn = null;
+      let archiveOpacitySlider = null;
+      let archiveOpacityValue = null;
+      let archiveImageryStatusEl = null;
+
+
       function wmtsLayer(url) {
         if (!L.tileLayer.wmts) throw new Error('Brak wtyczki WMTS');
         return L.tileLayer.wmts(url, {
@@ -6792,6 +6886,8 @@ function emojiHtml(str) {
         if (!highlightedMarker || !pinHighlightCircle) return;
         setMarkerHighlight(highlightedMarker);
       });
+      const archiveImageryPane = map.createPane('archiveImageryPane');
+      archiveImageryPane.style.zIndex = '250';
       const highlightPane = map.createPane('pinHighlightPane');
       const markerPane = map.getPane('markerPane');
       const markerPaneZIndex = markerPane && markerPane.style && markerPane.style.zIndex
@@ -6892,6 +6988,380 @@ function emojiHtml(str) {
             layer.bringToFront();
           }
         });
+      }
+
+
+      function normalizeArchiveDate(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const dateMatch = raw.match(/\d{4}-\d{2}-\d{2}/);
+        if (dateMatch) return dateMatch[0];
+        const yearMatch = raw.match(/\d{4}/);
+        return yearMatch ? yearMatch[0] : raw;
+      }
+
+      function getArchiveYear(value) {
+        const normalized = normalizeArchiveDate(value);
+        const match = normalized.match(/\d{4}/);
+        return match ? match[0] : normalized;
+      }
+
+      function addArchiveImageryItem(item) {
+        if (!item || !item.id) return;
+        if (ARCHIVE_IMAGERY_ITEMS.some(existing => existing.id === item.id)) return;
+        ARCHIVE_IMAGERY_ITEMS.push(item);
+      }
+
+      function addManualGugikArchiveItems() {
+        MANUAL_GUGIK_ARCHIVE_DATES.forEach(date => {
+          addArchiveImageryItem({
+            id: `gugik-standard-${date}`,
+            provider: 'Geoportal / GUGiK',
+            label: `Geoportal / GUGiK — ortofotomapa archiwalna standardowa (${date})`,
+            year: getArchiveYear(date),
+            date,
+            type: 'wms',
+            url: WMS_ARCH_STD_URL,
+            layers: 'Raster',
+            format: 'image/jpeg',
+            transparent: false,
+            attribution: ORTO_ATTR,
+            timeParam: date
+          });
+          addArchiveImageryItem({
+            id: `gugik-high-${date}`,
+            provider: 'Geoportal / GUGiK',
+            label: `Geoportal / GUGiK — ortofotomapa archiwalna wysokiej rozdzielczości (${date})`,
+            year: getArchiveYear(date),
+            date,
+            type: 'wms',
+            url: WMS_ARCH_HI_URL,
+            layers: 'Raster',
+            format: 'image/jpeg',
+            transparent: false,
+            attribution: ORTO_ATTR,
+            timeParam: date
+          });
+        });
+      }
+
+      function getWmsCapabilityLayerName(layerEl) {
+        if (!layerEl) return 'Raster';
+        const namedLayers = Array.from(layerEl.querySelectorAll('Layer')).filter(layer => layer.querySelector(':scope > Name'));
+        const rasterLayer = namedLayers.find(layer => (layer.querySelector(':scope > Name')?.textContent || '').trim().toLowerCase() === 'raster');
+        const firstNamed = rasterLayer || namedLayers[0];
+        return (firstNamed?.querySelector(':scope > Name')?.textContent || 'Raster').trim();
+      }
+
+      async function loadGugikArchiveWmsCapabilities() {
+        const configs = [
+          {
+            idPrefix: 'gugik-standard',
+            labelPrefix: 'Geoportal / GUGiK — ortofotomapa archiwalna standardowa',
+            url: WMS_ARCH_STD_URL
+          },
+          {
+            idPrefix: 'gugik-high',
+            labelPrefix: 'Geoportal / GUGiK — ortofotomapa archiwalna wysokiej rozdzielczości',
+            url: WMS_ARCH_HI_URL
+          }
+        ];
+        let loadedCount = 0;
+        for (const config of configs) {
+          const response = await fetch(`${config.url}?SERVICE=WMS&REQUEST=GetCapabilities`, { cache: 'no-store' });
+          if (!response.ok) throw new Error(`GUGiK WMS capabilities ${response.status}`);
+          const text = await response.text();
+          const xml = new DOMParser().parseFromString(text, 'text/xml');
+          if (xml.querySelector('parsererror, ServiceException, ServiceExceptionReport')) throw new Error('GUGiK WMS capabilities parse error');
+          const timeNodes = Array.from(xml.querySelectorAll('Dimension[name="time"], Dimension[Name="time"], Extent[name="time"], Extent[Name="time"]'));
+          const dates = [...new Set(timeNodes.flatMap(node => (node.textContent || '').split(',').map(normalizeArchiveDate).filter(Boolean)))];
+          if (!dates.length) throw new Error('GUGiK WMS capabilities without TIME values');
+          const layerName = getWmsCapabilityLayerName(xml.querySelector('Capability > Layer'));
+          dates.sort((a, b) => b.localeCompare(a)).forEach(date => {
+            addArchiveImageryItem({
+              id: `${config.idPrefix}-${date}`,
+              provider: 'Geoportal / GUGiK',
+              label: `${config.labelPrefix} (${date})`,
+              year: getArchiveYear(date),
+              date,
+              type: 'wms',
+              url: config.url,
+              layers: layerName,
+              format: 'image/jpeg',
+              transparent: false,
+              attribution: ORTO_ATTR,
+              timeParam: date
+            });
+            loadedCount++;
+          });
+        }
+        return loadedCount;
+      }
+
+      function getWaybackDateFromTitle(title) {
+        const match = String(title || '').match(/Wayback\s+(\d{4}-\d{2}-\d{2})/i) || String(title || '').match(/(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : '';
+      }
+
+      function leafletizeEsriTileUrl(template) {
+        return String(template || '')
+          .replace(/\{level\}/gi, '{z}')
+          .replace(/\{row\}/gi, '{y}')
+          .replace(/\{col\}/gi, '{x}')
+          .replace(/\{TileMatrix\}/g, '{z}')
+          .replace(/\{TileRow\}/g, '{y}')
+          .replace(/\{TileCol\}/g, '{x}');
+      }
+
+      function addEsriWaybackItemFromData(item, index = 0) {
+        const title = item.itemTitle || item.title || item.label || `World Imagery (Wayback ${item.date || ''})`;
+        const date = normalizeArchiveDate(item.date || getWaybackDateFromTitle(title));
+        if (!date) return false;
+        const rawUrl = item.itemURL || item.urlTemplate || item.url || item.template;
+        if (!rawUrl) return false;
+        const urlTemplate = leafletizeEsriTileUrl(rawUrl);
+        addArchiveImageryItem({
+          id: `esri-wayback-${date}-${index}`,
+          provider: 'Esri World Imagery Wayback',
+          label: title,
+          year: getArchiveYear(date),
+          date,
+          type: 'xyz',
+          url: rawUrl,
+          urlTemplate,
+          layers: item.layer || item.identifier || '',
+          format: item.format || 'image/jpeg',
+          transparent: false,
+          attribution: 'Źródło: Esri World Imagery Wayback',
+          timeParam: ''
+        });
+        return true;
+      }
+
+      async function loadEsriWaybackItemsFromCore() {
+        const mod = await import('https://esm.sh/@esri/wayback-core');
+        if (!mod || typeof mod.getWaybackItems !== 'function') return 0;
+        const items = await mod.getWaybackItems();
+        if (!Array.isArray(items)) return 0;
+        return items.reduce((count, item, index) => count + (addEsriWaybackItemFromData(item, index) ? 1 : 0), 0);
+      }
+
+      async function loadEsriWaybackItemsFromWmtsCapabilities() {
+        const response = await fetch(ESRI_WAYBACK_WMTS_CAPABILITIES_URL, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Esri Wayback WMTS capabilities ${response.status}`);
+        const text = await response.text();
+        const xml = new DOMParser().parseFromString(text, 'text/xml');
+        if (xml.querySelector('parsererror')) throw new Error('Esri WMTS capabilities parse error');
+        const layers = Array.from(xml.querySelectorAll('Layer'));
+        let count = 0;
+        layers.forEach((layer, index) => {
+          const title = (layer.querySelector('Title, ows\\:Title')?.textContent || '').trim();
+          const identifier = (layer.querySelector('Identifier, ows\\:Identifier')?.textContent || '').trim();
+          const date = normalizeArchiveDate(getWaybackDateFromTitle(title) || getWaybackDateFromTitle(identifier));
+          const resourceUrl = layer.querySelector('ResourceURL[resourceType="tile"]')?.getAttribute('template') || '';
+          if (!date || !resourceUrl) return;
+          if (addEsriWaybackItemFromData({ itemTitle: title || `World Imagery (Wayback ${date})`, itemURL: resourceUrl, identifier }, index)) count++;
+        });
+        return count;
+      }
+
+      async function loadEsriWaybackItems() {
+        try {
+          const coreCount = await loadEsriWaybackItemsFromCore();
+          if (coreCount > 0) return coreCount;
+        } catch (error) {
+          console.warn('[archive imagery] @esri/wayback-core unavailable, falling back to WMTS capabilities.', error);
+        }
+        return loadEsriWaybackItemsFromWmtsCapabilities();
+      }
+
+      function addManualEsriWaybackItems() {
+        MANUAL_ESRI_WAYBACK_ITEMS.forEach((item, index) => {
+          addEsriWaybackItemFromData({
+            ...item,
+            itemTitle: item.title,
+            itemURL: item.itemURL
+          }, index);
+        });
+      }
+
+      async function loadArchiveSources() {
+        if (archiveImagerySourceState.loadingPromise) return archiveImagerySourceState.loadingPromise;
+        archiveImagerySourceState.loadingPromise = (async () => {
+          if (!navigator.onLine) {
+            addManualGugikArchiveItems();
+            addManualEsriWaybackItems();
+            archiveImagerySourceState.warning = true;
+            archiveImagerySourceState.loaded = true;
+            return ARCHIVE_IMAGERY_ITEMS;
+          }
+          const beforeCount = ARCHIVE_IMAGERY_ITEMS.length;
+          const results = await Promise.allSettled([
+            loadGugikArchiveWmsCapabilities(),
+            loadEsriWaybackItems()
+          ]);
+          const failed = results.some(result => result.status === 'rejected') || ARCHIVE_IMAGERY_ITEMS.length === beforeCount;
+          if (failed) {
+            archiveImagerySourceState.warning = true;
+            addManualGugikArchiveItems();
+            addManualEsriWaybackItems();
+          }
+          ARCHIVE_IMAGERY_ITEMS.sort((a, b) => (b.date || '').localeCompare(a.date || '') || a.label.localeCompare(b.label));
+          archiveImagerySourceState.loaded = true;
+          return ARCHIVE_IMAGERY_ITEMS;
+        })();
+        return archiveImagerySourceState.loadingPromise;
+      }
+
+      function setArchiveStatus(message, type = 'info') {
+        if (!archiveImageryStatusEl) return;
+        archiveImageryStatusEl.textContent = message;
+        archiveImageryStatusEl.className = `archive-status archive-status-${type}`;
+      }
+
+      function populateArchiveYears() {
+        if (!archiveYearSelect) return;
+        const years = [...new Set(ARCHIVE_IMAGERY_ITEMS.map(item => item.year).filter(Boolean))].sort((a, b) => b.localeCompare(a));
+        archiveYearSelect.innerHTML = '';
+        if (!years.length) {
+          archiveYearSelect.disabled = true;
+          archiveYearSelect.appendChild(new Option('Brak danych', ''));
+          populateArchiveSourcesForYear('');
+          setArchiveStatus('Brak danych', 'empty');
+          return;
+        }
+        years.forEach(year => archiveYearSelect.appendChild(new Option(year, year)));
+        archiveYearSelect.disabled = false;
+        populateArchiveSourcesForYear(archiveYearSelect.value || years[0]);
+      }
+
+      function populateArchiveSourcesForYear(year) {
+        if (!archiveSourceSelect) return;
+        const items = ARCHIVE_IMAGERY_ITEMS.filter(item => item.year === year);
+        archiveSourceSelect.innerHTML = '';
+        if (!items.length) {
+          archiveSourceSelect.disabled = true;
+          archiveSourceSelect.appendChild(new Option('Brak danych dla wybranego roku', ''));
+          if (archiveEnableBtn) archiveEnableBtn.disabled = true;
+          setArchiveStatus('Brak danych', 'empty');
+          return;
+        }
+        items.forEach(item => archiveSourceSelect.appendChild(new Option(item.label, item.id)));
+        archiveSourceSelect.disabled = false;
+        if (items.length === 1) archiveSourceSelect.value = items[0].id;
+        if (archiveEnableBtn) archiveEnableBtn.disabled = false;
+        const message = archiveImagerySourceState.warning ? ARCHIVE_FALLBACK_WARNING : `Dostępne źródła: ${items.length}`;
+        setArchiveStatus(message, archiveImagerySourceState.warning ? 'empty' : 'info');
+      }
+
+      function createArchiveLayer(item) {
+        const opacity = archiveOpacitySlider ? Number(archiveOpacitySlider.value) / 100 : 1;
+        if (item.type === 'wms') {
+          const params = {
+            layers: item.layers || 'Raster',
+            format: item.format || 'image/jpeg',
+            transparent: item.transparent === true,
+            version: '1.3.0',
+            uppercase: true,
+            crs: L.CRS.EPSG3857,
+            maxNativeZoom: NATIVE_TILE_ZOOM,
+            maxZoom: MAX_MAP_ZOOM,
+            attribution: item.attribution || ORTO_ATTR,
+            pane: 'archiveImageryPane',
+            opacity
+          };
+          if (item.timeParam) params.TIME = item.timeParam;
+          return L.tileLayer.wms(item.url, params);
+        }
+        if (item.type === 'xyz') {
+          return L.tileLayer(item.urlTemplate || item.url, {
+            maxNativeZoom: NATIVE_TILE_ZOOM,
+            maxZoom: MAX_MAP_ZOOM,
+            attribution: item.attribution || 'Źródło: Esri World Imagery Wayback',
+            pane: 'archiveImageryPane',
+            opacity
+          });
+        }
+        throw new Error(`Nieobsługiwany typ warstwy archiwalnej: ${item.type}`);
+      }
+
+      function disableArchiveImagery() {
+        if (activeArchiveImageryLayer) {
+          activeArchiveImageryLayer.off('loading');
+          activeArchiveImageryLayer.off('load');
+          activeArchiveImageryLayer.off('tileerror');
+          if (map.hasLayer(activeArchiveImageryLayer)) map.removeLayer(activeArchiveImageryLayer);
+        }
+        activeArchiveImageryLayer = null;
+        activeArchiveImageryItemId = null;
+        if (archiveDisableBtn) archiveDisableBtn.disabled = true;
+        setArchiveStatus(archiveImagerySourceState.warning ? ARCHIVE_FALLBACK_WARNING : 'Warstwa archiwalna wyłączona', archiveImagerySourceState.warning ? 'empty' : 'info');
+      }
+
+      function enableArchiveImagery(itemId) {
+        if (!navigator.onLine) {
+          setArchiveStatus('Zdjęcia archiwalne wymagają internetu', 'error');
+          return;
+        }
+        const item = ARCHIVE_IMAGERY_ITEMS.find(entry => entry.id === itemId);
+        if (!item) {
+          setArchiveStatus('Brak danych', 'empty');
+          return;
+        }
+        disableArchiveImagery();
+        try {
+          const layer = createArchiveLayer(item);
+          layer.on('loading', () => setArchiveStatus('Ładowanie…', 'loading'));
+          layer.on('load', () => setArchiveStatus(`Aktywna warstwa: ${item.label}`, 'active'));
+          layer.on('tileerror', () => setArchiveStatus('Błąd ładowania', 'error'));
+          activeArchiveImageryLayer = layer.addTo(map);
+          activeArchiveImageryItemId = item.id;
+          if (archiveDisableBtn) archiveDisableBtn.disabled = false;
+          setArchiveStatus('Ładowanie…', 'loading');
+        } catch (error) {
+          console.error('[archive imagery] layer creation failed', error);
+          setArchiveStatus('Błąd ładowania', 'error');
+        }
+      }
+
+      function initArchiveImageryControls() {
+        archiveYearSelect = document.getElementById('archiveYearSelect');
+        archiveSourceSelect = document.getElementById('archiveSourceSelect');
+        archiveEnableBtn = document.getElementById('archiveEnableBtn');
+        archiveDisableBtn = document.getElementById('archiveDisableBtn');
+        archiveOpacitySlider = document.getElementById('archiveOpacitySlider');
+        archiveOpacityValue = document.getElementById('archiveOpacityValue');
+        archiveImageryStatusEl = document.getElementById('archiveImageryStatus');
+        if (!archiveYearSelect || !archiveSourceSelect || !archiveEnableBtn || !archiveDisableBtn) return;
+
+        archiveYearSelect.addEventListener('change', () => populateArchiveSourcesForYear(archiveYearSelect.value));
+        archiveEnableBtn.addEventListener('click', () => enableArchiveImagery(archiveSourceSelect.value));
+        archiveDisableBtn.addEventListener('click', disableArchiveImagery);
+        if (archiveOpacitySlider) {
+          archiveOpacitySlider.addEventListener('input', () => {
+            const opacity = Number(archiveOpacitySlider.value) / 100;
+            if (archiveOpacityValue) archiveOpacityValue.textContent = `${archiveOpacitySlider.value}%`;
+            if (activeArchiveImageryLayer && typeof activeArchiveImageryLayer.setOpacity === 'function') activeArchiveImageryLayer.setOpacity(opacity);
+          });
+        }
+        window.addEventListener('offline', () => setArchiveStatus('Zdjęcia archiwalne wymagają internetu', 'error'));
+        window.addEventListener('online', () => {
+          if (!activeArchiveImageryLayer) setArchiveStatus('Połączenie wróciło — możesz włączyć zdjęcia archiwalne', 'info');
+        });
+        setArchiveStatus(navigator.onLine ? 'Ładowanie źródeł archiwalnych…' : 'Zdjęcia archiwalne wymagają internetu', navigator.onLine ? 'loading' : 'error');
+        loadArchiveSources()
+          .then(() => {
+            populateArchiveYears();
+            if (!navigator.onLine) setArchiveStatus('Zdjęcia archiwalne wymagają internetu', 'error');
+          })
+          .catch(error => {
+            console.error('[archive imagery] source loading failed', error);
+            archiveImagerySourceState.warning = true;
+            addManualGugikArchiveItems();
+            addManualEsriWaybackItems();
+            populateArchiveYears();
+            setArchiveStatus(ARCHIVE_FALLBACK_WARNING, 'empty');
+          });
       }
 
       const mapDateBadgeEl = document.getElementById('map-date-badge');
@@ -7387,6 +7857,7 @@ function emojiHtml(str) {
       }
       osmOverlayStatusEl = document.getElementById('osmOverlayStatus');
       setOsmOverlayState(true);
+      initArchiveImageryControls();
       map.on('moveend zoomend', () => { if (osmOverlayEnabled) debouncedLoadOsmOverlay(); });
 
       ['archStd','archHi','shade'].forEach(key => {

@@ -36,9 +36,20 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+function isArchiveImageryRequest(url) {
+  return (
+    url.hostname === 'wayback.maptiles.arcgis.com' ||
+    (url.hostname === 'mapy.geoportal.gov.pl' && url.pathname.includes('/PZGIK/ORTO/WMS/') && url.pathname.includes('ResolutionTime'))
+  );
+}
+
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+  if (isArchiveImageryRequest(url)) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
   if (url.origin === location.origin) {
     event.respondWith(
       caches.match(event.request).then(resp => resp || fetch(event.request))
