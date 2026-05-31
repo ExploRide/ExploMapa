@@ -5615,26 +5615,36 @@ function emojiHtml(str) {
       updateSaveButton();
     }
 
+    function toPlainLatLng(value) {
+      if (!value) return null;
+      const lat = Number(value.lat);
+      const lng = Number(value.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return { lat, lng };
+    }
+
+    function normalizePlanForStorage(plan, pin) {
+      const copy = { ...(plan || {}) };
+      ensurePlanDefaults(copy, pin);
+      return {
+        id: copy.id || null,
+        nazwa: copy.nazwa || '',
+        url: copy.url || '',
+        path: copy.path || null,
+        pozycja: toPlainLatLng(copy.pozycja),
+        szerokosc: Number.isFinite(Number(copy.szerokosc)) ? Number(copy.szerokosc) : 120,
+        wysokosc: Number.isFinite(Number(copy.wysokosc)) ? Number(copy.wysokosc) : 120,
+        proporcja: Number.isFinite(Number(copy.proporcja)) ? Number(copy.proporcja) : 1,
+        bazowaSzerokosc: Number.isFinite(Number(copy.bazowaSzerokosc)) ? Number(copy.bazowaSzerokosc) : 120,
+        skala: Number.isFinite(Number(copy.skala)) ? Number(copy.skala) : 100,
+        przezroczystosc: Number.isFinite(Number(copy.przezroczystosc)) ? Number(copy.przezroczystosc) : 1,
+        obrot: Number.isFinite(Number(copy.obrot)) ? Number(copy.obrot) : 0,
+        widoczny: copy.widoczny !== false
+      };
+    }
+
     function serializePlans(pin) {
-      return (pin.plany || []).map(pl => {
-        const copy = { ...pl };
-        ensurePlanDefaults(copy, pin);
-        return {
-          id: copy.id,
-          nazwa: copy.nazwa,
-          url: copy.url,
-          path: copy.path || null,
-          pozycja: copy.pozycja,
-          szerokosc: copy.szerokosc,
-          wysokosc: copy.wysokosc,
-          proporcja: copy.proporcja,
-          bazowaSzerokosc: copy.bazowaSzerokosc,
-          skala: copy.skala,
-          przezroczystosc: copy.przezroczystosc,
-          obrot: copy.obrot || 0,
-          widoczny: copy.widoczny !== false
-        };
-      });
+      return (pin.plany || []).map(pl => normalizePlanForStorage(pl, pin));
     }
 
     function clonePlanWithoutRuntime(plan) {
@@ -12762,21 +12772,7 @@ function getTripPointEmoji(p) {
     }
 
       await db.collection(sourceCollection).doc(id).update({
-        plany: finalPlans.map(pl => ({
-          id: pl.id,
-          nazwa: pl.nazwa,
-          url: pl.url,
-        path: pl.path || null,
-        pozycja: pl.pozycja,
-        szerokosc: pl.szerokosc,
-        wysokosc: pl.wysokosc,
-        proporcja: pl.proporcja,
-          bazowaSzerokosc: pl.bazowaSzerokosc,
-          skala: pl.skala,
-          przezroczystosc: pl.przezroczystosc,
-          obrot: pl.obrot || 0,
-          widoczny: pl.widoczny !== false
-        }))
+        plany: finalPlans.map(pl => normalizePlanForStorage(pl, { id, slug, plany: finalPlans }))
       });
 
     return finalPlans;
