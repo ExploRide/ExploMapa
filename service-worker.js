@@ -56,6 +56,13 @@ function isTileRequest(url) {
   return url.hostname.includes('tile') || url.pathname.includes('/tile/') || url.pathname.includes('/tiles/');
 }
 
+function isArchiveImageryRequest(url) {
+  return (
+    url.hostname === 'wayback.maptiles.arcgis.com' ||
+    (url.hostname === 'mapy.geoportal.gov.pl' && url.pathname.includes('/PZGIK/ORTO/WMS/') && url.pathname.includes('ResolutionTime'))
+  );
+}
+
 function isFirestoreOrAuth(url) {
   return url.hostname.includes('firestore') || url.hostname.includes('googleapis.com') || url.hostname.includes('firebase') || url.pathname.includes('/auth');
 }
@@ -141,7 +148,7 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(request.url);
 
-  if (isFirestoreOrAuth(url)) {
+  if (isFirestoreOrAuth(url) || isArchiveImageryRequest(url)) {
     event.respondWith(fetch(request));
     return;
   }
