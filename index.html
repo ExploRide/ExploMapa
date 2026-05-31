@@ -1012,7 +1012,8 @@ body.trip-planner-mode #tripPlannerPanel { display:block !important; }
 body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
 .trip-planner-panel { background:#17191f; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:8px; margin-bottom:8px; }
 .trip-select-row { display:flex; gap:6px; margin-bottom:8px; }
-.trip-planner-toggle-row { margin-top:8px; padding-top:8px; border-top:1px solid var(--ui-border); }
+.trip-planner-toggle-row, .main-pins-toggle-row { margin-top:8px; padding-top:8px; border-top:1px solid var(--ui-border); }
+#tripPinsVisibilityToggle, #mainPinsVisibilityToggle { width:100%; background:#1d2028; color:#eee; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); font-size:12px; padding:6px; cursor:pointer; }
 #tripActiveBox { border-top:1px solid var(--ui-border); margin-top:8px; padding-top:8px; max-height:min(68vh, calc(100dvh - 180px)); overflow-y:auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
 .trip-select-row select,.trip-select-row button { background:#1d2028; color:#eee; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); font-size:12px; padding:5px; }
 .trip-day-card { border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:7px; margin-bottom:8px; background:#1d2028; }
@@ -2573,6 +2574,9 @@ body.mobile-layout #saveChanges {
         <div class="main-category-options">
           <label><input type="checkbox" id="maincat-urbex" checked> URBEX</label>
           <label><input type="checkbox" id="maincat-turystyczne" checked> TURYSTYCZNE</label>
+        </div>
+        <div class="main-pins-toggle-row">
+          <button id="mainPinsVisibilityToggle" type="button">Ukryj pinezki główne</button>
         </div>
       </div>
       <div id="pinTotalCounter" class="pin-total-counter">Liczba miejsc: 0</div>
@@ -11601,17 +11605,24 @@ function getTripPointEmoji(p) {
       trip.days.forEach(d => { d.highlight = d.id === activeTripDayId; });
     }
 
-    function updateTripPinsVisibilityToggleLabel() {
-      const btn = document.getElementById('tripPinsVisibilityToggle');
-      if (btn) btn.textContent = hideMainPinsInTripMode ? 'Pokaż wszystkie pinezki' : 'Ukryj pinezki główne';
+    function updateMainPinsVisibilityToggleLabels() {
+      const label = hideMainPinsInTripMode ? 'Pokaż wszystkie pinezki' : 'Ukryj pinezki główne';
+      ['tripPinsVisibilityToggle', 'mainPinsVisibilityToggle'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.textContent = label;
+      });
+    }
+
+    function isOfficialPinsLayer(layer) {
+      return !!(layer && Array.isArray(layer.lista) && layer.lista.some(p => (p?.sourceCollection || 'pinezki2') === 'pinezki2'));
     }
 
     function applyTripMainPinsVisibility() {
       let removedLayersCount = 0;
       Object.values(warstwy).forEach(layer => {
         if (!layer || !layer.layer) return;
-        const isOfficialLayer = Array.isArray(layer.lista) && layer.lista.some(p => (p?.sourceCollection || 'pinezki2') === 'pinezki2');
-        if (tripPlannerMode === 'trip' && hideMainPinsInTripMode && isOfficialLayer) {
+        const isOfficialLayer = isOfficialPinsLayer(layer);
+        if (hideMainPinsInTripMode && isOfficialLayer) {
           try {
             if (map.hasLayer(layer.layer)) {
               map.removeLayer(layer.layer);
@@ -11624,19 +11635,18 @@ function getTripPointEmoji(p) {
           layer.layer.addTo(map);
         }
       });
-      if (tripPlannerMode === 'trip' && hideMainPinsInTripMode) {
-        console.log('Trip planner hidden main layers', removedLayersCount);
+      if (hideMainPinsInTripMode) {
+        console.log('Hidden main pin layers', removedLayersCount);
       }
     }
 
     function applyTripPlannerPinVisibility() {
+      updateMainPinsVisibilityToggleLabels();
+      applyTripMainPinsVisibility();
       if (tripPlannerMode !== 'trip') {
-        applyTripMainPinsVisibility();
         triggerMarkerRender('trip-visibility:pins-mode');
         return;
       }
-      applyTripMainPinsVisibility();
-      updateTripPinsVisibilityToggleLabel();
       triggerMarkerRender('trip-visibility:trip-mode');
     }
     window.applyTripPlannerPinVisibility = applyTripPlannerPinVisibility;
@@ -12224,6 +12234,7 @@ function getTripPointEmoji(p) {
         updateCategoryFilter();
         generujListeWarstw();
       };
+      updateMainPinsVisibilityToggleLabels();
       if (!urbex.dataset.bound) {
         urbex.dataset.bound = '1';
         tur.dataset.bound = '1';
@@ -12656,7 +12667,9 @@ function getTripPointEmoji(p) {
         if (normalizedOptions.force && hasLayer) {
           map.removeLayer(layer);
         }
-        if (!map.hasLayer(layer) && typeof layer.addTo === 'function') {
+        if (hideMainPinsInTripMode && isOfficialPinsLayer(layerData)) {
+          if (map.hasLayer(layer)) map.removeLayer(layer);
+        } else if (!map.hasLayer(layer) && typeof layer.addTo === 'function') {
           layer.addTo(map);
         }
         if (normalizedOptions.force && typeof layer.refreshClusters === 'function') {
@@ -15074,7 +15087,9 @@ function confirmLayerDelete() {
       mobileTripDebug(`modeTripBtn query count: ${document.querySelectorAll('#modeTripBtn').length}`);
     }
     document.getElementById('tripSelect')?.addEventListener('change', e => { activeTripId = e.target.value || null; activeTripDayId = null; renderTripPlannerPanel(); renderTripMapLayers(); applyTripPlannerPinVisibility(); { const trip = getActiveTrip(); if (trip) fitMapToTripPoints(getAllActiveTripPoints(trip), { maxZoom: 15, pad: 0.2 }); } });
-    document.getElementById('tripPinsVisibilityToggle')?.addEventListener('click', () => { hideMainPinsInTripMode = !hideMainPinsInTripMode; applyTripPlannerPinVisibility(); });
+    const toggleMainPinsVisibility = () => { hideMainPinsInTripMode = !hideMainPinsInTripMode; applyTripPlannerPinVisibility(); };
+    document.getElementById('tripPinsVisibilityToggle')?.addEventListener('click', toggleMainPinsVisibility);
+    document.getElementById('mainPinsVisibilityToggle')?.addEventListener('click', toggleMainPinsVisibility);
     document.getElementById('tripNewBtn')?.addEventListener('click', async () => {
       const user = firebase.auth().currentUser;
       if (!user) { showToast('Najpierw zaloguj się'); return; }
