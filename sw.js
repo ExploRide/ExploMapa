@@ -36,9 +36,27 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+function isArchiveImageryRequest(url) {
+  const path = url.pathname.toLowerCase();
+  const query = url.search.toLowerCase();
+  return (
+    path.includes('/tiles/archive/') ||
+    path.includes('/wms/') ||
+    path.includes('/wmts/') ||
+    query.includes('service=wms') ||
+    query.includes('service=wmts') ||
+    query.includes('request=getmap') ||
+    query.includes('request=gettile')
+  );
+}
+
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+  if (isArchiveImageryRequest(url)) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
   if (url.origin === location.origin) {
     event.respondWith(
       caches.match(event.request).then(resp => resp || fetch(event.request))
