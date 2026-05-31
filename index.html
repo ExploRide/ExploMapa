@@ -3901,6 +3901,7 @@ function slugify(str) {
     let layersToDelete = [];
     let pinsToDelete = [];
       const planLayers = {};
+      const activePlanSessionOverrides = new Map();
       let pinPlansOverlayVisible = true;
       let activePlanPlacement = null;
       let planOptionsState = null;
@@ -5595,35 +5596,58 @@ function emojiHtml(str) {
     }
 
 
-    function getActivePlanIdForPin(pin) {
+    function getPinSessionKey(pin) {
+      if (!pin) return null;
+      return String(pin.id || pin.firebaseId || pin.IDpinezki || pin.slug || '');
+    }
+
+    function getStoredActivePlanIdForPin(pin) {
       const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
       const active = plans.find(plan => plan && plan.aktywny === true);
-      return active ? active.id : (plans[0] ? plans[0].id : null);
+      return active ? String(active.id) : (plans[0] && plans[0].id ? String(plans[0].id) : null);
+    }
+
+    function getActivePlanIdForPin(pin) {
+      const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
+      if (!plans.length) return null;
+      const sessionKey = getPinSessionKey(pin);
+      const sessionActiveId = sessionKey ? activePlanSessionOverrides.get(sessionKey) : null;
+      if (sessionActiveId && plans.some(plan => plan && String(plan.id) === sessionActiveId)) {
+        return sessionActiveId;
+      }
+      return getStoredActivePlanIdForPin(pin);
     }
 
     function normalizeActivePlanForPin(pin) {
       const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
       if (!plans.length) return;
-      let activeId = getActivePlanIdForPin(pin);
-      if (!activeId && plans[0]) activeId = plans[0].id;
-      plans.forEach(plan => { if (plan) plan.aktywny = plan.id === activeId; });
+      const activeId = getStoredActivePlanIdForPin(pin) || (plans[0] ? plans[0].id : null);
+      plans.forEach(plan => { if (plan) plan.aktywny = String(plan.id) === activeId; });
     }
 
     function isActivePlanForPin(pin, plan) {
-      if (!plan) return false;
-      normalizeActivePlanForPin(pin);
-      return plan.aktywny === true;
+      if (!pin || !plan) return false;
+      return String(plan.id) === getActivePlanIdForPin(pin);
+    }
+
+    function updatePlanActiveRadioStateForPin(pin) {
+      if (!pin) return;
+      const renderedPinId = String(pin.id);
+      const activePlanId = getActivePlanIdForPin(pin);
+      document.querySelectorAll('#lista-warstw .plan-item').forEach(item => {
+        if (item.dataset.pinId !== renderedPinId) return;
+        const input = item.querySelector('input.plan-visibility');
+        if (input) input.checked = String(item.dataset.planId) === activePlanId;
+      });
     }
 
     function selectActivePlanForPin(pin, selectedPlan) {
       if (!pin || !selectedPlan) return;
-      if (!pin.plany) pin.plany = [];
-      pin.plany.forEach(plan => { if (plan) plan.aktywny = plan === selectedPlan || plan.id === selectedPlan.id; });
-      selectedPlan.widoczny = true;
-      selectedPlan.unsaved = true;
+      const sessionKey = getPinSessionKey(pin);
+      if (!sessionKey || !selectedPlan.id) return;
+      activePlanSessionOverrides.set(sessionKey, String(selectedPlan.id));
       updatePlanVisibilityForPin(pin);
-      markPlanChange(pin);
-      generujListeWarstw();
+      updatePlanActiveRadioStateForPin(pin);
     }
 
     function cleanupPlanTransformOverlay(overlay) {
