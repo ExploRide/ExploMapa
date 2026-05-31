@@ -11757,6 +11757,46 @@ function getTripPointEmoji(p) {
           pinEditBtn.innerHTML = '✎';
           pinEditBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); edytuj(p.id, p.lat, p.lng); });
           nameRow.appendChild(nameSpan); nameRow.appendChild(pinEditBtn); el.appendChild(nameRow);
+          const plansForPin = Array.isArray(p.plany) ? p.plany : [];
+          plansForPin.forEach(plan => {
+            ensurePlanDefaults(plan, p);
+            const planEl = document.createElement('div');
+            planEl.className = 'plan-item';
+            planEl.dataset.pinId = String(p.id);
+            planEl.dataset.planId = String(plan.id);
+
+            const visibility = document.createElement('input');
+            visibility.type = 'checkbox';
+            visibility.className = 'plan-visibility';
+            visibility.checked = plan.widoczny !== false;
+            visibility.title = 'Pokaż / ukryj plan na mapie';
+            visibility.addEventListener('click', ev => ev.stopPropagation());
+            visibility.addEventListener('change', ev => {
+              ev.stopPropagation();
+              plan.widoczny = visibility.checked;
+              plan.unsaved = true;
+              updatePlanOverlay(p, plan);
+              markPlanChange(p);
+            });
+
+            const planName = document.createElement('span');
+            planName.className = 'plan-name';
+            planName.textContent = `🗺️ ${plan.nazwa || 'Plan'}`;
+            planName.title = 'Edytuj plan';
+
+            const editPlan = ev => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              ensurePlanOverlay(p, plan);
+              openPlanOptions(p, plan, planEl);
+            };
+            planEl.addEventListener('click', editPlan);
+            planName.addEventListener('click', editPlan);
+
+            planEl.appendChild(visibility);
+            planEl.appendChild(planName);
+            el.appendChild(planEl);
+          });
           el.addEventListener('click', e => { const sel = handlePinSelectionClick(e, p, el); if (!sel) openPinFromList(p, el); });
           p.el = el;
           listaP.appendChild(el);
