@@ -5081,6 +5081,16 @@ function slugify(str) {
       }
       markDataDirty('pin:edit');
     }
+
+    function markPinFieldChange(pin, field, value) {
+      if (!pin || !field) return;
+      pin[field] = value;
+      pin.unsaved = true;
+      const pending = zmianyDoZapisania[pin.id] || {};
+      pending[field] = value;
+      zmianyDoZapisania[pin.id] = pending;
+      markDataDirty('pin:edit');
+    }
     function selectTool(t) {
       currentTool = t;
       handBtn.classList.toggle("active", t === "hand");
@@ -6309,12 +6319,7 @@ function emojiHtml(str) {
           range.addEventListener('input', () => {
             const val = parseInt(range.value);
             label.textContent = trudnoscText(val);
-            const cur = zmianyDoZapisania[p.id] || {};
-            cur.trudnosc = val;
-            zmianyDoZapisania[p.id] = cur;
-            p.trudnosc = val;
-            p.unsaved = true;
-            updateSaveButton();
+            markPinFieldChange(p, 'trudnosc', val);
           });
         } else if (range && label) {
           label.textContent = trudnoscText(range.value);
@@ -9008,8 +9013,7 @@ function zaladujPinezkiZFirestore() {
       const chkInactive = container.querySelector('#enieaktywne');
       if (chkInactive) {
         chkInactive.addEventListener('change', () => {
-          p.nieaktywne = chkInactive.checked;
-          markPinUnsaved(p.slug);
+          markPinFieldChange(p, 'nieaktywne', chkInactive.checked);
           applyInactiveStyle(p);
           if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
@@ -9017,48 +9021,42 @@ function zaladujPinezkiZFirestore() {
       const chkClosed = container.querySelector('#ezamkniete');
       if (chkClosed) {
         chkClosed.addEventListener('change', () => {
-          p.zamkniete = chkClosed.checked;
-          markPinUnsaved(p.slug);
+          markPinFieldChange(p, 'zamkniete', chkClosed.checked);
           if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
       }
       const chkSecret = container.querySelector('#etajne');
       if (chkSecret) {
         chkSecret.addEventListener('change', () => {
-          p.tajne = chkSecret.checked;
-          markPinUnsaved(p.slug);
+          markPinFieldChange(p, 'tajne', chkSecret.checked);
           if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
       }
       const chkTodo = container.querySelector('#edoSprawdzenia');
       if (chkTodo) {
         chkTodo.addEventListener('change', () => {
-          p.doSprawdzenia = chkTodo.checked;
-          markPinUnsaved(p.slug);
+          markPinFieldChange(p, 'doSprawdzenia', chkTodo.checked);
           if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
       }
       const chkDestroyed = container.querySelector('#ezdewastowane');
       if (chkDestroyed) {
         chkDestroyed.addEventListener('change', () => {
-          p.zdewastowane = chkDestroyed.checked;
-          markPinUnsaved(p.slug);
+          markPinFieldChange(p, 'zdewastowane', chkDestroyed.checked);
           if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
       }
       const chkVisited = container.querySelector('#ezwiedzone');
       if (chkVisited) {
         chkVisited.addEventListener('change', () => {
-          p.zwiedzone = chkVisited.checked;
-          markPinUnsaved(p.slug);
+          markPinFieldChange(p, 'zwiedzone', chkVisited.checked);
           if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
       }
       const chkHighlighted = container.querySelector('#ewyroznione');
       if (chkHighlighted) {
         chkHighlighted.addEventListener('change', () => {
-          p.wyroznione = chkHighlighted.checked;
-          markPinUnsaved(p.slug);
+          markPinFieldChange(p, 'wyroznione', chkHighlighted.checked);
           if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
       }
@@ -9178,13 +9176,13 @@ function zaladujPinezkiZFirestore() {
       if (!nameVal) missing.push("Wpisz nazwę pinezki");
       if (!layerVal) missing.push("Wybierz warstwę");
       if (missing.length) { alert(missing.join("\n")); return; }
-      if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
       const resolvedCategory = resolveMainCategoryForCategory(
         document.getElementById("ekategoriaGlowna").value,
         document.getElementById("ekategoria").value
       );
       const mainCatVal = resolvedCategory.mainCategory;
       const catVal = resolvedCategory.category;
+      if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (p && p._editDraft) delete p._editDraft;
       const oldData = p ? {
@@ -9257,7 +9255,7 @@ function zaladujPinezkiZFirestore() {
         }, 'Edytowano pinezkę');
       }
       generujListeWarstw();
-      updateSaveButton();
+      markDataDirty('pin:edit');
       const mobileModalOpen = document.getElementById('mobilePinModal')?.dataset?.customFormOpen === '1';
       if (mobileModalOpen) {
         closeMobileFormModalIfNeeded();
@@ -12864,7 +12862,13 @@ function getTripPointEmoji(p) {
           toggleBtn
         };
 
-        if (warstwy[nazwa].collapsed) listaP.classList.add("ukryta");
+        if (warstwy[nazwa].collapsed) {
+          listaP.classList.add("ukryta");
+        } else {
+          buildLayerPinList(nazwa, listaP);
+          listaP.dataset.rendered = '1';
+          layerDomRefs[nazwa].items = Array.from(listaP.querySelectorAll('.pinezka'));
+        }
         const toggleLayerCollapse = (ev) => {
           if (ev) {
             ev.preventDefault();
