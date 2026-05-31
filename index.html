@@ -3780,6 +3780,7 @@ function slugify(str) {
     let shouldWarnBeforeUnload = false;
     let hasUserDataEdits = false;
     let nowePinezki = [];
+    let lastNewPinSessionDefaults = null;
     let localPinsLoaded = false;
     const photosMap = {};
     let sortMode = 'dateDesc';
@@ -3797,6 +3798,23 @@ function slugify(str) {
       [MAIN_CATEGORY_TURYSTYCZNE]: new Set()
     };
     let selectedCategories = new Set();
+    const getLastNewPinSessionDefaults = () => lastNewPinSessionDefaults ? { ...lastNewPinSessionDefaults } : null;
+    const rememberLastNewPinSessionDefaults = (pin) => {
+      if (!pin) return;
+      const resolvedCategory = resolveMainCategoryForCategory(pin.kategoriaGlowna, pin.kategoria);
+      lastNewPinSessionDefaults = {
+        kategoriaGlowna: resolvedCategory.mainCategory,
+        kategoria: resolvedCategory.category,
+        warstwa: (pin.warstwa || '').trim()
+      };
+    };
+    const applyLastNewPinSessionDefaultsToFields = ({ mainCategoryInput, categoryInput, layerInput } = {}) => {
+      const defaults = getLastNewPinSessionDefaults();
+      if (!defaults) return;
+      if (mainCategoryInput) mainCategoryInput.value = defaults.kategoriaGlowna || MAIN_CATEGORY_URBEX;
+      if (categoryInput) categoryInput.value = defaults.kategoria || '';
+      if (layerInput) layerInput.value = defaults.warstwa || '';
+    };
     const countries = new Set();
     let selectedCountries = new Set();
     const statusOptions = [
@@ -8589,7 +8607,15 @@ function zaladujPinezkiZFirestore() {
       setupGallery(container.querySelector('.photo-gallery'));
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'));
       setupEmojiPicker(container.querySelector('#emojiPickerNew'), tempPin);
-      setupLayerDropdownByMainCategory(container.querySelector('#warstwaNew'), container.querySelector('#kategoriaGlownaNew'));
+      const newLayerInput = container.querySelector('#warstwaNew');
+      const newMainCategoryInput = container.querySelector('#kategoriaGlownaNew');
+      const newCategoryInput = container.querySelector('#kategoriaNew');
+      applyLastNewPinSessionDefaultsToFields({
+        mainCategoryInput: newMainCategoryInput,
+        categoryInput: newCategoryInput,
+        layerInput: newLayerInput
+      });
+      setupLayerDropdownByMainCategory(newLayerInput, newMainCategoryInput);
       const addLayerFromPinNewBtn = container.querySelector('#addLayerFromPinNew');
       if (addLayerFromPinNewBtn) addLayerFromPinNewBtn.addEventListener('click', () => {
         const layerName = (container.querySelector('#warstwaNew').value || '').trim();
@@ -8598,8 +8624,6 @@ function zaladujPinezkiZFirestore() {
         if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
         if (!warstwy[layerName]) addLayer(layerName, true, selectedMain);
       });
-      const newMainCategoryInput = container.querySelector('#kategoriaGlownaNew');
-      const newCategoryInput = container.querySelector('#kategoriaNew');
       setupDropdownInput(newCategoryInput, () => getCategorySuggestions(newMainCategoryInput ? newMainCategoryInput.value : MAIN_CATEGORY_URBEX));
       if (newMainCategoryInput) newMainCategoryInput.addEventListener('change', () => { if (newCategoryInput) newCategoryInput.value = ''; });
       setupTrudnoscInput(container.querySelector('#trudnoscNew'), container.querySelector('#trudnoscNewLabel'));
@@ -8675,13 +8699,13 @@ function zaladujPinezkiZFirestore() {
           if (!nameVal) missing.push("Wpisz nazwę pinezki");
           if (!layerVal) missing.push("Wybierz warstwę");
           if (missing.length) { alert(missing.join("\n")); return; }
-          if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
           const resolvedCategory = resolveMainCategoryForCategory(
             container.querySelector('#kategoriaGlownaNew').value,
             container.querySelector("#kategoriaNew").value
           );
           const mainCatVal = resolvedCategory.mainCategory;
           const catVal = resolvedCategory.category;
+          if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
           const data = {
             id: tempPin.id,
             IDpinezki: tempPin.id,
@@ -8736,6 +8760,7 @@ function zaladujPinezkiZFirestore() {
         attachMarkerLongPress(marker, data);
 
         addedPin = data;
+        rememberLastNewPinSessionDefaults(data);
         nowePinezki.push(data);
         syncNowePinezkiStorage();
         warstwy[warstwaN].lista.push(data);
@@ -13307,6 +13332,7 @@ function confirmLayerDelete() {
     refreshCategoryCollectionsFromPins();
     updateCategoryFilter();
     generujListeWarstw();
+    rememberLastNewPinSessionDefaults(data);
     markDataDirty('pin:add');
   }
 
@@ -13408,6 +13434,11 @@ function confirmLayerDelete() {
       layerInput.value = '';
       mainCatInput.value = MAIN_CATEGORY_URBEX;
       catInput.value = '';
+      applyLastNewPinSessionDefaultsToFields({
+        mainCategoryInput: mainCatInput,
+        categoryInput: catInput,
+        layerInput
+      });
       emojiInput.value = '';
       if (emojiWrapper) emojiWrapper.style.display = '';
       inactiveInput.checked = false;
