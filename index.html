@@ -2592,6 +2592,7 @@ body.mobile-layout #saveChanges {
     <h4>Dodawanie planu</h4>
     <div class="row"><input type="text" id="planNameInput" placeholder="Nazwa planu"></div>
     <div class="row"><button id="planChangeImage">Zmień obraz</button></div>
+    <div class="row"><button id="planDelete" type="button" style="display:none;">Usuń plan</button></div>
     <div class="row">
       <label for="planScale">Skala</label>
       <input type="range" id="planScale" min="25" max="300" value="100">
@@ -5652,29 +5653,37 @@ function emojiHtml(str) {
       activePlanPlacement = { pin, plan, mode, original: mode === 'edit' ? clonePlanWithoutRuntime(plan) : null };
       ensurePlanOverlay(pin, plan);
       ensurePlanTransformControls(pin, plan);
+      const title = editor.querySelector('h4');
       const nameInput = document.getElementById('planNameInput');
       const scaleInput = document.getElementById('planScale');
       const opacityInput = document.getElementById('planOpacity');
+      const deleteBtn = document.getElementById('planDelete');
+      if (title) title.textContent = mode === 'edit' ? 'Edycja planu' : 'Dodawanie planu';
       if (nameInput) nameInput.value = plan.nazwa || '';
       if (scaleInput) scaleInput.value = plan.skala || 100;
       if (opacityInput) opacityInput.value = Math.round((plan.przezroczystosc || 1) * 100);
+      if (deleteBtn) deleteBtn.style.display = mode === 'edit' ? 'block' : 'none';
       editor.style.display = 'block';
     }
 
     function closePlanEditor(cancelled = false) {
       const editor = document.getElementById('planEditor');
       if (!editor) return;
+      const placement = activePlanPlacement;
       editor.style.display = 'none';
       destroyPlanTransformControls();
-      if (activePlanPlacement && cancelled) {
-        if (activePlanPlacement.mode === 'new') {
-          removePlanOverlay(activePlanPlacement.plan);
-        } else if (activePlanPlacement.original) {
-          Object.assign(activePlanPlacement.plan, activePlanPlacement.original);
-          updatePlanOverlay(activePlanPlacement.pin, activePlanPlacement.plan);
+      if (placement && cancelled) {
+        if (placement.mode === 'new') {
+          removePlanOverlay(placement.plan);
+        } else if (placement.original) {
+          Object.assign(placement.plan, placement.original);
+          updatePlanOverlay(placement.pin, placement.plan);
         }
       }
       activePlanPlacement = null;
+      if (placement && placement.returnToPinEdit && placement.pin) {
+        setTimeout(() => edytuj(placement.pin.id, placement.pin.lat, placement.pin.lng), 0);
+      }
     }
 
     function planScaleChanged(value) {
@@ -5691,6 +5700,18 @@ function emojiHtml(str) {
       const plan = activePlanPlacement.plan;
       plan.przezroczystosc = (parseInt(value, 10) || 100) / 100;
       updatePlanOverlay(activePlanPlacement.pin, plan);
+    }
+
+    function deleteActivePlanPlacement() {
+      if (!activePlanPlacement || activePlanPlacement.mode !== 'edit') return;
+      if (!confirm('Usunąć ten plan z pinezki?')) return;
+      const { pin, plan } = activePlanPlacement;
+      pin.plany = (pin.plany || []).filter(pl => pl !== plan);
+      removePlanOverlay(plan);
+      markPlanChange(pin);
+      closePlanEditor(false);
+      generujListeWarstw();
+      showToast('Plan usunięty. Kliknij „Zapisz” i „Zapisz edycję mapy”, aby zapisać zmianę w Firestore.');
     }
 
       function confirmPlanPlacement() {
@@ -5765,6 +5786,44 @@ function emojiHtml(str) {
           markPlanChange(pin);
         });
       }
+
+    function hasEditablePinPlans(pin) {
+      return Array.isArray(pin && pin.plany) && pin.plany.some(plan => plan && (plan.url || plan.path));
+    }
+
+    function getEditablePinPlans(pin) {
+      return Array.isArray(pin && pin.plany) ? pin.plany.filter(plan => plan && (plan.url || plan.path)) : [];
+    }
+
+    function openPinPlanEditorFromPopup(pin, popupContainer = null) {
+      const plans = getEditablePinPlans(pin);
+      if (!plans.length) return;
+      let plan = plans[0];
+      if (plans.length > 1) {
+        const names = plans.map((item, index) => `${index + 1}. ${item.nazwa || 'Plan'}`).join('\n');
+        const selected = prompt(`Wybierz numer planu do edycji:\n${names}`, '1');
+        if (selected === null) return;
+        const idx = parseInt(selected, 10) - 1;
+        if (!Number.isInteger(idx) || idx < 0 || idx >= plans.length) {
+          alert('Nieprawidłowy numer planu.');
+          return;
+        }
+        plan = plans[idx];
+      }
+      const marker = pin.marker;
+      if (popupContainer) captureEditDraft(pin, popupContainer);
+      if (marker && marker._editPopup) {
+        marker._editPopup.off('remove', marker._editPopupRemoveHandler);
+        marker._editPopupRemoveHandler = null;
+        map.closePopup(marker._editPopup);
+        marker._editPopup = null;
+        pin._isEditing = false;
+      }
+      closeMobileFormModalIfNeeded();
+      openPlanEditor(pin, plan, 'edit');
+      if (activePlanPlacement) activePlanPlacement.returnToPinEdit = true;
+      showToast('Edytujesz plan. Po zatwierdzeniu wrócisz do edycji pinezki. Potem kliknij „Zapisz” i „Zapisz edycję mapy”.');
+    }
 
     function openPlanOptions(pin, plan, anchor) {
       const panel = document.getElementById('planOptions');
@@ -8026,6 +8085,7 @@ function zaladujPinezkiZFirestore() {
         </div>
         ${buildStatusGrid('e', '', p)}
         <button id="movePinBtn-${id}">📍 Zmień położenie</button>
+        ${hasEditablePinPlans(p) ? `<button id="editPinPlanBtn-${id}" type="button">🗺️ Edytuj plan</button>` : ''}
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
         <button id="deleteBtn-${id}">🗑️</button>
       `;
@@ -8126,6 +8186,14 @@ function zaladujPinezkiZFirestore() {
           e.preventDefault();
           e.stopPropagation();
           startPinReposition(p, container);
+        });
+      }
+      const editPlanBtn = container.querySelector('#editPinPlanBtn-' + id);
+      if (editPlanBtn) {
+        editPlanBtn.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          openPinPlanEditorFromPopup(p, container);
         });
       }
       const marker = p.marker || findMarkerByLatLng(lat, lng);
@@ -8273,6 +8341,10 @@ function zaladujPinezkiZFirestore() {
       if (p) {
         nowa.lat = p.lat;
         nowa.lng = p.lng;
+      }
+      const previousPendingChange = zmianyDoZapisania[id] || {};
+      if (previousPendingChange.plany !== undefined) {
+        nowa.plany = previousPendingChange.plany;
       }
       zmianyDoZapisania[id] = nowa;
       if (p) {
@@ -12605,6 +12677,8 @@ function getTripPointEmoji(p) {
     if (planOpacityInput) planOpacityInput.addEventListener('input', e => planOpacityChanged(e.target.value));
     const planChangeImageBtn = document.getElementById('planChangeImage');
     if (planChangeImageBtn) planChangeImageBtn.addEventListener('click', () => changeActivePlanImage());
+    const planDeleteBtn = document.getElementById('planDelete');
+    if (planDeleteBtn) planDeleteBtn.addEventListener('click', deleteActivePlanPlacement);
     const planCancelBtn = document.getElementById('planCancel');
     if (planCancelBtn) planCancelBtn.addEventListener('click', () => closePlanEditor(true));
     const planConfirmBtn = document.getElementById('planConfirm');
