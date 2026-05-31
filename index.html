@@ -2658,6 +2658,11 @@ body.mobile-layout #saveChanges {
           </label><br>
           <input type="range" min="0" max="100" value="100" class="opacity-slider ukryta" id="opacity-shade">
         </div>
+        <div class="overlay-item">
+          <label><input type="checkbox" id="overlay-pin-plans" checked> Plany pinezek
+            <button type="button" class="info-btn" data-info="Szybko pokazuje lub ukrywa wszystkie plany przypisane do pinezek bez zmiany ich indywidualnych ustawień.">i</button>
+          </label>
+        </div>
         <div class="overlay-item" id="overlay-item-osm">
           <label><input type="checkbox" id="overlay-osm-places"> Miejsca OSM
             <button type="button" class="info-btn" data-info="Nakładka miejsc z OpenStreetMap (Overpass)">i</button>
@@ -3816,6 +3821,7 @@ function slugify(str) {
     let layersToDelete = [];
     let pinsToDelete = [];
       const planLayers = {};
+      let pinPlansOverlayVisible = true;
       let activePlanPlacement = null;
       let planOptionsState = null;
       let planTransformState = null;
@@ -5379,6 +5385,7 @@ function emojiHtml(str) {
 
     function shouldPlanBeVisible(pin, plan) {
       if (activePlanPlacement && activePlanPlacement.plan === plan) return true;
+      if (!pinPlansOverlayVisible) return false;
       const layerVisible = pin && pin.warstwa && warstwy[pin.warstwa] ? warstwy[pin.warstwa].visible !== false : true;
       const pinVisible = pinMatchesAllFilters(pin, false);
       return (plan.widoczny !== false) && layerVisible && pinVisible;
@@ -5447,6 +5454,19 @@ function emojiHtml(str) {
     function updatePlanVisibilityForPin(pin) {
       if (!pin || !pin.plany) return;
       pin.plany.forEach(pl => updatePlanOverlay(pin, pl));
+    }
+
+    function updateAllPlanOverlays() {
+      Object.values(warstwy).forEach(layer => {
+        (layer.lista || []).forEach(pin => updatePlanVisibilityForPin(pin));
+      });
+    }
+
+    function setPinPlansOverlayVisible(visible) {
+      pinPlansOverlayVisible = visible;
+      const checkbox = document.getElementById('overlay-pin-plans');
+      if (checkbox) checkbox.checked = visible;
+      updateAllPlanOverlays();
     }
 
     function cleanupPlanTransformOverlay(overlay) {
@@ -7313,6 +7333,7 @@ function emojiHtml(str) {
       });
 
       const overlayCheckboxIds = { archStd: 'overlay-arch-std', archHi: 'overlay-arch-hi', shade: 'overlay-shade' };
+      const pinPlansOverlayCheckbox = document.getElementById('overlay-pin-plans');
       const osmOverlayCheckbox = document.getElementById('overlay-osm-places');
       const osmOverlayItem = document.getElementById('overlay-item-osm');
       function setOsmOverlayState(enabled) {
@@ -7327,6 +7348,10 @@ function emojiHtml(str) {
         }
         debouncedLoadOsmOverlay();
       }
+      if (pinPlansOverlayCheckbox) {
+        pinPlansOverlayCheckbox.addEventListener('change', (e) => setPinPlansOverlayVisible(!!e.target.checked));
+      }
+      setPinPlansOverlayVisible(true);
       if (osmOverlayCheckbox) {
         osmOverlayCheckbox.addEventListener('change', (e) => setOsmOverlayState(!!e.target.checked));
       }
