@@ -4476,16 +4476,15 @@ function slugify(str) {
         planEl.dataset.pinId = String(pin.id);
         planEl.dataset.planId = String(plan.id);
 
-        const activeRadio = document.createElement('input');
-        activeRadio.type = 'radio';
-        activeRadio.name = `pin-active-plan-${pin.id}`;
-        activeRadio.className = 'plan-visibility';
-        activeRadio.checked = isActivePlanForPin(pin, plan);
-        activeRadio.title = 'Pokaż ten rzut na kafelkach mapy';
-        activeRadio.addEventListener('click', ev => ev.stopPropagation());
-        activeRadio.addEventListener('change', ev => {
+        const activeCheckbox = document.createElement('input');
+        activeCheckbox.type = 'checkbox';
+        activeCheckbox.className = 'plan-visibility';
+        activeCheckbox.checked = isActivePlanForPin(pin, plan);
+        activeCheckbox.title = 'Pokaż lub ukryj ten rzut na kafelkach mapy';
+        activeCheckbox.addEventListener('click', ev => ev.stopPropagation());
+        activeCheckbox.addEventListener('change', ev => {
           ev.stopPropagation();
-          if (activeRadio.checked) selectActivePlanForPin(pin, plan);
+          setPlanSelectedForPin(pin, plan, activeCheckbox.checked);
         });
 
         const planName = document.createElement('span');
@@ -4502,7 +4501,7 @@ function slugify(str) {
         planEl.addEventListener('click', editPlan);
         planName.addEventListener('click', editPlan);
 
-        planEl.appendChild(activeRadio);
+        planEl.appendChild(activeCheckbox);
         planEl.appendChild(planName);
         container.appendChild(planEl);
       });
@@ -5601,53 +5600,68 @@ function emojiHtml(str) {
       return String(pin.id || pin.firebaseId || pin.IDpinezki || pin.slug || '');
     }
 
-    function getStoredActivePlanIdForPin(pin) {
+    function getStoredActivePlanIdsForPin(pin) {
       const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
-      const active = plans.find(plan => plan && plan.aktywny === true);
-      return active ? String(active.id) : (plans[0] && plans[0].id ? String(plans[0].id) : null);
+      if (!plans.length) return new Set();
+      const activeIds = plans
+        .filter(plan => plan && plan.aktywny === true && plan.id)
+        .map(plan => String(plan.id));
+      if (activeIds.length) return new Set(activeIds);
+      return plans[0] && plans[0].id ? new Set([String(plans[0].id)]) : new Set();
     }
 
-    function getActivePlanIdForPin(pin) {
+    function getActivePlanIdsForPin(pin) {
       const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
-      if (!plans.length) return null;
+      if (!plans.length) return new Set();
+      const validIds = new Set(plans.filter(plan => plan && plan.id).map(plan => String(plan.id)));
       const sessionKey = getPinSessionKey(pin);
-      const sessionActiveId = sessionKey ? activePlanSessionOverrides.get(sessionKey) : null;
-      if (sessionActiveId && plans.some(plan => plan && String(plan.id) === sessionActiveId)) {
-        return sessionActiveId;
+      const sessionActiveIds = sessionKey ? activePlanSessionOverrides.get(sessionKey) : null;
+      if (sessionActiveIds instanceof Set) {
+        return new Set([...sessionActiveIds].filter(id => validIds.has(String(id))).map(String));
       }
-      return getStoredActivePlanIdForPin(pin);
+      if (sessionActiveIds && validIds.has(String(sessionActiveIds))) {
+        return new Set([String(sessionActiveIds)]);
+      }
+      return getStoredActivePlanIdsForPin(pin);
     }
 
     function normalizeActivePlanForPin(pin) {
       const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
       if (!plans.length) return;
-      const activeId = getStoredActivePlanIdForPin(pin) || (plans[0] ? plans[0].id : null);
-      plans.forEach(plan => { if (plan) plan.aktywny = String(plan.id) === activeId; });
+      if (!plans.some(plan => plan && plan.aktywny === true) && plans[0]) {
+        plans[0].aktywny = true;
+      }
     }
 
     function isActivePlanForPin(pin, plan) {
       if (!pin || !plan) return false;
-      return String(plan.id) === getActivePlanIdForPin(pin);
+      return getActivePlanIdsForPin(pin).has(String(plan.id));
     }
 
-    function updatePlanActiveRadioStateForPin(pin) {
+    function updatePlanActiveCheckboxStateForPin(pin) {
       if (!pin) return;
       const renderedPinId = String(pin.id);
-      const activePlanId = getActivePlanIdForPin(pin);
+      const activePlanIds = getActivePlanIdsForPin(pin);
       document.querySelectorAll('#lista-warstw .plan-item').forEach(item => {
         if (item.dataset.pinId !== renderedPinId) return;
         const input = item.querySelector('input.plan-visibility');
-        if (input) input.checked = String(item.dataset.planId) === activePlanId;
+        if (input) input.checked = activePlanIds.has(String(item.dataset.planId));
       });
     }
 
-    function selectActivePlanForPin(pin, selectedPlan) {
+    function setPlanSelectedForPin(pin, selectedPlan, selected) {
       if (!pin || !selectedPlan) return;
       const sessionKey = getPinSessionKey(pin);
       if (!sessionKey || !selectedPlan.id) return;
-      activePlanSessionOverrides.set(sessionKey, String(selectedPlan.id));
+      const selectedIds = getActivePlanIdsForPin(pin);
+      if (selected) {
+        selectedIds.add(String(selectedPlan.id));
+      } else {
+        selectedIds.delete(String(selectedPlan.id));
+      }
+      activePlanSessionOverrides.set(sessionKey, selectedIds);
       updatePlanVisibilityForPin(pin);
-      updatePlanActiveRadioStateForPin(pin);
+      updatePlanActiveCheckboxStateForPin(pin);
     }
 
     function cleanupPlanTransformOverlay(overlay) {
@@ -5938,9 +5952,14 @@ function emojiHtml(str) {
         if (!pin.plany) pin.plany = [];
         if (mode === 'new') {
           pin.plany.push(plan);
-          pin.plany.forEach(existingPlan => { if (existingPlan) existingPlan.aktywny = existingPlan === plan; });
         }
         plan.aktywny = true;
+        const sessionKey = getPinSessionKey(pin);
+        if (sessionKey && plan.id) {
+          const selectedIds = getActivePlanIdsForPin(pin);
+          selectedIds.add(String(plan.id));
+          activePlanSessionOverrides.set(sessionKey, selectedIds);
+        }
         plan.unsaved = true;
         updatePlanOverlay(pin, plan);
         markPlanChange(pin);
