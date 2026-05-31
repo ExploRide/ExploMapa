@@ -2298,6 +2298,74 @@ img.emoji {
       border-radius: 6px;
     }
     .osm-popup { min-width: 160px; font-size: 13px; }
+    .archive-imagery-controls {
+      margin-top: 6px;
+    }
+    .archive-imagery-controls summary {
+      margin-bottom: 6px;
+    }
+    .archive-control-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-bottom: 7px;
+    }
+    .archive-control-row label {
+      color: var(--ui-muted, #c7c7c7);
+      font-size: 11px;
+      line-height: 1.2;
+    }
+    .archive-control-row select {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      padding: 5px 6px;
+      border: 1px solid var(--ui-border, #555);
+      border-radius: var(--ui-radius-sm, 4px);
+      background: rgba(0, 0, 0, 0.22);
+      color: inherit;
+      font-size: 12px;
+    }
+    .archive-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+      margin-top: 2px;
+    }
+    .archive-actions button {
+      width: 100%;
+      min-width: 0;
+      white-space: normal;
+      line-height: 1.2;
+      padding: 6px 8px;
+    }
+    .archive-status {
+      margin-top: 7px;
+      padding: 5px 6px;
+      border: 1px solid rgba(180, 185, 200, 0.4);
+      border-radius: var(--ui-radius-sm, 4px);
+      color: var(--ui-muted, #c7c7c7);
+      font-size: 11px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+    .archive-status-loading { border-color: rgba(88, 161, 255, 0.75); color: #b8d8ff; }
+    .archive-status-success { border-color: rgba(67, 197, 110, 0.7); color: #b9f3c9; }
+    .archive-status-warning { border-color: rgba(255, 195, 90, 0.8); color: #ffd98d; }
+    .archive-status-error { border-color: rgba(255, 100, 100, 0.8); color: #ffb3b3; }
+
+    @media (max-width: 800px) {
+      .archive-imagery-controls {
+        margin-top: 4px;
+      }
+      .archive-actions {
+        gap: 5px;
+      }
+      .archive-control-row select,
+      .archive-actions button {
+        font-size: 12px;
+      }
+    }
 
   
 
@@ -2633,6 +2701,23 @@ body.mobile-layout #saveChanges {
         <label><input type="radio" name="basemap" value="true-orto"> True Ortho (WMS)<button type="button" class="info-btn" data-info="TrueOrtho – brak zniekształceń od wysokości">i</button></label><br>
         <label><input type="radio" name="basemap" value="copernicus"> Copernicus (Sentinel-2 WMS)</label><br>
         <label><input type="radio" name="basemap" value="otm-trails"> OpenTopoMap + Szlaki (Waymarked)</label><br>
+      </details>
+      <div class="layer-separator"></div>
+      <details class="archive-imagery-controls" open>
+        <summary><strong>Zdjęcia archiwalne</strong></summary>
+        <div class="archive-control-row">
+          <label for="archiveYearSelect">Rok / data</label>
+          <select id="archiveYearSelect"></select>
+        </div>
+        <div class="archive-control-row">
+          <label for="archiveSourceSelect">Źródło dla wybranego roku</label>
+          <select id="archiveSourceSelect"></select>
+        </div>
+        <div class="archive-actions">
+          <button type="button" id="archiveEnableBtn">Włącz</button>
+          <button type="button" id="archiveDisableBtn">Wyłącz zdjęcia archiwalne</button>
+        </div>
+        <div id="archiveStatus" class="archive-status archive-status-info" aria-live="polite">Wybierz rok i źródło.</div>
       </details>
       <div class="layer-separator"></div>
       <details>
@@ -3631,6 +3716,8 @@ function slugify(str) {
     }
 
     let currentBase = 'sat';
+    let activeArchiveImageryLayer = null;
+    let activeArchiveImageryMeta = null;
     let loadingCount = 0;
     let baseLayerLoadToken = 0;
     let baseLayerLoadingCount = 0;
@@ -6802,6 +6889,14 @@ function emojiHtml(str) {
       rysowaneTrasy.addTo(map);
       routingLayer = L.layerGroup().addTo(map);
       osmOverlayLayer = L.layerGroup().addTo(map);
+      if (!map.getPane('archiveImageryPane')) {
+        map.createPane('archiveImageryPane');
+      }
+      const archivePane = map.getPane('archiveImageryPane');
+      if (archivePane) {
+        archivePane.style.zIndex = '250';
+        archivePane.style.pointerEvents = 'none';
+      }
 
       // Undo/redo should ignore map view changes, so no actions are
       // recorded for map movements.
@@ -6892,6 +6987,363 @@ function emojiHtml(str) {
             layer.bringToFront();
           }
         });
+      }
+
+      const ARCHIVE_IMAGERY_SOURCE_TEMPLATES = [
+        {
+          id: 'gugik_orto_archive',
+          name: 'Geoportal / GUGiK — ortofotomapa archiwalna',
+          type: 'wms',
+          // TODO: po sprawdzeniu GetCapabilities wklej właściwy adres WMS archiwalnej ortofotomapy.
+          // Przykład miejsca uzupełnienia: url: 'https://.../WMS/...', layers: 'Raster' albo inna nazwa z GetCapabilities.
+          url: '',
+          layers: '',
+          format: 'image/png',
+          transparent: true,
+          attribution: 'Źródło: GUGiK / Geoportal',
+          supportsTime: true,
+          years: []
+        },
+        {
+          id: 'esri_wayback',
+          name: 'Esri Wayback Imagery',
+          type: 'xyz',
+          // TODO: wklej legalnie używalny szablon XYZ/WMTS po weryfikacji warunków Esri Wayback.
+          urlTemplate: '',
+          attribution: 'Źródło: Esri Wayback',
+          years: []
+        },
+        {
+          id: 'custom_tiles',
+          name: 'Własne kafelki archiwalne',
+          type: 'xyz',
+          urlTemplate: 'tiles/archive/{year}/{z}/{x}/{y}.png',
+          attribution: 'Własne archiwalne kafelki',
+          years: [2011, 2014, 2017, 2021]
+        }
+      ];
+
+      const ARCHIVE_IMAGERY_MANUAL_ITEMS = [
+        // Tu dopisuj pojedyncze naloty/źródła dla tego samego roku, np. po weryfikacji GetCapabilities:
+        // {
+        //   id: 'gugik_2011_04_12_ortho',
+        //   year: 2011,
+        //   date: '2011-04-12',
+        //   label: 'Geoportal / GUGiK — ortofotomapa archiwalna 2011-04-12',
+        //   type: 'wms',
+        //   url: 'TU_WSTAW_ADRES_WMS_Z_GETCAPABILITIES',
+        //   layers: 'TU_WSTAW_POPRAWNĄ_NAZWĘ_WARSTWY',
+        //   format: 'image/png',
+        //   transparent: true,
+        //   attribution: 'Źródło: GUGiK / Geoportal',
+        //   supportsTime: true
+        // }
+      ];
+
+      const ARCHIVE_IMAGERY_ITEMS = ARCHIVE_IMAGERY_MANUAL_ITEMS.concat(
+        ARCHIVE_IMAGERY_SOURCE_TEMPLATES.flatMap(source => {
+          const years = Array.isArray(source.years) ? source.years : [];
+          return years.map(year => ({
+            ...source,
+            id: `${source.id}_${String(year).replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+            sourceId: source.id,
+            year: String(year).slice(0, 4),
+            date: String(year),
+            label: `${source.name} ${year}`
+          }));
+        })
+      );
+      const archiveCapabilitiesCache = new Map();
+      const archiveDynamicItemsBySource = new Map();
+      const archiveTileStats = { requested: 0, errors: 0, token: 0 };
+      let archiveControlsReady = false;
+
+      function getArchiveControls() {
+        return {
+          yearSelect: document.getElementById('archiveYearSelect'),
+          sourceSelect: document.getElementById('archiveSourceSelect'),
+          enableBtn: document.getElementById('archiveEnableBtn'),
+          disableBtn: document.getElementById('archiveDisableBtn'),
+          statusEl: document.getElementById('archiveStatus')
+        };
+      }
+
+      function getArchiveItems() {
+        return ARCHIVE_IMAGERY_ITEMS.concat(...archiveDynamicItemsBySource.values());
+      }
+
+      function hasArchiveLayerConfig(item) {
+        if (!item) return false;
+        if (item.type === 'wms') return Boolean(item.url && item.layers);
+        if (item.type === 'xyz' || item.type === 'wmts') return Boolean(item.urlTemplate);
+        return false;
+      }
+
+      function setArchiveStatus(message, type = 'info') {
+        const { statusEl } = getArchiveControls();
+        if (!statusEl) return;
+        statusEl.textContent = message;
+        statusEl.className = `archive-status archive-status-${type}`;
+      }
+
+      function normalizeArchiveYear(value) {
+        const match = String(value ?? '').match(/\d{4}/);
+        return match ? match[0] : String(value ?? '').trim();
+      }
+
+      function getArchiveYearOptions() {
+        const years = [...new Set(getArchiveItems().map(item => normalizeArchiveYear(item.year || item.date)).filter(Boolean))];
+        return years.sort((a, b) => b.localeCompare(a));
+      }
+
+      function populateArchiveSources() {
+        const { yearSelect } = getArchiveControls();
+        if (!yearSelect) return;
+        yearSelect.innerHTML = '';
+        const years = getArchiveYearOptions();
+        if (!years.length) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'Uzupełnij źródła/lata';
+          yearSelect.appendChild(opt);
+          populateArchiveYears('');
+          setArchiveStatus('Brak skonfigurowanych lat. Uzupełnij ARCHIVE_IMAGERY_SOURCE_TEMPLATES albo WMS GetCapabilities.', 'warning');
+          return;
+        }
+        years.forEach(year => {
+          const opt = document.createElement('option');
+          opt.value = year;
+          opt.textContent = year;
+          yearSelect.appendChild(opt);
+        });
+        populateArchiveYears(yearSelect.value);
+      }
+
+      function populateArchiveYears(yearOrDate) {
+        const { sourceSelect, enableBtn } = getArchiveControls();
+        if (!sourceSelect) return;
+        sourceSelect.innerHTML = '';
+        const year = normalizeArchiveYear(yearOrDate);
+        const items = getArchiveItems().filter(item => normalizeArchiveYear(item.year || item.date) === year);
+        if (!items.length) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'Brak źródeł dla tego roku';
+          sourceSelect.appendChild(opt);
+          if (enableBtn) enableBtn.disabled = true;
+          setArchiveStatus('Brak zdjęć archiwalnych dla tego roku', 'warning');
+          return;
+        }
+        items.forEach(item => {
+          const opt = document.createElement('option');
+          opt.value = item.id;
+          opt.textContent = item.date && item.date !== String(item.year) ? `${item.label} (${item.date})` : item.label;
+          opt.disabled = !hasArchiveLayerConfig(item);
+          if (opt.disabled) opt.textContent += ' — TODO konfiguracja';
+          sourceSelect.appendChild(opt);
+        });
+        const firstEnabled = [...sourceSelect.options].find(opt => !opt.disabled);
+        if (firstEnabled) sourceSelect.value = firstEnabled.value;
+        if (enableBtn) enableBtn.disabled = !firstEnabled;
+        if (!firstEnabled) {
+          setArchiveStatus('Źródła dla tego roku wymagają uzupełnienia adresu warstwy.', 'warning');
+        } else {
+          setArchiveStatus(items.length === 1 ? 'Dostępne jedno źródło dla tego roku.' : 'Wybierz źródło/nalot dla tego roku.', 'info');
+        }
+      }
+
+      function applyYearToArchiveUrl(template, yearOrDate) {
+        return String(template || '')
+          .replaceAll('{year}', encodeURIComponent(yearOrDate))
+          .replaceAll('{date}', encodeURIComponent(yearOrDate));
+      }
+
+      function createArchiveLayer(source, yearOrDate) {
+        const baseOptions = {
+          pane: 'archiveImageryPane',
+          maxNativeZoom: source.maxNativeZoom || NATIVE_TILE_ZOOM,
+          maxZoom: MAX_MAP_ZOOM,
+          attribution: source.attribution || ''
+        };
+        if (source.type === 'wms') {
+          const params = {
+            layers: source.layers,
+            format: source.format || 'image/png',
+            transparent: source.transparent !== false,
+            version: source.version || '1.3.0',
+            uppercase: true,
+            crs: L.CRS.EPSG3857,
+            ...baseOptions
+          };
+          if (source.supportsTime !== false && yearOrDate) {
+            params.time = yearOrDate;
+            params.TIME = yearOrDate;
+          }
+          return L.tileLayer.wms(source.url, params);
+        }
+        if (source.type === 'xyz' || source.type === 'wmts') {
+          return L.tileLayer(applyYearToArchiveUrl(source.urlTemplate, yearOrDate), baseOptions);
+        }
+        throw new Error(`Nieobsługiwany typ archiwalnej warstwy: ${source.type}`);
+      }
+
+      function monitorArchiveLayer(layer, label, token) {
+        archiveTileStats.requested = 0;
+        archiveTileStats.errors = 0;
+        archiveTileStats.token = token;
+        const updateFailureStatus = () => {
+          if (archiveTileStats.token !== token) return;
+          if (archiveTileStats.requested >= 3 && archiveTileStats.errors / archiveTileStats.requested >= 0.6) {
+            setArchiveStatus('Nie udało się załadować warstwy', 'error');
+          }
+        };
+        layer.on('tileloadstart', () => {
+          if (archiveTileStats.token === token) archiveTileStats.requested += 1;
+        });
+        layer.on('tileerror', () => {
+          if (archiveTileStats.token !== token) return;
+          archiveTileStats.errors += 1;
+          updateFailureStatus();
+        });
+        layer.on('load', () => {
+          if (archiveTileStats.token !== token) return;
+          if (archiveTileStats.requested > 0 && archiveTileStats.errors === archiveTileStats.requested) {
+            setArchiveStatus('Brak zdjęć archiwalnych dla tego obszaru/roku', 'warning');
+          } else if (archiveTileStats.requested >= 3 && archiveTileStats.errors / archiveTileStats.requested >= 0.6) {
+            setArchiveStatus('Nie udało się załadować warstwy', 'error');
+          } else {
+            setArchiveStatus(`Warstwa aktywna: ${label}`, 'success');
+          }
+        });
+      }
+
+      function disableArchiveImagery() {
+        if (activeArchiveImageryLayer && map.hasLayer(activeArchiveImageryLayer)) {
+          if (activeArchiveImageryLayer._abortLoading) activeArchiveImageryLayer._abortLoading();
+          map.removeLayer(activeArchiveImageryLayer);
+        }
+        activeArchiveImageryLayer = null;
+        activeArchiveImageryMeta = null;
+        archiveTileStats.token++;
+        setArchiveStatus('Zdjęcia archiwalne wyłączone.', 'info');
+      }
+
+      function enableArchiveImagery(sourceId, yearOrDate) {
+        if (navigator && navigator.onLine === false) {
+          disableArchiveImagery();
+          setArchiveStatus('Zdjęcia archiwalne wymagają internetu', 'warning');
+          return;
+        }
+        const source = getArchiveItems().find(item => item.id === sourceId);
+        if (!source || !hasArchiveLayerConfig(source)) {
+          disableArchiveImagery();
+          setArchiveStatus('Źródło wymaga uzupełnienia konfiguracji warstwy.', 'warning');
+          return;
+        }
+        disableArchiveImagery();
+        setArchiveStatus('Ładowanie…', 'loading');
+        try {
+          const layer = createArchiveLayer(source, yearOrDate);
+          activeArchiveImageryLayer = layer;
+          activeArchiveImageryMeta = { sourceId, yearOrDate };
+          const token = archiveTileStats.token + 1;
+          monitorArchiveLayer(layer, source.label || source.name || sourceId, token);
+          layer.addTo(map);
+          if (typeof layer.bringToFront === 'function') layer.bringToFront();
+          bringActiveMapOverlaysToFront();
+        } catch (err) {
+          console.warn('[Archive imagery]', err);
+          activeArchiveImageryLayer = null;
+          activeArchiveImageryMeta = null;
+          setArchiveStatus('Nie udało się załadować warstwy', 'error');
+        }
+      }
+
+      async function tryFetchWmsCapabilities(source) {
+        if (!source || source.type !== 'wms' || !source.url) return [];
+        if (archiveCapabilitiesCache.has(source.id)) return archiveCapabilitiesCache.get(source.id);
+        const separator = source.url.includes('?') ? '&' : '?';
+        const url = `${source.url}${separator}service=WMS&request=GetCapabilities&version=${encodeURIComponent(source.version || '1.3.0')}`;
+        try {
+          const res = await fetch(url, { mode: 'cors' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const text = await res.text();
+          const years = extractYearsFromCapabilities(text);
+          archiveCapabilitiesCache.set(source.id, years);
+          return years;
+        } catch (err) {
+          console.warn('[Archive imagery] GetCapabilities niedostępne lub zablokowane przez CORS.', err);
+          archiveCapabilitiesCache.set(source.id, []);
+          return [];
+        }
+      }
+
+      function expandTimeValueToDates(value) {
+        const trimmed = String(value || '').trim();
+        if (!trimmed) return [];
+        if (!trimmed.includes('/')) return [trimmed];
+        const [start, end, step] = trimmed.split('/');
+        if (!/^\d{4}/.test(start) || !/^\d{4}/.test(end)) return [start, end].filter(Boolean);
+        const startYear = parseInt(start.slice(0, 4), 10);
+        const endYear = parseInt(end.slice(0, 4), 10);
+        if (!Number.isFinite(startYear) || !Number.isFinite(endYear) || endYear - startYear > 80) return [start, end];
+        const dates = [];
+        for (let y = startYear; y <= endYear; y += 1) {
+          dates.push(step && step.includes('M') ? `${y}` : `${y}`);
+        }
+        return dates;
+      }
+
+      function extractYearsFromCapabilities(xmlText) {
+        const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
+        if (xml.querySelector('ServiceException, ServiceExceptionReport, parsererror')) return [];
+        const dimensions = [...xml.querySelectorAll('Dimension[name="time"], Dimension[name="TIME"], Extent[name="time"], Extent[name="TIME"]')];
+        const values = dimensions.flatMap(dim => String(dim.textContent || '').split(',')).flatMap(expandTimeValueToDates);
+        const unique = [...new Set(values.map(v => v.trim()).filter(Boolean))];
+        return unique.sort((a, b) => b.localeCompare(a));
+      }
+
+      async function hydrateArchiveWmsItemsFromCapabilities() {
+        const wmsSources = ARCHIVE_IMAGERY_SOURCE_TEMPLATES.filter(source => source.type === 'wms' && source.url && source.layers && (!source.years || !source.years.length));
+        for (const source of wmsSources) {
+          const dates = await tryFetchWmsCapabilities(source);
+          const items = dates.map(date => ({
+            ...source,
+            id: `${source.id}_${String(date).replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+            sourceId: source.id,
+            year: normalizeArchiveYear(date),
+            date,
+            label: `${source.name} ${date}`
+          }));
+          archiveDynamicItemsBySource.set(source.id, items);
+        }
+        populateArchiveSources();
+      }
+
+      function initArchiveImageryControls() {
+        if (archiveControlsReady) return;
+        const { yearSelect, sourceSelect, enableBtn, disableBtn } = getArchiveControls();
+        if (!yearSelect || !sourceSelect || !enableBtn || !disableBtn) return;
+        archiveControlsReady = true;
+        populateArchiveSources();
+        hydrateArchiveWmsItemsFromCapabilities();
+        yearSelect.addEventListener('change', () => populateArchiveYears(yearSelect.value));
+        sourceSelect.addEventListener('change', () => {
+          const item = getArchiveItems().find(entry => entry.id === sourceSelect.value);
+          if (item && hasArchiveLayerConfig(item)) setArchiveStatus(`Wybrane źródło: ${item.label}`, 'info');
+        });
+        enableBtn.addEventListener('click', () => enableArchiveImagery(sourceSelect.value, yearSelect.value));
+        disableBtn.addEventListener('click', () => disableArchiveImagery());
+        window.addEventListener('online', () => {
+          if (!activeArchiveImageryLayer) setArchiveStatus('Wybierz rok i źródło.', 'info');
+        });
+        window.addEventListener('offline', () => {
+          if (activeArchiveImageryLayer) disableArchiveImagery();
+          setArchiveStatus('Zdjęcia archiwalne wymagają internetu', 'warning');
+        });
+        if (navigator && navigator.onLine === false) {
+          setArchiveStatus('Zdjęcia archiwalne wymagają internetu', 'warning');
+        }
       }
 
       const mapDateBadgeEl = document.getElementById('map-date-badge');
@@ -7361,6 +7813,7 @@ function emojiHtml(str) {
       document.querySelectorAll('input[name="basemap"]').forEach(radio => {
         radio.addEventListener('change', () => switchBaseLayer(radio.value));
       });
+      initArchiveImageryControls();
 
       const overlayCheckboxIds = { archStd: 'overlay-arch-std', archHi: 'overlay-arch-hi', shade: 'overlay-shade' };
       const pinPlansOverlayCheckbox = document.getElementById('overlay-pin-plans');

@@ -56,6 +56,20 @@ function isTileRequest(url) {
   return url.hostname.includes('tile') || url.pathname.includes('/tile/') || url.pathname.includes('/tiles/');
 }
 
+function isArchiveImageryRequest(url) {
+  const path = url.pathname.toLowerCase();
+  const query = url.search.toLowerCase();
+  return (
+    path.includes('/tiles/archive/') ||
+    path.includes('/wms/') ||
+    path.includes('/wmts/') ||
+    query.includes('service=wms') ||
+    query.includes('service=wmts') ||
+    query.includes('request=getmap') ||
+    query.includes('request=gettile')
+  );
+}
+
 function isFirestoreOrAuth(url) {
   return url.hostname.includes('firestore') || url.hostname.includes('googleapis.com') || url.hostname.includes('firebase') || url.pathname.includes('/auth');
 }
@@ -148,6 +162,11 @@ self.addEventListener('fetch', event => {
 
   if (isNavigationRequest(request) || isIndexRequest(url)) {
     event.respondWith(networkFirstForNavigation(request));
+    return;
+  }
+
+  if (isArchiveImageryRequest(url)) {
+    event.respondWith(fetch(request));
     return;
   }
 
