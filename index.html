@@ -6561,7 +6561,7 @@ function emojiHtml(str) {
 
       const ESRI_WAYBACK_WMTS_CAPABILITIES_URL = 'https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/WMTSCapabilities.xml';
       const ARCHIVE_FALLBACK_WARNING = 'Nie udało się automatycznie pobrać listy dat — używam ręcznej listy';
-      const MANUAL_GUGIK_ARCHIVE_DATES = ['2024', '2023', '2022', '2021', '2020', '2019', '2018', '2017', '2016', '2015', '2014', '2013', '2012', '2011', '2010'];
+      const MANUAL_GUGIK_ARCHIVE_DATES = []; // Geoportal/GUGiK WMS TIME musi pochodzić z GetCapabilities; nie generujemy sztucznych dat rocznych.
       const MANUAL_ESRI_WAYBACK_ITEMS = [
         {
           date: '2023-12-07',
@@ -7013,44 +7013,87 @@ function emojiHtml(str) {
       }
 
       function addManualGugikArchiveItems() {
-        MANUAL_GUGIK_ARCHIVE_DATES.forEach(date => {
-          addArchiveImageryItem({
-            id: `gugik-standard-${date}`,
-            provider: 'Geoportal / GUGiK',
-            label: `Geoportal / GUGiK — ortofotomapa archiwalna standardowa (${date})`,
-            year: getArchiveYear(date),
-            date,
-            type: 'wms',
-            url: WMS_ARCH_STD_URL,
-            layers: 'Raster',
-            format: 'image/jpeg',
-            transparent: false,
-            attribution: ORTO_ATTR,
-            timeParam: date
-          });
-          addArchiveImageryItem({
-            id: `gugik-high-${date}`,
-            provider: 'Geoportal / GUGiK',
-            label: `Geoportal / GUGiK — ortofotomapa archiwalna wysokiej rozdzielczości (${date})`,
-            year: getArchiveYear(date),
-            date,
-            type: 'wms',
-            url: WMS_ARCH_HI_URL,
-            layers: 'Raster',
-            format: 'image/jpeg',
-            transparent: false,
-            attribution: ORTO_ATTR,
-            timeParam: date
-          });
-        });
+        // Celowo nie dodajemy ręcznych pozycji Geoportal/GUGiK: parametr TIME w tych WMS
+        // musi być dokładną wartością z GetCapabilities, inaczej serwer potrafi zwrócić biały obraz.
       }
 
-      function getWmsCapabilityLayerName(layerEl) {
-        if (!layerEl) return 'Raster';
-        const namedLayers = Array.from(layerEl.querySelectorAll('Layer')).filter(layer => layer.querySelector(':scope > Name'));
-        const rasterLayer = namedLayers.find(layer => (layer.querySelector(':scope > Name')?.textContent || '').trim().toLowerCase() === 'raster');
-        const firstNamed = rasterLayer || namedLayers[0];
-        return (firstNamed?.querySelector(':scope > Name')?.textContent || 'Raster').trim();
+      function getXmlElements(root, localName) {
+        return Array.from(root.getElementsByTagNameNS?.('*', localName) || root.getElementsByTagName(localName));
+      }
+
+      function getDirectXmlChildren(el, localName) {
+        if (!el) return [];
+        return Array.from(el.children || []).filter(child => child.localName === localName || child.tagName === localName);
+      }
+
+      function getDirectXmlChildText(el, localName) {
+        return (getDirectXmlChildren(el, localName)[0]?.textContent || '').trim();
+      }
+
+      function parseWmsTimeValues(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return [];
+        const values = [];
+        raw.split(',').forEach(part => {
+          const token = part.trim();
+          const exactDates = token.match(/\d{4}-\d{2}-\d{2}/g);
+          if (exactDates?.length) {
+            values.push(...exactDates);
+            return;
+          }
+          const exactYears = token.match(/^\d{4}$/g);
+          if (exactYears?.length) values.push(...exactYears);
+        });
+        return [...new Set(values.map(normalizeArchiveDate).filter(Boolean))];
+      }
+
+      function parseWmsLayerMetadata(layerEl) {
+        const name = getDirectXmlChildText(layerEl, 'Name');
+        const formats = [];
+        const crs = [];
+        const times = [];
+        let crsNode = layerEl;
+        while (crsNode) {
+          getDirectXmlChildren(crsNode, 'CRS').forEach(node => crs.push((node.textContent || '').trim()));
+          getDirectXmlChildren(crsNode, 'SRS').forEach(node => crs.push((node.textContent || '').trim()));
+          crsNode = crsNode.parentElement;
+        }
+        getDirectXmlChildren(layerEl, 'Dimension').concat(getDirectXmlChildren(layerEl, 'Extent')).forEach(node => {
+          if (String(node.getAttribute('name') || node.getAttribute('Name') || '').toLowerCase() === 'time') {
+            times.push(...parseWmsTimeValues(node.textContent));
+          }
+        });
+        return {
+          el: layerEl,
+          name,
+          crs: [...new Set(crs.filter(Boolean))],
+          times: [...new Set(times)],
+          formats
+        };
+      }
+
+      function chooseWmsImageFormat(formats) {
+        const normalized = formats.map(format => String(format || '').trim()).filter(Boolean);
+        return normalized.find(format => format.toLowerCase() === 'image/png') || 'image/png';
+      }
+
+      function chooseLeafletWmsCrs(crsValues) {
+        const normalized = crsValues.map(value => String(value || '').toUpperCase());
+        if (normalized.includes('EPSG:3857') || normalized.includes('EPSG:900913')) return { code: 'EPSG:3857', leaflet: L.CRS.EPSG3857 };
+        if (normalized.includes('EPSG:4326')) return { code: 'EPSG:4326', leaflet: L.CRS.EPSG4326 };
+        return { code: 'EPSG:3857', leaflet: L.CRS.EPSG3857 };
+      }
+
+      function getWmsCapabilityGetMapFormats(xml) {
+        const requestNodes = getXmlElements(xml, 'Request');
+        const getMapNode = requestNodes.flatMap(node => getDirectXmlChildren(node, 'GetMap'))[0] || getXmlElements(xml, 'GetMap')[0];
+        return getDirectXmlChildren(getMapNode, 'Format').map(node => (node.textContent || '').trim()).filter(Boolean);
+      }
+
+      function getWmsCapabilityLayerMetadata(xml) {
+        const layerMetas = getXmlElements(xml, 'Layer').map(parseWmsLayerMetadata).filter(meta => meta.name);
+        const timedLayer = layerMetas.find(meta => meta.times.length);
+        return timedLayer || layerMetas.find(meta => meta.name.toLowerCase() === 'raster') || layerMetas[0] || null;
       }
 
       async function loadGugikArchiveWmsCapabilities() {
@@ -7073,10 +7116,13 @@ function emojiHtml(str) {
           const text = await response.text();
           const xml = new DOMParser().parseFromString(text, 'text/xml');
           if (xml.querySelector('parsererror, ServiceException, ServiceExceptionReport')) throw new Error('GUGiK WMS capabilities parse error');
-          const timeNodes = Array.from(xml.querySelectorAll('Dimension[name="time"], Dimension[Name="time"], Extent[name="time"], Extent[Name="time"]'));
-          const dates = [...new Set(timeNodes.flatMap(node => (node.textContent || '').split(',').map(normalizeArchiveDate).filter(Boolean)))];
+          const getMapFormats = getWmsCapabilityGetMapFormats(xml);
+          const layerMeta = getWmsCapabilityLayerMetadata(xml);
+          if (!layerMeta?.name) throw new Error('GUGiK WMS capabilities without named layer');
+          const dates = [...new Set(layerMeta.times.map(normalizeArchiveDate).filter(Boolean))];
           if (!dates.length) throw new Error('GUGiK WMS capabilities without TIME values');
-          const layerName = getWmsCapabilityLayerName(xml.querySelector('Capability > Layer'));
+          const crsChoice = chooseLeafletWmsCrs(layerMeta.crs);
+          const imageFormat = chooseWmsImageFormat(getMapFormats);
           dates.sort((a, b) => b.localeCompare(a)).forEach(date => {
             addArchiveImageryItem({
               id: `${config.idPrefix}-${date}`,
@@ -7086,11 +7132,18 @@ function emojiHtml(str) {
               date,
               type: 'wms',
               url: config.url,
-              layers: layerName,
-              format: 'image/jpeg',
+              layers: layerMeta.name,
+              format: imageFormat,
               transparent: false,
               attribution: ORTO_ATTR,
-              timeParam: date
+              timeParam: date,
+              version: '1.1.1',
+              crsCode: crsChoice.code,
+              leafletCrs: crsChoice.leaflet,
+              supportedCrs: layerMeta.crs,
+              supportedFormats: getMapFormats,
+              fallbackUrl: config.url === WMS_ARCH_HI_URL ? WMS_ARCH_STD_URL : '',
+              fallbackIdPrefix: config.url === WMS_ARCH_HI_URL ? 'gugik-standard' : ''
             });
             loadedCount++;
           });
@@ -7254,16 +7307,36 @@ function emojiHtml(str) {
         setArchiveStatus(message, archiveImagerySourceState.warning ? 'empty' : 'info');
       }
 
+      function getArchiveLayerOpacity() {
+        return archiveOpacitySlider ? Number(archiveOpacitySlider.value) / 100 : 1;
+      }
+
+      function createGugikFallbackItem(item) {
+        if (!item?.fallbackUrl || item.url === item.fallbackUrl) return null;
+        const fallbackId = item.fallbackIdPrefix ? `${item.fallbackIdPrefix}-${item.date}` : '';
+        const capabilityFallback = ARCHIVE_IMAGERY_ITEMS.find(entry => entry.id === fallbackId || (entry.url === item.fallbackUrl && entry.timeParam === item.timeParam));
+        return {
+          ...item,
+          ...(capabilityFallback || {}),
+          id: `${item.id}-fallback-standard`,
+          label: `Geoportal / GUGiK — ortofotomapa archiwalna standardowa (${item.timeParam || item.date})`,
+          url: item.fallbackUrl,
+          fallbackUrl: '',
+          fallbackIdPrefix: ''
+        };
+      }
+
       function createArchiveLayer(item) {
-        const opacity = archiveOpacitySlider ? Number(archiveOpacitySlider.value) / 100 : 1;
+        const opacity = getArchiveLayerOpacity();
         if (item.type === 'wms') {
+          const crsChoice = item.leafletCrs ? { code: item.crsCode || 'EPSG:3857', leaflet: item.leafletCrs } : chooseLeafletWmsCrs(item.supportedCrs || []);
           const params = {
-            layers: item.layers || 'Raster',
-            format: item.format || 'image/jpeg',
-            transparent: item.transparent === true,
-            version: '1.3.0',
+            layers: item.layers,
+            format: item.format || 'image/png',
+            transparent: false,
+            version: item.version || '1.1.1',
             uppercase: true,
-            crs: L.CRS.EPSG3857,
+            crs: crsChoice.leaflet,
             maxNativeZoom: NATIVE_TILE_ZOOM,
             maxZoom: MAX_MAP_ZOOM,
             attribution: item.attribution || ORTO_ATTR,
@@ -7271,7 +7344,18 @@ function emojiHtml(str) {
             opacity
           };
           if (item.timeParam) params.TIME = item.timeParam;
-          return L.tileLayer.wms(item.url, params);
+          const layer = L.tileLayer.wms(item.url, params);
+          layer._archiveDebug = {
+            provider: item.provider,
+            url: item.url,
+            layer: params.layers,
+            time: params.TIME || '',
+            version: params.version,
+            crs: crsChoice.code,
+            format: params.format,
+            tileErrors: 0
+          };
+          return layer;
         }
         if (item.type === 'xyz') {
           return L.tileLayer(item.urlTemplate || item.url, {
@@ -7285,11 +7369,66 @@ function emojiHtml(str) {
         throw new Error(`Nieobsługiwany typ warstwy archiwalnej: ${item.type}`);
       }
 
+      function logGugikArchiveDebug(layer, sampleUrl = '') {
+        if (!layer?._archiveDebug) return;
+        console.debug('[archive imagery][Geoportal/GUGiK]', {
+          finalGetMapUrl: sampleUrl || (typeof layer.getTileUrl === 'function' ? layer.getTileUrl({ x: 0, y: 0, z: Math.max(map.getZoom(), 0) }) : ''),
+          selectedLayer: layer._archiveDebug.layer,
+          selectedTime: layer._archiveDebug.time,
+          wmsVersion: layer._archiveDebug.version,
+          crsOrSrs: layer._archiveDebug.crs,
+          imageFormat: layer._archiveDebug.format,
+          tileErrors: layer._archiveDebug.tileErrors
+        });
+      }
+
+      function loadImageForPixelCheck(tileUrl) {
+        return new Promise((resolve, reject) => {
+          if (!tileUrl) {
+            reject(new Error('Brak URL kafla do sprawdzenia'));
+            return;
+          }
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = tileUrl;
+        });
+      }
+
+      async function detectMostlyBlankTile(tileUrl) {
+        try {
+          const img = await loadImageForPixelCheck(tileUrl);
+          const bitmap = await createImageBitmap(img);
+          const canvas = document.createElement('canvas');
+          const size = 32;
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(bitmap, 0, 0, size, size);
+          bitmap.close?.();
+          const data = ctx.getImageData(0, 0, size, size).data;
+          let blank = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const a = data[i + 3];
+            if (a === 0 || (r > 248 && g > 248 && b > 248)) blank++;
+          }
+          return blank / (data.length / 4) > 0.98;
+        } catch (error) {
+          console.debug('[archive imagery] Nie udało się sprawdzić białego kafla (CORS/canvas).', error);
+          return false;
+        }
+      }
+
       function disableArchiveImagery() {
         if (activeArchiveImageryLayer) {
           activeArchiveImageryLayer.off('loading');
           activeArchiveImageryLayer.off('load');
           activeArchiveImageryLayer.off('tileerror');
+          activeArchiveImageryLayer.off('tileload');
           if (map.hasLayer(activeArchiveImageryLayer)) map.removeLayer(activeArchiveImageryLayer);
         }
         activeArchiveImageryLayer = null;
@@ -7298,12 +7437,12 @@ function emojiHtml(str) {
         setArchiveStatus(archiveImagerySourceState.warning ? ARCHIVE_FALLBACK_WARNING : 'Warstwa archiwalna wyłączona', archiveImagerySourceState.warning ? 'empty' : 'info');
       }
 
-      function enableArchiveImagery(itemId) {
+      function enableArchiveImagery(itemId, options = {}) {
         if (!navigator.onLine) {
           setArchiveStatus('Zdjęcia archiwalne wymagają internetu', 'error');
           return;
         }
-        const item = ARCHIVE_IMAGERY_ITEMS.find(entry => entry.id === itemId);
+        const item = typeof itemId === 'object' ? itemId : ARCHIVE_IMAGERY_ITEMS.find(entry => entry.id === itemId);
         if (!item) {
           setArchiveStatus('Brak danych', 'empty');
           return;
@@ -7311,13 +7450,46 @@ function emojiHtml(str) {
         disableArchiveImagery();
         try {
           const layer = createArchiveLayer(item);
+          let checkedForBlank = false;
+          let fallbackTriggered = false;
+          const tryFallback = (reason) => {
+            if (fallbackTriggered) return false;
+            const fallbackItem = createGugikFallbackItem(item);
+            if (!fallbackItem) return false;
+            fallbackTriggered = true;
+            console.warn('[archive imagery][Geoportal/GUGiK] HighResolutionTime fallback do StandardResolutionTime.', { reason, time: item.timeParam, tileErrors: layer._archiveDebug?.tileErrors || 0 });
+            setArchiveStatus('HighResolutionTime niedostępny/biały — próbuję StandardResolutionTime…', 'loading');
+            enableArchiveImagery(fallbackItem, { fallback: true });
+            return true;
+          };
           layer.on('loading', () => setArchiveStatus('Ładowanie…', 'loading'));
-          layer.on('load', () => setArchiveStatus(`Aktywna warstwa: ${item.label}`, 'active'));
-          layer.on('tileerror', () => setArchiveStatus('Błąd ładowania', 'error'));
+          layer.on('load', () => {
+            if (item.type === 'wms') {
+              logGugikArchiveDebug(layer);
+              if (!fallbackTriggered) setArchiveStatus('Geoportal załadowany, ale może brakować ortofoto dla tego obszaru/daty', 'active');
+              return;
+            }
+            setArchiveStatus(`Aktywna warstwa: ${item.label}`, 'active');
+          });
+          layer.on('tileload', async (event) => {
+            if (item.type !== 'wms' || checkedForBlank || fallbackTriggered) return;
+            checkedForBlank = true;
+            const tileUrl = event.tile?.currentSrc || event.tile?.src || '';
+            logGugikArchiveDebug(layer, tileUrl);
+            const blank = await detectMostlyBlankTile(tileUrl);
+            if (blank && tryFallback('blank tile')) return;
+            if (blank) setArchiveStatus('Brak pokrycia Geoportal dla tego miejsca i daty — spróbuj innego roku albo StandardResolution', 'empty');
+          });
+          layer.on('tileerror', () => {
+            if (layer._archiveDebug) layer._archiveDebug.tileErrors += 1;
+            logGugikArchiveDebug(layer);
+            if (tryFallback('tileerror')) return;
+            setArchiveStatus('Brak pokrycia Geoportal dla tego miejsca i daty — spróbuj innego roku albo StandardResolution', 'error');
+          });
           activeArchiveImageryLayer = layer.addTo(map);
           activeArchiveImageryItemId = item.id;
           if (archiveDisableBtn) archiveDisableBtn.disabled = false;
-          setArchiveStatus('Ładowanie…', 'loading');
+          setArchiveStatus(options.fallback ? 'Ładowanie StandardResolutionTime…' : 'Ładowanie…', 'loading');
         } catch (error) {
           console.error('[archive imagery] layer creation failed', error);
           setArchiveStatus('Błąd ładowania', 'error');
