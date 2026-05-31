@@ -2625,10 +2625,10 @@ body.mobile-layout #saveChanges {
   </div>
   <div id="map"></div>
   <div id="planEditor" class="plan-editor-panel" style="display:none;">
-    <h4>Dodawanie planu</h4>
-    <div class="row"><input type="text" id="planNameInput" placeholder="Nazwa planu"></div>
+    <h4>Dodawanie rzutu</h4>
+    <div class="row"><input type="text" id="planNameInput" placeholder="Nazwa rzutu"></div>
     <div class="row"><button id="planChangeImage">Zmień obraz</button></div>
-    <div class="row"><button id="planDelete" type="button" style="display:none;">Usuń plan</button></div>
+    <div class="row"><button id="planDelete" type="button" style="display:none;">Usuń rzut</button></div>
     <div class="row">
       <label for="planScale">Skala</label>
       <input type="range" id="planScale" min="25" max="300" value="100">
@@ -2637,7 +2637,7 @@ body.mobile-layout #saveChanges {
       <label for="planOpacity">Przezroczystość</label>
       <input type="range" id="planOpacity" min="20" max="100" value="100">
     </div>
-      <div class="hint">Przytrzymaj i przeciągnij plan, aby zmienić jego pozycję. Złap za narożnik, aby skalować, lub za zewnętrzną okrągłą strzałkę, aby obrócić obraz.</div>
+      <div class="hint">Przytrzymaj i przeciągnij rzut, aby zmienić jego pozycję. Złap za narożnik, aby skalować, lub za zewnętrzną okrągłą strzałkę, aby obrócić obraz.</div>
     <div class="actions">
       <button id="planCancel">Anuluj</button>
       <button id="planConfirm">Zatwierdź</button>
@@ -2695,8 +2695,8 @@ body.mobile-layout #saveChanges {
           <input type="range" min="0" max="100" value="50" class="opacity-slider" id="opacity-shade">
         </div>
         <div class="overlay-item">
-          <label><input type="checkbox" id="overlay-pin-plans" checked> Plany pinezek
-            <button type="button" class="info-btn" data-info="Szybko pokazuje lub ukrywa wszystkie plany przypisane do pinezek bez zmiany ich indywidualnych ustawień.">i</button>
+          <label><input type="checkbox" id="overlay-pin-plans" checked> Rzuty pinezek
+            <button type="button" class="info-btn" data-info="Szybko pokazuje lub ukrywa wszystkie rzuty przypisane do pinezek bez zmiany wyboru aktywnego rzutu.">i</button>
           </label>
         </div>
         <div class="overlay-item" id="overlay-item-osm">
@@ -4463,6 +4463,50 @@ function slugify(str) {
       return { warstwaId: resolvedId, warstwaName: resolvedName };
     }
 
+
+    function appendPinPlanItems(container, pin) {
+      const plansForPin = Array.isArray(pin && pin.plany) ? pin.plany : [];
+      if (!container || !plansForPin.length) return;
+      normalizeActivePlanForPin(pin);
+      plansForPin.forEach(plan => {
+        ensurePlanDefaults(plan, pin);
+        const planEl = document.createElement('div');
+        planEl.className = 'plan-item';
+        planEl.dataset.pinId = String(pin.id);
+        planEl.dataset.planId = String(plan.id);
+
+        const activeRadio = document.createElement('input');
+        activeRadio.type = 'radio';
+        activeRadio.name = `pin-active-plan-${pin.id}`;
+        activeRadio.className = 'plan-visibility';
+        activeRadio.checked = isActivePlanForPin(pin, plan);
+        activeRadio.title = 'Pokaż ten rzut na kafelkach mapy';
+        activeRadio.addEventListener('click', ev => ev.stopPropagation());
+        activeRadio.addEventListener('change', ev => {
+          ev.stopPropagation();
+          if (activeRadio.checked) selectActivePlanForPin(pin, plan);
+        });
+
+        const planName = document.createElement('span');
+        planName.className = 'plan-name';
+        planName.textContent = `🗺️ ${plan.nazwa || 'Rzut'}`;
+        planName.title = 'Edytuj rzut';
+
+        const editPlan = ev => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          ensurePlanOverlay(pin, plan);
+          openPlanOptions(pin, plan, planEl);
+        };
+        planEl.addEventListener('click', editPlan);
+        planName.addEventListener('click', editPlan);
+
+        planEl.appendChild(activeRadio);
+        planEl.appendChild(planName);
+        container.appendChild(planEl);
+      });
+    }
+
     function createSidebarPinElement(pin, layerName) {
       const el = document.createElement("div");
       el.className = "pinezka";
@@ -4481,6 +4525,7 @@ function slugify(str) {
       nameRow.appendChild(nameSpan);
       nameRow.appendChild(pinEditBtn);
       el.appendChild(nameRow);
+      appendPinPlanItems(el, pin);
       el.addEventListener('click', e => {
         const selectedOnly = handlePinSelectionClick(e, pin, el);
         if (!selectedOnly) openPinFromList(pin, el);
@@ -5421,7 +5466,7 @@ function emojiHtml(str) {
       if (plan.obrot === undefined || plan.obrot === null) plan.obrot = 0;
       if (!plan.nazwa) {
         const total = pin && pin.plany ? pin.plany.length : 0;
-        plan.nazwa = `Plan ${total + 1}`;
+        plan.nazwa = `Rzut ${total + 1}`;
       }
       return plan;
     }
@@ -5468,7 +5513,7 @@ function emojiHtml(str) {
       if (!pinPlansOverlayVisible) return false;
       const layerVisible = pin && pin.warstwa && warstwy[pin.warstwa] ? warstwy[pin.warstwa].visible !== false : true;
       const pinVisible = pinMatchesAllFilters(pin, false);
-      return (plan.widoczny !== false) && layerVisible && pinVisible;
+      return isActivePlanForPin(pin, plan) && (plan.widoczny !== false) && layerVisible && pinVisible;
     }
 
     function ensurePlanOverlay(pin, plan) {
@@ -5547,6 +5592,38 @@ function emojiHtml(str) {
       const checkbox = document.getElementById('overlay-pin-plans');
       if (checkbox) checkbox.checked = visible;
       updateAllPlanOverlays();
+    }
+
+
+    function getActivePlanIdForPin(pin) {
+      const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
+      const active = plans.find(plan => plan && plan.aktywny === true);
+      return active ? active.id : (plans[0] ? plans[0].id : null);
+    }
+
+    function normalizeActivePlanForPin(pin) {
+      const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
+      if (!plans.length) return;
+      let activeId = getActivePlanIdForPin(pin);
+      if (!activeId && plans[0]) activeId = plans[0].id;
+      plans.forEach(plan => { if (plan) plan.aktywny = plan.id === activeId; });
+    }
+
+    function isActivePlanForPin(pin, plan) {
+      if (!plan) return false;
+      normalizeActivePlanForPin(pin);
+      return plan.aktywny === true;
+    }
+
+    function selectActivePlanForPin(pin, selectedPlan) {
+      if (!pin || !selectedPlan) return;
+      if (!pin.plany) pin.plany = [];
+      pin.plany.forEach(plan => { if (plan) plan.aktywny = plan === selectedPlan || plan.id === selectedPlan.id; });
+      selectedPlan.widoczny = true;
+      selectedPlan.unsaved = true;
+      updatePlanVisibilityForPin(pin);
+      markPlanChange(pin);
+      generujListeWarstw();
     }
 
     function cleanupPlanTransformOverlay(overlay) {
@@ -5739,11 +5816,13 @@ function emojiHtml(str) {
         skala: Number.isFinite(Number(copy.skala)) ? Number(copy.skala) : 100,
         przezroczystosc: Number.isFinite(Number(copy.przezroczystosc)) ? Number(copy.przezroczystosc) : 1,
         obrot: Number.isFinite(Number(copy.obrot)) ? Number(copy.obrot) : 0,
-        widoczny: copy.widoczny !== false
+        widoczny: copy.widoczny !== false,
+        aktywny: copy.aktywny === true
       };
     }
 
     function serializePlans(pin) {
+      normalizeActivePlanForPin(pin);
       return (pin.plany || []).map(pl => normalizePlanForStorage(pl, pin));
     }
 
@@ -5768,7 +5847,7 @@ function emojiHtml(str) {
       const scaleInput = document.getElementById('planScale');
       const opacityInput = document.getElementById('planOpacity');
       const deleteBtn = document.getElementById('planDelete');
-      if (title) title.textContent = mode === 'edit' ? 'Edycja planu' : 'Dodawanie planu';
+      if (title) title.textContent = mode === 'edit' ? 'Edycja rzutu' : 'Dodawanie rzutu';
       if (nameInput) nameInput.value = plan.nazwa || '';
       if (scaleInput) scaleInput.value = plan.skala || 100;
       if (opacityInput) opacityInput.value = Math.round((plan.przezroczystosc || 1) * 100);
@@ -5814,14 +5893,16 @@ function emojiHtml(str) {
 
     function deleteActivePlanPlacement() {
       if (!activePlanPlacement || activePlanPlacement.mode !== 'edit') return;
-      if (!confirm('Usunąć ten plan z pinezki?')) return;
+      if (!confirm('Usunąć ten rzut z pinezki?')) return;
       const { pin, plan } = activePlanPlacement;
       pin.plany = (pin.plany || []).filter(pl => pl !== plan);
+      normalizeActivePlanForPin(pin);
       removePlanOverlay(plan);
+      updatePlanVisibilityForPin(pin);
       markPlanChange(pin);
       closePlanEditor(false);
       generujListeWarstw();
-      showToast('Plan usunięty. Kliknij „Zapisz” i „Zapisz edycję mapy”, aby zapisać zmianę w Firestore.');
+      showToast('Rzut usunięty. Kliknij „Zapisz” i „Zapisz edycję mapy”, aby zapisać zmianę w Firestore.');
     }
 
       function confirmPlanPlacement() {
@@ -5833,7 +5914,9 @@ function emojiHtml(str) {
         if (!pin.plany) pin.plany = [];
         if (mode === 'new') {
           pin.plany.push(plan);
+          pin.plany.forEach(existingPlan => { if (existingPlan) existingPlan.aktywny = existingPlan === plan; });
         }
+        plan.aktywny = true;
         plan.unsaved = true;
         updatePlanOverlay(pin, plan);
         markPlanChange(pin);
@@ -5869,7 +5952,8 @@ function emojiHtml(str) {
             proporcja: img.width ? img.width / img.height : 1,
             bazowaSzerokosc: 140,
             skala: 100,
-            przezroczystosc: 0.8
+            przezroczystosc: 0.8,
+            aktywny: true
           };
           ensurePlanDefaults(plan, pin);
           openPlanEditor(pin, plan, 'new');
@@ -5910,12 +5994,12 @@ function emojiHtml(str) {
       if (!plans.length) return;
       let plan = plans[0];
       if (plans.length > 1) {
-        const names = plans.map((item, index) => `${index + 1}. ${item.nazwa || 'Plan'}`).join('\n');
-        const selected = prompt(`Wybierz numer planu do edycji:\n${names}`, '1');
+        const names = plans.map((item, index) => `${index + 1}. ${item.nazwa || 'Rzut'}`).join('\n');
+        const selected = prompt(`Wybierz numer rzutu do edycji:\n${names}`, '1');
         if (selected === null) return;
         const idx = parseInt(selected, 10) - 1;
         if (!Number.isInteger(idx) || idx < 0 || idx >= plans.length) {
-          alert('Nieprawidłowy numer planu.');
+          alert('Nieprawidłowy numer rzutu.');
           return;
         }
         plan = plans[idx];
@@ -5932,7 +6016,7 @@ function emojiHtml(str) {
       closeMobileFormModalIfNeeded();
       openPlanEditor(pin, plan, 'edit');
       if (activePlanPlacement) activePlanPlacement.returnToPinEdit = true;
-      showToast('Edytujesz plan. Po zatwierdzeniu wrócisz do edycji pinezki. Potem kliknij „Zapisz” i „Zapisz edycję mapy”.');
+      showToast('Edytujesz rzut. Po zatwierdzeniu wrócisz do edycji pinezki. Potem kliknij „Zapisz” i „Zapisz edycję mapy”.');
     }
 
     function openPlanOptions(pin, plan, anchor) {
@@ -5944,7 +6028,7 @@ function emojiHtml(str) {
       panel.style.top = `${rect.bottom + window.scrollY + 6}px`;
       panel.style.left = `${rect.left + window.scrollX}px`;
       const title = document.createElement('h4');
-      title.textContent = 'Plan';
+      title.textContent = 'Rzut';
       const nameRow = document.createElement('div');
       nameRow.className = 'row';
       const nameInput = document.createElement('input');
@@ -6009,11 +6093,13 @@ function emojiHtml(str) {
       });
 
       const deleteBtn = document.createElement('button');
-      deleteBtn.textContent = 'Usuń plan';
+      deleteBtn.textContent = 'Usuń rzut';
       deleteBtn.addEventListener('click', e => {
         e.stopPropagation();
         pin.plany = (pin.plany || []).filter(pl => pl !== plan);
+        normalizeActivePlanForPin(pin);
         removePlanOverlay(plan);
+        updatePlanVisibilityForPin(pin);
         markPlanChange(pin);
         panel.style.display = 'none';
         generujListeWarstw();
@@ -6552,6 +6638,7 @@ function emojiHtml(str) {
       const MAPBOX_ACCESS_TOKEN = "pk.eyJ1IjoiY3pyYnJ6IiwiYSI6ImNtbnlnZWs0NTAwZWcyb3NlYzNrdW53YmoifQ.rN_RTUqLtI5Fnk5tocolMA";
       const MAX_MAP_ZOOM = 22;
       const NATIVE_TILE_ZOOM = 19;
+      const ARCHIVE_NATIVE_TILE_ZOOM = 16;
       const COPERNICUS_MONTH_WINDOW = 24;
       const DEFAULT_SHADE_OVERLAY_OPACITY = 0.5;
       const COPERNICUS_MONTH_NAMES_PL = [
@@ -7288,7 +7375,7 @@ function emojiHtml(str) {
         populateArchiveSourcesForYear(archiveYearSelect.value || years[0]);
       }
 
-      function populateArchiveSourcesForYear(year) {
+      function populateArchiveSourcesForYear(year, options = {}) {
         if (!archiveSourceSelect) return;
         const items = ARCHIVE_IMAGERY_ITEMS.filter(item => item.year === year);
         archiveSourceSelect.innerHTML = '';
@@ -7305,6 +7392,7 @@ function emojiHtml(str) {
         if (archiveEnableBtn) archiveEnableBtn.disabled = false;
         const message = archiveImagerySourceState.warning ? ARCHIVE_FALLBACK_WARNING : `Dostępne źródła: ${items.length}`;
         setArchiveStatus(message, archiveImagerySourceState.warning ? 'empty' : 'info');
+        if (options.autoEnable) enableArchiveImagery(archiveSourceSelect.value);
       }
 
       function getArchiveLayerOpacity() {
@@ -7337,7 +7425,7 @@ function emojiHtml(str) {
             version: item.version || '1.1.1',
             uppercase: true,
             crs: crsChoice.leaflet,
-            maxNativeZoom: NATIVE_TILE_ZOOM,
+            maxNativeZoom: ARCHIVE_NATIVE_TILE_ZOOM,
             maxZoom: MAX_MAP_ZOOM,
             attribution: item.attribution || ORTO_ATTR,
             pane: 'archiveImageryPane',
@@ -7359,7 +7447,7 @@ function emojiHtml(str) {
         }
         if (item.type === 'xyz') {
           return L.tileLayer(item.urlTemplate || item.url, {
-            maxNativeZoom: NATIVE_TILE_ZOOM,
+            maxNativeZoom: ARCHIVE_NATIVE_TILE_ZOOM,
             maxZoom: MAX_MAP_ZOOM,
             attribution: item.attribution || 'Źródło: Esri World Imagery Wayback',
             pane: 'archiveImageryPane',
@@ -7506,7 +7594,8 @@ function emojiHtml(str) {
         archiveImageryStatusEl = document.getElementById('archiveImageryStatus');
         if (!archiveYearSelect || !archiveSourceSelect || !archiveEnableBtn || !archiveDisableBtn) return;
 
-        archiveYearSelect.addEventListener('change', () => populateArchiveSourcesForYear(archiveYearSelect.value));
+        archiveYearSelect.addEventListener('change', () => populateArchiveSourcesForYear(archiveYearSelect.value, { autoEnable: true }));
+        archiveSourceSelect.addEventListener('change', () => enableArchiveImagery(archiveSourceSelect.value));
         archiveEnableBtn.addEventListener('click', () => enableArchiveImagery(archiveSourceSelect.value));
         archiveDisableBtn.addEventListener('click', disableArchiveImagery);
         if (archiveOpacitySlider) {
@@ -12593,46 +12682,7 @@ function getTripPointEmoji(p) {
           pinEditBtn.innerHTML = '✎';
           pinEditBtn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); edytuj(p.id, p.lat, p.lng); });
           nameRow.appendChild(nameSpan); nameRow.appendChild(pinEditBtn); el.appendChild(nameRow);
-          const plansForPin = Array.isArray(p.plany) ? p.plany : [];
-          plansForPin.forEach(plan => {
-            ensurePlanDefaults(plan, p);
-            const planEl = document.createElement('div');
-            planEl.className = 'plan-item';
-            planEl.dataset.pinId = String(p.id);
-            planEl.dataset.planId = String(plan.id);
-
-            const visibility = document.createElement('input');
-            visibility.type = 'checkbox';
-            visibility.className = 'plan-visibility';
-            visibility.checked = plan.widoczny !== false;
-            visibility.title = 'Pokaż / ukryj plan na mapie';
-            visibility.addEventListener('click', ev => ev.stopPropagation());
-            visibility.addEventListener('change', ev => {
-              ev.stopPropagation();
-              plan.widoczny = visibility.checked;
-              plan.unsaved = true;
-              updatePlanOverlay(p, plan);
-              markPlanChange(p);
-            });
-
-            const planName = document.createElement('span');
-            planName.className = 'plan-name';
-            planName.textContent = `🗺️ ${plan.nazwa || 'Plan'}`;
-            planName.title = 'Edytuj plan';
-
-            const editPlan = ev => {
-              ev.preventDefault();
-              ev.stopPropagation();
-              ensurePlanOverlay(p, plan);
-              openPlanOptions(p, plan, planEl);
-            };
-            planEl.addEventListener('click', editPlan);
-            planName.addEventListener('click', editPlan);
-
-            planEl.appendChild(visibility);
-            planEl.appendChild(planName);
-            el.appendChild(planEl);
-          });
+          appendPinPlanItems(el, p);
           el.addEventListener('click', e => { const sel = handlePinSelectionClick(e, p, el); if (!sel) openPinFromList(p, el); });
           p.el = el;
           listaP.appendChild(el);
