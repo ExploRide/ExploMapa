@@ -7094,6 +7094,51 @@ function emojiHtml(str) {
         pendingToken: 0,
         duringAutoPan: false
       };
+
+      let popupPointerStart = null;
+
+      function getPopupTextSelectionLength() {
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+          const start = typeof active.selectionStart === 'number' ? active.selectionStart : 0;
+          const end = typeof active.selectionEnd === 'number' ? active.selectionEnd : start;
+          return Math.abs(end - start);
+        }
+        const selection = window.getSelection ? window.getSelection() : null;
+        return selection ? String(selection).trim().length : 0;
+      }
+
+      function setupPopupSelectionClickGuard() {
+        if (window.__popupSelectionClickGuardInstalled) return;
+        window.__popupSelectionClickGuardInstalled = true;
+
+        document.addEventListener('pointerdown', event => {
+          const popup = event.target && event.target.closest ? event.target.closest('.leaflet-popup, .popup-container') : null;
+          popupPointerStart = popup ? {
+            popup,
+            x: event.clientX,
+            y: event.clientY
+          } : null;
+        }, true);
+
+        document.addEventListener('click', event => {
+          if (!popupPointerStart) return;
+          const { popup, x, y } = popupPointerStart;
+          popupPointerStart = null;
+          if (!popup || popup.contains(event.target)) return;
+
+          const dx = Math.abs((event.clientX || 0) - (x || 0));
+          const dy = Math.abs((event.clientY || 0) - (y || 0));
+          const textWasSelected = getPopupTextSelectionLength() > 0;
+          if (textWasSelected || dx > 3 || dy > 3) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+          }
+        }, true);
+      }
+
+      setupPopupSelectionClickGuard();
       function ensureViewPopup(marker, p) {
         if (!marker || !p) return;
         if (p._isEditing === true) return;
@@ -9494,6 +9539,26 @@ function zaladujPinezkiZFirestore() {
       }
     }
 
+    function finishSavedPinEditPopup(pin, editMarker) {
+      if (!pin) return;
+      const marker = editMarker || pin.marker;
+      if (marker && marker._editPopupRemoveHandler && marker._editPopup) {
+        marker._editPopup.off('remove', marker._editPopupRemoveHandler);
+      }
+      if (marker && marker._editPopup) {
+        map.closePopup(marker._editPopup);
+        marker._editPopup = null;
+      } else {
+        map.closePopup();
+      }
+      if (marker) marker._editPopupRemoveHandler = null;
+      pin._isEditing = false;
+      delete pin._photoEditBackup;
+      delete pin._photoEditSaved;
+      delete pin._editDraft;
+      if (pin.marker) ensureViewPopup(pin.marker, pin);
+    }
+
     function applyPinData(p, data) {
       const staraWarstwa = p.warstwa || "Inne";
       Object.assign(p, data);
@@ -9545,6 +9610,7 @@ function zaladujPinezkiZFirestore() {
       const catVal = resolvedCategory.category;
       if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
       const p = wszystkiePinezki.find(pp => pp.id === id);
+      const editMarker = p ? p.marker : null;
       if (p && p._editDraft) delete p._editDraft;
       const editOriginal = p && p._editOriginalState ? p._editOriginalState.data : null;
       const oldData = p ? {
@@ -9619,16 +9685,8 @@ function zaladujPinezkiZFirestore() {
       const mobileModalOpen = document.getElementById('mobilePinModal')?.dataset?.customFormOpen === '1';
       if (mobileModalOpen) {
         closeMobileFormModalIfNeeded();
-      } else if (p && p.marker) {
-        if (p.marker._editPopupRemoveHandler && p.marker._editPopup) {
-          p.marker._editPopup.off('remove', p.marker._editPopupRemoveHandler);
-          p.marker._editPopupRemoveHandler = null;
-        }
-        if (p.marker._editPopup) {
-          map.closePopup(p.marker._editPopup);
-          p.marker._editPopup = null;
-        }
-        openPinViewPopup(p.marker, p);
+      } else if (p) {
+        finishSavedPinEditPopup(p, editMarker);
       } else {
         map.closePopup();
       }
