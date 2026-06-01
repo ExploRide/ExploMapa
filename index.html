@@ -396,6 +396,20 @@
       border-bottom: 1px solid #555;
       margin: 1px 0;
     }
+    .layer-category-heading {
+      margin: 12px 0 6px;
+      padding: 5px 8px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #f0f0f0;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .layer-category-heading:first-child {
+      margin-top: 0;
+    }
     .archive-imagery-controls {
       display: flex;
       flex-direction: column;
@@ -9932,9 +9946,17 @@ function zaladujPinezkiZFirestore() {
     }
 
     function updateLayerNumbers() {
-      document.querySelectorAll('#lista-warstw .warstwa').forEach((div, idx) => {
-        const num = div.querySelector('.layer-number');
-        if (num) num.textContent = idx + 1;
+      const lista = document.getElementById('lista-warstw');
+      if (!lista) return;
+      let idx = 1;
+      Array.from(lista.children).forEach(child => {
+        if (child.classList?.contains('layer-category-heading')) {
+          idx = 1;
+          return;
+        }
+        if (!child.classList?.contains('warstwa')) return;
+        const num = child.querySelector('.layer-number');
+        if (num) num.textContent = idx++;
       });
     }
 
@@ -10041,7 +10063,7 @@ function zaladujPinezkiZFirestore() {
       div.addEventListener('dragover', e => e.preventDefault());
       div.addEventListener('drop', e => {
         e.preventDefault();
-        if (draggedLayer && draggedLayer !== div) {
+        if (draggedLayer && draggedLayer !== div && draggedLayer.dataset.mainCategory === div.dataset.mainCategory) {
           const lista = document.getElementById('lista-warstw');
           lista.insertBefore(draggedLayer, div);
           saveLayerOrder({ markChange: false });
@@ -10056,6 +10078,7 @@ function zaladujPinezkiZFirestore() {
         const hoveredElement = document.elementFromPoint(event.clientX, event.clientY);
         const hoveredLayer = hoveredElement ? hoveredElement.closest('.warstwa') : null;
         if (!lista || !hoveredLayer || hoveredLayer === draggedLayer) return;
+        if (hoveredLayer.dataset.mainCategory !== draggedLayer.dataset.mainCategory) return;
         const rect = hoveredLayer.getBoundingClientRect();
         const moveAfter = event.clientY > rect.top + rect.height / 2;
         if (moveAfter) {
@@ -13148,7 +13171,13 @@ function getTripPointEmoji(p) {
         const layerMain = normalizeMainCategory(warstwy[n].mainCategory || MAIN_CATEGORY_URBEX);
         return selectedMainCategories.has(layerMain);
       });
-      const finalNazwy = [...tempLayers, ...regularLayers];
+      const layersByMainCategory = MAIN_CATEGORY_OPTIONS.reduce((acc, main) => {
+        acc[main] = regularLayers.filter(n => normalizeMainCategory(warstwy[n].mainCategory || MAIN_CATEGORY_URBEX) === main);
+        return acc;
+      }, {});
+      const visibleLayerSections = MAIN_CATEGORY_OPTIONS
+        .filter(main => selectedMainCategories.has(main) && (layersByMainCategory[main] || []).length > 0)
+        .map(main => ({ title: `${main}:`, layers: layersByMainCategory[main] }));
       const totalPinsCount = regularLayers.reduce((sum, name) => sum + (warstwy[name]?.lista?.length || 0), 0);
       if (pinTotalCounter) {
         pinTotalCounter.textContent = `Liczba miejsc: ${totalPinsCount}`;
@@ -13194,10 +13223,11 @@ function getTripPointEmoji(p) {
         });
         updatePerformanceDebug('sidebar pin list render on demand', performance.now() - pinListStartTs);
       };
-      finalNazwy.forEach((nazwa, idx) => {
+      const renderLayer = (nazwa, idx, sectionLayers) => {
         const div = document.createElement("div");
         div.className = "warstwa";
         div.dataset.nazwa = nazwa;
+        div.dataset.mainCategory = normalizeMainCategory(warstwy[nazwa].mainCategory || MAIN_CATEGORY_URBEX);
         const numberSpan = document.createElement("span");
         numberSpan.className = "layer-number";
         numberSpan.textContent = idx + 1;
@@ -13361,11 +13391,21 @@ function getTripPointEmoji(p) {
 
         div.appendChild(listaP);
         lista.appendChild(div);
-        if (idx < finalNazwy.length - 1) {
+        if (idx < sectionLayers.length - 1) {
           const sep = document.createElement('hr');
           sep.className = 'layer-separator';
           lista.appendChild(sep);
         }
+      };
+      if (tempLayers.length) {
+        tempLayers.forEach((nazwa, idx) => renderLayer(nazwa, idx, tempLayers));
+      }
+      visibleLayerSections.forEach((section) => {
+        const heading = document.createElement('div');
+        heading.className = 'layer-category-heading';
+        heading.textContent = section.title;
+        lista.appendChild(heading);
+        section.layers.forEach((nazwa, idx) => renderLayer(nazwa, idx, section.layers));
       });
       saveLayerOrder({ markChange: false });
       updateLayerNumbers();
