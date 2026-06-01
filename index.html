@@ -715,6 +715,27 @@ width: 15px;
     #geosearch-suggestions div:hover {
       background: #444;
     }
+    #geosearch-suggestions .geosearch-pin-suggestion {
+      color: #ffd166;
+      font-weight: 600;
+    }
+    #geosearch-suggestions .geosearch-pin-suggestion:hover {
+      background: rgba(255, 209, 102, 0.18);
+    }
+    #geosearch-suggestions .geosearch-pin-emoji {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.6em;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    #geosearch-suggestions .geosearch-pin-layer {
+      color: #ffefb0;
+      font-size: 0.88em;
+      font-weight: 400;
+      opacity: 0.85;
+    }
     .unsaved {
       color: red;
     }
@@ -10920,6 +10941,74 @@ function showRoutePopup(pinId, tr, latlng) {
         return response.json();
       }
 
+      function normalizeGeoSuggestionText(value) {
+        return String(value || '')
+          .normalize('NFKD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase();
+      }
+
+      function escapeGeoSuggestionHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, char => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        }[char]));
+      }
+
+      function getPinSuggestionEmoji(pin) {
+        if (!pin) return '📍';
+        const layerEmoji = pin.warstwa && warstwy[pin.warstwa] ? warstwy[pin.warstwa].emoji : '';
+        return layerEmoji || pin.emoji || '📍';
+      }
+
+      function findPinSuggestions(q, limit = 5) {
+        const normalizedQuery = normalizeGeoSuggestionText(q);
+        if (!normalizedQuery) return [];
+
+        return wszystkiePinezki
+          .filter(pin => {
+            if (!pin || pin.lat == null || pin.lng == null) return false;
+            const name = normalizeGeoSuggestionText(pin.nazwa);
+            return name.includes(normalizedQuery);
+          })
+          .sort((a, b) => {
+            const an = normalizeGeoSuggestionText(a.nazwa);
+            const bn = normalizeGeoSuggestionText(b.nazwa);
+            const aStarts = an.startsWith(normalizedQuery);
+            const bStarts = bn.startsWith(normalizedQuery);
+            if (aStarts !== bStarts) return aStarts ? -1 : 1;
+            return an.localeCompare(bn);
+          })
+          .slice(0, limit);
+      }
+
+      function openPinGeoSuggestion(pin) {
+        if (!pin) return;
+        const lat = parseFloat(pin.lat);
+        const lng = parseFloat(pin.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+        const layerName = pin.warstwa || 'Inne';
+        if (warstwy[layerName] && warstwy[layerName].visible === false) {
+          setLayerVisible(layerName, true, { force: true, source: 'geosearch-pin-suggestion' });
+        } else if (warstwy[layerName]) {
+          ensureLayerMarkersCreated(layerName);
+        }
+
+        map.setView([lat, lng], Math.max(map.getZoom(), 16));
+        revealPinInSidebar(pin);
+
+        window.requestAnimationFrame(() => {
+          const marker = pin.marker;
+          if (!marker) return;
+          openPinViewPopup(marker, pin);
+          setMarkerHighlight(marker);
+        });
+      }
+
       async function executeSearch(q) {
         try {
           let result = null;
@@ -10987,18 +11076,40 @@ function showRoutePopup(pinId, tr, latlng) {
       });
 
       let debounce;
+      let geosearchSuggestionRequestSeq = 0;
       input.addEventListener('input', () => {
         const q = input.value.trim();
         if (debounce) clearTimeout(debounce);
         if (!suggestions) return;
+        const requestSeq = ++geosearchSuggestionRequestSeq;
         if (!q) { suggestions.style.display = 'none'; return; }
         if (isLikelyCoordinateInput(q)) { suggestions.style.display = 'none'; return; }
         debounce = setTimeout(() => {
+          const pinMatches = findPinSuggestions(q, 5);
           fetchNominatimSuggestions(q, 5)
             .then(data => {
+              if (requestSeq !== geosearchSuggestionRequestSeq) return;
               suggestions.innerHTML = '';
-              data.forEach(item => {
+
+              pinMatches.forEach(pin => {
                 const div = document.createElement('div');
+                div.className = 'geosearch-pin-suggestion';
+                const emoji = getPinSuggestionEmoji(pin);
+                const layerLabel = pin.warstwa ? ` <span class="geosearch-pin-layer">(${escapeGeoSuggestionHtml(pin.warstwa)})</span>` : '';
+                div.innerHTML = `<span class="geosearch-pin-emoji">${emojiHtml(emoji)}</span><span>${escapeGeoSuggestionHtml(pin.nazwa || 'Pinezka')}</span>${layerLabel}`;
+                const selectSuggestion = (event) => {
+                  if (event) event.preventDefault();
+                  input.value = pin.nazwa || '';
+                  suggestions.style.display = 'none';
+                  openPinGeoSuggestion(pin);
+                };
+                div.addEventListener('pointerup', selectSuggestion);
+                suggestions.appendChild(div);
+              });
+
+              (data || []).forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'geosearch-address-suggestion';
                 div.textContent = item.display_name;
                 const selectSuggestion = (event) => {
                   if (event) event.preventDefault();
@@ -11010,7 +11121,26 @@ function showRoutePopup(pinId, tr, latlng) {
                 div.addEventListener('pointerup', selectSuggestion);
                 suggestions.appendChild(div);
               });
-              suggestions.style.display = data.length ? 'block' : 'none';
+              suggestions.style.display = suggestions.children.length ? 'block' : 'none';
+            })
+            .catch(err => {
+              console.error('Suggestion fetch error', err);
+              if (requestSeq !== geosearchSuggestionRequestSeq) return;
+              suggestions.innerHTML = '';
+              pinMatches.forEach(pin => {
+                const div = document.createElement('div');
+                div.className = 'geosearch-pin-suggestion';
+                const emoji = getPinSuggestionEmoji(pin);
+                div.innerHTML = `<span class="geosearch-pin-emoji">${emojiHtml(emoji)}</span><span>${escapeGeoSuggestionHtml(pin.nazwa || 'Pinezka')}</span>`;
+                div.addEventListener('pointerup', event => {
+                  event.preventDefault();
+                  input.value = pin.nazwa || '';
+                  suggestions.style.display = 'none';
+                  openPinGeoSuggestion(pin);
+                });
+                suggestions.appendChild(div);
+              });
+              suggestions.style.display = suggestions.children.length ? 'block' : 'none';
             });
         }, 300);
       });
