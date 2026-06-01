@@ -1007,12 +1007,9 @@ body, #sidebar, #basemap-switcher {
 .edit-popup .inline-labeled-input.has-value::before {
   display: block;
 }
-.edit-popup .inline-labeled-input.has-value input {
+.edit-popup .inline-labeled-input.has-value input,
+.edit-popup .inline-labeled-input.has-value select {
   padding-left: var(--inline-label-offset, 82px);
-}
-.edit-popup .inline-labeled-input[data-label="Kategoria główna"].has-value input,
-.edit-popup .inline-labeled-input[data-label="Kategoria główna"].has-value select {
-  padding-left: 132px;
 }
 .edit-popup .edit-form-field input,
 .edit-popup .edit-form-field textarea,
@@ -8992,7 +8989,7 @@ function zaladujPinezkiZFirestore() {
 
     const pinStatusFieldKeys = ['nieaktywne', 'zamkniete', 'tajne', 'doSprawdzenia', 'zdewastowane', 'zwiedzone', 'wyroznione'];
     const pinStatusSelectOptions = [
-      { value: '', label: 'Brak statusu' },
+      { value: '', label: 'Status' },
       { value: 'nieaktywne', label: 'Niedostępne ⛔' },
       { value: 'zamkniete', label: 'Zamknięte 🔐' },
       { value: 'tajne', label: 'Tajne 🤫' },
@@ -9014,14 +9011,9 @@ function zaladujPinezkiZFirestore() {
       }, {});
     }
 
-    function formatInlineSelectLabel(label, valueLabel) {
-      return valueLabel ? `${label}: ${valueLabel}` : label;
-    }
-
-    function buildInlineLabeledSelectOptions(label, options, selected) {
+    function buildInlineSelectOptions(options, selected) {
       return options.map(option => {
-        const optionLabel = formatInlineSelectLabel(label, option.value ? option.label : '');
-        return `<option value="${option.value}" ${option.value === selected ? 'selected' : ''}>${optionLabel}</option>`;
+        return `<option value="${option.value}" ${option.value === selected ? 'selected' : ''}>${option.label}</option>`;
       }).join('');
     }
 
@@ -9041,8 +9033,12 @@ function zaladujPinezkiZFirestore() {
 
     function buildStatusSelect(id, status = {}) {
       const selected = getSelectedPinStatusKey(status);
-      const options = buildInlineLabeledSelectOptions('Status', pinStatusSelectOptions, selected);
-      return `<select id="${id}">${options}</select>`;
+      const options = buildInlineSelectOptions(pinStatusSelectOptions, selected);
+      return `
+        <span class="inline-labeled-input" data-label="Status" style="--inline-label-offset: 64px;">
+          <select id="${id}">${options}</select>
+        </span>
+      `;
     }
 
     function captureEditDraft(pin, container) {
@@ -9321,12 +9317,14 @@ function zaladujPinezkiZFirestore() {
           </span>
         </div>
         <div class="edit-form-field">
-          <select id="ekategoriaGlowna">
-            ${buildInlineLabeledSelectOptions('Kategoria główna', [
-              { value: MAIN_CATEGORY_URBEX, label: MAIN_CATEGORY_URBEX },
-              { value: MAIN_CATEGORY_TURYSTYCZNE, label: MAIN_CATEGORY_TURYSTYCZNE }
-            ], getPinMainCategory(p))}
-          </select>
+          <span class="inline-labeled-input" data-label="Kategoria główna" style="--inline-label-offset: 132px;">
+            <select id="ekategoriaGlowna">
+              ${buildInlineSelectOptions([
+                { value: MAIN_CATEGORY_URBEX, label: MAIN_CATEGORY_URBEX },
+                { value: MAIN_CATEGORY_TURYSTYCZNE, label: MAIN_CATEGORY_TURYSTYCZNE }
+              ], getPinMainCategory(p))}
+            </select>
+          </span>
         </div>
         <div class="edit-form-field">
           <span class="inline-labeled-input" data-label="Podkategoria" style="--inline-label-offset: 108px;">
@@ -9366,8 +9364,10 @@ function zaladujPinezkiZFirestore() {
       setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p);
       setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
       setupInlineFieldLabel(container.querySelector('#eodKogo'), 'Od kogo');
+      setupInlineFieldLabel(container.querySelector('#ekategoriaGlowna'), 'Kategoria główna');
       setupInlineFieldLabel(container.querySelector('#ekategoria'), 'Podkategoria');
       setupInlineFieldLabel(container.querySelector('#ewarstwa'), 'Warstwa');
+      setupInlineFieldLabel(container.querySelector('#estatus'), 'Status');
       setupLayerDropdownByMainCategory(container.querySelector('#ewarstwa'), container.querySelector('#ekategoriaGlowna'));
       const editMainCategoryInput = container.querySelector('#ekategoriaGlowna');
       const editCategoryInput = container.querySelector('#ekategoria');
