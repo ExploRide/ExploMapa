@@ -1086,7 +1086,8 @@ body:not(.trip-planner-mode) .trip-planner-panel {
 }
 
 .popup-route-btn,
-.popup-direct-route-btn {
+.popup-direct-route-btn,
+.popup-chatgpt-btn {
   flex: 1;
   display: flex;
   align-items: center;
@@ -1099,6 +1100,14 @@ body:not(.trip-planner-mode) .trip-planner-panel {
   font-size: 12px;
   min-height: 28px;
   padding: 4px 6px;
+}
+
+.popup-chatgpt-btn {
+  box-sizing: border-box;
+  flex: 1 1 100%;
+  margin: 6px 0 2px;
+  text-decoration: none;
+  white-space: normal;
 }
 
 .popup-direct-route-btn {
@@ -1833,6 +1842,7 @@ img.emoji {
     .tool-btn:hover,
     .popup-route-btn:hover,
     .popup-direct-route-btn:hover,
+    .popup-chatgpt-btn:hover,
     summary:hover {
       background: #2a2f3d;
       border-color: var(--ui-border-strong);
@@ -2383,6 +2393,7 @@ html body .main-category-section-title, html body .filter-disabled, html body .t
 html body .trip-day-summary, html body .trip-point-item, html body .trip-segment-row,
 html body .trip-point-name, html body .trip-day-visible-toggle, html body .popup-info-item,
 html body .popup-description, html body .popup-route-btn, html body .popup-direct-route-btn,
+html body .popup-chatgpt-btn,
 html body .route-time-tooltip, html body .plan-option-panel, html body .plan-editor-panel,
 html body [class*="duplicate-"], html body #history-log, html body #toast, html body #banner,
 html body #performance-debug-overlay, html body #osmOverlayStatus, html body .osm-popup,
@@ -6334,6 +6345,44 @@ function emojiHtml(str) {
       }
     });
 
+
+    function getChatGptPromptValue(value) {
+      if (value === undefined || value === null) return '';
+      return String(value).trim();
+    }
+
+    function buildChatGptPinPrompt(p) {
+      const name = getChatGptPromptValue(p && p.nazwa) || 'to miejsce';
+      const address = getChatGptPromptValue(p && (p.adres || p.address));
+      const layer = getChatGptPromptValue(p && p.warstwa);
+      const description = getChatGptPromptValue(p && p.opis);
+      const lat = getChatGptPromptValue(p && p.lat);
+      const lng = getChatGptPromptValue(p && p.lng);
+      const lines = [
+        `Znajdź informacje historyczne i aktualne na temat miejsca: "${name}".`
+      ];
+
+      if (address) lines.push(`Lokalizacja/adres: "${address}".`);
+      if (lat && lng) lines.push(`Współrzędne: ${lat}, ${lng}.`);
+      if (layer) lines.push(`Warstwa/kategoria: "${layer}".`);
+      if (description) lines.push(`Opis z mojej mapy: "${description}".`);
+
+      lines.push('', 'Podaj:',
+        '1. krótką historię miejsca,',
+        '2. obecny stan,',
+        '3. możliwe dawne funkcje obiektu,',
+        '4. ciekawostki,',
+        '5. linki do źródeł,',
+        '6. informacje, czy miejsce wygląda na publicznie dostępne, prywatne, czynne, opuszczone lub potencjalnie niebezpieczne.'
+      );
+
+      return lines.join('\n');
+    }
+
+    function buildChatGptPinUrl(p) {
+      return `https://chatgpt.com/?q=${encodeURIComponent(buildChatGptPinPrompt(p))}`;
+    }
+
     function createPopupHtml(p) {
       const slug = p.slug || slugify(p.nazwa || '');
       const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId).warstwaName || 'Inne';
@@ -6370,7 +6419,8 @@ function emojiHtml(str) {
         <div class="popup-info-item">Data dodania: ${formatDate(p.dataDodania)}</div>
         <div class="popup-info-item popup-address" data-lat="${p.lat}" data-lng="${p.lng}">Adres: wyszukiwanie...</div>
         <div class="popup-info-item">${formatCoords(p.lat, p.lng)}</div>
-        <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank">📍 Google Maps</a></div>
+        <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" rel="noopener noreferrer">📍 Google Maps</a></div>
+        <a class="popup-chatgpt-btn" href="${buildChatGptPinUrl(p)}" target="_blank" rel="noopener noreferrer">💬 Zapytaj ChatGPT</a>
         <div class="popup-edit-row">
           <button class="popup-edit-btn popup-edit-pin-btn" title="Edytuj pinezkę">✏️</button>
           <button class="popup-edit-btn popup-delete-btn" title="Usuń pinezkę">🗑️</button>
