@@ -984,6 +984,32 @@ body, #sidebar, #basemap-switcher {
 .edit-popup {
   min-width: 300px;
 }
+.edit-popup .edit-form-field {
+  margin-bottom: 6px;
+}
+.edit-popup .edit-form-field label {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.edit-popup .edit-form-field input,
+.edit-popup .edit-form-field textarea,
+.edit-popup .edit-form-field select {
+  box-sizing: border-box;
+  width: 100%;
+}
+.edit-popup .edit-form-field textarea {
+  resize: vertical;
+}
+.edit-popup .edit-layer-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.edit-popup .edit-layer-row input {
+  flex: 1;
+}
 .popup-edit-btn {
   position: static;
   min-height: 24px;
@@ -8938,6 +8964,38 @@ function zaladujPinezkiZFirestore() {
       `;
     }
 
+    const pinStatusFieldKeys = ['nieaktywne', 'zamkniete', 'tajne', 'doSprawdzenia', 'zdewastowane', 'zwiedzone', 'wyroznione'];
+    const pinStatusSelectOptions = [
+      { value: '', label: 'Brak statusu' },
+      { value: 'nieaktywne', label: 'Niedostępne ⛔' },
+      { value: 'zamkniete', label: 'Zamknięte 🔐' },
+      { value: 'tajne', label: 'Tajne 🤫' },
+      { value: 'doSprawdzenia', label: 'Do sprawdzenia ❔' },
+      { value: 'zdewastowane', label: 'Zdewastowane 💥' },
+      { value: 'zwiedzone', label: 'Zwiedzone ✅' },
+      { value: 'wyroznione', label: 'Wyróżnione ⭐' }
+    ];
+
+    function getSelectedPinStatusKey(status = {}) {
+      return pinStatusFieldKeys.find(key => status[key]) || '';
+    }
+
+    function getPinStatusStateFromSelect(selectEl) {
+      const selected = selectEl ? selectEl.value : '';
+      return pinStatusFieldKeys.reduce((state, key) => {
+        state[key] = key === selected;
+        return state;
+      }, {});
+    }
+
+    function buildStatusSelect(id, status = {}) {
+      const selected = getSelectedPinStatusKey(status);
+      const options = pinStatusSelectOptions.map(option => (
+        `<option value="${option.value}" ${option.value === selected ? 'selected' : ''}>${option.label}</option>`
+      )).join('');
+      return `<select id="${id}">${options}</select>`;
+    }
+
     function captureEditDraft(pin, container) {
       if (!pin || !container) return;
       const draft = {};
@@ -8955,19 +9013,7 @@ function zaladujPinezkiZFirestore() {
       if (kategoriaGlownaInput) draft.kategoriaGlowna = kategoriaGlownaInput.value;
       const trudInput = container.querySelector('#etrudnosc');
       if (trudInput) draft.trudnosc = trudInput.value;
-      const status = {};
-      const setStatus = (key, selector) => {
-        const el = container.querySelector(selector);
-        if (el) status[key] = el.checked;
-      };
-      setStatus('nieaktywne', '#enieaktywne');
-      setStatus('zamkniete', '#ezamkniete');
-      setStatus('tajne', '#etajne');
-      setStatus('doSprawdzenia', '#edoSprawdzenia');
-      setStatus('zdewastowane', '#ezdewastowane');
-      setStatus('zwiedzone', '#ezwiedzone');
-      setStatus('wyroznione', '#ewyroznione');
-      draft.status = status;
+      draft.status = getPinStatusStateFromSelect(container.querySelector('#estatus'));
       pin._editDraft = draft;
     }
 
@@ -8995,19 +9041,8 @@ function zaladujPinezkiZFirestore() {
           label.style.color = trudnoscColor(trudInput.value);
         }
       }
-      const status = draft.status || {};
-      const setChecked = (selector, value) => {
-        if (value === undefined) return;
-        const el = container.querySelector(selector);
-        if (el) el.checked = value;
-      };
-      setChecked('#enieaktywne', status.nieaktywne);
-      setChecked('#ezamkniete', status.zamkniete);
-      setChecked('#etajne', status.tajne);
-      setChecked('#edoSprawdzenia', status.doSprawdzenia);
-      setChecked('#ezdewastowane', status.zdewastowane);
-      setChecked('#ezwiedzone', status.zwiedzone);
-      setChecked('#ewyroznione', status.wyroznione);
+      const statusSelect = container.querySelector('#estatus');
+      if (statusSelect && draft.status) statusSelect.value = getSelectedPinStatusKey(draft.status);
       delete pin._editDraft;
     }
 
@@ -9225,19 +9260,40 @@ function zaladujPinezkiZFirestore() {
           <button class="popup-add-photo" data-slug="${p.slug}">📷</button>
           <div id="emojiPicker-${id}" class="emoji-picker"></div>
         </div>
-        <input id="enazwa" value="${p.nazwa}" style="width: 100%"><br>
-        <textarea id="eopis" style="width: 100%; height: 50px"></textarea><br>
-        <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo" style="width: 100%"><br>
-        <label for="ekategoriaGlowna">Kategoria główna</label><br>
-        <select id="ekategoriaGlowna" style="width: 100%">
-          <option value="URBEX" ${getPinMainCategory(p) === MAIN_CATEGORY_URBEX ? 'selected' : ''}>URBEX</option>
-          <option value="TURYSTYCZNE" ${getPinMainCategory(p) === MAIN_CATEGORY_TURYSTYCZNE ? 'selected' : ''}>TURYSTYCZNE</option>
-        </select><br>
-        <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Podkategoria" style="width: 100%"><br>
-        <div style="display:flex; gap:6px; align-items:center;">
-          <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa" style="width: 100%">
-          <button id="addLayerFromPinEdit" type="button" title="Dodaj nową warstwę">＋</button>
-        </div><br>
+        <div class="edit-form-field">
+          <label for="enazwa">Nazwa</label>
+          <input id="enazwa" value="${p.nazwa}">
+        </div>
+        <div class="edit-form-field">
+          <label for="eopis">Opis</label>
+          <textarea id="eopis" style="height: 50px"></textarea>
+        </div>
+        <div class="edit-form-field">
+          <label for="eodKogo">Od kogo</label>
+          <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo">
+        </div>
+        <div class="edit-form-field">
+          <label for="ekategoriaGlowna">Kategoria główna</label>
+          <select id="ekategoriaGlowna">
+            <option value="URBEX" ${getPinMainCategory(p) === MAIN_CATEGORY_URBEX ? 'selected' : ''}>URBEX</option>
+            <option value="TURYSTYCZNE" ${getPinMainCategory(p) === MAIN_CATEGORY_TURYSTYCZNE ? 'selected' : ''}>TURYSTYCZNE</option>
+          </select>
+        </div>
+        <div class="edit-form-field">
+          <label for="ekategoria">Podkategoria</label>
+          <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Podkategoria">
+        </div>
+        <div class="edit-form-field">
+          <label for="ewarstwa">Warstwa</label>
+          <div class="edit-layer-row">
+            <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa">
+            <button id="addLayerFromPinEdit" type="button" title="Dodaj nową warstwę">＋</button>
+          </div>
+        </div>
+        <div class="edit-form-field">
+          <label for="estatus">Status</label>
+          ${buildStatusSelect('estatus', p)}
+        </div>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="etrudnosc" class="trudnosc-range" min="0" max="5" step="1" value="${p.trudnosc ?? 0}">
@@ -9279,53 +9335,12 @@ function zaladujPinezkiZFirestore() {
       }
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'), { markUnsaved: false });
       setupTrudnoscInput(container.querySelector('#etrudnosc'), container.querySelector('#etrudnoscLabel'));
-      const chkInactive = container.querySelector('#enieaktywne');
-      if (chkInactive) {
-        chkInactive.addEventListener('change', () => {
-          markPinFieldChange(p, 'nieaktywne', chkInactive.checked);
+      const statusSelect = container.querySelector('#estatus');
+      if (statusSelect) {
+        statusSelect.addEventListener('change', () => {
+          const status = getPinStatusStateFromSelect(statusSelect);
+          pinStatusFieldKeys.forEach(key => markPinFieldChange(p, key, status[key]));
           applyInactiveStyle(p);
-          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
-        });
-      }
-      const chkClosed = container.querySelector('#ezamkniete');
-      if (chkClosed) {
-        chkClosed.addEventListener('change', () => {
-          markPinFieldChange(p, 'zamkniete', chkClosed.checked);
-          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
-        });
-      }
-      const chkSecret = container.querySelector('#etajne');
-      if (chkSecret) {
-        chkSecret.addEventListener('change', () => {
-          markPinFieldChange(p, 'tajne', chkSecret.checked);
-          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
-        });
-      }
-      const chkTodo = container.querySelector('#edoSprawdzenia');
-      if (chkTodo) {
-        chkTodo.addEventListener('change', () => {
-          markPinFieldChange(p, 'doSprawdzenia', chkTodo.checked);
-          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
-        });
-      }
-      const chkDestroyed = container.querySelector('#ezdewastowane');
-      if (chkDestroyed) {
-        chkDestroyed.addEventListener('change', () => {
-          markPinFieldChange(p, 'zdewastowane', chkDestroyed.checked);
-          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
-        });
-      }
-      const chkVisited = container.querySelector('#ezwiedzone');
-      if (chkVisited) {
-        chkVisited.addEventListener('change', () => {
-          markPinFieldChange(p, 'zwiedzone', chkVisited.checked);
-          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
-        });
-      }
-      const chkHighlighted = container.querySelector('#ewyroznione');
-      if (chkHighlighted) {
-        chkHighlighted.addEventListener('change', () => {
-          markPinFieldChange(p, 'wyroznione', chkHighlighted.checked);
           if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
         });
       }
@@ -9381,8 +9396,8 @@ function zaladujPinezkiZFirestore() {
         }
 
         const editPopup = L.popup({
-          maxWidth: 400,
-          minWidth: 400,
+          maxWidth: 340,
+          minWidth: 320,
           autoPan: true,
           autoPanPadding: L.point(30, 30),
           keepInView: false,
@@ -9496,13 +9511,7 @@ function zaladujPinezkiZFirestore() {
         kategoriaGlowna: mainCatVal,
         emoji: emojiVal,
         trudnosc: parseInt(document.getElementById("etrudnosc").value, 10),
-        nieaktywne: document.getElementById("enieaktywne").checked,
-        zamkniete: document.getElementById("ezamkniete").checked,
-        tajne: document.getElementById("etajne").checked,
-        doSprawdzenia: document.getElementById("edoSprawdzenia").checked,
-        zdewastowane: document.getElementById("ezdewastowane").checked,
-        zwiedzone: document.getElementById("ezwiedzone").checked,
-        wyroznione: document.getElementById("ewyroznione").checked
+        ...getPinStatusStateFromSelect(document.getElementById("estatus"))
       };
       if (p) {
         nowa.lat = p.lat;
