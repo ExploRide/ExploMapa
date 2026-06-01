@@ -5233,7 +5233,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     function linkify(text) {
       const cleaned = sanitizeOpis(text);
       if (!cleaned) return '';
-      const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+      const urlRegex = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi;
       return cleaned
         .replace(urlRegex, url => {
           const href = url.startsWith('http') ? url : `https://${url}`;
@@ -5243,7 +5243,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
           } catch (e) {
             display = url;
           }
-          return `<a href="${href}" target="_blank">${display}</a>`;
+          return `<a href="${href}" target="_blank" rel="noopener noreferrer">${display}</a>`;
         })
         .replace(/\n/g, '<br>');
     }
