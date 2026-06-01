@@ -5591,9 +5591,11 @@ function emojiHtml(str) {
     function addPhotosToSlug(slug, files, gallery, options = {}) {
       if (!files || files.length === 0) return;
       const markUnsavedOnChange = options.markUnsaved !== false;
+      const shouldApply = typeof options.shouldApply === 'function' ? options.shouldApply : () => true;
       const existing = getStoredPhotos(slug);
       let idx = 0;
       function next() {
+        if (!shouldApply()) return;
         if (idx >= files.length) {
           storePhotos(slug, existing);
           if (markUnsavedOnChange) {
@@ -5605,6 +5607,7 @@ function emojiHtml(str) {
         const file = files[idx]; // [CODEx CHANGED] usunięty limit rozmiaru 1 MB
         const reader = new FileReader();
         reader.onload = e => {
+          if (!shouldApply()) return;
           existing.push({url: e.target.result});
           storePhotos(slug, existing);
           if (gallery) renderGallery(gallery);
@@ -5626,7 +5629,10 @@ function emojiHtml(str) {
         input.multiple = true;
         if (options.capture) input.setAttribute('capture', options.capture);
         input.addEventListener('change', () => {
-          addPhotosToSlug(slug, Array.from(input.files || []), gallery, { markUnsaved: options.markUnsaved !== false });
+          addPhotosToSlug(slug, Array.from(input.files || []), gallery, {
+            markUnsaved: options.markUnsaved !== false,
+            shouldApply: options.shouldApply
+          });
         });
         input.click();
       });
@@ -9091,6 +9097,57 @@ function zaladujPinezkiZFirestore() {
       delete pin._editDraft;
     }
 
+    const PIN_EDIT_SESSION_FIELDS = [
+      'nazwa', 'opis', 'odKogo', 'warstwa', 'warstwaId', 'kategoria', 'kategoriaGlowna',
+      'emoji', 'trudnosc', 'nieaktywne', 'zamkniete', 'tajne', 'doSprawdzenia',
+      'zdewastowane', 'zwiedzone', 'wyroznione', 'slug', 'lat', 'lng'
+    ];
+
+    function snapshotPinEditData(pin) {
+      return PIN_EDIT_SESSION_FIELDS.reduce((snapshot, field) => {
+        snapshot[field] = pin[field];
+        return snapshot;
+      }, {});
+    }
+
+    function beginPinEditSession(pin) {
+      if (!pin || pin._editOriginalState) return;
+      const markerLatLng = pin.marker && pin.marker.getLatLng ? pin.marker.getLatLng() : null;
+      pin._editOriginalState = {
+        data: snapshotPinEditData(pin),
+        photos: getStoredPhotos(pin.slug),
+        markerLat: markerLatLng ? markerLatLng.lat : pin.lat,
+        markerLng: markerLatLng ? markerLatLng.lng : pin.lng
+      };
+      pin._pinEditCommitted = false;
+    }
+
+    function clearPinEditSession(pin) {
+      if (!pin) return;
+      delete pin._editOriginalState;
+      delete pin._pinEditCommitted;
+      delete pin.noweEmoji;
+    }
+
+    function cancelPinEditSession(pin, marker) {
+      if (!pin) return;
+      const original = pin._editOriginalState;
+      if (original) {
+        Object.assign(pin, original.data);
+        storePhotos(original.data.slug, original.photos || []);
+        const targetMarker = marker || pin.marker;
+        if (targetMarker && targetMarker.setLatLng) {
+          targetMarker.setLatLng([original.markerLat, original.markerLng]);
+        }
+        if (targetMarker && targetMarker.setIcon) {
+          targetMarker.setIcon(createEmojiIcon(pin.emoji, pin.warstwaId, 32, pin));
+        }
+        closePhotoModalForSlug(original.data.slug);
+        applyInactiveStyle(pin);
+      }
+      clearPinEditSession(pin);
+    }
+
     function startPinReposition(pin, container) {
       if (!map || !pin || !pin.marker) return;
       if (pinRepositionState) {
@@ -9112,8 +9169,6 @@ function zaladujPinezkiZFirestore() {
       }
       marker.closePopup();
       const originalLatLng = marker.getLatLng();
-      const existing = zmianyDoZapisania[pin.id];
-      const previousPending = existing ? { lat: existing.lat, lng: existing.lng } : null;
       const moveHandler = e => {
         marker.setLatLng(e.latlng);
       };
@@ -9135,7 +9190,6 @@ function zaladujPinezkiZFirestore() {
         moveHandler,
         confirmHandler,
         keyHandler,
-        previousPending
       };
       map.on('mousemove', moveHandler);
       map.on('click', confirmHandler);
@@ -9147,7 +9201,7 @@ function zaladujPinezkiZFirestore() {
 
     function finishPinReposition(confirmed, latlng) {
       if (!pinRepositionState) return;
-      const { pin, marker, originalLatLng, moveHandler, confirmHandler, keyHandler, previousPending } = pinRepositionState;
+      const { pin, marker, originalLatLng, moveHandler, confirmHandler, keyHandler } = pinRepositionState;
       pinRepositionState = null;
       map.off('mousemove', moveHandler);
       map.off('click', confirmHandler);
@@ -9159,51 +9213,9 @@ function zaladujPinezkiZFirestore() {
         marker.setLatLng(newLatLng);
         pin.lat = newLatLng.lat;
         pin.lng = newLatLng.lng;
-        markPinUnsaved(pin.slug);
-        pin.unsaved = true;
-        const pending = zmianyDoZapisania[pin.id] || {};
-        pending.lat = pin.lat;
-        pending.lng = pin.lng;
-        zmianyDoZapisania[pin.id] = pending;
-        const prevLatLng = L.latLng(originalLatLng.lat, originalLatLng.lng);
-        pushAction({
-          undo: () => {
-            marker.setLatLng(prevLatLng);
-            pin.lat = prevLatLng.lat;
-            pin.lng = prevLatLng.lng;
-            const data = zmianyDoZapisania[pin.id] || {};
-            if (previousPending && previousPending.lat !== undefined && previousPending.lng !== undefined) {
-              data.lat = previousPending.lat;
-              data.lng = previousPending.lng;
-              zmianyDoZapisania[pin.id] = data;
-            } else {
-              delete data.lat;
-              delete data.lng;
-              if (Object.keys(data).length === 0) {
-                delete zmianyDoZapisania[pin.id];
-              } else {
-                zmianyDoZapisania[pin.id] = data;
-              }
-            }
-            generujListeWarstw();
-            updateSaveButton();
-          },
-          redo: () => {
-            marker.setLatLng(newLatLng);
-            pin.lat = newLatLng.lat;
-            pin.lng = newLatLng.lng;
-            const data = zmianyDoZapisania[pin.id] || {};
-            data.lat = newLatLng.lat;
-            data.lng = newLatLng.lng;
-            zmianyDoZapisania[pin.id] = data;
-            generujListeWarstw();
-            updateSaveButton();
-          }
-        }, 'Przeniesiono pinezkę');
         generujListeWarstw();
-        updateSaveButton();
         setTimeout(() => edytuj(pin.id, pin.lat, pin.lng), 0);
-        showToast('Nowe położenie pinezki ustawione. Pamiętaj o zapisaniu zmian.');
+        showToast('Nowe położenie pinezki ustawione w formularzu. Kliknij Zapisz, aby zapisać zmianę.');
       } else {
         marker.setLatLng(originalLatLng);
         pin.lat = originalLatLng.lat;
@@ -9294,8 +9306,11 @@ function zaladujPinezkiZFirestore() {
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (!p) return;
       const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId).warstwaName || '';
-      delete p.noweEmoji;
-      p._photoEditBackup = getStoredPhotos(p.slug);
+      if (!p._editOriginalState) delete p.noweEmoji;
+      beginPinEditSession(p);
+      if (!Object.prototype.hasOwnProperty.call(p, '_photoEditBackup')) {
+        p._photoEditBackup = getStoredPhotos(p.slug);
+      }
       p._photoEditSaved = false;
       const container = document.createElement("div");
       container.className = "popup-container edit-popup";
@@ -9377,7 +9392,9 @@ function zaladujPinezkiZFirestore() {
         const selectedMain = (container.querySelector('#ekategoriaGlowna').value || '').trim();
         if (!layerName) return alert('Wpisz nazwę nowej warstwy.');
         if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
-        if (!warstwy[layerName]) addLayer(layerName, true, selectedMain);
+        if (!warstwy[layerName]) {
+          showToast('Nowa warstwa zostanie dodana dopiero po kliknięciu Zapisz w popupie.');
+        }
       });
       setupDropdownInput(editCategoryInput, () => getCategorySuggestions(editMainCategoryInput ? editMainCategoryInput.value : getPinMainCategory(p)));
       if (editMainCategoryInput) {
@@ -9385,17 +9402,13 @@ function zaladujPinezkiZFirestore() {
           if (editCategoryInput) editCategoryInput.value = '';
         });
       }
-      setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'), { markUnsaved: false });
+      setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'), {
+        markUnsaved: false,
+        shouldApply: () => Boolean(p._editOriginalState || p._photoEditSaved)
+      });
       setupTrudnoscInput(container.querySelector('#etrudnosc'), container.querySelector('#etrudnoscLabel'));
-      const statusSelect = container.querySelector('#estatus');
-      if (statusSelect) {
-        statusSelect.addEventListener('change', () => {
-          const status = getPinStatusStateFromSelect(statusSelect);
-          pinStatusFieldKeys.forEach(key => markPinFieldChange(p, key, status[key]));
-          applyInactiveStyle(p);
-          if (p.marker) p.marker.setIcon(createEmojiIcon(p.emoji, p.warstwaId, 32, p));
-        });
-      }
+      // Status wybrany w formularzu edycji jest tylko szkicem; zapiszLokalnie() odczyta
+      // go z pola #estatus dopiero po kliknięciu "Zapisz" w popupie.
       const delBtn = container.querySelector('#deleteBtn-' + id);
       if (delBtn) {
         delBtn.addEventListener('click', e => {
@@ -9427,6 +9440,7 @@ function zaladujPinezkiZFirestore() {
           map.closePopup();
           openFormInMobileModal(container, () => {
             p._isEditing = false;
+            if (!p._pinEditCommitted) cancelPinEditSession(p, marker);
             if (!p._photoEditSaved && p._photoEditBackup) {
               storePhotos(p.slug, p._photoEditBackup);
             }
@@ -9461,6 +9475,7 @@ function zaladujPinezkiZFirestore() {
 
         const onEditPopupRemove = () => {
           p._isEditing = false;
+          if (!p._pinEditCommitted) cancelPinEditSession(p, marker);
           if (!p._photoEditSaved && p._photoEditBackup) {
             storePhotos(p.slug, p._photoEditBackup);
           }
@@ -9531,6 +9546,7 @@ function zaladujPinezkiZFirestore() {
       if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (p && p._editDraft) delete p._editDraft;
+      const editOriginal = p && p._editOriginalState ? p._editOriginalState.data : null;
       const oldData = p ? {
         nazwa: p.nazwa,
         opis: p.opis,
@@ -9549,8 +9565,8 @@ function zaladujPinezkiZFirestore() {
         zwiedzone: p.zwiedzone,
         wyroznione: p.wyroznione,
         slug: p.slug,
-        lat: p.lat,
-        lng: p.lng
+        lat: editOriginal ? editOriginal.lat : p.lat,
+        lng: editOriginal ? editOriginal.lng : p.lng
       } : null;
       const emojiVal = p && p.noweEmoji !== undefined ? p.noweEmoji : (p ? p.emoji : '');
       const nowa = {
@@ -9575,6 +9591,7 @@ function zaladujPinezkiZFirestore() {
       }
       zmianyDoZapisania[id] = nowa;
       if (p) {
+        p._pinEditCommitted = true;
         const oldSlug = p.slug;
         applyPinData(p, nowa);
         await syncTripPointSnapshotsForPin(p);
@@ -9589,6 +9606,7 @@ function zaladujPinezkiZFirestore() {
         }
         p._photoEditSaved = true;
         delete p._photoEditBackup;
+        clearPinEditSession(p);
         p.unsaved = true;
         const newSlug = p.slug;
         pushAction({
@@ -14156,6 +14174,15 @@ function getTripPointEmoji(p) {
 
   let modalSlug = null;
   let modalIndex = null;
+
+  function closePhotoModalForSlug(slug) {
+    if (modalSlug !== slug) return;
+    modalSlug = null;
+    modalIndex = null;
+    const modal = document.getElementById('photoModal');
+    if (modal) modal.style.display = 'none';
+  }
+
   function openPhotoModal(slug, idx) {
     modalSlug = slug;
     modalIndex = idx;
