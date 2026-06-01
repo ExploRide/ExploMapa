@@ -275,8 +275,12 @@
     .route-line { stroke-width: 3; }
     .route-line:hover { filter: drop-shadow(0 0 3px black); }
     .plan-item { font-size: 12px; cursor: pointer; padding-left: 4px; display: flex; align-items: center; gap: 6px; }
+    .plan-item.dragging { opacity: 0.55; }
+    .plan-item.drag-over { border-top: 2px solid var(--ui-accent, #1e88e5); }
     .plan-item .plan-name { flex: 1; text-decoration: underline; }
     .plan-item .plan-visibility { flex-shrink: 0; }
+    .plan-drag-handle { cursor: grab; opacity: .75; padding: 2px 5px; user-select: none; flex-shrink: 0; }
+    .plan-drag-handle:active { cursor: grabbing; }
     .plan-option-panel {
       position: absolute;
       background: #2b2b2b;
@@ -3910,6 +3914,7 @@ function slugify(str) {
       let activePlanPlacement = null;
       let planOptionsState = null;
       let planTransformState = null;
+      let draggedPlanReorder = null;
     let initialLayerOrder = [];
     let layerOrderChanged = false;
     let currentTool = "hand";
@@ -4480,6 +4485,13 @@ function slugify(str) {
         planEl.dataset.pinId = String(pin.id);
         planEl.dataset.planId = String(plan.id);
 
+        const dragHandle = document.createElement('span');
+        dragHandle.className = 'plan-drag-handle';
+        dragHandle.setAttribute('draggable', 'true');
+        dragHandle.title = 'Przeciągnij, aby zmienić kolejność rzutu';
+        dragHandle.textContent = '☰';
+        setupPlanDrag(pin, planEl, dragHandle);
+
         const activeCheckbox = document.createElement('input');
         activeCheckbox.type = 'checkbox';
         activeCheckbox.className = 'plan-visibility';
@@ -4505,10 +4517,58 @@ function slugify(str) {
         planEl.addEventListener('click', editPlan);
         planName.addEventListener('click', editPlan);
 
+        planEl.appendChild(dragHandle);
         planEl.appendChild(activeCheckbox);
         planEl.appendChild(planName);
         container.appendChild(planEl);
       });
+    }
+
+    function setupPlanDrag(pin, planEl, handle) {
+      if (!pin || !planEl || !handle) return;
+      handle.addEventListener('dragstart', ev => {
+        ev.stopPropagation();
+        draggedPlanReorder = { pin, planId: planEl.dataset.planId || '' };
+        ev.dataTransfer.effectAllowed = 'move';
+        ev.dataTransfer.setData('text/plain', planEl.dataset.planId || '');
+        planEl.classList.add('dragging');
+      });
+      handle.addEventListener('dragend', () => {
+        draggedPlanReorder = null;
+        planEl.classList.remove('dragging');
+        document.querySelectorAll('.plan-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+      });
+      planEl.addEventListener('dragover', ev => {
+        const sourceId = draggedPlanReorder ? draggedPlanReorder.planId : '';
+        if (!sourceId || planEl.dataset.planId === sourceId || draggedPlanReorder.pin !== pin) return;
+        ev.preventDefault();
+        planEl.classList.add('drag-over');
+      });
+      planEl.addEventListener('dragleave', () => planEl.classList.remove('drag-over'));
+      planEl.addEventListener('drop', ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        planEl.classList.remove('drag-over');
+        const sourceId = draggedPlanReorder ? draggedPlanReorder.planId : (ev.dataTransfer ? ev.dataTransfer.getData('text/plain') : '');
+        if (!sourceId || !pin.plany || planEl.dataset.planId === sourceId || (draggedPlanReorder && draggedPlanReorder.pin !== pin)) return;
+        reorderPlansForPin(pin, sourceId, planEl.dataset.planId, ev.clientY, planEl.getBoundingClientRect());
+      });
+      handle.addEventListener('click', ev => ev.stopPropagation());
+    }
+
+    function reorderPlansForPin(pin, sourcePlanId, targetPlanId, clientY, targetRect) {
+      const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
+      const fromIndex = plans.findIndex(pl => String(pl && pl.id) === String(sourcePlanId));
+      const targetIndex = plans.findIndex(pl => String(pl && pl.id) === String(targetPlanId));
+      if (fromIndex < 0 || targetIndex < 0 || fromIndex === targetIndex) return;
+      const [moved] = plans.splice(fromIndex, 1);
+      let insertIndex = plans.findIndex(pl => String(pl && pl.id) === String(targetPlanId));
+      const moveAfter = targetRect && clientY > targetRect.top + targetRect.height / 2;
+      if (moveAfter) insertIndex += 1;
+      plans.splice(insertIndex, 0, moved);
+      applyPlanZIndexes(pin);
+      markPlanChange(pin);
+      generujListeWarstw();
     }
 
     function createSidebarPinElement(pin, layerName) {
@@ -5397,8 +5457,9 @@ function emojiHtml(str) {
       });
     }
 
-    function setupGallery(gallery) {
+    function setupGallery(gallery, options = {}) {
       if (!gallery) return;
+      const markUnsavedOnChange = options.markUnsaved !== false;
       try {
         renderGallery(gallery);
       } catch (err) {
@@ -5413,32 +5474,36 @@ function emojiHtml(str) {
           photos.splice(idx, 1);
           storePhotos(slug, photos);
           renderGallery(gallery);
-          markPinUnsaved(slug);
-          updateSaveButton();
+          if (markUnsavedOnChange) {
+            markPinUnsaved(slug);
+            updateSaveButton();
+          }
         } else if (e.target.tagName === 'IMG') {
           openPhotoModal(gallery.dataset.slug, parseInt(e.target.dataset.index));
         }
       });
     }
 
-    function addPhotosToSlug(slug, files, gallery) {
+    function addPhotosToSlug(slug, files, gallery, options = {}) {
       if (!files || files.length === 0) return;
+      const markUnsavedOnChange = options.markUnsaved !== false;
       const existing = getStoredPhotos(slug);
       let idx = 0;
       function next() {
         if (idx >= files.length) {
           storePhotos(slug, existing);
-          if (gallery) {
-            renderGallery(gallery);
+          if (markUnsavedOnChange) {
+            markPinUnsaved(slug);
+            updateSaveButton();
           }
-          markPinUnsaved(slug);
-          updateSaveButton();
           return;
         }
         const file = files[idx]; // [CODEx CHANGED] usunięty limit rozmiaru 1 MB
         const reader = new FileReader();
         reader.onload = e => {
           existing.push({url: e.target.result});
+          storePhotos(slug, existing);
+          if (gallery) renderGallery(gallery);
           idx++;
           next();
         };
@@ -5457,7 +5522,7 @@ function emojiHtml(str) {
         input.multiple = true;
         if (options.capture) input.setAttribute('capture', options.capture);
         input.addEventListener('change', () => {
-          addPhotosToSlug(slug, Array.from(input.files || []), gallery);
+          addPhotosToSlug(slug, Array.from(input.files || []), gallery, { markUnsaved: options.markUnsaved !== false });
         });
         input.click();
       });
@@ -5537,12 +5602,28 @@ function emojiHtml(str) {
       return isActivePlanForPin(pin, plan) && (plan.widoczny !== false) && layerVisible && pinVisible;
     }
 
+    function getPlanZIndex(pin, plan) {
+      const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
+      const index = plans.indexOf(plan);
+      return 300 + (index < 0 ? plans.length : index);
+    }
+
+    function applyPlanZIndexes(pin) {
+      const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
+      plans.forEach(plan => {
+        const overlay = planLayers[plan.id] || plan.layer;
+        if (overlay && typeof overlay.setZIndex === 'function') {
+          overlay.setZIndex(getPlanZIndex(pin, plan));
+        }
+      });
+    }
+
     function ensurePlanOverlay(pin, plan) {
       ensurePlanDefaults(plan, pin);
       let overlay = planLayers[plan.id];
       const bounds = getPlanBounds(plan);
       if (!overlay) {
-        overlay = L.imageOverlay(plan.url, bounds, { opacity: plan.przezroczystosc || 1, interactive: false });
+        overlay = L.imageOverlay(plan.url, bounds, { opacity: plan.przezroczystosc || 1, interactive: false, zIndex: getPlanZIndex(pin, plan) });
         planLayers[plan.id] = overlay;
         plan.layer = overlay;
         if (!overlay._originalReset) {
@@ -5563,6 +5644,7 @@ function emojiHtml(str) {
         overlay.setBounds(bounds);
         overlay.setOpacity(plan.przezroczystosc || 1);
       }
+      if (typeof overlay.setZIndex === 'function') overlay.setZIndex(getPlanZIndex(pin, plan));
       overlay._planRef = plan;
       applyPlanRotation(overlay, plan);
       if (!activePlanPlacement || activePlanPlacement.plan !== plan) setPlanOverlayMapPassthrough(overlay);
@@ -5584,6 +5666,7 @@ function emojiHtml(str) {
       }
       overlay.setBounds(getPlanBounds(plan));
       overlay.setOpacity(plan.przezroczystosc || 1);
+      if (typeof overlay.setZIndex === 'function') overlay.setZIndex(getPlanZIndex(pin, plan));
       overlay._planRef = plan;
       applyPlanRotation(overlay, plan);
       if (!activePlanPlacement || activePlanPlacement.plan !== plan) setPlanOverlayMapPassthrough(overlay);
@@ -5633,10 +5716,11 @@ function emojiHtml(str) {
     function getStoredActivePlanIdsForPin(pin) {
       const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
       if (!plans.length) return new Set();
+      const hasStoredActiveFlags = plans.some(plan => plan && Object.prototype.hasOwnProperty.call(plan, 'aktywny'));
       const activeIds = plans
         .filter(plan => plan && plan.aktywny === true && plan.id)
         .map(plan => String(plan.id));
-      if (activeIds.length) return new Set(activeIds);
+      if (hasStoredActiveFlags) return new Set(activeIds);
       return plans[0] && plans[0].id ? new Set([String(plans[0].id)]) : new Set();
     }
 
@@ -5658,9 +5742,7 @@ function emojiHtml(str) {
     function normalizeActivePlanForPin(pin) {
       const plans = Array.isArray(pin && pin.plany) ? pin.plany : [];
       if (!plans.length) return;
-      if (!plans.some(plan => plan && plan.aktywny === true) && plans[0]) {
-        plans[0].aktywny = true;
-      }
+      plans.forEach(plan => ensurePlanDefaults(plan, pin));
     }
 
     function isActivePlanForPin(pin, plan) {
@@ -5689,9 +5771,32 @@ function emojiHtml(str) {
       } else {
         selectedIds.delete(String(selectedPlan.id));
       }
+      (pin.plany || []).forEach(plan => {
+        if (!plan || !plan.id) return;
+        plan.aktywny = selectedIds.has(String(plan.id));
+      });
       activePlanSessionOverrides.set(sessionKey, selectedIds);
       updatePlanVisibilityForPin(pin);
       updatePlanActiveCheckboxStateForPin(pin);
+      autosavePlanVisibilityForPin(pin);
+    }
+
+    async function autosavePlanVisibilityForPin(pin) {
+      if (!pin || !pin.firebaseId || !Array.isArray(pin.plany)) return;
+      if (pin.plany.some(plan => plan && !plan.path)) {
+        markPlanChange(pin);
+        return;
+      }
+      const targetCollection = pin.sourceCollection || 'pinezki2';
+      try {
+        await db.collection(targetCollection).doc(pin.firebaseId).update({
+          plany: serializePlans(pin)
+        });
+        pin.savedPlans = serializePlans(pin);
+      } catch (err) {
+        console.error('Nie udało się zapisać widoczności rzutów do Firestore', err);
+        showToast('Nie udało się od razu zapisać widoczności rzutu. Spróbuj ponownie.', 4000);
+      }
     }
 
     function cleanupPlanTransformOverlay(overlay) {
@@ -6297,7 +6402,7 @@ function emojiHtml(str) {
         // przez co przyciski w popupie reagują od razu po otwarciu.
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
-        setupGallery(container.querySelector('.photo-gallery'));
+        setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
 
         const btn = container.querySelector('.popup-edit-pin-btn');
         bindPopupAction(btn, () => {
@@ -8970,6 +9075,8 @@ function zaladujPinezkiZFirestore() {
       if (!p) return;
       const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId).warstwaName || '';
       delete p.noweEmoji;
+      p._photoEditBackup = getStoredPhotos(p.slug);
+      p._photoEditSaved = false;
       const container = document.createElement("div");
       container.className = "popup-container edit-popup";
       container.innerHTML = `
@@ -9012,7 +9119,7 @@ function zaladujPinezkiZFirestore() {
       }
       applyEditDraft(p, container);
       setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p);
-      setupGallery(container.querySelector('.photo-gallery'));
+      setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
       setupLayerDropdownByMainCategory(container.querySelector('#ewarstwa'), container.querySelector('#ekategoriaGlowna'));
       const editMainCategoryInput = container.querySelector('#ekategoriaGlowna');
       const editCategoryInput = container.querySelector('#ekategoria');
@@ -9030,7 +9137,7 @@ function zaladujPinezkiZFirestore() {
           if (editCategoryInput) editCategoryInput.value = '';
         });
       }
-      setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'));
+      setupAddPhotoButton(container.querySelector('.popup-add-photo'), p.slug, container.querySelector('.photo-gallery'), { markUnsaved: false });
       setupTrudnoscInput(container.querySelector('#etrudnosc'), container.querySelector('#etrudnoscLabel'));
       const chkInactive = container.querySelector('#enieaktywne');
       if (chkInactive) {
@@ -9113,6 +9220,11 @@ function zaladujPinezkiZFirestore() {
           map.closePopup();
           openFormInMobileModal(container, () => {
             p._isEditing = false;
+            if (!p._photoEditSaved && p._photoEditBackup) {
+              storePhotos(p.slug, p._photoEditBackup);
+            }
+            delete p._photoEditBackup;
+            delete p._photoEditSaved;
             delete p._editDraft;
             ensureViewPopup(marker, p);
           });
@@ -9142,6 +9254,11 @@ function zaladujPinezkiZFirestore() {
 
         const onEditPopupRemove = () => {
           p._isEditing = false;
+          if (!p._photoEditSaved && p._photoEditBackup) {
+            storePhotos(p.slug, p._photoEditBackup);
+          }
+          delete p._photoEditBackup;
+          delete p._photoEditSaved;
           delete p._editDraft;
           marker._editPopup = null;
           marker._editPopupRemoveHandler = null;
@@ -9269,6 +9386,8 @@ function zaladujPinezkiZFirestore() {
           delete photosMap[oldSlug];
           storePhotos(p.slug, photos);
         }
+        p._photoEditSaved = true;
+        delete p._photoEditBackup;
         p.unsaved = true;
         const newSlug = p.slug;
         pushAction({
@@ -9399,7 +9518,7 @@ function zaladujPinezkiZFirestore() {
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
 
-      setupGallery(container.querySelector('.photo-gallery'));
+      setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'));
       setupEmojiPicker(container.querySelector('#emojiPickerNew'), tempPin);
       const newLayerInput = container.querySelector('#warstwaNew');
@@ -13615,8 +13734,11 @@ function getTripPointEmoji(p) {
     storePhotos(modalSlug, photos);
     const gallery = document.querySelector(`.photo-gallery[data-slug="${modalSlug}"]`);
     if (gallery) renderGallery(gallery);
-    markPinUnsaved(modalSlug);
-    updateSaveButton();
+    const editingPin = wszystkiePinezki.find(pp => pp.slug === modalSlug && pp._photoEditBackup && !pp._photoEditSaved);
+    if (!editingPin) {
+      markPinUnsaved(modalSlug);
+      updateSaveButton();
+    }
     modalSlug = null; modalIndex = null;
     const modal = document.getElementById('photoModal');
     if (modal) modal.style.display = 'none';
