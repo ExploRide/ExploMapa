@@ -108,6 +108,10 @@
       display: none;
     }
 
+    #uiScaleControls .ui-scale-title {
+      font-weight: 700;
+      text-align: left;
+    }
     #uiScaleControls .ui-scale-row {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
@@ -2785,6 +2789,7 @@ body.mobile-layout #saveChanges {
     </div>
     <button id="syncBtn">Synchronizuj (<span id="syncCountBtn">0</span>)</button>
     <div id="uiScaleControls" aria-label="Skalowanie interfejsu">
+      <div class="ui-scale-title">Skala UI</div>
       <div class="ui-scale-row">
         <div class="ui-scale-buttons">
           <button id="uiScaleMinus" type="button" aria-label="Zmniejsz skalę UI">−</button>
