@@ -987,11 +987,32 @@ body, #sidebar, #basemap-switcher {
 .edit-popup .edit-form-field {
   margin-bottom: 6px;
 }
-.edit-popup .edit-form-field label {
+.edit-popup .inline-labeled-input {
+  position: relative;
   display: block;
-  margin-bottom: 3px;
-  font-size: 12px;
+}
+.edit-popup .inline-labeled-input::before {
+  content: attr(data-label) ":";
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  display: none;
+  color: #aaa;
+  font-size: 13px;
   font-weight: 700;
+  pointer-events: none;
+}
+.edit-popup .inline-labeled-input.has-value::before {
+  display: block;
+}
+.edit-popup .inline-labeled-input.has-value input {
+  padding-left: var(--inline-label-offset, 82px);
+}
+.edit-popup .inline-labeled-input[data-label="Kategoria główna"].has-value input,
+.edit-popup .inline-labeled-input[data-label="Kategoria główna"].has-value select {
+  padding-left: 132px;
 }
 .edit-popup .edit-form-field input,
 .edit-popup .edit-form-field textarea,
@@ -1006,6 +1027,9 @@ body, #sidebar, #basemap-switcher {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+.edit-popup .edit-layer-row .inline-labeled-input {
+  flex: 1;
 }
 .edit-popup .edit-layer-row input {
   flex: 1;
@@ -6930,6 +6954,8 @@ function emojiHtml(str) {
           div.addEventListener('mousedown', e => {
             e.preventDefault();
             input.value = item;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
             hide();
           });
           list.appendChild(div);
@@ -8988,11 +9014,34 @@ function zaladujPinezkiZFirestore() {
       }, {});
     }
 
+    function formatInlineSelectLabel(label, valueLabel) {
+      return valueLabel ? `${label}: ${valueLabel}` : label;
+    }
+
+    function buildInlineLabeledSelectOptions(label, options, selected) {
+      return options.map(option => {
+        const optionLabel = formatInlineSelectLabel(label, option.value ? option.label : '');
+        return `<option value="${option.value}" ${option.value === selected ? 'selected' : ''}>${optionLabel}</option>`;
+      }).join('');
+    }
+
+    function setupInlineFieldLabel(input, label) {
+      if (!input || !label) return;
+      const wrapper = input.closest('.inline-labeled-input');
+      if (!wrapper) return;
+      wrapper.dataset.label = label;
+      const update = () => {
+        wrapper.classList.toggle('has-value', Boolean((input.value || '').trim()));
+      };
+      input.addEventListener('input', update);
+      input.addEventListener('change', update);
+      input.addEventListener('blur', update);
+      update();
+    }
+
     function buildStatusSelect(id, status = {}) {
       const selected = getSelectedPinStatusKey(status);
-      const options = pinStatusSelectOptions.map(option => (
-        `<option value="${option.value}" ${option.value === selected ? 'selected' : ''}>${option.label}</option>`
-      )).join('');
+      const options = buildInlineLabeledSelectOptions('Status', pinStatusSelectOptions, selected);
       return `<select id="${id}">${options}</select>`;
     }
 
@@ -9261,37 +9310,38 @@ function zaladujPinezkiZFirestore() {
           <div id="emojiPicker-${id}" class="emoji-picker"></div>
         </div>
         <div class="edit-form-field">
-          <label for="enazwa">Nazwa</label>
-          <input id="enazwa" value="${p.nazwa}">
+          <input id="enazwa" value="${p.nazwa}" placeholder="Nazwa">
         </div>
         <div class="edit-form-field">
-          <label for="eopis">Opis</label>
-          <textarea id="eopis" style="height: 50px"></textarea>
+          <textarea id="eopis" placeholder="Opis" style="height: 50px"></textarea>
         </div>
         <div class="edit-form-field">
-          <label for="eodKogo">Od kogo</label>
-          <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo">
+          <span class="inline-labeled-input" data-label="Od kogo" style="--inline-label-offset: 78px;">
+            <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo">
+          </span>
         </div>
         <div class="edit-form-field">
-          <label for="ekategoriaGlowna">Kategoria główna</label>
           <select id="ekategoriaGlowna">
-            <option value="URBEX" ${getPinMainCategory(p) === MAIN_CATEGORY_URBEX ? 'selected' : ''}>URBEX</option>
-            <option value="TURYSTYCZNE" ${getPinMainCategory(p) === MAIN_CATEGORY_TURYSTYCZNE ? 'selected' : ''}>TURYSTYCZNE</option>
+            ${buildInlineLabeledSelectOptions('Kategoria główna', [
+              { value: MAIN_CATEGORY_URBEX, label: MAIN_CATEGORY_URBEX },
+              { value: MAIN_CATEGORY_TURYSTYCZNE, label: MAIN_CATEGORY_TURYSTYCZNE }
+            ], getPinMainCategory(p))}
           </select>
         </div>
         <div class="edit-form-field">
-          <label for="ekategoria">Podkategoria</label>
-          <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Podkategoria">
+          <span class="inline-labeled-input" data-label="Podkategoria" style="--inline-label-offset: 108px;">
+            <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Podkategoria">
+          </span>
         </div>
         <div class="edit-form-field">
-          <label for="ewarstwa">Warstwa</label>
           <div class="edit-layer-row">
-            <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa">
+            <span class="inline-labeled-input" data-label="Warstwa" style="--inline-label-offset: 76px;">
+              <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa">
+            </span>
             <button id="addLayerFromPinEdit" type="button" title="Dodaj nową warstwę">＋</button>
           </div>
         </div>
         <div class="edit-form-field">
-          <label for="estatus">Status</label>
           ${buildStatusSelect('estatus', p)}
         </div>
         <div class="trudnosc-wrapper">
@@ -9315,6 +9365,9 @@ function zaladujPinezkiZFirestore() {
       applyEditDraft(p, container);
       setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p);
       setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
+      setupInlineFieldLabel(container.querySelector('#eodKogo'), 'Od kogo');
+      setupInlineFieldLabel(container.querySelector('#ekategoria'), 'Podkategoria');
+      setupInlineFieldLabel(container.querySelector('#ewarstwa'), 'Warstwa');
       setupLayerDropdownByMainCategory(container.querySelector('#ewarstwa'), container.querySelector('#ekategoriaGlowna'));
       const editMainCategoryInput = container.querySelector('#ekategoriaGlowna');
       const editCategoryInput = container.querySelector('#ekategoria');
