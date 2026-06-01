@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-05-31 v.0.546';
+    const BUILD_VERSION = '2026-06-01 v.0.547';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1084,13 +1084,16 @@ body:not(.trip-planner-mode) .trip-planner-panel {
   font-weight: 600;
 }
 .popup-photo {
+  display: block;
   width: 100%;
-  max-height: 150px;
-  object-fit: cover;
+  height: 150px;
+  object-fit: contain;
+  background: #111;
   cursor: pointer;
 }
 .photo-gallery {
   display: flex;
+  align-items: flex-start;
   overflow-x: auto;
   gap: 2px;
   margin-bottom: 4px;
@@ -1132,6 +1135,9 @@ body:not(.trip-planner-mode) .trip-planner-panel {
 #photoModal img {
   max-width: 90%;
   max-height: 90%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
 }
 #photoModalClose {
   position: absolute;
