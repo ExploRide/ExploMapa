@@ -6365,36 +6365,35 @@ function emojiHtml(str) {
       return String(value).trim();
     }
 
-    function buildChatGptPinPrompt(p) {
+    function buildChatGptPinPrompt(p, resolvedAddress = '') {
       const name = getChatGptPromptValue(p && p.nazwa) || 'to miejsce';
-      const address = getChatGptPromptValue(p && (p.adres || p.address));
-      const layer = getChatGptPromptValue(p && p.warstwa);
+      const address = getChatGptPromptValue(resolvedAddress);
       const description = getChatGptPromptValue(p && p.opis);
       const lat = getChatGptPromptValue(p && p.lat);
       const lng = getChatGptPromptValue(p && p.lng);
+      const locationLine = address
+        ? `Lokalizacja/adres lub najbliższa miejscowość: "${address}".`
+        : 'Najbliższa miejscowość: nie udało się ustalić automatycznie.';
       const lines = [
-        `Znajdź informacje historyczne i aktualne na temat miejsca: "${name}".`
-      ];
-
-      if (address) lines.push(`Lokalizacja/adres: "${address}".`);
-      if (lat && lng) lines.push(`Współrzędne: ${lat}, ${lng}.`);
-      if (layer) lines.push(`Warstwa/kategoria: "${layer}".`);
-      if (description) lines.push(`Opis z mojej mapy: "${description}".`);
-
-      lines.push('', 'Podaj:',
+        `Znajdź informacje historyczne i aktualne na temat miejsca: "${name}".`,
+        locationLine,
+        `Współrzędne: ${lat}, ${lng}.`,
+        `Opis z mojej mapy: "${description}".`,
+        '',
+        'Podaj:',
         '1. krótką historię miejsca,',
         '2. obecny stan,',
         '3. możliwe dawne funkcje obiektu,',
         '4. ciekawostki,',
         '5. linki do źródeł,',
         '6. informacje, czy miejsce wygląda na publicznie dostępne, prywatne, czynne, opuszczone lub potencjalnie niebezpieczne.'
-      );
+      ];
 
       return lines.join('\n');
     }
 
-    function buildChatGptPinUrl(p) {
-      return `https://chatgpt.com/?q=${encodeURIComponent(buildChatGptPinPrompt(p))}`;
+    function buildChatGptPinUrl(p, resolvedAddress = '') {
+      return `https://chatgpt.com/?q=${encodeURIComponent(buildChatGptPinPrompt(p, resolvedAddress))}`;
     }
 
     function createPopupHtml(p) {
@@ -6434,7 +6433,7 @@ function emojiHtml(str) {
         <div class="popup-info-item popup-address" data-lat="${p.lat}" data-lng="${p.lng}">Adres: wyszukiwanie...</div>
         <div class="popup-info-item">${formatCoords(p.lat, p.lng)}</div>
         <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" rel="noopener noreferrer">📍 Google Maps</a></div>
-        <a class="popup-chatgpt-btn" href="${buildChatGptPinUrl(p)}" target="_blank" rel="noopener noreferrer">💬 Zapytaj ChatGPT</a>
+        <a class="popup-chatgpt-btn" href="#" data-chatgpt-pin-id="${p.id}" rel="noopener noreferrer">💬 Zapytaj ChatGPT</a>
         <div class="popup-edit-row">
           <button class="popup-edit-btn popup-edit-pin-btn" title="Edytuj pinezkę">✏️</button>
           <button class="popup-edit-btn popup-delete-btn" title="Usuń pinezkę">🗑️</button>
@@ -6499,6 +6498,44 @@ function emojiHtml(str) {
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.disableScrollPropagation(container);
         setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
+
+        const chatGptBtn = container.querySelector('.popup-chatgpt-btn');
+        if (chatGptBtn && chatGptBtn.dataset.popupActionBound !== '1') {
+          chatGptBtn.dataset.popupActionBound = '1';
+          chatGptBtn.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            const originalText = chatGptBtn.textContent;
+            const chatWindow = window.open('about:blank', '_blank', 'noopener,noreferrer');
+
+            try {
+              chatGptBtn.textContent = 'Szukam miejscowości...';
+
+              let resolvedAddress = '';
+              if (Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng))) {
+                resolvedAddress = await resolveAddress(p.lat, p.lng);
+              }
+
+              const url = buildChatGptPinUrl(p, resolvedAddress || '');
+              if (chatWindow) {
+                chatWindow.location.href = url;
+              } else {
+                window.open(url, '_blank', 'noopener,noreferrer');
+              }
+            } catch (err) {
+              console.warn('Nie udało się przygotować zapytania ChatGPT:', err);
+              const url = buildChatGptPinUrl(p, '');
+              if (chatWindow) {
+                chatWindow.location.href = url;
+              } else {
+                window.open(url, '_blank', 'noopener,noreferrer');
+              }
+            } finally {
+              chatGptBtn.textContent = originalText;
+            }
+          });
+        }
 
         const btn = container.querySelector('.popup-edit-pin-btn');
         bindPopupAction(btn, () => {
