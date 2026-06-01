@@ -2704,7 +2704,7 @@ body.mobile-layout #saveChanges {
             <button type="button" class="opacity-btn" data-target="shade">⚙</button>
             <button type="button" class="info-btn" data-info="Cieniowanie terenu z Geoportalu">i</button>
           </label><br>
-          <input type="range" min="0" max="100" value="50" class="opacity-slider" id="opacity-shade">
+          <input type="range" min="0" max="100" value="50" class="opacity-slider ukryta" id="opacity-shade">
         </div>
         <div class="overlay-item">
           <label><input type="checkbox" id="overlay-pin-plans" checked> Rzuty pinezek
@@ -8305,11 +8305,14 @@ function emojiHtml(str) {
         const checkbox = document.getElementById(overlayCheckboxIds[key]);
         if (checkbox) {
           checkbox.addEventListener('change', e => {
+            const slider = document.getElementById(`opacity-${key}`);
             if (e.target.checked) {
               overlays[key].addTo(map);
+              if (key === 'shade' && slider) slider.classList.remove('ukryta');
               bringActiveMapOverlaysToFront();
             } else {
               map.removeLayer(overlays[key]);
+              if (key === 'shade' && slider) slider.classList.add('ukryta');
             }
           });
         }
@@ -8324,6 +8327,10 @@ function emojiHtml(str) {
         }
         if (btn && slider) {
           btn.addEventListener('click', () => {
+            if (key === 'shade' && checkbox && !checkbox.checked) {
+              slider.classList.add('ukryta');
+              return;
+            }
             slider.classList.toggle('ukryta');
           });
         }
