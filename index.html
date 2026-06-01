@@ -9302,7 +9302,6 @@ function zaladujPinezkiZFirestore() {
           </div>
           <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 0)}">${trudnoscText(p.trudnosc ?? 0)}</div>
         </div>
-        ${buildStatusGrid('e', '', p)}
         <button id="movePinBtn-${id}">📍 Zmień położenie</button>
         ${hasEditablePinPlans(p) ? `<button id="editPinPlanBtn-${id}" type="button">🗺️ Edytuj plan</button>` : ''}
         <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
