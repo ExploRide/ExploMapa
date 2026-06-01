@@ -5516,7 +5516,7 @@ function emojiHtml(str) {
       if (!overlay || !overlay._image) return;
       const img = overlay._image;
       const base = img.style.transform || '';
-      const cleaned = base.replace(/ rotate\([^)]*\)/, '');
+      const cleaned = base.replace(/\s*rotate\([^)]*\)/g, '');
       img.style.transform = `${cleaned} rotate(${(plan && plan.obrot) || 0}deg)`;
       img.style.transformOrigin = 'center center';
       syncPlanTransformOverlay(overlay);
@@ -5549,6 +5549,13 @@ function emojiHtml(str) {
           overlay._originalReset = overlay._reset.bind(overlay);
           overlay._reset = function() {
             overlay._originalReset();
+            applyPlanRotation(overlay, overlay._planRef || plan);
+          };
+        }
+        if (!overlay._originalAnimateZoom && overlay._animateZoom) {
+          overlay._originalAnimateZoom = overlay._animateZoom.bind(overlay);
+          overlay._animateZoom = function(e) {
+            overlay._originalAnimateZoom(e);
             applyPlanRotation(overlay, overlay._planRef || plan);
           };
         }
