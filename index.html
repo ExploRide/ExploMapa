@@ -4260,25 +4260,10 @@ function slugify(str) {
             : null;
           if (visibleParent === marker) {
             marker.fire('click');
-            openPinViewPopup(marker);
             return;
           }
 
-          const pin = marker.__pinRef || wszystkiePinezki.find(item => item && item.marker === marker);
-          if (!pin) return;
-
-          const popupDiv = document.createElement('div');
-          popupDiv.className = 'popup-container';
-          popupDiv.innerHTML = createPopupHtml(pin);
-
-          clone.unbindPopup();
-          clone.bindPopup(popupDiv, {
-            maxWidth: 300,
-            autoPan: true,
-            keepInView: false
-          });
-          attachPopupHandlers(clone, pin);
-          clone.openPopup();
+          handlePinOpen(marker, null, { popupMarker: clone });
         });
         return clone;
       }
@@ -7140,7 +7125,7 @@ function emojiHtml(str) {
       }
 
       setupPopupSelectionClickGuard();
-      function ensureViewPopup(marker, p) {
+      function ensureViewPopup(marker, p, options = {}) {
         if (!marker || !p) return;
         if (p._isEditing === true) return;
         delete p._editDraft;
@@ -7171,7 +7156,7 @@ function emojiHtml(str) {
         });
 
         attachPopupHandlers(marker, p);
-        attachMarkerLongPress(marker, p);
+        if (options.bindLongPress !== false) attachMarkerLongPress(marker, p);
       }
 
       function openPinViewPopup(marker, p) {
@@ -7182,6 +7167,31 @@ function emojiHtml(str) {
         pin._isEditing = false;
         ensureViewPopup(marker, pin);
         marker.openPopup();
+      }
+
+      function handlePinOpen(marker, p, options = {}) {
+        if (!marker || drawingRoute) return null;
+        const pin = p || marker.__pinRef || wszystkiePinezki.find(item => item && item.marker === marker);
+        if (!pin) return null;
+
+        const popupMarker = options.popupMarker || marker;
+        if (popupMarker !== marker) {
+          popupMarker.__pinRef = pin;
+          pin._isEditing = false;
+          ensureViewPopup(popupMarker, pin, { bindLongPress: false });
+          if (popupMarker._clonePopupCloseHandler) {
+            popupMarker.off('popupclose', popupMarker._clonePopupCloseHandler);
+          }
+          popupMarker._clonePopupCloseHandler = () => clearMarkerHighlight(marker);
+          popupMarker.on('popupclose', popupMarker._clonePopupCloseHandler);
+          popupMarker.openPopup();
+          setMarkerHighlight(marker);
+        } else {
+          openPinViewPopup(marker, pin);
+        }
+
+        revealPinInSidebar(pin);
+        return pin;
       }
 
       const osmOverlayCache = new Map();
@@ -10430,10 +10440,7 @@ function zaladujPinezkiZFirestore() {
         marker.off('click', marker._highlightHandler);
       }
       marker._highlightHandler = () => {
-        if (drawingRoute) return;
-        const pin = marker.__pinRef || null;
-        openPinViewPopup(marker, pin);
-        if (pin) revealPinInSidebar(pin);
+        handlePinOpen(marker, marker.__pinRef || null);
       };
       marker.on('click', marker._highlightHandler);
 
