@@ -8638,33 +8638,35 @@ function emojiHtml(str) {
 
     }
 
-    async function ensureLayerEntry(layerName, orderList = []) {
+    async function ensureLayerEntry(layerName, orderList = [], mainCategory = MAIN_CATEGORY_URBEX) {
       if (!layerName) return;
+      const normalizedMain = normalizeMainCategory(mainCategory || (warstwy[layerName] && warstwy[layerName].mainCategory) || MAIN_CATEGORY_URBEX);
+      const ensureLocalLayer = () => {
+        if (!warstwy[layerName]) {
+          warstwy[layerName] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true, mainCategory: normalizedMain };
+        } else {
+          warstwy[layerName].mainCategory = normalizeMainCategory(warstwy[layerName].mainCategory || normalizedMain);
+        }
+      };
       if (layerDocs[layerName]) {
         if (Array.isArray(orderList) && !orderList.includes(layerName)) {
           orderList.push(layerName);
         }
-        if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
-        }
+        ensureLocalLayer();
         return;
       }
       try {
-        const payload = { name: layerName, order: Array.isArray(orderList) ? orderList.length : Object.keys(layerDocs).length, mainCategory: MAIN_CATEGORY_URBEX };
+        const payload = { name: layerName, order: Array.isArray(orderList) ? orderList.length : Object.keys(layerDocs).length, mainCategory: normalizedMain };
         const docRef = await db.collection('layers').add(payload);
         layerDocs[layerName] = docRef.id;
         layerNamesById[docRef.id] = layerName;
         if (Array.isArray(orderList) && !orderList.includes(layerName)) {
           orderList.push(layerName);
         }
-        if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
-        }
+        ensureLocalLayer();
       } catch (e) {
         console.error('Błąd dodawania warstwy do Firestore', e);
-        if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true };
-        }
+        ensureLocalLayer();
       }
     }
 
@@ -9445,11 +9447,15 @@ function zaladujPinezkiZFirestore() {
       const addLayerFromPinEditBtn = container.querySelector('#addLayerFromPinEdit');
       if (addLayerFromPinEditBtn) addLayerFromPinEditBtn.addEventListener('click', () => {
         const layerName = (container.querySelector('#ewarstwa').value || '').trim();
-        const selectedMain = (container.querySelector('#ekategoriaGlowna').value || '').trim();
+        const selectedMain = normalizeMainCategory((container.querySelector('#ekategoriaGlowna').value || '').trim());
         if (!layerName) return alert('Wpisz nazwę nowej warstwy.');
         if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
         if (!warstwy[layerName]) {
-          showToast('Nowa warstwa zostanie dodana dopiero po kliknięciu Zapisz w popupie.');
+          addLayer(layerName, true, selectedMain);
+          showToast('Dodano warstwę. Kliknij Zapisz, aby przypisać do niej pinezkę.');
+        } else {
+          warstwy[layerName].mainCategory = normalizeMainCategory(warstwy[layerName].mainCategory || selectedMain);
+          showToast('Ta warstwa już istnieje. Kliknij Zapisz, aby przypisać do niej pinezkę.');
         }
       });
       setupDropdownInput(editCategoryInput, () => getCategorySuggestions(editMainCategoryInput ? editMainCategoryInput.value : getPinMainCategory(p)));
@@ -9821,10 +9827,16 @@ function zaladujPinezkiZFirestore() {
       const addLayerFromPinNewBtn = container.querySelector('#addLayerFromPinNew');
       if (addLayerFromPinNewBtn) addLayerFromPinNewBtn.addEventListener('click', () => {
         const layerName = (container.querySelector('#warstwaNew').value || '').trim();
-        const selectedMain = (container.querySelector('#kategoriaGlownaNew').value || '').trim();
+        const selectedMain = normalizeMainCategory((container.querySelector('#kategoriaGlownaNew').value || '').trim());
         if (!layerName) return alert('Wpisz nazwę nowej warstwy.');
         if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
-        if (!warstwy[layerName]) addLayer(layerName, true, selectedMain);
+        if (!warstwy[layerName]) {
+          addLayer(layerName, true, selectedMain);
+          showToast('Dodano warstwę. Ta pinezka zostanie do niej przypisana po zapisie.');
+        } else {
+          warstwy[layerName].mainCategory = normalizeMainCategory(warstwy[layerName].mainCategory || selectedMain);
+          showToast('Ta warstwa już istnieje. Ta pinezka zostanie do niej przypisana po zapisie.');
+        }
       });
       setupDropdownInput(newCategoryInput, () => getCategorySuggestions(newMainCategoryInput ? newMainCategoryInput.value : MAIN_CATEGORY_URBEX));
       if (newMainCategoryInput) newMainCategoryInput.addEventListener('change', () => { if (newCategoryInput) newCategoryInput.value = ''; });
@@ -13706,12 +13718,15 @@ function getTripPointEmoji(p) {
         };
 
         const orderList = loadLayerOrder();
-        const pendingLayerNames = [...new Set(
-          nowePinezki
-            .map(p => (p.warstwa || '').trim())
-            .filter(Boolean)
-        )];
-        await Promise.all(pendingLayerNames.map(name => ensureLayerEntry(name, orderList)));
+        const pendingLayerMap = new Map();
+        const collectPendingLayer = (name, mainCategory) => {
+          const cleanName = (name || '').trim();
+          if (!cleanName) return;
+          pendingLayerMap.set(cleanName, normalizeMainCategory(mainCategory || pendingLayerMap.get(cleanName) || (warstwy[cleanName] && warstwy[cleanName].mainCategory) || MAIN_CATEGORY_URBEX));
+        };
+        nowePinezki.forEach(p => collectPendingLayer(p.warstwa, getPinMainCategory(p)));
+        Object.values(zmianyDoZapisania).forEach(data => collectPendingLayer(data && data.warstwa, data && data.kategoriaGlowna));
+        await Promise.all([...pendingLayerMap.entries()].map(([name, mainCategory]) => ensureLayerEntry(name, orderList, mainCategory)));
 
         const updatePromises = Object.entries(zmianyDoZapisania).map(async ([id, data]) => {
           const p = wszystkiePinezki.find(pp => pp.id === id);
