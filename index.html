@@ -4057,12 +4057,21 @@ function slugify(str) {
     const layerDocs = {};
     const layerNamesById = {};
 
+    function stripLayerInternalPrefix(layerName) {
+      let value = (layerName || '').trim();
+      let previous = '';
+      while (value && value !== previous) {
+        previous = value;
+        value = value.replace(/^(urbex|turystyczne)\s*:{1,2}\s*/i, '').trim();
+      }
+      return value;
+    }
+
     function getLayerDisplayName(layerKeyOrName) {
       const value = (layerKeyOrName || '').trim();
       const layer = warstwy[value];
-      if (layer && layer.displayName) return layer.displayName;
-      const separatorIndex = value.indexOf('::');
-      return separatorIndex >= 0 ? value.slice(separatorIndex + 2) : value;
+      if (layer && layer.displayName) return stripLayerInternalPrefix(layer.displayName);
+      return stripLayerInternalPrefix(value);
     }
 
     function makeLayerKey(layerName, mainCategory = MAIN_CATEGORY_URBEX) {
@@ -4987,7 +4996,7 @@ function slugify(str) {
           if (match) visibleCount++;
         });
         const countToShow = query ? visibleCount : info.totalCount;
-        info.label.textContent = `${info.name} (${countToShow})`;
+        info.label.textContent = `${getLayerDisplayName(info.name)} (${countToShow})`;
         if (info.listEl) {
           if (query) {
             const shouldShowList = visibleCount > 0;
