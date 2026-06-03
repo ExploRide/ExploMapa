@@ -4032,7 +4032,7 @@ function slugify(str) {
       lastNewPinSessionDefaults = {
         kategoriaGlowna: resolvedCategory.mainCategory,
         kategoria: resolvedCategory.category,
-        warstwa: (pin.warstwa || '').trim()
+        warstwa: getLayerDisplayName((pin.warstwa || '').trim())
       };
     };
     const applyLastNewPinSessionDefaultsToFields = ({ mainCategoryInput, categoryInput, layerInput } = {}) => {
@@ -4056,6 +4056,70 @@ function slugify(str) {
     let selectedStatuses = new Set();
     const layerDocs = {};
     const layerNamesById = {};
+
+    function getLayerDisplayName(layerKeyOrName) {
+      const value = (layerKeyOrName || '').trim();
+      const layer = warstwy[value];
+      if (layer && layer.displayName) return layer.displayName;
+      const separatorIndex = value.indexOf('::');
+      return separatorIndex >= 0 ? value.slice(separatorIndex + 2) : value;
+    }
+
+    function makeLayerKey(layerName, mainCategory = MAIN_CATEGORY_URBEX) {
+      const cleanName = getLayerDisplayName((layerName || '').trim());
+      if (!cleanName) return '';
+      return `${normalizeMainCategory(mainCategory)}::${cleanName}`;
+    }
+
+    function getLayerMainCategory(layerKeyOrName) {
+      const value = (layerKeyOrName || '').trim();
+      if (warstwy[value] && warstwy[value].mainCategory) {
+        return normalizeMainCategory(warstwy[value].mainCategory);
+      }
+      if (value.startsWith(`${MAIN_CATEGORY_TURYSTYCZNE}::`)) return MAIN_CATEGORY_TURYSTYCZNE;
+      return MAIN_CATEGORY_URBEX;
+    }
+
+    function findLayerKeyByDisplayName(layerName, mainCategory = MAIN_CATEGORY_URBEX) {
+      const cleanName = getLayerDisplayName((layerName || '').trim());
+      if (!cleanName) return '';
+      const normalizedMain = normalizeMainCategory(mainCategory);
+      if (warstwy[cleanName] && normalizeMainCategory(warstwy[cleanName].mainCategory || normalizedMain) === normalizedMain) return cleanName;
+      const exactKey = makeLayerKey(cleanName, normalizedMain);
+      if (warstwy[exactKey] || layerDocs[exactKey]) return exactKey;
+      return Object.keys(warstwy).find(key => (warstwy[key].displayName || getLayerDisplayName(key)) === cleanName && normalizeMainCategory(warstwy[key].mainCategory || MAIN_CATEGORY_URBEX) === normalizedMain) || exactKey;
+    }
+
+    function getLayerKeyFromInput(layerName, mainCategory = MAIN_CATEGORY_URBEX) {
+      const cleanName = (layerName || '').trim();
+      if (!cleanName) return '';
+      if (warstwy[cleanName] || layerDocs[cleanName]) return cleanName;
+      return findLayerKeyByDisplayName(cleanName, mainCategory);
+    }
+
+    function ensureLocalLayerObject(layerKey, displayName, mainCategory, options = {}) {
+      if (!layerKey) return null;
+      const normalizedMain = normalizeMainCategory(mainCategory);
+      if (!warstwy[layerKey]) {
+        warstwy[layerKey] = {
+          lista: [],
+          layer: options.layer || createPinLayer(),
+          collapsed: options.collapsed !== undefined ? options.collapsed : true,
+          emoji: options.emoji || '',
+          loaded: options.loaded === true,
+          loading: options.loading === true,
+          defaultVisible: options.defaultVisible !== undefined ? !!options.defaultVisible : true,
+          mainCategory: normalizedMain,
+          displayName: displayName || getLayerDisplayName(layerKey)
+        };
+      } else {
+        warstwy[layerKey].displayName = warstwy[layerKey].displayName || displayName || getLayerDisplayName(layerKey);
+        warstwy[layerKey].mainCategory = normalizeMainCategory(warstwy[layerKey].mainCategory || normalizedMain);
+        if (options.emoji) warstwy[layerKey].emoji = options.emoji;
+        if (options.defaultVisible !== undefined) warstwy[layerKey].defaultVisible = !!options.defaultVisible;
+      }
+      return warstwy[layerKey];
+    }
     let sztosyId = null;
     let visitedId = null;
     let movingLayerId = null;
@@ -4639,10 +4703,12 @@ function slugify(str) {
         showToast('Uzupełnij przynajmniej jedno pole masowej edycji.');
         return;
       }
-      if (layerName && !warstwy[layerName]) {
-        addLayer(layerName);
+      const bulkMain = normalizeMainCategory(newMainCategory || MAIN_CATEGORY_URBEX);
+      const bulkLayerKey = layerName ? getLayerKeyFromInput(layerName, bulkMain) : '';
+      if (layerName && !warstwy[bulkLayerKey]) {
+        addLayer(layerName, true, bulkMain);
       }
-      const updatedLayerId = layerDocs[layerName] || null;
+      const updatedLayerId = layerDocs[bulkLayerKey] || null;
       const pins = Array.from(selectedPinIds)
         .map(id => wszystkiePinezki.find(p => String(p.id) === id))
         .filter(Boolean);
@@ -4650,7 +4716,7 @@ function slugify(str) {
         markPinUnsaved(pin.slug);
         const pending = zmianyDoZapisania[pin.id] || {};
         if (layerName) {
-          pending.warstwa = layerName;
+          pending.warstwa = bulkLayerKey;
           pending.warstwaId = updatedLayerId;
         }
         if (newMainCategory) pending.kategoriaGlowna = newMainCategory;
@@ -4675,7 +4741,7 @@ function slugify(str) {
       bulkApplyEditsBtn.addEventListener('click', () => handleBulkPinEdits());
     }
     if (bulkLayerInput) {
-      setupDropdownInput(bulkLayerInput, () => Object.keys(warstwy));
+      setupDropdownInput(bulkLayerInput, () => Object.keys(warstwy).filter(name => normalizeMainCategory(warstwy[name].mainCategory || MAIN_CATEGORY_URBEX) === normalizeMainCategory(bulkMainCategoryInput ? bulkMainCategoryInput.value : MAIN_CATEGORY_URBEX)).map(getLayerDisplayName));
       bulkLayerInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
           e.preventDefault();
@@ -4692,18 +4758,24 @@ function slugify(str) {
       });
     }
 
-    function resolveLayerInfo(layerValue, layerIdValue) {
-      const idFromValue = layerValue && layerNamesById[layerValue] ? layerValue : null;
-      const idFromName = layerValue && layerDocs[layerValue] ? layerDocs[layerValue] : null;
-      const resolvedId = layerIdValue || idFromValue || idFromName || null;
-      let resolvedName = layerValue || 'Inne';
-      if (resolvedId && layerNamesById[resolvedId]) {
-        resolvedName = layerNamesById[resolvedId];
-      } else if (!layerValue) {
-        resolvedName = 'Inne';
-      }
-      return { warstwaId: resolvedId, warstwaName: resolvedName };
+    function resolveLayerInfo(layerValue, layerIdValue, mainCategory = MAIN_CATEGORY_URBEX) {
+      const normalizedMain = normalizeMainCategory(mainCategory);
+      const cleanValue = (layerValue || '').trim();
+      const idFromValue = cleanValue && layerNamesById[cleanValue] ? cleanValue : null;
+      let keyFromId = layerIdValue && layerNamesById[layerIdValue] ? layerNamesById[layerIdValue] : null;
+      if (keyFromId && getLayerMainCategory(keyFromId) !== normalizedMain) keyFromId = null;
+      let keyFromValueId = idFromValue ? layerNamesById[idFromValue] : null;
+      if (keyFromValueId && getLayerMainCategory(keyFromValueId) !== normalizedMain) keyFromValueId = null;
+      const keyFromValueName = cleanValue && (warstwy[cleanValue] || layerDocs[cleanValue]) ? cleanValue : null;
+      const resolvedKey = keyFromValueName || keyFromId || keyFromValueId || getLayerKeyFromInput(cleanValue || 'Inne', normalizedMain);
+      const resolvedId = layerDocs[resolvedKey] || ((resolvedKey === keyFromId && layerIdValue) || (resolvedKey === keyFromValueId && idFromValue) || null);
+      return {
+        warstwaId: resolvedId,
+        warstwaName: resolvedKey || makeLayerKey('Inne', normalizedMain),
+        displayName: getLayerDisplayName(resolvedKey || cleanValue || 'Inne')
+      };
     }
+
 
 
     function appendPinPlanItems(container, pin) {
@@ -5164,7 +5236,7 @@ function slugify(str) {
           IDpinezki: id,
           nazwa: pin.nazwa,
           opis: pin.opis ? pin.opis.replace(/\n/g, '<br>') : '',
-          warstwa: layerName,
+          warstwa: getLayerKeyFromInput(layerName, MAIN_CATEGORY_URBEX),
           kategoria: '',
           kategoriaGlowna: MAIN_CATEGORY_URBEX,
           emoji: '',
@@ -5189,12 +5261,13 @@ function slugify(str) {
         registerPinCategory(data);
         registerPinCountry(data);
         enqueueCountryFetch(data);
-        data.warstwaId = layerDocs[layerName] || null;
-        if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+        const importLayerKey = data.warstwa;
+        data.warstwaId = layerDocs[importLayerKey] || null;
+        if (!warstwy[importLayerKey]) {
+          ensureLocalLayerObject(importLayerKey, getLayerDisplayName(importLayerKey), MAIN_CATEGORY_URBEX, { layer: createPinLayer().addTo(map), loaded: true, loading: false });
         }
-        const iconEmoji = warstwy[layerName].emoji || data.emoji;
-        const marker = L.marker([data.lat, data.lng], { icon: createEmojiIcon(iconEmoji, data.warstwaId, 32, data) }).addTo(warstwy[layerName].layer);
+        const iconEmoji = warstwy[importLayerKey].emoji || data.emoji;
+        const marker = L.marker([data.lat, data.lng], { icon: createEmojiIcon(iconEmoji, data.warstwaId, 32, data) }).addTo(warstwy[importLayerKey].layer);
         marker.__pinRef = data;
         const popupDiv = document.createElement("div");
         popupDiv.className = "popup-container";
@@ -5205,8 +5278,8 @@ function slugify(str) {
         attachHighlight(marker, null);
         data.marker = marker;
         applyInactiveStyle(data);
-        warstwy[layerName].lista.push(data);
-        warstwy[layerName].loaded = true;
+        warstwy[importLayerKey].lista.push(data);
+        warstwy[importLayerKey].loaded = true;
         wszystkiePinezki.push(data);
         return data;
       });
@@ -6603,7 +6676,7 @@ function emojiHtml(str) {
 
     function createPopupHtml(p) {
       const slug = p.slug || slugify(p.nazwa || '');
-      const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId).warstwaName || 'Inne';
+      const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId, getPinMainCategory(p)).displayName || 'Inne';
       const trudHtml = p.trudnosc !== undefined ?
         `<div class="trudnosc-wrapper">
           <div class="trudnosc-text" id="trudnoscLabel-${p.id}" style="color:${trudnoscColor(p.trudnosc)}">Poziom trudności: ${trudnoscText(p.trudnosc)}</div>
@@ -8805,29 +8878,25 @@ function emojiHtml(str) {
     }
 
     async function ensureLayerEntry(layerName, orderList = [], mainCategory = MAIN_CATEGORY_URBEX) {
-      if (!layerName) return;
-      const normalizedMain = normalizeMainCategory(mainCategory || (warstwy[layerName] && warstwy[layerName].mainCategory) || MAIN_CATEGORY_URBEX);
-      const ensureLocalLayer = () => {
-        if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: '', loaded: false, loading: false, defaultVisible: true, mainCategory: normalizedMain };
-        } else {
-          warstwy[layerName].mainCategory = normalizeMainCategory(warstwy[layerName].mainCategory || normalizedMain);
-        }
-      };
-      if (layerDocs[layerName]) {
-        if (Array.isArray(orderList) && !orderList.includes(layerName)) {
-          orderList.push(layerName);
+      const displayName = getLayerDisplayName((layerName || '').trim());
+      if (!displayName) return;
+      const normalizedMain = normalizeMainCategory(mainCategory || MAIN_CATEGORY_URBEX);
+      const layerKey = getLayerKeyFromInput(displayName, normalizedMain);
+      const ensureLocalLayer = () => ensureLocalLayerObject(layerKey, displayName, normalizedMain, { loaded: false, loading: false });
+      if (layerDocs[layerKey]) {
+        if (Array.isArray(orderList) && !orderList.includes(layerKey)) {
+          orderList.push(layerKey);
         }
         ensureLocalLayer();
         return;
       }
       try {
-        const payload = { name: layerName, order: Array.isArray(orderList) ? orderList.length : Object.keys(layerDocs).length, mainCategory: normalizedMain };
+        const payload = { name: displayName, order: Array.isArray(orderList) ? orderList.length : Object.keys(layerDocs).length, mainCategory: normalizedMain };
         const docRef = await db.collection('layers').add(payload);
-        layerDocs[layerName] = docRef.id;
-        layerNamesById[docRef.id] = layerName;
-        if (Array.isArray(orderList) && !orderList.includes(layerName)) {
-          orderList.push(layerName);
+        layerDocs[layerKey] = docRef.id;
+        layerNamesById[docRef.id] = layerKey;
+        if (Array.isArray(orderList) && !orderList.includes(layerKey)) {
+          orderList.push(layerKey);
         }
         ensureLocalLayer();
       } catch (e) {
@@ -8836,31 +8905,29 @@ function emojiHtml(str) {
       }
     }
 
+
     async function loadLayersFromFirestore() {
       try {
         const snap = await db.collection('layers').orderBy('order').get();
         const order = [];
         snap.forEach(doc => {
           const data = doc.data();
-          layerDocs[data.name] = doc.id;
-          layerNamesById[doc.id] = data.name;
-          if (data.name === 'Sztosy') sztosyId = doc.id;
-          if (data.name && data.name.toLowerCase() === 'zwiedzone i niedostępne') visitedId = doc.id;
-          if (data.name === 'Tryb w ruchu') movingLayerId = doc.id;
-          order.push(data.name);
-          if (!warstwy[data.name]) {
-            warstwy[data.name] = { lista: [], layer: createPinLayer(), collapsed: true, emoji: data.emoji || '', loaded: false, loading: false, defaultVisible: data.defaultVisible !== undefined ? !!data.defaultVisible : true, mainCategory: normalizeMainCategory(data.mainCategory || MAIN_CATEGORY_URBEX) };
-          } else {
-            if (data.emoji) {
-              warstwy[data.name].emoji = data.emoji;
-            }
-            if (data.defaultVisible !== undefined) {
-              warstwy[data.name].defaultVisible = !!data.defaultVisible;
-            } else if (warstwy[data.name].defaultVisible === undefined) {
-              warstwy[data.name].defaultVisible = true;
-            }
-            warstwy[data.name].mainCategory = normalizeMainCategory(data.mainCategory || warstwy[data.name].mainCategory || MAIN_CATEGORY_URBEX);
-          }
+          const displayName = (data.name || '').trim();
+          if (!displayName) return;
+          const mainCategory = normalizeMainCategory(data.mainCategory || MAIN_CATEGORY_URBEX);
+          const layerKey = makeLayerKey(displayName, mainCategory);
+          layerDocs[layerKey] = doc.id;
+          layerNamesById[doc.id] = layerKey;
+          if (displayName === 'Sztosy') sztosyId = doc.id;
+          if (displayName && displayName.toLowerCase() === 'zwiedzone i niedostępne') visitedId = doc.id;
+          if (displayName === 'Tryb w ruchu') movingLayerId = doc.id;
+          order.push(layerKey);
+          ensureLocalLayerObject(layerKey, displayName, mainCategory, {
+            emoji: data.emoji || '',
+            loaded: false,
+            loading: false,
+            defaultVisible: data.defaultVisible !== undefined ? !!data.defaultVisible : true
+          });
         });
         if (order.length > 0) {
           localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
@@ -8871,6 +8938,7 @@ function emojiHtml(str) {
         console.error('Błąd wczytywania warstw', e);
       }
     }
+
 
     
 function zaladujPinezkiZFirestore() {
@@ -9073,21 +9141,16 @@ function zaladujPinezkiZFirestore() {
       registerPinCategory(p);
       registerPinCountry(p);
       if (!isMobileLayout) enqueueCountryFetch(p);
-      const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
+      const pinMainCategory = getPinMainCategory(p);
+      const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId, pinMainCategory);
       p.warstwaId = layerInfo.warstwaId || null;
       p.warstwa = layerInfo.warstwaName;
-      const warstwaNazwa = p.warstwa || "Inne";
-      if (warstwaNazwa === PINTEREST_LAYER_NAME && !warstwy[warstwaNazwa]) {
+      const warstwaNazwa = p.warstwa || makeLayerKey('Inne', pinMainCategory);
+      if (getLayerDisplayName(warstwaNazwa) === PINTEREST_LAYER_NAME && !warstwy[warstwaNazwa]) {
         return;
       }
       if (!warstwy[warstwaNazwa]) {
-        warstwy[warstwaNazwa] = {
-          lista: [],
-          layer: createPinLayer(),
-          collapsed: true,
-          emoji: '',
-          defaultVisible: true
-        };
+        ensureLocalLayerObject(warstwaNazwa, layerInfo.displayName, pinMainCategory, { layer: createPinLayer(), loaded: false, loading: false });
       }
 
       if (p.trasy) {
@@ -9457,12 +9520,12 @@ function zaladujPinezkiZFirestore() {
         return Object.keys(warstwy).filter(name => {
           const layerMain = normalizeMainCategory((warstwy[name] && warstwy[name].mainCategory) || MAIN_CATEGORY_URBEX);
           return layerMain === selectedMain;
-        });
+        }).map(getLayerDisplayName);
       };
       setupDropdownInput(layerInput, getFilteredLayers);
       const enforceLayerMatch = () => {
         const allowed = getFilteredLayers();
-        if (layerInput.value && !allowed.includes(layerInput.value)) layerInput.value = '';
+        if (layerInput.value && !allowed.includes(getLayerDisplayName(layerInput.value))) layerInput.value = '';
       };
       mainCategoryInput.addEventListener('change', enforceLayerMatch);
       enforceLayerMatch();
@@ -9530,7 +9593,7 @@ function zaladujPinezkiZFirestore() {
      /* console.log('Wywołano edytuj dla id:', id, 'lat:', lat, 'lng:', lng); // <-- dodane */
       const p = wszystkiePinezki.find(pp => pp.id === id);
       if (!p) return;
-      const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId).warstwaName || '';
+      const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId, getPinMainCategory(p)).displayName || '';
       if (!p._editOriginalState) delete p.noweEmoji;
       beginPinEditSession(p);
       if (!Object.prototype.hasOwnProperty.call(p, '_photoEditBackup')) {
@@ -9617,11 +9680,12 @@ function zaladujPinezkiZFirestore() {
         const selectedMain = normalizeMainCategory((container.querySelector('#ekategoriaGlowna').value || '').trim());
         if (!layerName) return alert('Wpisz nazwę nowej warstwy.');
         if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
-        if (!warstwy[layerName]) {
+        const layerKey = getLayerKeyFromInput(layerName, selectedMain);
+        if (!warstwy[layerKey]) {
           addLayer(layerName, true, selectedMain);
           showToast('Dodano warstwę. Kliknij Zapisz, aby przypisać do niej pinezkę.');
         } else {
-          warstwy[layerName].mainCategory = normalizeMainCategory(warstwy[layerName].mainCategory || selectedMain);
+          warstwy[layerKey].mainCategory = normalizeMainCategory(warstwy[layerKey].mainCategory || selectedMain);
           showToast('Ta warstwa już istnieje. Kliknij Zapisz, aby przypisać do niej pinezkę.');
         }
       });
@@ -9746,12 +9810,13 @@ function zaladujPinezkiZFirestore() {
     function applyPinData(p, data) {
       const staraWarstwa = p.warstwa || "Inne";
       Object.assign(p, data);
-      const nowaWarstwa = p.warstwa || "Inne";
+      const targetMainCategory = getPinMainCategory(p);
+      const nowaWarstwa = p.warstwa || makeLayerKey('Inne', targetMainCategory);
       if (!warstwy[nowaWarstwa]) {
-        warstwy[nowaWarstwa] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
+        ensureLocalLayerObject(nowaWarstwa, getLayerDisplayName(nowaWarstwa), targetMainCategory, { layer: createPinLayer().addTo(map), loaded: true });
       }
       if (staraWarstwa !== nowaWarstwa) {
-        const idx = warstwy[staraWarstwa].lista.indexOf(p);
+        const idx = warstwy[staraWarstwa] ? warstwy[staraWarstwa].lista.indexOf(p) : -1;
         if (idx > -1) warstwy[staraWarstwa].lista.splice(idx, 1);
         warstwy[nowaWarstwa].lista.push(p);
         if (p.marker) p.marker.remove();
@@ -9792,7 +9857,8 @@ function zaladujPinezkiZFirestore() {
       );
       const mainCatVal = resolvedCategory.mainCategory;
       const catVal = resolvedCategory.category;
-      if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
+      const layerKey = getLayerKeyFromInput(layerVal, mainCatVal);
+      if (layerVal && !warstwy[layerKey]) addLayer(layerVal, true, mainCatVal);
       const p = wszystkiePinezki.find(pp => pp.id === id);
       const editMarker = p ? p.marker : null;
       if (p && p._editDraft) delete p._editDraft;
@@ -9823,8 +9889,8 @@ function zaladujPinezkiZFirestore() {
         nazwa: nameVal,
         opis: document.getElementById("eopis").value.replace(/\n/g, '<br>'),
         odKogo: document.getElementById("eodKogo").value,
-        warstwa: layerVal,
-        warstwaId: layerDocs[layerVal] || null,
+        warstwa: getLayerKeyFromInput(layerVal, mainCatVal),
+        warstwaId: layerDocs[getLayerKeyFromInput(layerVal, mainCatVal)] || null,
         kategoria: catVal,
         kategoriaGlowna: mainCatVal,
         emoji: emojiVal,
@@ -9897,7 +9963,7 @@ function zaladujPinezkiZFirestore() {
         if (addedPin.plany) addedPin.plany.forEach(pl => removePlanOverlay(pl));
         const idxN = nowePinezki.indexOf(addedPin);
         if (idxN > -1) nowePinezki.splice(idxN, 1);
-        const layer = warstwy[addedPin.warstwa || 'Inne'];
+        const layer = warstwy[addedPin.warstwa || makeLayerKey('Inne', getPinMainCategory(addedPin))];
         if (layer) {
           const idxL = layer.lista.indexOf(addedPin);
           if (idxL > -1) layer.lista.splice(idxL, 1);
@@ -9912,9 +9978,9 @@ function zaladujPinezkiZFirestore() {
           marker.addTo(map);
           return;
         }
-        const layerName = addedPin.warstwa || 'Inne';
+        const layerName = addedPin.warstwa || makeLayerKey('Inne', getPinMainCategory(addedPin));
         if (!warstwy[layerName]) {
-          warstwy[layerName] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+          ensureLocalLayerObject(layerName, getLayerDisplayName(layerName), getPinMainCategory(addedPin), { layer: createPinLayer().addTo(map), loaded: true, loading: false });
         }
         if (!warstwy[layerName].lista.includes(addedPin)) warstwy[layerName].lista.push(addedPin);
         if (!wszystkiePinezki.includes(addedPin)) wszystkiePinezki.push(addedPin);
@@ -9997,11 +10063,12 @@ function zaladujPinezkiZFirestore() {
         const selectedMain = normalizeMainCategory((container.querySelector('#kategoriaGlownaNew').value || '').trim());
         if (!layerName) return alert('Wpisz nazwę nowej warstwy.');
         if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
-        if (!warstwy[layerName]) {
+        const layerKey = getLayerKeyFromInput(layerName, selectedMain);
+        if (!warstwy[layerKey]) {
           addLayer(layerName, true, selectedMain);
           showToast('Dodano warstwę. Ta pinezka zostanie do niej przypisana po zapisie.');
         } else {
-          warstwy[layerName].mainCategory = normalizeMainCategory(warstwy[layerName].mainCategory || selectedMain);
+          warstwy[layerKey].mainCategory = normalizeMainCategory(warstwy[layerKey].mainCategory || selectedMain);
           showToast('Ta warstwa już istnieje. Ta pinezka zostanie do niej przypisana po zapisie.');
         }
       });
@@ -10086,13 +10153,14 @@ function zaladujPinezkiZFirestore() {
           );
           const mainCatVal = resolvedCategory.mainCategory;
           const catVal = resolvedCategory.category;
-          if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
+          const layerKey = getLayerKeyFromInput(layerVal, mainCatVal);
+      if (layerVal && !warstwy[layerKey]) addLayer(layerVal, true, mainCatVal);
           const data = {
             id: tempPin.id,
             IDpinezki: tempPin.id,
             nazwa: nameVal,
             opis: container.querySelector("#opisNew").value.replace(/\n/g, '<br>'),
-            warstwa: layerVal,
+            warstwa: getLayerKeyFromInput(layerVal, mainCatVal),
             kategoria: catVal,
             kategoriaGlowna: mainCatVal,
             emoji: tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji,
@@ -10113,10 +10181,10 @@ function zaladujPinezkiZFirestore() {
           };
         saved = true;
 
-        const warstwaN = data.warstwa || "Inne";
+        const warstwaN = data.warstwa || makeLayerKey('Inne', mainCatVal);
         data.warstwaId = layerDocs[warstwaN] || null;
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+          ensureLocalLayerObject(warstwaN, getLayerDisplayName(warstwaN), mainCatVal, { layer: createPinLayer().addTo(map), loaded: true, loading: false });
         }
         data.marker = marker;
         const iconEmoji = warstwy[warstwaN].emoji || data.emoji;
@@ -10369,12 +10437,13 @@ function zaladujPinezkiZFirestore() {
         registerPinCategory(p);
                 registerPinCountry(p);
         enqueueCountryFetch(p);
-        const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
+        const localPinMain = getPinMainCategory(p);
+        const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId, localPinMain);
         p.warstwaId = layerInfo.warstwaId || null;
         p.warstwa = layerInfo.warstwaName;
-        const warstwaN = p.warstwa || 'Inne';
+        const warstwaN = p.warstwa || makeLayerKey('Inne', localPinMain);
         if (!warstwy[warstwaN]) {
-          warstwy[warstwaN] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+          ensureLocalLayerObject(warstwaN, layerInfo.displayName, localPinMain, { layer: createPinLayer().addTo(map), loaded: true, loading: false });
         }
         const iconEmoji = warstwy[warstwaN].emoji || p.emoji;
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[warstwaN].layer);
@@ -10828,7 +10897,7 @@ function zaladujPinezkiZFirestore() {
     function renameLayer(oldName, labelEl) {
       const input = document.createElement('input');
       input.type = 'text';
-      input.value = oldName;
+      input.value = getLayerDisplayName(oldName);
       labelEl.replaceWith(input);
       input.focus();
       input.select();
@@ -10846,56 +10915,61 @@ function zaladujPinezkiZFirestore() {
         if (e.key === 'Enter') {
           input.blur();
         } else if (e.key === 'Escape') {
-          input.value = oldName;
+          input.value = getLayerDisplayName(oldName);
           input.blur();
         }
       };
     }
 
     function addLayer(name, record = true, mainCategory = MAIN_CATEGORY_URBEX) {
-      if (!name || warstwy[name]) return;
+      const displayName = getLayerDisplayName((name || '').trim());
+      if (!displayName) return;
       const normalizedMain = normalizeMainCategory(mainCategory);
+      const layerKey = getLayerKeyFromInput(displayName, normalizedMain);
+      if (warstwy[layerKey]) return layerKey;
       const prevLayersToAdd = layersToAdd.slice();
       const prevOrder = loadLayerOrder();
-      warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true, mainCategory: normalizedMain };
-      warstwy[name].visible = true;
-      setLayerCollapseState(name, true);
-      setLayerVisibilityState(name, true);
-      layersToAdd.push(name);
+      warstwy[layerKey] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true, mainCategory: normalizedMain, displayName };
+      warstwy[layerKey].visible = true;
+      setLayerCollapseState(layerKey, true);
+      setLayerVisibilityState(layerKey, true);
+      layersToAdd.push(layerKey);
       const order = prevOrder.slice();
-      order.unshift(name);
+      order.unshift(layerKey);
       localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
       generujListeWarstw();
       markDataDirty('layer:edit');
       if (record) {
         pushAction({
           undo: () => {
-            if (warstwy[name]) {
-              map.removeLayer(warstwy[name].layer);
-              delete warstwy[name];
+            if (warstwy[layerKey]) {
+              map.removeLayer(warstwy[layerKey].layer);
+              delete warstwy[layerKey];
             }
             layersToAdd = prevLayersToAdd;
             localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(prevOrder));
-            removeLayerCollapseState(name);
-            removeLayerVisibilityState(name);
+            removeLayerCollapseState(layerKey);
+            removeLayerVisibilityState(layerKey);
             generujListeWarstw();
             updateSaveButton();
           },
           redo: () => {
-            warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true, mainCategory: normalizedMain };
-            warstwy[name].visible = true;
-            layersToAdd = prevLayersToAdd.concat(name);
+            warstwy[layerKey] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true, mainCategory: normalizedMain, displayName };
+            warstwy[layerKey].visible = true;
+            layersToAdd = prevLayersToAdd.concat(layerKey);
             const o = prevOrder.slice();
-            o.unshift(name);
+            o.unshift(layerKey);
             localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(o));
-            setLayerCollapseState(name, true);
-            setLayerVisibilityState(name, true);
+            setLayerCollapseState(layerKey, true);
+            setLayerVisibilityState(layerKey, true);
             generujListeWarstw();
             updateSaveButton();
           }
-        }, `Dodano warstwę ${name}`);
+        }, `Dodano warstwę ${displayName}`);
       }
+      return layerKey;
     }
+
 
     function deleteLayer(name, record = true) {
       if (!warstwy[name]) return;
@@ -10961,7 +11035,7 @@ function zaladujPinezkiZFirestore() {
       const panel = document.getElementById('layer-editor');
       if (!panel) return;
       editedLayer = name;
-      document.getElementById('layerEditName').value = name;
+      document.getElementById('layerEditName').value = getLayerDisplayName(name);
       const order = loadLayerOrder();
       const idx = order.indexOf(name);
       document.getElementById('layerEditOrder').value = idx >= 0 ? idx + 1 : (order.length + 1);
@@ -11002,9 +11076,10 @@ function zaladujPinezkiZFirestore() {
         return;
       }
       const newDefaultVisible = defaultVisibleInput.checked;
-      if (newName && newName !== editedLayer) {
+      if (newName && newName !== getLayerDisplayName(editedLayer)) {
+        const previousEditedLayer = editedLayer;
         applyRenameLayer(editedLayer, newName);
-        editedLayer = newName;
+        editedLayer = getLayerKeyFromInput(newName, warstwy[previousEditedLayer]?.mainCategory || oldState.mainCategory);
       }
       reorderLayer(editedLayer, newOrder);
       if (warstwy[editedLayer].emoji !== newEmoji) {
@@ -11017,7 +11092,7 @@ function zaladujPinezkiZFirestore() {
         layerDefaultVisibilityChanges[editedLayer] = newDefaultVisible;
       }
       if (MAIN_CATEGORY_OPTIONS.includes(newMainCategory)) {
-        warstwy[editedLayer].mainCategory = newMainCategory;
+        editedLayer = moveLayerToMainCategory(editedLayer, newMainCategory);
       }
       const layerPins = warstwy[editedLayer] && Array.isArray(warstwy[editedLayer].lista) ? warstwy[editedLayer].lista : [];
       const previousMainCategories = {};
@@ -11097,42 +11172,92 @@ function zaladujPinezkiZFirestore() {
       }
     }
 
-    function applyRenameLayer(oldName, newName) {
-      if (!newName || newName === oldName) return;
-      if (warstwy[newName]) {
-        alert('Warstwa o takiej nazwie już istnieje.');
-        return;
+    function moveLayerToMainCategory(layerKey, newMainCategory) {
+      const layer = warstwy[layerKey];
+      if (!layer) return layerKey;
+      const normalizedMain = normalizeMainCategory(newMainCategory);
+      const displayName = getLayerDisplayName(layerKey);
+      const nextKey = makeLayerKey(displayName, normalizedMain);
+      if (nextKey === layerKey) {
+        layer.mainCategory = normalizedMain;
+        return layerKey;
       }
+      if (warstwy[nextKey]) {
+        alert('W tej kategorii głównej istnieje już warstwa o takiej nazwie.');
+        return layerKey;
+      }
+      layer.mainCategory = normalizedMain;
+      layer.displayName = displayName;
+      warstwy[nextKey] = layer;
+      delete warstwy[layerKey];
+      layer.lista.forEach(pin => {
+        pin.warstwa = nextKey;
+        const data = zmianyDoZapisania[pin.id] || {};
+        data.warstwa = nextKey;
+        data.kategoriaGlowna = normalizedMain;
+        zmianyDoZapisania[pin.id] = data;
+        pin.unsaved = true;
+      });
+      const order = loadLayerOrder().map(n => n === layerKey ? nextKey : n);
+      localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
+      const collapseStates = loadLayerCollapseStates();
+      if (collapseStates.hasOwnProperty(layerKey)) {
+        collapseStates[nextKey] = collapseStates[layerKey];
+        delete collapseStates[layerKey];
+        saveLayerCollapseStates(collapseStates);
+      }
+      const visibilityStates = loadLayerVisibilityStates();
+      if (visibilityStates.hasOwnProperty(layerKey)) {
+        visibilityStates[nextKey] = visibilityStates[layerKey];
+        delete visibilityStates[layerKey];
+        saveLayerVisibilityStates(visibilityStates);
+      }
+      if (!layersToAdd.includes(nextKey) && !layerDocs[nextKey]) layersToAdd.push(nextKey);
+      if (!layersToDelete.includes(layerKey) && (layerDocs[layerKey] || layersToAdd.includes(layerKey))) layersToDelete.push(layerKey);
+      return nextKey;
+    }
+
+    function applyRenameLayer(oldName, newName) {
+      const displayName = getLayerDisplayName((newName || '').trim());
+      if (!displayName || displayName === getLayerDisplayName(oldName)) return;
       const layer = warstwy[oldName];
       if (!layer) return;
+      const mainCategory = normalizeMainCategory(layer.mainCategory || MAIN_CATEGORY_URBEX);
+      const nextKey = getLayerKeyFromInput(displayName, mainCategory);
+      if (warstwy[nextKey] && nextKey !== oldName) {
+        alert('Warstwa o takiej nazwie już istnieje w tej kategorii głównej.');
+        return;
+      }
       layer.lista.forEach(p => {
         const cur = zmianyDoZapisania[p.id] || {};
-        cur.warstwa = newName;
-        cur.warstwaId = layerDocs[newName] || p.warstwaId || null;
+        cur.warstwa = nextKey;
+        cur.warstwaId = layerDocs[nextKey] || p.warstwaId || null;
         zmianyDoZapisania[p.id] = cur;
-        p.warstwa = newName;
+        p.warstwa = nextKey;
         p.warstwaId = cur.warstwaId;
         p.unsaved = true;
       });
-      warstwy[newName] = layer;
+      layer.displayName = displayName;
+      warstwy[nextKey] = layer;
       delete warstwy[oldName];
-      if (!layersToAdd.includes(newName) && !layerDocs[newName]) layersToAdd.push(newName);
+      if (!layersToAdd.includes(nextKey) && !layerDocs[nextKey]) layersToAdd.push(nextKey);
       if (!layersToDelete.includes(oldName) && (layerDocs[oldName] || layersToAdd.includes(oldName))) layersToDelete.push(oldName);
-      const order = loadLayerOrder().map(n => n === oldName ? newName : n);
+      const order = loadLayerOrder().map(n => n === oldName ? nextKey : n);
       localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
       const collapseStates = loadLayerCollapseStates();
       if (collapseStates.hasOwnProperty(oldName)) {
-        collapseStates[newName] = collapseStates[oldName];
+        collapseStates[nextKey] = collapseStates[oldName];
         delete collapseStates[oldName];
         saveLayerCollapseStates(collapseStates);
       }
       const visibilityStates = loadLayerVisibilityStates();
       if (visibilityStates.hasOwnProperty(oldName)) {
-        visibilityStates[newName] = visibilityStates[oldName];
+        visibilityStates[nextKey] = visibilityStates[oldName];
         delete visibilityStates[oldName];
         saveLayerVisibilityStates(visibilityStates);
       }
     }
+
 
     function reorderLayer(name, newPos) {
       let order = loadLayerOrder().filter(n => n !== name);
@@ -13658,7 +13783,7 @@ function getTripPointEmoji(p) {
           }
         };
         const label = document.createElement("span");
-        label.textContent = `${nazwa} (${warstwy[nazwa].lista.length})`;
+        label.textContent = `${getLayerDisplayName(nazwa)} (${warstwy[nazwa].lista.length})`;
         const left = document.createElement("span");
         left.appendChild(checkbox);
         left.appendChild(dragHandle);
@@ -13690,7 +13815,7 @@ function getTripPointEmoji(p) {
           editBtn.className = "layer-control-btn";
           editBtn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 11.5V13h1.5L12 5.5 10.5 4 3 11.5z"/><path d="M9.8 4.7l1.5 1.5"/></svg>';
           editBtn.style.marginRight = "5px";
-          editBtn.setAttribute('aria-label', `Edytuj warstwę ${nazwa}`);
+          editBtn.setAttribute('aria-label', `Edytuj warstwę ${getLayerDisplayName(nazwa)}`);
           const openLayerEditor = (ev) => {
             if (ev) {
               ev.preventDefault();
@@ -13905,7 +14030,7 @@ function getTripPointEmoji(p) {
           const { plany: _pendingPlans, ...rest } = data || {};
           if (Object.keys(rest).length > 0) {
             if (rest.warstwa !== undefined || rest.warstwaId !== undefined) {
-              const layerInfo = resolveLayerInfo(rest.warstwa, rest.warstwaId);
+              const layerInfo = resolveLayerInfo(rest.warstwa, rest.warstwaId, rest.kategoriaGlowna || getPinMainCategory(p));
               if (layerInfo.warstwaId) {
                 rest.warstwa = layerInfo.warstwaId;
                 rest.warstwaId = layerInfo.warstwaId;
@@ -13954,7 +14079,7 @@ function getTripPointEmoji(p) {
         const layerUpdates = Object.keys(warstwy).map(name => {
           const order = orderList.indexOf(name);
           const docId = layerDocs[name];
-          const payload = {name, order, emoji: warstwy[name].emoji || '', defaultVisible: getLayerDefaultVisible(name), mainCategory: normalizeMainCategory(warstwy[name].mainCategory || MAIN_CATEGORY_URBEX)};
+          const payload = {name: getLayerDisplayName(name), order, emoji: warstwy[name].emoji || '', defaultVisible: getLayerDefaultVisible(name), mainCategory: normalizeMainCategory(warstwy[name].mainCategory || MAIN_CATEGORY_URBEX)};
           if (docId) {
             return db.collection('layers').doc(docId).set(payload);
           } else if (layersToAdd.includes(name)) {
@@ -14152,7 +14277,7 @@ function getTripPointEmoji(p) {
         container.innerHTML = '<div>Brak duplikatów współrzędnych.</div>';
         return;
       }
-      const getPinLayerName = (pin) => resolveLayerInfo(pin.warstwa, pin.warstwaId).warstwaName || pin.warstwa || 'Inne';
+      const getPinLayerName = (pin) => resolveLayerInfo(pin.warstwa, pin.warstwaId, getPinMainCategory(pin)).displayName || getLayerDisplayName(pin.warstwa) || 'Inne';
       const getPinName = (pin) => pin.nazwa || pin.name || '(bez nazwy)';
       container.innerHTML = groups.map((group) => {
         const coords = group.coords;
@@ -14277,7 +14402,7 @@ function getTripPointEmoji(p) {
                   if (item.removed) return;
                   const pin = item.pinRef;
                   const pinName = pin.nazwa || pin.name || '(bez nazwy)';
-                  const pinLayer = resolveLayerInfo(pin.warstwa, pin.warstwaId).warstwaName || pin.warstwa || 'Inne';
+                  const pinLayer = resolveLayerInfo(pin.warstwa, pin.warstwaId, getPinMainCategory(pin)).displayName || getLayerDisplayName(pin.warstwa) || 'Inne';
                   if (pinName === name && pinLayer === layer) matchingPins.push(item);
                 });
               });
@@ -14777,18 +14902,18 @@ function confirmLayerDelete() {
       const doc = await db.collection('layers').add({name:'Tryb w ruchu', order:Object.keys(warstwy).length});
       movingLayerId = doc.id;
     }
-    const name = 'Tryb w ruchu';
+    const name = makeLayerKey('Tryb w ruchu', MAIN_CATEGORY_URBEX);
     layerDocs[name] = movingLayerId;
     layerNamesById[movingLayerId] = name;
     if (!warstwy[name]) {
-      warstwy[name] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', defaultVisible: true };
+      ensureLocalLayerObject(name, 'Tryb w ruchu', MAIN_CATEGORY_URBEX, { layer: createPinLayer().addTo(map), loaded: true });
     }
     generujListeWarstw();
     updateSaveButton();
   }
 
   function buildPinCreatePayload(p) {
-    const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId);
+    const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId, getPinMainCategory(p));
     const payload = {
       nazwa: p.nazwa,
       opis: p.opis,
@@ -14853,7 +14978,7 @@ function confirmLayerDelete() {
         firebaseId: null,
         nazwa: name,
         opis: '',
-        warstwa: 'Tryb w ruchu',
+        warstwa: makeLayerKey('Tryb w ruchu', MAIN_CATEGORY_URBEX),
         warstwaId: movingLayerId,
         kategoria: '',
         kategoriaGlowna: MAIN_CATEGORY_URBEX,
@@ -14899,14 +15024,15 @@ function confirmLayerDelete() {
     const resolvedCategory = resolveMainCategoryForCategory(form.kategoriaGlowna, form.kategoria);
     const mainCatVal = resolvedCategory.mainCategory;
     const catVal = resolvedCategory.category;
-    if (layerVal && !warstwy[layerVal]) addLayer(layerVal, true, mainCatVal);
+    const layerKey = getLayerKeyFromInput(layerVal, mainCatVal);
+      if (layerVal && !warstwy[layerKey]) addLayer(layerVal, true, mainCatVal);
     const newId = crypto.randomUUID();
     const data = {
       id: newId,
       IDpinezki: newId,
       nazwa: form.nazwa,
       opis: form.opis.replace(/\n/g, '<br>'),
-      warstwa: layerVal,
+      warstwa: layerKey,
       kategoria: catVal,
       kategoriaGlowna: mainCatVal,
       emoji: form.emoji,
@@ -14925,10 +15051,10 @@ function confirmLayerDelete() {
       unsaved: true,
       firebaseId: null
     };
-    const warstwaN = data.warstwa || 'Inne';
+    const warstwaN = data.warstwa || makeLayerKey('Inne', mainCatVal);
     data.warstwaId = layerDocs[warstwaN] || null;
     if (!warstwy[warstwaN]) {
-      warstwy[warstwaN] = { lista: [], layer: createPinLayer().addTo(map), collapsed: true, emoji: '', loaded: true, loading: false, defaultVisible: true };
+      ensureLocalLayerObject(warstwaN, getLayerDisplayName(warstwaN), mainCatVal, { layer: createPinLayer().addTo(map), loaded: true, loading: false });
     }
     const marker = L.marker(latlng, {icon: createEmojiIcon(warstwy[warstwaN].emoji || data.emoji, data.warstwaId, 32, data)}).addTo(warstwy[warstwaN].layer);
     marker.__pinRef = data;
@@ -15094,9 +15220,9 @@ function confirmLayerDelete() {
         trudInput.dispatchEvent(new Event('input'));
         modal.style.display = 'flex';
         refreshMobileEmojiPicker();
-        setupDropdownInput(layerInput, () => Object.keys(warstwy));
+        setupLayerDropdownByMainCategory(layerInput, mainCatInput);
         setupDropdownInput(catInput, () => getCategorySuggestions(mainCatInput.value));
-        mainCatInput.onchange = () => { catInput.value = ''; };
+        mainCatInput.onchange = () => { catInput.value = ''; if (layerInput) layerInput.value = ''; };
       }
 
     if (window.innerWidth <= 800) {
