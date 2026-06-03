@@ -545,6 +545,59 @@
     }
     .layer-control-btn.toggle-btn.is-collapsed svg { transform: rotate(-90deg); }
     .pin-name-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .pin-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+    .pin-title-text { min-width: 0; }
+    .pin-list-emoji-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      vertical-align: middle;
+    }
+    .pin-list-emoji-base {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      font-size: 16px;
+      line-height: 16px;
+    }
+    .pin-list-emoji-base .emoji-inline {
+      display: block;
+      width: 16px;
+      height: 16px;
+      vertical-align: middle;
+    }
+    .pin-list-status-icon {
+      position: absolute;
+      top: -3px;
+      right: -4px;
+      z-index: 2;
+      font-size: 9px;
+      line-height: 1;
+      pointer-events: none;
+      text-shadow: 0 0 3px rgba(0, 0, 0, 1), 0 0 1px rgba(0, 0, 0, 1);
+    }
+    .pin-list-status-icon.checkmark-obrys {
+      width: 9px;
+      height: 9px;
+      border-radius: 1px;
+    }
+    .pin-list-status-icon.pin-list-status-star {
+      top: auto;
+      right: -4px;
+      bottom: -2px;
+      font-size: 10px;
+    }
     .pin-edit-btn {
       display: none;
       border: 1px solid #4b4b4b;
@@ -4668,7 +4721,8 @@ function slugify(str) {
       const nameRow = document.createElement('div');
       nameRow.className = 'pin-name-row';
       const nameSpan = document.createElement('span');
-      nameSpan.innerHTML = (dispEmoji ? emojiHtml(dispEmoji) + ' ' : '') + pin.nazwa;
+      nameSpan.className = 'pin-title';
+      nameSpan.innerHTML = (dispEmoji ? pinListEmojiHtml(dispEmoji, pin, layerName) : '') + `<span class="pin-title-text">${pin.nazwa || ''}</span>`;
       const pinEditBtn = document.createElement('button');
       pinEditBtn.type = 'button';
       pinEditBtn.className = 'pin-edit-btn';
@@ -5409,13 +5463,47 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       }
     }
 
+    const PIN_STATUS_CHECKMARK_URL = 'https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg';
+
+    function pinStatusOverlayHtml(status = {}, warstwaId = null, { className = 'status-icon', checkSize = 16, includeHighlight = true } = {}) {
+      const isVisitedLayer = warstwaId && warstwaId === visitedId;
+      const isSztosy = warstwaId && warstwaId === sztosyId;
+      const isHighlighted = isSztosy || !!status.wyroznione;
+      const statusClass = isHighlighted && className === 'status-icon' ? `${className} sztosy` : className;
+      const statusIcon = (status.nieaktywne || status.niedostepne)
+        ? `<span class="${statusClass}">⛔</span>`
+        : status.zamkniete
+          ? `<span class="${statusClass}">🔐</span>`
+          : status.tajne
+            ? `<span class="${statusClass}">🤫</span>`
+            : status.doSprawdzenia
+              ? `<span class="${statusClass}">❔</span>`
+              : status.zdewastowane
+                ? `<span class="${statusClass}">💥</span>`
+                : (status.zwiedzone || isVisitedLayer)
+                  ? `<img src="${PIN_STATUS_CHECKMARK_URL}" width="${checkSize}" height="${checkSize}" class="${statusClass} checkmark-obrys">`
+                  : '';
+      const highlightIcon = includeHighlight && isHighlighted
+        ? (className === 'pin-list-status-icon'
+          ? '<span class="pin-list-status-icon pin-list-status-star">⭐</span>'
+          : '<span class="sztosy-gwiazda">⭐</span>')
+        : '';
+      return `${highlightIcon}${statusIcon}`;
+    }
+
+    function pinListEmojiHtml(emojiOrUrl, pin = {}, layerName = '') {
+      if (!emojiOrUrl) return '';
+      const layerId = pin.warstwaId || layerDocs[layerName] || null;
+      const statusOverlay = pinStatusOverlayHtml(pin, layerId, { className: 'pin-list-status-icon', checkSize: 9, includeHighlight: true });
+      return `<span class="pin-list-emoji-wrap"><span class="pin-list-emoji-base">${emojiHtml(emojiOrUrl)}</span>${statusOverlay}</span>`;
+    }
+
     function createEmojiIcon(emojiOrUrl, warstwaId, size = 32, status = {}) {
       emojiOrUrl = resolveEmoji(emojiOrUrl);
       const markerScale = 0.8;
       const scaledSize = size * markerScale;
       const overlaySize = (20 * markerScale).toFixed(1);
       const imageSize = (28 * markerScale).toFixed(1);
-      const isVisitedLayer = warstwaId && warstwaId === visitedId;
       const isSztosy = warstwaId && warstwaId === sztosyId;
       const isHighlighted = isSztosy || status.wyroznione;
       if (warstwaId && warstwaId === orangeLayerId) {
@@ -5445,21 +5533,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       }
 
       const isUrl = emojiOrUrl && emojiOrUrl.startsWith("http");
-      const statusClass = isHighlighted ? 'status-icon sztosy' : 'status-icon';
-      const statusIcon = (status.nieaktywne || status.niedostepne)
-        ? `<span class="${statusClass}">⛔</span>`
-        : status.zamkniete
-          ? `<span class="${statusClass}">🔐</span>`
-          : status.tajne
-            ? `<span class="${statusClass}">🤫</span>`
-            : status.doSprawdzenia
-              ? `<span class="${statusClass}">❔</span>`
-              : status.zdewastowane
-                ? `<span class="${statusClass}">💥</span>`
-                : (status.zwiedzone || isVisitedLayer)
-                  ? `<img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="${overlaySize}" height="${overlaySize}" class="${statusClass} checkmark-obrys">`
-                : '';
-      const overlay = `${isHighlighted ? '<span class="sztosy-gwiazda">⭐</span>' : ''}${statusIcon}`;
+      const overlay = pinStatusOverlayHtml(status, warstwaId, { className: 'status-icon', checkSize: overlaySize, includeHighlight: true });
 
       if (isUrl) {
         const cls = isHighlighted ? "emoji-obrys-sztosy" : "emoji-obrys";
@@ -13402,7 +13476,8 @@ function getTripPointEmoji(p) {
           const nameRow = document.createElement('div');
           nameRow.className = 'pin-name-row';
           const nameSpan = document.createElement('span');
-          nameSpan.innerHTML = (dispEmoji ? emojiHtml(dispEmoji) + ' ' : '') + p.nazwa;
+          nameSpan.className = 'pin-title';
+          nameSpan.innerHTML = (dispEmoji ? pinListEmojiHtml(dispEmoji, p, nazwa) : '') + `<span class="pin-title-text">${p.nazwa || ''}</span>`;
           const pinEditBtn = document.createElement('button');
           pinEditBtn.type = 'button';
           pinEditBtn.className = 'pin-edit-btn';
