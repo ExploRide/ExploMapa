@@ -4116,10 +4116,24 @@ function slugify(str) {
       return count >= BIG_CLUSTER_COUNT ? 56 : count >= 100 ? 46 : 38;
     }
 
+    const ADAPTIVE_CLUSTER_DISABLE_BELOW = 500;
+    const ADAPTIVE_CLUSTER_ENABLE_ABOVE = 550;
+    let adaptiveClusteringEnabled = false;
+
+    function createPlainPinLayer() {
+      const layer = L.layerGroup();
+      layer.__adaptiveClusterEnabled = false;
+      return layer;
+    }
+
     function createPinLayer() {
+      return adaptiveClusteringEnabled ? createClusterPinLayer() : createPlainPinLayer();
+    }
+
+    function createClusterPinLayer() {
       const clusterInitStartTs = performance.now();
       if (!L.markerClusterGroup) {
-        return L.layerGroup();
+        return createPlainPinLayer();
       }
 
       let clusterLayer = null;
@@ -4495,8 +4509,84 @@ function slugify(str) {
       clusterLayer.on('spiderfied', () => scheduleClusterIdleRefresh('spiderfied'));
       clusterLayer.on('unspiderfied', () => scheduleClusterIdleRefresh('unspiderfied'));
 
+      clusterLayer.__adaptiveClusterEnabled = true;
       updatePerformanceDebug('cluster init', performance.now() - clusterInitStartTs);
       return clusterLayer;
+    }
+
+    function pinMatchesSearchFilter(pin) {
+      const query = currentSearchTerm;
+      if (!query) return true;
+      const searchable = [
+        pin?.nazwa,
+        pin?.opis,
+        pin?.kategoria,
+        pin?.kategoriaGlowna,
+        pin?.warstwa,
+        pin?.kraj
+      ].filter(value => value != null).join(' ').toLowerCase();
+      return searchable.includes(query);
+    }
+
+    function getLayerCheckboxChecked(layerName, fallbackVisible) {
+      const layerCheckbox = document.querySelector(`.warstwa[data-nazwa="${CSS.escape(layerName)}"] .layer-toggle`);
+      return layerCheckbox ? !!layerCheckbox.checked : fallbackVisible;
+    }
+
+    function countAdaptiveActivePins() {
+      return Object.entries(warstwy).reduce((count, [layerName, layerData]) => {
+        if (!layerData || !Array.isArray(layerData.lista)) return count;
+        const layerVisible = layerData.visible !== false;
+        const layerChecked = getLayerCheckboxChecked(layerName, layerVisible);
+        const hiddenByTripMode = hideMainPinsInTripMode && typeof isOfficialPinsLayer === 'function' && isOfficialPinsLayer(layerData);
+        if (!layerVisible || !layerChecked || hiddenByTripMode) return count;
+        return count + layerData.lista.reduce((sum, pin) => {
+          return sum + (pin && pin.visible !== false && pinMatchesAllFilters(pin, true) ? 1 : 0);
+        }, 0);
+      }, 0);
+    }
+
+    function replacePinLayer(layerName, layerData, clusteringEnabled) {
+      if (!layerData || !layerData.layer || layerData.layer.__adaptiveClusterEnabled === clusteringEnabled) return;
+      const previousLayer = layerData.layer;
+      const wasOnMap = map && map.hasLayer(previousLayer);
+      const visibleMarkers = (layerData.lista || [])
+        .map(pin => pin && pin.marker)
+        .filter(marker => marker && typeof previousLayer.hasLayer === 'function' && previousLayer.hasLayer(marker));
+      if (wasOnMap) map.removeLayer(previousLayer);
+      if (typeof previousLayer.clearLayers === 'function') previousLayer.clearLayers();
+
+      const nextLayer = clusteringEnabled ? createClusterPinLayer() : createPlainPinLayer();
+      if (visibleMarkers.length) {
+        if (typeof nextLayer.addLayers === 'function') {
+          nextLayer.addLayers(visibleMarkers);
+        } else {
+          visibleMarkers.forEach(marker => nextLayer.addLayer(marker));
+        }
+      }
+      layerData.layer = nextLayer;
+      if (wasOnMap && typeof nextLayer.addTo === 'function') nextLayer.addTo(map);
+      console.log('[AdaptiveCluster] switched layer:', layerName, 'mode:', clusteringEnabled ? 'cluster' : 'plain');
+    }
+
+    function updateAdaptiveClusteringMode(reason = 'unknown') {
+      const activePins = countAdaptiveActivePins();
+      let nextEnabled = adaptiveClusteringEnabled;
+      if (!adaptiveClusteringEnabled && activePins > ADAPTIVE_CLUSTER_ENABLE_ABOVE) {
+        nextEnabled = true;
+      } else if (adaptiveClusteringEnabled && activePins <= ADAPTIVE_CLUSTER_DISABLE_BELOW) {
+        nextEnabled = false;
+      }
+
+      if (nextEnabled !== adaptiveClusteringEnabled) {
+        adaptiveClusteringEnabled = nextEnabled;
+        Object.entries(warstwy).forEach(([layerName, layerData]) => {
+          replacePinLayer(layerName, layerData, adaptiveClusteringEnabled);
+        });
+      }
+
+      console.log('[AdaptiveCluster] activePins:', activePins, 'clustering:', adaptiveClusteringEnabled ? 'ON' : 'OFF');
+      return { activePins, enabled: adaptiveClusteringEnabled, reason };
     }
 
     const bulkPanel = document.getElementById('bulk-pin-panel');
@@ -4746,7 +4836,7 @@ function slugify(str) {
       const pinListStartTs = performance.now();
       listEl.innerHTML = '';
       const sorted = warstwy[layerName].lista.slice().filter(pin => {
-        return pinMatchesAllFilters(pin, true);
+        return pinMatchesAllFilters(pin, true, false);
       }).sort((a, b) => {
         const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
         const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
@@ -4879,6 +4969,7 @@ function slugify(str) {
       searchInput.addEventListener('input', e => {
         currentSearchTerm = e.target.value.trim().toLowerCase();
         applySearchFilter();
+        scheduleMarkerVisibilityUpdate();
         updateClearSearchBtnVisibility();
       });
     }
@@ -4887,6 +4978,7 @@ function slugify(str) {
         searchInput.value = '';
         currentSearchTerm = '';
         applySearchFilter();
+        scheduleMarkerVisibilityUpdate();
         updateClearSearchBtnVisibility();
         searchInput.focus();
       });
@@ -9027,6 +9119,7 @@ function zaladujPinezkiZFirestore() {
     });
     pinsFirestoreLoaded = true;
     console.log('[pins:load] fetched pins total', wszystkiePinezki.length, getMapDiagnosticsSnapshot());
+    updateAdaptiveClusteringMode('after-firestore-normalize');
     const markerBuildTasks = [];
     Object.entries(warstwy).forEach(([layerName, layerData]) => {
       if (!layerData || !Array.isArray(layerData.lista)) return;
@@ -12945,10 +13038,11 @@ function getTripPointEmoji(p) {
       return selected.has(pin.kategoria || '');
     }
 
-    function pinMatchesAllFilters(pin, includeCountry = false) {
+    function pinMatchesAllFilters(pin, includeCountry = false, includeSearch = true) {
       if (!pinMatchesCategoryFilters(pin)) return false;
       if (!pinMatchesStatus(pin)) return false;
       if (includeCountry && !pinMatchesCountry(pin)) return false;
+      if (includeSearch && !pinMatchesSearchFilter(pin)) return false;
       return true;
     }
 
@@ -13255,6 +13349,7 @@ function getTripPointEmoji(p) {
 
     function updateMarkerVisibility() {
       const viewportStartTs = performance.now();
+      updateAdaptiveClusteringMode('marker-visibility');
       const currentBounds = map?.getBounds?.() || null;
       const changedLayers = new Set();
       const layerOps = new Map();
@@ -13269,8 +13364,7 @@ function getTripPointEmoji(p) {
         let afterFilters = 0;
         let inBounds = 0;
         const layerVisible = w && w.visible !== false;
-        const layerCheckbox = document.querySelector(`.warstwa[data-nazwa="${CSS.escape(layerName)}"] .layer-toggle`);
-        const layerChecked = layerCheckbox ? !!layerCheckbox.checked : layerVisible;
+        const layerChecked = getLayerCheckboxChecked(layerName, layerVisible);
         if (layerVisible && layerChecked) visibleLayerCount++;
         w.lista.forEach(p => {
           if (!p.marker) return;
@@ -13414,6 +13508,8 @@ function getTripPointEmoji(p) {
         setLayerVisibilityState(layerName, normalizedVisible);
       }
 
+      updateAdaptiveClusteringMode(`layer-visible:${normalizedOptions.source}`);
+
       if (normalizedOptions.force) {
         updateMarkerVisibility();
         map.invalidateSize();
@@ -13454,7 +13550,7 @@ function getTripPointEmoji(p) {
         const pinListStartTs = performance.now();
         listaP.innerHTML = '';
         const sorted = warstwy[nazwa].lista.slice().filter(p => {
-          return pinMatchesAllFilters(p, true);
+          return pinMatchesAllFilters(p, true, false);
         }).sort((a, b) => {
           const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
           const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
