@@ -10554,13 +10554,15 @@ function zaladujPinezkiZFirestore() {
     }
 
     function openPinFromList(p, el) {
-      if (!p) return;
+      if (!p || !map) return;
       if (isMobile) {
         stopGpsFollow('open pin from list');
       }
+      const pinLatLng = L.latLng(Number(p.lat), Number(p.lng));
+      if (!Number.isFinite(pinLatLng.lat) || !Number.isFinite(pinLatLng.lng)) return;
       const layerName = p.warstwa || "Inne";
       const layerData = warstwy[layerName];
-      if (layerData && p.marker && !layerData.layer.hasLayer(p.marker)) {
+      if (layerData && p.marker && typeof layerData.layer?.hasLayer === 'function' && !layerData.layer.hasLayer(p.marker)) {
         layerData.layer.addLayer(p.marker);
       }
       const openPopupForPin = () => {
@@ -10578,14 +10580,26 @@ function zaladujPinezkiZFirestore() {
         });
       };
       let popupOpened = false;
+      let centerFallbackTimer = null;
       const openPopupOnce = () => {
         if (popupOpened) return;
         popupOpened = true;
-        openPopupForPin();
+        if (centerFallbackTimer) {
+          clearTimeout(centerFallbackTimer);
+          centerFallbackTimer = null;
+        }
+        map.off('moveend', openPopupOnce);
+        requestAnimationFrame(openPopupForPin);
       };
-      map.once('moveend', openPopupOnce);
-      map.setView([p.lat, p.lng], Math.max(map.getZoom(), 16), { animate: true });
-      setTimeout(openPopupOnce, 450);
+      const targetZoom = Math.max(map.getZoom(), 16);
+      const alreadyCentered = map.getZoom() === targetZoom && map.getCenter().distanceTo(pinLatLng) < 1;
+      if (alreadyCentered) {
+        requestAnimationFrame(openPopupOnce);
+      } else {
+        map.once('moveend', openPopupOnce);
+        map.setView(pinLatLng, targetZoom, { animate: true });
+        centerFallbackTimer = setTimeout(openPopupOnce, 1200);
+      }
       highlightListItem(el);
     }
 
