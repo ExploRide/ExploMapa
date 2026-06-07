@@ -7088,8 +7088,12 @@ function emojiHtml(str) {
       updatePreview();
     }
 
-    async function setupEmojiPicker(container, pin) {
+    async function setupEmojiPicker(container, pin, options = {}) {
       if (!container || !pin) return;
+      const onChange = typeof options.onChange === 'function' ? options.onChange : null;
+      const notifyChange = (value, url) => {
+        if (onChange) onChange(value, url, pin);
+      };
       await emojiListReady;
       const preview = document.createElement('img');
       preview.className = 'emoji-picker-preview';
@@ -7118,6 +7122,7 @@ function emojiHtml(str) {
           const id = await addEmojiToList(url, info);
           preview.src = url;
           pin.noweEmoji = id;
+          notifyChange(id, url);
           grid.style.display = 'none';
         }
       });
@@ -7137,6 +7142,7 @@ function emojiHtml(str) {
             e.stopPropagation();
             preview.src = url;
             pin.noweEmoji = id;
+            notifyChange(id, url);
             grid.style.display = 'none';
           });
           grid.insertBefore(img, addBtn);
@@ -9790,7 +9796,13 @@ function zaladujPinezkiZFirestore() {
         eOpisInput.value = (p.opis || '').replace(/<br\s*\/?>/gi, '\n');
       }
       applyEditDraft(p, container);
-      setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p);
+      const refreshEditedPinIcon = () => {
+        if (!p.marker) return;
+        const status = getPinStatusStateFromSelect(container.querySelector('#estatus'));
+        const emojiVal = p.noweEmoji !== undefined ? p.noweEmoji : p.emoji;
+        p.marker.setIcon(createEmojiIcon(emojiVal, p.warstwaId, 32, { ...p, ...status }));
+      };
+      setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p, { onChange: refreshEditedPinIcon });
       setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
       setupInlineFieldLabel(container.querySelector('#eodKogo'), 'Od kogo');
       setupInlineFieldLabel(container.querySelector('#ekategoriaGlowna'), 'Kategoria główna');
@@ -9826,6 +9838,7 @@ function zaladujPinezkiZFirestore() {
         shouldApply: () => Boolean(p._editOriginalState || p._photoEditSaved)
       });
       setupTrudnoscInput(container.querySelector('#etrudnosc'), container.querySelector('#etrudnoscLabel'));
+      container.querySelector('#estatus')?.addEventListener('change', refreshEditedPinIcon);
       // Status wybrany w formularzu edycji jest tylko szkicem; zapiszLokalnie() odczyta
       // go z pola #estatus dopiero po kliknięciu "Zapisz" w popupie.
       const delBtn = container.querySelector('#deleteBtn-' + id);
@@ -10173,7 +10186,8 @@ function zaladujPinezkiZFirestore() {
 
       setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'));
-      setupEmojiPicker(container.querySelector('#emojiPickerNew'), tempPin);
+      let refreshNewPinIcon = () => {};
+      setupEmojiPicker(container.querySelector('#emojiPickerNew'), tempPin, { onChange: () => refreshNewPinIcon() });
       const newLayerInput = container.querySelector('#warstwaNew');
       const newMainCategoryInput = container.querySelector('#kategoriaGlownaNew');
       const newCategoryInput = container.querySelector('#kategoriaNew');
@@ -10227,7 +10241,7 @@ function zaladujPinezkiZFirestore() {
       const chkNewDestroyed = container.querySelector('#zdewastowaneNew');
       const chkNewVisited = container.querySelector('#zwiedzoneNew');
       const chkNewHighlighted = container.querySelector('#wyroznioneNew');
-      const refreshIcon = () => {
+      refreshNewPinIcon = () => {
         const status = {
           nieaktywne: chkNewInactive && chkNewInactive.checked,
           zamkniete: chkNewClosed && chkNewClosed.checked,
@@ -10240,20 +10254,20 @@ function zaladujPinezkiZFirestore() {
         const emojiVal = tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji || defaultEmoji;
         marker.setIcon(createEmojiIcon(emojiVal, null, 24, status));
       };
-      container.querySelector('#emojiPickerNew').addEventListener('click', () => setTimeout(refreshIcon, 0));
+      container.querySelector('#emojiPickerNew').addEventListener('click', () => setTimeout(refreshNewPinIcon, 0));
       if (chkNewInactive) {
         chkNewInactive.addEventListener('change', () => {
           const tmp = { marker, el: null, nieaktywne: chkNewInactive.checked };
           applyInactiveStyle(tmp);
-          refreshIcon();
+          refreshNewPinIcon();
         });
       }
-      if (chkNewClosed) chkNewClosed.addEventListener('change', refreshIcon);
-      if (chkNewSecret) chkNewSecret.addEventListener('change', refreshIcon);
-      if (chkNewTodo) chkNewTodo.addEventListener('change', refreshIcon);
-      if (chkNewDestroyed) chkNewDestroyed.addEventListener('change', refreshIcon);
-      if (chkNewVisited) chkNewVisited.addEventListener('change', refreshIcon);
-      if (chkNewHighlighted) chkNewHighlighted.addEventListener('change', refreshIcon);
+      if (chkNewClosed) chkNewClosed.addEventListener('change', refreshNewPinIcon);
+      if (chkNewSecret) chkNewSecret.addEventListener('change', refreshNewPinIcon);
+      if (chkNewTodo) chkNewTodo.addEventListener('change', refreshNewPinIcon);
+      if (chkNewDestroyed) chkNewDestroyed.addEventListener('change', refreshNewPinIcon);
+      if (chkNewVisited) chkNewVisited.addEventListener('change', refreshNewPinIcon);
+      if (chkNewHighlighted) chkNewHighlighted.addEventListener('change', refreshNewPinIcon);
 
       let saved = false;
       const removeOnClose = () => {
