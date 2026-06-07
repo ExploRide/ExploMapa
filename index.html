@@ -12066,12 +12066,15 @@ function showRoutePopup(pinId, tr, latlng) {
     function normalizeCoordinateText(value) {
       return String(value || '')
         .trim()
-        .replace(/(\d),(\d)/g, '$1.$2')
         .replace(/[’‘`´′]/g, "'")
         .replace(/[“”„‟″]/g, '"')
         .replace(/'{2,}/g, '"')
         .replace(/[º˚]/g, '°')
         .replace(/\s+/g, ' ');
+    }
+
+    function parseCoordinateNumber(value) {
+      return parseFloat(String(value || '').replace(',', '.'));
     }
 
     function formatCoordinatePair(lat, lng) {
@@ -12100,9 +12103,9 @@ function showRoutePopup(pinId, tr, latlng) {
     }
 
     function dmsToDecimal(degrees, minutes = 0, seconds = 0, dir = '') {
-      const deg = Number(degrees);
-      const min = Number(minutes);
-      const sec = Number(seconds);
+      const deg = parseCoordinateNumber(degrees);
+      const min = parseCoordinateNumber(minutes);
+      const sec = parseCoordinateNumber(seconds);
       if (![deg, min, sec].every(Number.isFinite)) return null;
       if (min < 0 || min >= 60 || sec < 0 || sec >= 60) return null;
       const sign = deg < 0 ? -1 : 1;
@@ -12136,7 +12139,7 @@ function showRoutePopup(pinId, tr, latlng) {
 
     function parseDmsCoordinateInput(value) {
       const normalized = normalizeCoordinateText(value);
-      const dmsPattern = /([NSEW])?\s*([+-]?\d{1,3}(?:\.\d+)?)\s*(?:°|\s+)\s*(\d{1,2}(?:\.\d+)?)\s*(?:'|\s+)\s*(\d{1,2}(?:\.\d+)?)\s*(?:"|\s)?\s*([NSEW])?/gi;
+      const dmsPattern = /([NSEW])?\s*([+-]?\d{1,3}(?:[.,]\d+)?)\s*(?:°|\s+)\s*(\d{1,2}(?:[.,]\d+)?)\s*(?:'|\s+)\s*(\d{1,2}(?:[.,]\d+)?)\s*(?:"|\s)?\s*([NSEW])?/gi;
       const result = { lat: null, lng: null };
       const matches = [];
       let match;
@@ -12164,14 +12167,14 @@ function showRoutePopup(pinId, tr, latlng) {
 
     function parseDirectionalDecimalCoordinateInput(value) {
       const normalized = normalizeCoordinateText(value).replace(/[°'"]/g, ' ');
-      const tokenPattern = /([NSEW])?\s*([+-]?\d{1,3}(?:\.\d+)?)\s*([NSEW])?/gi;
+      const tokenPattern = /([NSEW])?\s*([+-]?\d{1,3}(?:[.,]\d+)?)\s*([NSEW])?/gi;
       const result = { lat: null, lng: null };
       const matches = [];
       let match;
       while ((match = tokenPattern.exec(normalized)) !== null) {
         const dir = (match[1] || match[3] || '').toUpperCase();
         if (!dir) continue;
-        const decimal = applyCoordinateDirection(Number(match[2]), dir);
+        const decimal = applyCoordinateDirection(parseCoordinateNumber(match[2]), dir);
         if (!isCoordinateInRange(decimal, dir)) return null;
         matches.push({ decimal, dir });
       }
@@ -12194,10 +12197,11 @@ function showRoutePopup(pinId, tr, latlng) {
     function parseCoordinateInput(value) {
       if (!value) return null;
       const normalized = normalizeCoordinateText(value);
-      const simpleMatch = normalized.match(/^\s*([+-]?\d{1,3}(?:\.\d+)?)\s*[,;\s]+\s*([+-]?\d{1,3}(?:\.\d+)?)\s*$/);
+      const coordinateNumberPattern = '[+-]?\\d{1,3}(?:[.,]\\d+)?';
+      const simpleMatch = normalized.match(new RegExp(`^\\s*(${coordinateNumberPattern})\\s*(?:[,;]|\\s+)\\s*(${coordinateNumberPattern})\\s*$`));
       if (simpleMatch && !/[NSEW]/i.test(normalized) && !/[°'"]/.test(normalized)) {
-        const lat = parseFloat(simpleMatch[1]);
-        const lon = parseFloat(simpleMatch[2]);
+        const lat = parseCoordinateNumber(simpleMatch[1]);
+        const lon = parseCoordinateNumber(simpleMatch[2]);
         if (!isValidLatLng(lat, lon)) return null;
         return [lat, lon];
       }
