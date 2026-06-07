@@ -3615,13 +3615,18 @@ function slugify(str) {
       return out;
     }
 
+    function isLocalPreviewPhotoUrl(url) {
+      return /^(data:image\/|blob:)/i.test(String(url || ''));
+    }
+
     function getPhotoEntryUrl(entry) {
       if (!entry) return null;
       if (typeof entry === 'string') {
-        return normalizePhotoUrls({ photo: entry })[0] || null;
+        return isLocalPreviewPhotoUrl(entry) ? entry : (normalizePhotoUrls({ photo: entry })[0] || null);
       }
       if (typeof entry === 'object') {
-        return normalizePhotoUrls({ photo: [entry.url, entry.src, entry.href, entry.photo] })[0] || null;
+        const rawUrl = entry.url || entry.src || entry.href || entry.photo;
+        return isLocalPreviewPhotoUrl(rawUrl) ? rawUrl : (normalizePhotoUrls({ photo: [rawUrl] })[0] || null);
       }
       return null;
     }
@@ -3632,7 +3637,7 @@ function slugify(str) {
       img.decoding = 'async';
       img.src = normalizePhotoUrl(url);
       img.onerror = function () {
-        if (!img.dataset.fallback) {
+        if (!img.dataset.fallback && !isLocalPreviewPhotoUrl(url)) {
           img.dataset.fallback = '1';
           img.src = proxyImage(url);
         }
@@ -10172,7 +10177,9 @@ function zaladujPinezkiZFirestore() {
         <button id="cancelNew">Anuluj</button>`;
 
       setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
-      setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'));
+      setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'), {
+        markUnsaved: false
+      });
       setupEmojiPicker(container.querySelector('#emojiPickerNew'), tempPin);
       const newLayerInput = container.querySelector('#warstwaNew');
       const newMainCategoryInput = container.querySelector('#kategoriaGlownaNew');
