@@ -45,13 +45,44 @@
       top: 0;
       left: 0;
       bottom: 0;
-      width: 264px;
+      width: var(--sidebar-width, 264px);
       z-index: 300;
    border-color: #444;
     background: #2b2b2b;
     color: #f0f0f0;
       border-right: 1px solid #ccc;
       padding: 8px;
+      box-sizing: border-box;
+    }
+    #sidebarResizeHandle {
+      position: absolute;
+      top: 0;
+      right: -5px;
+      bottom: 0;
+      width: 10px;
+      cursor: col-resize;
+      z-index: 5;
+      touch-action: none;
+    }
+    #sidebarResizeHandle::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 4px;
+      bottom: 0;
+      width: 2px;
+      background: transparent;
+      transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    body:not(.mobile-layout) #sidebarResizeHandle:hover::after,
+    body.sidebar-resizing #sidebarResizeHandle::after {
+      background: var(--ui-accent, #007bff);
+      box-shadow: 0 0 0 1px rgba(0, 123, 255, 0.25);
+    }
+    body.sidebar-resizing,
+    body.sidebar-resizing * {
+      cursor: col-resize !important;
+      user-select: none !important;
     }
     #sidebar-inner {
       display: flex;
@@ -1578,6 +1609,7 @@ body.mobile-layout #exportKML { display: none; }
 body.mobile-layout #syncBtn { display: block; }
 body.mobile-layout #sidebarCollapseToggle,
 body.mobile-layout #basemapCollapseToggle { display: none !important; }
+body.mobile-layout #sidebarResizeHandle { display: none !important; }
 body.mobile-layout #osmOverlayStatus { z-index: 250; }
 body.mobile-layout #toast { left: 10px; top: calc(env(safe-area-inset-top, 0px) + 92px); }
 body.mobile-layout .leaflet-popup { z-index: 2147483600 !important; }
@@ -1869,7 +1901,7 @@ img.emoji {
       font-size: calc(12px * var(--ui-scale));
     }
 
-    #sidebar,
+    #sidebar { width: var(--sidebar-width, calc(264px * var(--ui-scale))); }
     #basemap-switcher { width: calc(264px * var(--ui-scale)); }
     #layer-editor,
     #route-editor { width: calc(188px * var(--ui-scale)); left: calc(282px * var(--ui-scale)); }
@@ -2515,7 +2547,7 @@ html body .osm-overlay-label, html body details, html body summary, html body la
 html body button, html body input, html body select, html body textarea {
   font-size: calc(12px * var(--ui-scale)) !important;
 }
-html body #sidebar,
+html body #sidebar { width: var(--sidebar-width, calc(264px * var(--ui-scale))); }
 html body #basemap-switcher { width: calc(264px * var(--ui-scale)); }
 @media (max-width: 700px) {
   html body.mobile-layout #sidebar,
@@ -2753,6 +2785,7 @@ body.mobile-layout #saveChanges {
       </div>
       <div id="lista-warstw"></div>
     </div>
+    <div id="sidebarResizeHandle" role="separator" aria-orientation="vertical" aria-label="Zmień szerokość panelu bocznego" title="Przeciągnij, aby zmienić szerokość panelu"></div>
   </div>
   <div id="bulk-pin-panel">
     <h4>Masowa edycja pinezek</h4>
@@ -3717,6 +3750,7 @@ function slugify(str) {
 
     function showAuthenticatedApp() {
       initUiScaleControls();
+      initResizableSidebar();
       document.body.classList.add("authenticated");
       applyResponsiveLayoutClass();
       document.getElementById("map").style.display = "block";
@@ -3815,6 +3849,9 @@ function slugify(str) {
     let map, baseLayer, routingLayer, roadsLayer, baseTileErrorHandler, waymarkedErrorHandler;
     let pinRepositionState = null;
     const UI_SCALE_STORAGE_KEY = 'exploMapaUiScale';
+    const SIDEBAR_WIDTH_STORAGE_KEY = 'exploMapaSidebarWidth';
+    const SIDEBAR_WIDTH_MIN = 220;
+    const SIDEBAR_WIDTH_MAX_RATIO = 0.7;
     const UI_SCALE_MIN = 70;
     const UI_SCALE_MAX = 130;
     const UI_SCALE_STEP = 2;
@@ -3840,6 +3877,86 @@ function slugify(str) {
       if (typeof map !== 'undefined' && map && typeof map.invalidateSize === 'function') {
         setTimeout(() => map.invalidateSize(), 120);
       }
+    }
+
+    function getDefaultSidebarWidth() {
+      const scale = Number(getComputedStyle(document.documentElement).getPropertyValue('--ui-scale')) || 1;
+      return 264 * scale;
+    }
+
+    function getSidebarWidthMax() {
+      return Math.max(SIDEBAR_WIDTH_MIN, Math.floor(window.innerWidth * SIDEBAR_WIDTH_MAX_RATIO));
+    }
+
+    function clampSidebarWidth(width) {
+      const numeric = Number(width);
+      if (!Number.isFinite(numeric)) return getDefaultSidebarWidth();
+      return Math.min(getSidebarWidthMax(), Math.max(SIDEBAR_WIDTH_MIN, numeric));
+    }
+
+    function applySidebarWidth(width, persist = true) {
+      const sidebarEl = document.getElementById('sidebar');
+      if (!sidebarEl) return;
+      const clamped = Math.round(clampSidebarWidth(width));
+      document.documentElement.style.setProperty('--sidebar-width', `${clamped}px`);
+      if (persist) localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(clamped));
+      if (typeof map !== 'undefined' && map && typeof map.invalidateSize === 'function') {
+        clearTimeout(applySidebarWidth._mapTimer);
+        applySidebarWidth._mapTimer = setTimeout(() => map.invalidateSize(), 80);
+      }
+    }
+
+    function resetSidebarWidth() {
+      localStorage.removeItem(SIDEBAR_WIDTH_STORAGE_KEY);
+      document.documentElement.style.removeProperty('--sidebar-width');
+      if (typeof map !== 'undefined' && map && typeof map.invalidateSize === 'function') {
+        setTimeout(() => map.invalidateSize(), 80);
+      }
+    }
+
+    function initResizableSidebar() {
+      const sidebarEl = document.getElementById('sidebar');
+      const handleEl = document.getElementById('sidebarResizeHandle');
+      if (!sidebarEl || !handleEl || handleEl.dataset.initialized === '1') return;
+      handleEl.dataset.initialized = '1';
+
+      const storedWidth = Number(localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY));
+      if (Number.isFinite(storedWidth) && storedWidth > 0) applySidebarWidth(storedWidth, false);
+
+      let dragState = null;
+      const finishResize = () => {
+        if (!dragState) return;
+        dragState = null;
+        document.body.classList.remove('sidebar-resizing');
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', finishResize);
+        window.removeEventListener('pointercancel', finishResize);
+      };
+      const onPointerMove = (event) => {
+        if (!dragState) return;
+        const nextWidth = dragState.startWidth + (event.clientX - dragState.startX);
+        applySidebarWidth(nextWidth);
+      };
+
+      handleEl.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0 || document.body.classList.contains('mobile-layout')) return;
+        event.preventDefault();
+        dragState = {
+          startX: event.clientX,
+          startWidth: sidebarEl.getBoundingClientRect().width
+        };
+        document.body.classList.add('sidebar-resizing');
+        handleEl.setPointerCapture?.(event.pointerId);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', finishResize);
+        window.addEventListener('pointercancel', finishResize);
+      });
+
+      handleEl.addEventListener('dblclick', resetSidebarWidth);
+      window.addEventListener('resize', () => {
+        const savedWidth = Number(localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY));
+        if (Number.isFinite(savedWidth) && savedWidth > 0) applySidebarWidth(savedWidth, false);
+      });
     }
 
     function initUiScaleControls() {
