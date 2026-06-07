@@ -7093,7 +7093,7 @@ function emojiHtml(str) {
       updatePreview();
     }
 
-    async function setupEmojiPicker(container, pin) {
+    async function setupEmojiPicker(container, pin, options = {}) {
       if (!container || !pin) return;
       await emojiListReady;
       const preview = document.createElement('img');
@@ -7110,6 +7110,14 @@ function emojiHtml(str) {
       preview.src = getCurrent();
       container.appendChild(preview);
 
+      function applyEmojiSelection(id, url) {
+        preview.src = url || getCurrent();
+        pin.noweEmoji = id;
+        if (typeof options.onChange === 'function') {
+          options.onChange(id, url, pin);
+        }
+      }
+
       const grid = document.createElement('div');
       grid.className = 'emoji-picker-grid';
       const addBtn = document.createElement('button');
@@ -7121,8 +7129,7 @@ function emojiHtml(str) {
         if (url) {
           const info = prompt('Nazwa nowego emoji:') || '';
           const id = await addEmojiToList(url, info);
-          preview.src = url;
-          pin.noweEmoji = id;
+          applyEmojiSelection(id, url);
           grid.style.display = 'none';
         }
       });
@@ -7140,8 +7147,7 @@ function emojiHtml(str) {
           if (info) { img.title = info; img.dataset.info = info; }
           img.addEventListener('click', e => {
             e.stopPropagation();
-            preview.src = url;
-            pin.noweEmoji = id;
+            applyEmojiSelection(id, url);
             grid.style.display = 'none';
           });
           grid.insertBefore(img, addBtn);
@@ -9795,7 +9801,15 @@ function zaladujPinezkiZFirestore() {
         eOpisInput.value = (p.opis || '').replace(/<br\s*\/?>/gi, '\n');
       }
       applyEditDraft(p, container);
-      setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p);
+      setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p, {
+        onChange: (emojiVal) => {
+          const targetMarker = p.marker || findMarkerByLatLng(lat, lng);
+          if (!targetMarker || !targetMarker.setIcon) return;
+          const statusSelect = container.querySelector('#estatus');
+          const draftStatus = statusSelect ? getPinStatusStateFromSelect(statusSelect) : p;
+          targetMarker.setIcon(createEmojiIcon(emojiVal, p.warstwaId, 32, draftStatus));
+        }
+      });
       setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
       setupInlineFieldLabel(container.querySelector('#eodKogo'), 'Od kogo');
       setupInlineFieldLabel(container.querySelector('#ekategoriaGlowna'), 'Kategoria główna');
@@ -10180,7 +10194,20 @@ function zaladujPinezkiZFirestore() {
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'), {
         markUnsaved: false
       });
-      setupEmojiPicker(container.querySelector('#emojiPickerNew'), tempPin);
+      const refreshNewPinIcon = () => {
+        const status = {
+          nieaktywne: !!container.querySelector('#nieaktywneNew')?.checked,
+          zamkniete: !!container.querySelector('#zamknieteNew')?.checked,
+          tajne: !!container.querySelector('#tajneNew')?.checked,
+          doSprawdzenia: !!container.querySelector('#doSprawdzeniaNew')?.checked,
+          zdewastowane: !!container.querySelector('#zdewastowaneNew')?.checked,
+          zwiedzone: !!container.querySelector('#zwiedzoneNew')?.checked,
+          wyroznione: !!container.querySelector('#wyroznioneNew')?.checked
+        };
+        const emojiVal = tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji || defaultEmoji;
+        marker.setIcon(createEmojiIcon(emojiVal, null, 24, status));
+      };
+      setupEmojiPicker(container.querySelector('#emojiPickerNew'), tempPin, { onChange: refreshNewPinIcon });
       const newLayerInput = container.querySelector('#warstwaNew');
       const newMainCategoryInput = container.querySelector('#kategoriaGlownaNew');
       const newCategoryInput = container.querySelector('#kategoriaNew');
@@ -10234,20 +10261,7 @@ function zaladujPinezkiZFirestore() {
       const chkNewDestroyed = container.querySelector('#zdewastowaneNew');
       const chkNewVisited = container.querySelector('#zwiedzoneNew');
       const chkNewHighlighted = container.querySelector('#wyroznioneNew');
-      const refreshIcon = () => {
-        const status = {
-          nieaktywne: chkNewInactive && chkNewInactive.checked,
-          zamkniete: chkNewClosed && chkNewClosed.checked,
-          tajne: chkNewSecret && chkNewSecret.checked,
-          doSprawdzenia: chkNewTodo && chkNewTodo.checked,
-          zdewastowane: chkNewDestroyed && chkNewDestroyed.checked,
-          zwiedzone: chkNewVisited && chkNewVisited.checked,
-          wyroznione: chkNewHighlighted && chkNewHighlighted.checked
-        };
-        const emojiVal = tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji || defaultEmoji;
-        marker.setIcon(createEmojiIcon(emojiVal, null, 24, status));
-      };
-      container.querySelector('#emojiPickerNew').addEventListener('click', () => setTimeout(refreshIcon, 0));
+      const refreshIcon = refreshNewPinIcon;
       if (chkNewInactive) {
         chkNewInactive.addEventListener('change', () => {
           const tmp = { marker, el: null, nieaktywne: chkNewInactive.checked };
