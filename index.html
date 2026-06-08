@@ -4097,11 +4097,11 @@ function slugify(str) {
       performanceDebugOverlay.textContent = [
         'PERF DEBUG',
         ...statLines,
-        `Pins total: ${performanceDebugCounters.totalPins}`,
-        `Rendered markers: ${performanceDebugCounters.renderedMarkers}`,
+        `Pins loaded from Firestore: ${performanceDebugCounters.totalPins}`,
+        `Leaflet markers actually created: ${performanceDebugCounters.createdMarkers}`,
+        `Markers currently attached to map: ${performanceDebugCounters.renderedMarkers}`,
         `Visible clusters: ${performanceDebugCounters.visibleClusters}`,
-        `Created markers: ${performanceDebugCounters.createdMarkers}`,
-        `Markers added to layer: ${performanceDebugCounters.markersAddedToLayer}`,
+        `Markers added in last update: ${performanceDebugCounters.markersAddedToLayer}`,
         `Markers removed by updateMarkerVisibility: ${performanceDebugCounters.markersRemovedByVisibility}`,
         `Visible layer count: ${performanceDebugCounters.visibleLayerCount}`,
         `Rendered markers after final visibility update: ${performanceDebugCounters.renderedMarkersAfterVisibility}`
@@ -9082,129 +9082,7 @@ function zaladujPinezkiZFirestore() {
   const firestoreFetchStartTs = performance.now();
   showLoading();
   const isMobileLayout = window.innerWidth <= 700;
-  // HOTFIX (Android Chrome batching stability): tymczasowo wyłączamy agresywne optymalizacje.
-  const DISABLE_VIEWPORT_VIRTUALIZATION = true;
-  const DISABLE_SMART_RENDERING = true;
-  const DISABLE_LAZY_RENDERING = true;
-  const DISABLE_MOBILE_MARKER_THROTTLING = true;
-  const DISABLE_ADAPTIVE_BATCHING = true;
-  const DISABLE_LOW_MEMORY_MODE = true;
-  const batchSize = 500;
-  if (!window.requestIdleCallback) {
-    window.requestIdleCallback = (cb) => setTimeout(() => cb({ timeRemaining: () => 50 }), 1);
-  }
-  const idleRunner = (cb) => window.requestIdleCallback(() => cb(), { timeout: 120 });
-  console.log('[lazy-markers:debug] entering createMarkersBatched bootstrap', {
-    isMobileLayout,
-    batchSize,
-    flags: {
-      DISABLE_VIEWPORT_VIRTUALIZATION,
-      DISABLE_SMART_RENDERING,
-      DISABLE_LAZY_RENDERING,
-      DISABLE_MOBILE_MARKER_THROTTLING,
-      DISABLE_ADAPTIVE_BATCHING,
-      DISABLE_LOW_MEMORY_MODE
-    }
-  });
-  const createMarkerForPin = (p, warstwaNazwa) => {
-    if (!p || !warstwaNazwa || p.marker || !warstwy[warstwaNazwa]) return null;
-    const lat = Number(p.lat);
-    const lng = Number(p.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      console.warn('[lazy-markers:debug] invalid lat/lng - skipping pin', { warstwaNazwa, pinId: p.id || null, lat: p.lat, lng: p.lng });
-      return null;
-    }
-    p.lat = lat;
-    p.lng = lng;
-    const iconEmoji = warstwy[warstwaNazwa].emoji || p.emoji;
-    const marker = L.marker([lat, lng], { icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p) });
-    marker.__pinRef = p;
-    marker.bindPopup('<div class="popup-container">Ładowanie…</div>');
-    attachPopupHandlers(marker, p);
-    marker.on('popupopen', (evt) => {
-      const popupStartTs = performance.now();
-      if (!marker._popupBuilt) {
-        const popupDiv = document.createElement("div");
-        popupDiv.className = "popup-container";
-        popupDiv.innerHTML = createPopupHtml(p);
-        evt.popup.setContent(popupDiv);
-        marker._popupBuilt = true;
-      }
-      updatePerformanceDebug('popup lazy render time', performance.now() - popupStartTs);
-    });
-    attachMarkerLongPress(marker, p);
-    attachHighlight(marker, null);
-    p.marker = marker;
-    return marker;
-  };
-  let totalCreatedMarkers = 0;
-  let totalMarkersAddedToLayer = 0;
-  const createMarkersBatched = (pins, warstwaNazwa) => new Promise(resolve => {
-    console.log(`[lazy-markers:debug] entering createMarkersBatched layer=${warstwaNazwa}`);
-    if (!Array.isArray(pins) || pins.length === 0 || !warstwy[warstwaNazwa]) return resolve();
-    console.log(`[lazy-markers:debug] total pins to process layer=${warstwaNazwa} total=${pins.length}`);
-    const layerData = warstwy[warstwaNazwa];
-    const createdMarkers = [];
-    let createdCount = 0;
-    let addedCount = 0;
-    let i = 0;
-    console.log('[lazy-markers:debug] createMarkersBatched start', { layer: warstwaNazwa, pinsTotal: pins.length, batchSize });
-    let firstBatchStarted = false;
-    const runBatch = () => {
-      if (!firstBatchStarted) {
-        firstBatchStarted = true;
-        console.log(`[lazy-markers:debug] first batch start layer=${warstwaNazwa}`);
-      }
-      const end = Math.min(i + batchSize, pins.length);
-      for (; i < end; i++) {
-        if (i === 0 || i % 200 === 0) {
-          console.log(`[lazy-markers:debug] processing pin index layer=${warstwaNazwa} index=${i}`);
-        }
-        const pin = pins[i];
-        const marker = createMarkerForPin(pin, warstwaNazwa);
-        if (marker) {
-          createdMarkers.push(marker);
-          createdCount++;
-          if (createdCount === 1) {
-            console.log(`[markers-debug] first marker created layer=${warstwaNazwa} pinId=${pin?.id || 'n/a'}`);
-          }
-          if (createdCount <= 3 || createdCount % 200 === 0) {
-            console.log(`[lazy-markers:debug] marker created successfully layer=${warstwaNazwa} createdCount=${createdCount}`);
-          }
-        }
-      }
-      if (createdMarkers.length) {
-        const batchMarkers = createdMarkers.splice(0);
-        if (typeof layerData.layer.addLayers === 'function') {
-          layerData.layer.addLayers(batchMarkers);
-          addedCount += batchMarkers.length;
-          totalMarkersAddedToLayer += batchMarkers.length;
-        } else {
-          batchMarkers.forEach(marker => {
-            layerData.layer.addLayer(marker);
-            addedCount++;
-            totalMarkersAddedToLayer++;
-          });
-        }
-      }
-      console.log(`[lazy-markers:debug] batch completed layer=${warstwaNazwa} processedUntil=${end} created=${createdCount} added=${addedCount}`);
-      if (i < pins.length) {
-        setTimeout(() => idleRunner(runBatch), 0);
-      } else {
-        const isLayerVisible = layerData.visible !== false;
-        if (isLayerVisible && !map.hasLayer(layerData.layer) && typeof layerData.layer.addTo === 'function') {
-          layerData.layer.addTo(map);
-        }
-        console.log(`[lazy-markers:debug] all batches completed layer=${warstwaNazwa} totalCreated=${createdCount} totalAdded=${addedCount}`);
-        console.log(`[lazy-markers] layer=${warstwaNazwa} pins=${pins.length} batch=${batchSize} created=${createdCount} added=${addedCount} mapHasLayer=${map.hasLayer(layerData.layer)}`);
-        console.log(`[markers-debug] total markers created layer=${warstwaNazwa} count=${createdCount}`);
-        console.log(`[markers-debug] total markers added layer=${warstwaNazwa} count=${addedCount}`);
-        totalCreatedMarkers += createdCount;
-        resolve();
-      }
-    };
-    runBatch();
-  });
+  console.log('[lazy-markers:debug] Firestore pins will be stored as data first; Leaflet markers are created on viewport/list demand.', { isMobileLayout });
   const pinSources = [{ collection: "pinezki2", layerOverride: null }];
   if (warstwy[PINTEREST_LAYER_NAME] || layerDocs[PINTEREST_LAYER_NAME]) {
     pinSources.push({ collection: PINTEREST_PINS_COLLECTION, layerOverride: PINTEREST_LAYER_NAME });
@@ -9320,13 +9198,6 @@ function zaladujPinezkiZFirestore() {
     pinsFirestoreLoaded = true;
     console.log('[pins:load] fetched pins total', wszystkiePinezki.length, getMapDiagnosticsSnapshot());
     updateAdaptiveClusteringMode('after-firestore-normalize');
-    const markerBuildTasks = [];
-    Object.entries(warstwy).forEach(([layerName, layerData]) => {
-      if (!layerData || !Array.isArray(layerData.lista)) return;
-      if (isMobileLayout && layerData.visible === false) return;
-      markerBuildTasks.push(createMarkersBatched(layerData.lista, layerName));
-    });
-    await Promise.all(markerBuildTasks);
     Object.entries(warstwy).forEach(([layerName, layerData]) => {
       if (!layerData || !layerData.layer) return;
       const isLayerVisible = layerData.visible !== false;
@@ -9337,23 +9208,16 @@ function zaladujPinezkiZFirestore() {
       } else if (map.hasLayer(layerData.layer)) {
         map.removeLayer(layerData.layer);
       }
-      console.log(`[lazy-markers:layer-state-after-create] layer=${layerName} visible=${isLayerVisible} mapHasLayer=${map.hasLayer(layerData.layer)}`);
+      console.log(`[lazy-markers:layer-state-after-data] layer=${layerName} pins=${layerData.lista?.length || 0} visible=${isLayerVisible} mapHasLayer=${map.hasLayer(layerData.layer)}`);
     });
     updatePerformanceDebug('marker batch creation total', performance.now() - createMarkersStartTs);
-    const visibleClusters = document.querySelectorAll('.leaflet-marker-pane .marker-cluster:not(.marker-cluster-hidden)').length;
-    const renderedMarkers = wszystkiePinezki.reduce((sum, pin) => {
-      if (!pin || !pin.marker) return sum;
-      const layer = warstwy[pin.warstwa]?.layer;
-      return sum + (layer && typeof layer.hasLayer === 'function' && layer.hasLayer(pin.marker) ? 1 : 0);
-    }, 0);
     updatePerformanceCounters({
       totalPins: wszystkiePinezki.length,
-      renderedMarkers,
-      visibleClusters,
-      createdMarkers: totalCreatedMarkers,
-      markersAddedToLayer: totalMarkersAddedToLayer
+      renderedMarkers: 0,
+      visibleClusters: 0,
+      createdMarkers: 0,
+      markersAddedToLayer: 0
     });
-    triggerMarkerRender('after-firestore-load');
     if (!localPinsLoaded) loadNewPinsFromLocal();
     refreshCategoryCollectionsFromPins();
     updateMainCategoryFilterUI();
@@ -9361,6 +9225,7 @@ function zaladujPinezkiZFirestore() {
     updateStatusFilter();
     refreshCountriesFromPins();
     generujListeWarstw({ deferMarkerVisibilityUpdate: true });
+    triggerMarkerRender('after-firestore-load');
     let reappliedVisibleLayers = 0;
     Object.entries(warstwy).forEach(([layerName, layerData]) => {
       if (!layerData || layerData.visible === false) return;
@@ -9870,8 +9735,12 @@ function zaladujPinezkiZFirestore() {
           openPinPlanEditorFromPopup(p, container);
         });
       }
-      const marker = p.marker || findMarkerByLatLng(lat, lng);
+      const marker = p.marker || createLeafletMarkerForPin(p, p.warstwa || 'Inne') || findMarkerByLatLng(lat, lng);
       if (marker) {
+        const markerLayer = warstwy[p.warstwa || 'Inne']?.layer;
+        if (markerLayer && typeof markerLayer.hasLayer === 'function' && !markerLayer.hasLayer(marker)) {
+          markerLayer.addLayer(marker);
+        }
         p.marker = marker;
         p._isEditing = true;
         if (isMobilePinFormPreferred()) {
@@ -10700,6 +10569,7 @@ function zaladujPinezkiZFirestore() {
       if (!Number.isFinite(pinLatLng.lat) || !Number.isFinite(pinLatLng.lng)) return;
       const layerName = p.warstwa || "Inne";
       const layerData = warstwy[layerName];
+      if (layerData && !p.marker) createLeafletMarkerForPin(p, layerName);
       if (layerData && p.marker && typeof layerData.layer?.hasLayer === 'function' && !layerData.layer.hasLayer(p.marker)) {
         layerData.layer.addLayer(p.marker);
       }
@@ -13615,6 +13485,51 @@ function getTripPointEmoji(p) {
       return viewportBounds.contains([pin.lat, pin.lng]);
     }
 
+
+    function getAttachedMarkerCount() {
+      return wszystkiePinezki.reduce((sum, pin) => {
+        if (!pin || !pin.marker) return sum;
+        const layer = warstwy[pin.warstwa]?.layer;
+        return sum + (layer && typeof layer.hasLayer === 'function' && layer.hasLayer(pin.marker) ? 1 : 0);
+      }, 0);
+    }
+
+    function getCreatedMarkerCount() {
+      return wszystkiePinezki.reduce((sum, pin) => sum + (pin && pin.marker ? 1 : 0), 0);
+    }
+
+    function createLeafletMarkerForPin(pin, layerName = null) {
+      const targetLayerName = layerName || pin?.warstwa || 'Inne';
+      const layerData = warstwy[targetLayerName];
+      if (!pin || pin.marker || !layerData) return pin?.marker || null;
+      const lat = Number(pin.lat);
+      const lng = Number(pin.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      pin.lat = lat;
+      pin.lng = lng;
+      const iconEmoji = layerData.emoji || pin.emoji;
+      const marker = L.marker([lat, lng], { icon: createEmojiIcon(iconEmoji, pin.warstwaId, 32, pin) });
+      marker.__pinRef = pin;
+      marker.bindPopup('<div class="popup-container">Ładowanie…</div>');
+      attachPopupHandlers(marker, pin);
+      marker.on('popupopen', (evt) => {
+        const popupStartTs = performance.now();
+        if (!marker._popupBuilt) {
+          const popupDiv = document.createElement('div');
+          popupDiv.className = 'popup-container';
+          popupDiv.innerHTML = createPopupHtml(pin);
+          evt.popup.setContent(popupDiv);
+          marker._popupBuilt = true;
+        }
+        updatePerformanceDebug('popup lazy render time', performance.now() - popupStartTs);
+      });
+      attachMarkerLongPress(marker, pin);
+      attachHighlight(marker, pin.el || null);
+      pin.marker = marker;
+      updatePerformanceCounters({ createdMarkers: getCreatedMarkerCount() });
+      return marker;
+    }
+
     function scheduleMarkerVisibilityUpdate() {
       if (markerZoomInProgress) {
         markerVisibilityUpdateDeferred = true;
@@ -13657,18 +13572,23 @@ function getTripPointEmoji(p) {
         const layerChecked = getLayerCheckboxChecked(layerName, layerVisible);
         if (layerVisible && layerChecked) visibleLayerCount++;
         w.lista.forEach(p => {
-          if (!p.marker) return;
+          if (!p) return;
           beforeFilters++;
           const visibleByFilters = pinMatchesAllFilters(p, true) && p.visible !== false;
           if (visibleByFilters) afterFilters++;
           const inViewport = visibleByFilters && pinIsInViewport(p, currentBounds);
           if (inViewport) inBounds++;
-          const markerHasOpenPopup = typeof p.marker.isPopupOpen === 'function' && p.marker.isPopupOpen();
+          const markerHasOpenPopup = p.marker && typeof p.marker.isPopupOpen === 'function' && p.marker.isPopupOpen();
           const visible = layerVisible && layerChecked && (inViewport || markerHasOpenPopup);
-          if (visible) {
-            if (!w.layer.hasLayer(p.marker)) toAdd.push(p.marker);
-          } else {
-            if (w.layer.hasLayer(p.marker)) toRemove.push(p.marker);
+          if (visible && !p.marker) {
+            createLeafletMarkerForPin(p, layerName);
+          }
+          if (p.marker) {
+            if (visible) {
+              if (!w.layer.hasLayer(p.marker)) toAdd.push(p.marker);
+            } else if (w.layer.hasLayer(p.marker)) {
+              toRemove.push(p.marker);
+            }
           }
           updatePlanVisibilityForPin(p);
         });
@@ -13708,11 +13628,7 @@ function getTripPointEmoji(p) {
         }
       });
       const visibleClusters = document.querySelectorAll('.leaflet-marker-pane .marker-cluster:not(.marker-cluster-hidden)').length;
-      const renderedMarkers = wszystkiePinezki.reduce((sum, pin) => {
-        if (!pin || !pin.marker) return sum;
-        const layer = warstwy[pin.warstwa]?.layer;
-        return sum + (layer && typeof layer.hasLayer === 'function' && layer.hasLayer(pin.marker) ? 1 : 0);
-      }, 0);
+      const renderedMarkers = getAttachedMarkerCount();
       console.log('[viewport-render:diagnostics]', {
         totalPins: wszystkiePinezki.length,
         pinsAfterFilters: Object.values(warstwy).reduce((acc, w) => acc + (w?.lista?.filter(p => pinMatchesAllFilters(p, true) && p.visible !== false).length || 0), 0),
@@ -13725,6 +13641,7 @@ function getTripPointEmoji(p) {
         totalPins: wszystkiePinezki.length,
         renderedMarkers,
         visibleClusters,
+        createdMarkers: getCreatedMarkerCount(),
         markersAddedToLayer: totalAdded,
         markersRemovedByVisibility: totalRemoved,
         visibleLayerCount,
@@ -13736,30 +13653,11 @@ function getTripPointEmoji(p) {
     function ensureLayerMarkersCreated(layerName) {
       const layerData = warstwy[layerName];
       if (!layerData || !Array.isArray(layerData.lista) || !layerData.layer) return 0;
-      let count = 0;
-      layerData.lista.forEach(pin => {
-        if (pin.marker) return;
-        const iconEmoji = layerData.emoji || pin.emoji;
-        pin.marker = L.marker([pin.lat, pin.lng], { icon: createEmojiIcon(iconEmoji, pin.warstwaId, 32, pin) });
-        pin.marker.__pinRef = pin;
-        pin.marker.bindPopup('<div class="popup-container">Ładowanie…</div>');
-        pin.marker.on('popupopen', (evt) => {
-          if (!pin.marker._popupBuilt) {
-            const popupDiv = document.createElement("div");
-            popupDiv.className = "popup-container";
-            popupDiv.innerHTML = createPopupHtml(pin);
-            evt.popup.setContent(popupDiv);
-            attachPopupHandlers(pin.marker, pin);
-            pin.marker._popupBuilt = true;
-          }
-        });
-        attachMarkerLongPress(pin.marker, pin);
-        attachHighlight(pin.marker, null);
-        layerData.layer.addLayer(pin.marker);
-        count++;
-      });
-      console.log('[ensure-layer-markers]', layerName, 'created:', count, 'total:', layerData.lista.length);
-      return count;
+      const before = getCreatedMarkerCount();
+      scheduleMarkerVisibilityUpdate();
+      const created = getCreatedMarkerCount() - before;
+      console.log('[ensure-layer-markers]', layerName, 'lazy scheduled; created synchronously:', created, 'total data pins:', layerData.lista.length);
+      return created;
     }
 
     function setLayerVisible(layerName, visible, options = {}) {
