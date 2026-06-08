@@ -1559,17 +1559,33 @@ text-shadow: 0 0 5px rgba(0, 0, 0, 1);
   position: fixed;
   top: 50%;
   left: 50%;
+  width: 76px;
+  height: 76px;
   transform: translate(-50%, -50%);
   z-index: 2000;
   display: none;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  pointer-events: none;
+  font-weight: 800;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
 }
 .loader {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
   border: 8px solid #f3f3f3;
   border-top: 8px solid #007bff;
   border-radius: 50%;
-  width: 60px;
-  height: 60px;
   animation: spin 1s linear infinite;
+}
+.loading-percent {
+  position: relative;
+  z-index: 1;
+  display: none;
+  font-size: 14px;
+  line-height: 1;
 }
 .country-inline-loader {
   display: inline-block;
@@ -2873,7 +2889,7 @@ body.mobile-layout #saveChanges {
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:200px;right:200px;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="toast"></div>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
-  <div id="loading"><div class="loader"></div></div>
+  <div id="loading" aria-live="polite"><div class="loader"></div><div id="loadingPercent" class="loading-percent" aria-label="Postęp wczytywania">0%</div></div>
   <div id="pinViewportLoading" aria-live="polite"><div class="pin-loader"></div><div id="pinViewportLoadingPercent">0%</div></div>
   <div id="sidebar">
     <div id="sidebar-inner">
@@ -4322,14 +4338,27 @@ function slugify(str) {
     function syncMainLoadingVisibility() {
       const el = document.getElementById('loading');
       if (!el) return;
-      el.style.display = loadingCount > 0 && !isPinViewportLoadingVisible() ? 'block' : 'none';
+      el.style.display = loadingCount > 0 && !isPinViewportLoadingVisible() ? 'flex' : 'none';
     }
-    function showLoading() {
+    function setMainLoadingProgress(percent = null) {
+      const percentEl = document.getElementById('loadingPercent');
+      if (!percentEl) return;
+      if (Number.isFinite(percent)) {
+        percentEl.textContent = `${Math.max(0, Math.min(100, Math.round(percent)))}%`;
+        percentEl.style.display = 'block';
+      } else {
+        percentEl.textContent = '';
+        percentEl.style.display = 'none';
+      }
+    }
+    function showLoading(percent = null) {
+      if (Number.isFinite(percent)) setMainLoadingProgress(percent);
       loadingCount++;
       syncMainLoadingVisibility();
     }
     function hideLoading() {
       if (loadingCount > 0) loadingCount--;
+      if (loadingCount === 0) setMainLoadingProgress(null);
       syncMainLoadingVisibility();
     }
     function resetBaseLayerLoading() {
@@ -9483,7 +9512,7 @@ function emojiHtml(str, hue = 0) {
     
 function zaladujPinezkiZFirestore() {
   const firestoreFetchStartTs = performance.now();
-  showLoading();
+  showLoading(0);
   const isMobileLayout = window.innerWidth <= 700;
   console.log('[lazy-markers:debug] Firestore pins will be stored as data first; Leaflet markers are created on viewport/list demand.', { isMobileLayout });
   const pinSources = [{ collection: "pinezki2", layerOverride: null }];
@@ -9494,9 +9523,17 @@ function zaladujPinezkiZFirestore() {
   .then(async snaps => {
     updatePerformanceDebug('firestore fetch', performance.now() - firestoreFetchStartTs);
     const createMarkersStartTs = performance.now();
-    snaps.forEach((snapshot, idx) => {
-      const source = pinSources[idx];
-      snapshot.forEach(doc => {
+    setMainLoadingProgress(20);
+    const totalPinsToProcess = snaps.reduce((sum, snapshot) => sum + (snapshot?.size || 0), 0);
+    let processedPinsForFirestoreLoad = 0;
+    const updateFirestorePinLoadProgress = () => {
+      const percent = totalPinsToProcess > 0
+        ? 20 + ((processedPinsForFirestoreLoad / totalPinsToProcess) * 75)
+        : 95;
+      setMainLoadingProgress(percent);
+    };
+    const waitForFirestoreProgressPaint = () => new Promise(resolve => requestAnimationFrame(resolve));
+    const processFirestorePinDoc = (doc, source) => {
       const p = doc.data();
       if (source.layerOverride) {
         p.warstwa = source.layerOverride;
@@ -9603,8 +9640,21 @@ function zaladujPinezkiZFirestore() {
       warstwy[warstwaNazwa].lista.push(p);
       warstwy[warstwaNazwa].loaded = true;
       wszystkiePinezki.push(p);
-    });
-    });
+    };
+    updateFirestorePinLoadProgress();
+    for (let idx = 0; idx < snaps.length; idx++) {
+      const source = pinSources[idx];
+      const docs = snaps[idx]?.docs || [];
+      for (const doc of docs) {
+        processFirestorePinDoc(doc, source);
+        processedPinsForFirestoreLoad++;
+        if (processedPinsForFirestoreLoad === totalPinsToProcess || processedPinsForFirestoreLoad % 100 === 0) {
+          updateFirestorePinLoadProgress();
+          await waitForFirestoreProgressPaint();
+        }
+      }
+    }
+    setMainLoadingProgress(98);
     pinsFirestoreLoaded = true;
     console.log('[pins:load] fetched pins total', wszystkiePinezki.length, getMapDiagnosticsSnapshot());
     updateAdaptiveClusteringMode('after-firestore-normalize');
@@ -9648,6 +9698,7 @@ function zaladujPinezkiZFirestore() {
       }
     });
     console.log('[after-load-pins] re-applied visible layers:', reappliedVisibleLayers);
+    setMainLoadingProgress(100);
     updatePerformanceDebug('first usable map time', performance.now() - mapLoadStartTs);
   })
   .catch(err => {
