@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>ExploMapa</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <link rel="manifest" href="/ExploMapa/manifest.json" />
   <meta name="theme-color" content="#000000" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -21,7 +21,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/dist/twemoji.min.js" crossorigin="anonymous"></script>
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; background-color: #1e1e1e; color: #f0f0f0;}
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; touch-action: manipulation; font-family: sans-serif; background-color: #1e1e1e; color: #f0f0f0;}
     #map, #sidebar, #basemap-switcher, #layer-editor, #route-editor { display: none; }
     #map { position: absolute; top: 0; left: 0.282px; right: 0.258px; bottom: 0; z-index: 1; }
     #map.pin-reposition,
@@ -3965,6 +3965,41 @@ function slugify(str) {
       document.body.classList.toggle("mobile-layout", shouldUseMobileLayout());
       updateSidebarTopControlsLayout();
     }
+
+    function setupViewportZoomGuard() {
+      if (window.__viewportZoomGuardInstalled) return;
+      window.__viewportZoomGuardInstalled = true;
+
+      const viewport = document.querySelector('meta[name="viewport"]');
+      const lockedViewportContent = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+      if (viewport) viewport.setAttribute('content', lockedViewportContent);
+
+      const preventBrowserZoom = event => {
+        if (event.cancelable) event.preventDefault();
+      };
+
+      document.addEventListener('gesturestart', preventBrowserZoom, { passive: false });
+      document.addEventListener('gesturechange', preventBrowserZoom, { passive: false });
+      document.addEventListener('gestureend', preventBrowserZoom, { passive: false });
+
+      document.addEventListener('touchmove', event => {
+        if (event.touches && event.touches.length > 1 && event.cancelable) {
+          event.preventDefault();
+        }
+      }, { passive: false, capture: true });
+
+      window.addEventListener('wheel', event => {
+        if ((event.ctrlKey || event.metaKey) && event.cancelable) event.preventDefault();
+      }, { passive: false });
+
+      window.addEventListener('keydown', event => {
+        const key = event.key;
+        const zoomShortcut = (event.ctrlKey || event.metaKey) && (key === '+' || key === '-' || key === '=' || key === '0');
+        if (zoomShortcut && event.cancelable) event.preventDefault();
+      }, { passive: false });
+    }
+
+    setupViewportZoomGuard();
 
     function updateSidebarTopControlsLayout() {
       const controlsWrap = document.getElementById("sidebarTopControls");
@@ -7916,12 +7951,31 @@ function emojiHtml(str, hue = 0) {
         if (!popupEl || !mapEl) return;
 
         const mapRect = mapEl.getBoundingClientRect();
-        const geosearchEl = document.getElementById('geosearch-container');
         const padding = popupAutoPanState.padding;
-        const searchRect = geosearchEl ? geosearchEl.getBoundingClientRect() : null;
-        const geosearchVisible = !!(searchRect && searchRect.width > 0 && searchRect.height > 0);
-        const minTop = geosearchVisible
-          ? Math.max(mapRect.top + padding.top, searchRect.bottom + 8)
+        const mobileLayout = document.body.classList.contains('mobile-layout') || window.innerWidth <= 700;
+
+        const getVisibleBottom = selector => {
+          const el = document.querySelector(selector);
+          if (!el) return null;
+          const style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return null;
+          const rect = el.getBoundingClientRect();
+          if (!rect.width || !rect.height) return null;
+          return rect.bottom;
+        };
+
+        const overlayBottoms = mobileLayout
+          ? [
+              getVisibleBottom('#toggleLayers'),
+              getVisibleBottom('#toggleBasemaps'),
+              getVisibleBottom('#geosearch-container'),
+              getVisibleBottom('#narzedzia')
+            ].filter(bottom => Number.isFinite(bottom))
+          : [getVisibleBottom('#geosearch-container')].filter(bottom => Number.isFinite(bottom));
+
+        const controlsBottom = overlayBottoms.length ? Math.max(...overlayBottoms) : null;
+        const minTop = controlsBottom !== null
+          ? Math.max(mapRect.top + padding.top, controlsBottom + 8)
           : mapRect.top + padding.top;
         const maxRight = mapRect.right - padding.right;
         const maxBottom = mapRect.bottom - padding.bottom;
