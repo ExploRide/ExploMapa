@@ -722,23 +722,32 @@
       cursor: pointer;
     }
     .hillshade-dark { filter: grayscale(100%) brightness(60%); }
-    .emoji-marker { background: transparent; border: none; }
+    .emoji-marker {
+      width: 32px;
+      height: 32px;
+      overflow: visible;
+      background: transparent;
+      border: 0;
+    }
     .emoji-marker-inner {
-      position: relative;
       width: 32px;
       height: 32px;
       display: flex;
       align-items: center;
       justify-content: center;
+      position: relative;
+      overflow: visible;
       transform: translateX(0);
     }
     .emoji-marker-img {
-      display: block;
+      width: 28px;
+      height: 28px;
       max-width: 28px;
       max-height: 28px;
-      width: auto;
-      height: auto;
+      min-width: 0;
+      min-height: 0;
       object-fit: contain;
+      display: block;
       filter: hue-rotate(var(--emoji-hue, 0deg))
         drop-shadow(0 0 1px black)
         drop-shadow(0 0 1px black);
@@ -2670,12 +2679,24 @@ html body #basemap-switcher { width: calc(264px * var(--ui-scale)); }
 }
 
 /* Map markers must not be affected by UI scale */
-html body .leaflet-marker-icon.emoji-marker,
-html body .emoji-marker {
+html body .leaflet-marker-icon.emoji-marker {
+  width: 32px !important;
+  height: 32px !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: 0 !important;
   font-size: 12.4px !important;
   line-height: 25.6px !important;
-  background: transparent !important;
-  border: none !important;
+}
+
+html body .emoji-marker-inner {
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  overflow: visible !important;
 }
 
 html body .emoji-marker span:not(.status-icon):not(.sztosy-gwiazda),
@@ -2684,10 +2705,18 @@ html body .emoji-marker .emoji-sztosy {
   line-height: 25.6px !important;
 }
 
+html body .emoji-marker-img,
+html body .emoji-marker img.emoji-marker-img,
 html body .emoji-marker img.emoji-obrys,
 html body .emoji-marker img.emoji-obrys-sztosy {
- /* width: 22.4px !important;
-  height: 22.4px !important;*/
+  width: 28px !important;
+  height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  object-fit: contain !important;
+  display: block !important;
 }
 
 html body .emoji-marker .status-icon {
