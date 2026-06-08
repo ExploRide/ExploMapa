@@ -817,9 +817,12 @@
       pointer-events: none !important;
     }
     .emoji-inline {
-width: 15px;
-    height: 15px;
-    vertical-align: TOP;
+      width: auto;
+      height: auto;
+      max-width: 1.4em;
+      max-height: 1em;
+      object-fit: contain;
+      vertical-align: -0.15em;
     }
     .hidden-text { display: none; }
 
@@ -3654,9 +3657,7 @@ body.mobile-layout #saveChanges {
     function sidebarEmojiForPin(pin = {}, layerName = '') {
       const layerEmoji = layerName && warstwy[layerName] ? warstwy[layerName].emoji : '';
       if (layerEmoji) return layerEmoji;
-      const emoji = pin.noweEmoji !== undefined ? pin.noweEmoji : pin.emoji;
-      if (isImplicitDefaultEmoji(pin) && isStandardEmoji(emoji)) return '';
-      return emoji;
+      return pin.noweEmoji !== undefined ? pin.noweEmoji : pin.emoji;
     }
 
     function normalizeEmojiHue(value) {
