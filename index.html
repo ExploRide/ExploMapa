@@ -812,10 +812,6 @@
     .leaflet-zoom-anim .custom-cluster-icon {
       transition: none !important;
     }
-    .leaflet-marker-icon.marker-cluster-hidden {
-      opacity: 0 !important;
-      pointer-events: none !important;
-    }
     .emoji-inline {
       width: auto;
       height: auto;
@@ -4267,7 +4263,7 @@ function slugify(str) {
     const PINTEREST_LAYER_NAME = 'pinterest_diane_g';
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
     const CLUSTER_DISABLE_AT_ZOOM = 14; // skupiaj pinezki aż do średniego przybliżenia mapy
-    const CLUSTER_MIN_MARKERS = 5; // poniżej tej liczby pokazuj pojedyncze pinezki zamiast klastra
+    const CLUSTER_MIN_MARKERS = 5; // próg pomocniczy dla logiki dużych/łączonych klastrów; małe klastry nadal pokazują licznik
     const CLUSTER_IDLE_REFRESH_DELAY = 80;
     const BIG_CLUSTER_COUNT = 500;
     const MAX_VISIBLE_CLUSTERS_FOR_OVERLAP_MERGE = 1000;
@@ -4583,16 +4579,12 @@ function slugify(str) {
 
       let clusterLayer = null;
       let mergedOverlayLayer = null;
-      let smallClusterOverlayLayer = null;
       const hiddenClusterIds = new Set();
       const mergedClusterMarkers = [];
-      const hiddenSmallClusterIds = new Set();
-      const smallClusterMarkers = [];
       let isZoomingClusters = false;
       let isClusterZooming = false;
       let clusterZoomStartLevel = null;
       let refreshClusterRaf = null;
-      let zoomanimHideTinyRaf = null;
       let clusterIdleRefreshTimer = null;
       const clusterIconHtmlCache = new Map();
 
@@ -4624,11 +4616,6 @@ function slugify(str) {
         if (mergedOverlayLayer) mergedOverlayLayer.clearLayers();
       }
 
-      function clearSmallClusterOverlays() {
-        hiddenSmallClusterIds.clear();
-        smallClusterMarkers.splice(0, smallClusterMarkers.length);
-        if (smallClusterOverlayLayer) smallClusterOverlayLayer.clearLayers();
-      }
 
       function getVisibleTopClusters() {
         if (!clusterLayer || !clusterLayer._featureGroup || !map) return [];
@@ -4759,90 +4746,11 @@ function slugify(str) {
         }
       }
 
-      function buildSingleMarkerClone(marker) {
-        const latLng = marker.getLatLng();
-        const icon = marker.options?.icon;
-        const clone = L.marker(latLng, { icon, interactive: true });
-        if (marker.options?.zIndexOffset) {
-          clone.setZIndexOffset(marker.options.zIndexOffset);
-        }
-        clone.on('click', () => {
-          const visibleParent = clusterLayer && typeof clusterLayer.getVisibleParent === 'function'
-            ? clusterLayer.getVisibleParent(marker)
-            : null;
-          if (visibleParent === marker) {
-            marker.fire('click');
-            return;
-          }
-
-          handlePinOpen(marker, null, { popupMarker: clone });
-        });
-        return clone;
-      }
-
-      function hideTinyClustersImmediately() {
-        const clusterGroup = clusterLayer;
-        const visible = clusterGroup?._featureGroup?.getLayers?.() || [];
-
-        for (const layer of visible) {
-          if (!(layer instanceof L.MarkerCluster)) continue;
-
-          const count = layer.getChildCount();
-
-          if (count < CLUSTER_MIN_MARKERS) {
-            const el = layer._icon;
-            if (el) {
-              el.classList.add('marker-cluster-hidden');
-              el.style.display = 'none';
-              el.style.opacity = '0';
-              el.style.pointerEvents = 'none';
-            }
-          }
-        }
-      }
-
-      function renderSmallClustersAsSingleMarkers() {
-        if (isZoomingClusters) return;
-        if (!map || !clusterLayer || !clusterLayer._featureGroup) return;
-        if (!smallClusterOverlayLayer || !map.hasLayer(clusterLayer)) return;
-
-        for (const id of hiddenSmallClusterIds) {
-          const cluster = smallClusterMarkers.find(item => item.id === id)?.cluster;
-          if (cluster) setClusterMarkerVisibility(cluster, true);
-        }
-        clearSmallClusterOverlays();
-
-        const clusters = getVisibleTopClusters();
-        for (const cluster of clusters) {
-          const count = cluster.getChildCount();
-          if (count >= CLUSTER_MIN_MARKERS) continue;
-          if (typeof cluster.getAllChildMarkers !== 'function') continue;
-          const childMarkers = cluster.getAllChildMarkers();
-          if (childMarkers.length < 2) continue;
-
-          const id = L.Util.stamp(cluster);
-          hiddenSmallClusterIds.add(id);
-          smallClusterMarkers.push({ id, cluster });
-          setClusterMarkerVisibility(cluster, false);
-          if (cluster._icon) {
-            cluster._icon.classList.add('marker-cluster-hidden');
-            cluster._icon.style.display = 'none';
-          }
-
-          childMarkers.forEach(childMarker => {
-            const markerClone = buildSingleMarkerClone(childMarker);
-            smallClusterOverlayLayer.addLayer(markerClone);
-          });
-        }
-      }
-
       function refreshClusterVisuals() {
         if (refreshClusterRaf) cancelAnimationFrame(refreshClusterRaf);
         refreshClusterRaf = requestAnimationFrame(() => {
           refreshClusterRaf = null;
           if (isZoomingClusters) return;
-          hideTinyClustersImmediately();
-          renderSmallClustersAsSingleMarkers();
           mergeStronglyOverlappingClusters();
         });
       }
@@ -4883,7 +4791,6 @@ function slugify(str) {
       });
 
       mergedOverlayLayer = L.layerGroup();
-      smallClusterOverlayLayer = L.layerGroup();
       const handleMapViewChangeEnd = () => scheduleClusterIdleRefresh('zoomend/moveend/dragend');
       const handleMapViewStart = () => clearClusterIdleRefreshTimer();
       const handleClusterZoomStart = () => {
@@ -4891,15 +4798,6 @@ function slugify(str) {
         isClusterZooming = true;
         clusterZoomStartLevel = map?.getZoom?.() ?? null;
         clearClusterIdleRefreshTimer();
-        clearSmallClusterOverlays();
-        hideTinyClustersImmediately();
-      };
-      const handleClusterZoomAnim = () => {
-        if (zoomanimHideTinyRaf) return;
-        zoomanimHideTinyRaf = requestAnimationFrame(() => {
-          zoomanimHideTinyRaf = null;
-          hideTinyClustersImmediately();
-        });
       };
       const handleClusterZoomEnd = () => {
         isZoomingClusters = false;
@@ -4911,14 +4809,12 @@ function slugify(str) {
       };
       clusterLayer.on('add', () => {
         mergedOverlayLayer.addTo(map);
-        smallClusterOverlayLayer.addTo(map);
         map.on('zoomstart', handleMapViewStart);
         map.on('movestart', handleMapViewStart);
         map.on('dragstart', handleMapViewStart);
         map.on('moveend', handleMapViewChangeEnd);
         map.on('dragend', handleMapViewChangeEnd);
         map.on('zoomstart', handleClusterZoomStart);
-        map.on('zoomanim', handleClusterZoomAnim);
         map.on('zoomend', handleClusterZoomEnd);
         scheduleClusterIdleRefresh('layer-add');
       });
@@ -4932,24 +4828,16 @@ function slugify(str) {
           cancelAnimationFrame(refreshClusterRaf);
           refreshClusterRaf = null;
         }
-        if (zoomanimHideTinyRaf) {
-          cancelAnimationFrame(zoomanimHideTinyRaf);
-          zoomanimHideTinyRaf = null;
-        }
         clearMergedClusterOverlays();
-        clearSmallClusterOverlays();
         mergedOverlayLayer.remove();
-        smallClusterOverlayLayer.remove();
         map.off('zoomstart', handleMapViewStart);
         map.off('movestart', handleMapViewStart);
         map.off('dragstart', handleMapViewStart);
         map.off('moveend', handleMapViewChangeEnd);
         map.off('dragend', handleMapViewChangeEnd);
         map.off('zoomstart', handleClusterZoomStart);
-        map.off('zoomanim', handleClusterZoomAnim);
         map.off('zoomend', handleClusterZoomEnd);
       });
-      clusterLayer.on('animationend', hideTinyClustersImmediately);
       clusterLayer.on('animationend', () => scheduleClusterIdleRefresh('animationend'));
       clusterLayer.on('spiderfied', () => scheduleClusterIdleRefresh('spiderfied'));
       clusterLayer.on('unspiderfied', () => scheduleClusterIdleRefresh('unspiderfied'));
@@ -14052,7 +13940,7 @@ function getTripPointEmoji(p) {
           layer.fire('animationend');
         }
       });
-      const visibleClusters = document.querySelectorAll('.leaflet-marker-pane .marker-cluster:not(.marker-cluster-hidden)').length;
+      const visibleClusters = document.querySelectorAll('.leaflet-marker-pane .marker-cluster').length;
       const renderedMarkers = getAttachedMarkerCount();
       console.log('[viewport-render:diagnostics]', {
         totalPins: wszystkiePinezki.length,
