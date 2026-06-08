@@ -36,7 +36,9 @@ auth.onAuthStateChanged(user => {
   }
 });
 
-window.addPinOffline = async function({ lat, lng, name, opis, warstwa, emoji, emojiHue = 0, kategoriaGlowna = 'URBEX' }){
+window.addPinOffline = async function({ lat, lng, name, opis, warstwa, emoji, emojiHue = 0, emojiDefault, kategoriaGlowna = 'URBEX' }){
+  const hadExplicitEmoji = !!String(emoji || '').trim();
+  const normalizedEmoji = hadExplicitEmoji ? emoji : 'emoji38';
   const payload = {
     lat,
     lng,
@@ -44,7 +46,8 @@ window.addPinOffline = async function({ lat, lng, name, opis, warstwa, emoji, em
     opis,
     warstwa,
     kategoriaGlowna: kategoriaGlowna === 'TURYSTYCZNE' ? 'TURYSTYCZNE' : 'URBEX',
-    emoji,
+    emoji: normalizedEmoji,
+    emojiDefault: emojiDefault !== undefined ? !!emojiDefault : !hadExplicitEmoji,
     emojiHue: Number.isFinite(Number(emojiHue)) ? Math.max(0, Math.min(360, Math.round(Number(emojiHue)))) : 0,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
