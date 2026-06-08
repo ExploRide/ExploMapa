@@ -756,7 +756,8 @@
     -1px  1px 0 #000,
      1px  1px 0 #000;
   */
-     filter: drop-shadow(0 0 1px black)
+     filter: hue-rotate(var(--emoji-hue, 0deg))
+          drop-shadow(0 0 1px black)
           drop-shadow(0 0 1px black)
           drop-shadow(0 0 1px black)
           drop-shadow(0 0 1px black);
@@ -1758,7 +1759,21 @@ img.emoji {
   vertical-align: -0.15em;
 }
 
+.emoji-picker { position: relative; display: inline-block; }
+.emoji-picker-panel {
+  display: none;
+  position: absolute;
+  z-index: 2147483602;
+  background: #1d2028;
+  border: 1px solid #3a3f4a;
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
 .emoji-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1.8em);
+  gap: 4px;
   max-height: min(280px, 45vh);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -1785,6 +1800,13 @@ img.emoji {
 .emoji-hue-value { min-width: 38px; text-align: right; color: #cfd6e6; }
 .emoji-hue-reset { font-size: 11px; white-space: nowrap; }
 .emoji-inline, .emoji-hue-filter { filter: hue-rotate(var(--emoji-hue, 0deg)); }
+.emoji-marker span.emoji-hue-filter:not(.emoji-sztosy) {
+  filter: hue-rotate(var(--emoji-hue, 0deg))
+    drop-shadow(0 0 1px black)
+    drop-shadow(0 0 1px black)
+    drop-shadow(0 0 1px black)
+    drop-shadow(0 0 1px black);
+}
 
 .trip-special-point-modal {
   overflow: visible !important;
@@ -1795,12 +1817,15 @@ img.emoji {
 }
 
 .trip-special-point-modal .emoji-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1.8em);
+  gap: 4px;
   max-height: min(280px, 45vh);
   overflow-y: auto;
 }
 
 @media (max-width: 700px) {
-  .emoji-picker-grid {
+  .emoji-picker-panel {
     bottom: auto;
     top: 34px;
     left: 0;
@@ -5894,6 +5919,26 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       return `<span class="pin-list-emoji-wrap"><span class="pin-list-emoji-base">${emojiHtml(emojiOrUrl, getPinEmojiHue(pin))}</span>${statusOverlay}</span>`;
     }
 
+    function updateVisiblePinEmojiHue(pin) {
+      if (!pin) return;
+      const hue = getPinEmojiHue(pin);
+      if (pin.el) {
+        const layerName = pin.el.closest('.warstwa')?.dataset?.nazwa || pin.warstwa || '';
+        const title = pin.el.querySelector('.pin-title');
+        const emoji = (warstwy[layerName] && warstwy[layerName].emoji) || (pin.noweEmoji !== undefined ? pin.noweEmoji : pin.emoji);
+        if (title) {
+          title.innerHTML = (emoji ? pinListEmojiHtml(emoji, pin, layerName) : '') + `<span class="pin-title-text">${pin.nazwa || ''}</span>`;
+        }
+      }
+      const popupEl = pin.marker && pin.marker.getPopup && pin.marker.getPopup()?.getElement ? pin.marker.getPopup().getElement() : null;
+      if (popupEl) {
+        popupEl.querySelectorAll('.emoji-inline, .emoji-hue-filter').forEach(el => {
+          el.style.setProperty('--emoji-hue', `${hue}deg`);
+          el.classList.toggle('emoji-hue-filter', hue !== 0 || el.classList.contains('emoji-inline'));
+        });
+      }
+    }
+
     function createEmojiIcon(emojiOrUrl, warstwaId, size = 32, status = {}) {
       emojiOrUrl = resolveEmoji(emojiOrUrl);
       const markerScale = 0.8;
@@ -5968,7 +6013,7 @@ function emojiHtml(str, hue = 0) {
   if (url.startsWith('http')) {
     return `<span class="hidden-text">${str} </span><img src="${url}" class="emoji-inline"${hueAttr}>`;
   }
-  return normalizeEmojiHue(hue) ? `<span class="emoji-hue-filter"${hueAttr}>${url}</span>` : url;
+  return `<span class="emoji-hue-filter"${hueAttr}>${url}</span>`;
 }
 
 
@@ -7198,6 +7243,7 @@ function emojiHtml(str, hue = 0) {
     async function setupEmojiPicker(container, pin, options = {}) {
       if (!container || !pin) return;
       await emojiListReady;
+      container.innerHTML = '';
       const preview = document.createElement('img');
       preview.className = 'emoji-picker-preview';
       preview.width = 28;
@@ -7209,29 +7255,40 @@ function emojiHtml(str, hue = 0) {
         }
         return resolveEmoji(val);
       }
-      const applyPreviewHue = () => {
-        preview.style.setProperty('--emoji-hue', `${getPinEmojiHue(pin)}deg`);
-        preview.classList.toggle('emoji-hue-filter', getPinEmojiHue(pin) !== 0);
+      const applyPickerHue = (hue = getPinEmojiHue(pin)) => {
+        container.querySelectorAll('img[data-emoji-item="true"], .emoji-picker-preview').forEach(el => {
+          el.style.setProperty('--emoji-hue', `${hue}deg`);
+          el.classList.toggle('emoji-hue-filter', hue !== 0);
+        });
+        preview.style.setProperty('--emoji-hue', `${hue}deg`);
+        preview.classList.toggle('emoji-hue-filter', hue !== 0);
       };
       preview.src = getCurrent();
-      applyPreviewHue();
-      container.appendChild(preview);
 
       function notifyPickerChange(id, url) {
+        updateVisiblePinEmojiHue(pin);
         if (typeof options.onChange === 'function') {
           options.onChange(id, url, pin);
         }
       }
 
-      function applyEmojiSelection(id, url) {
-        preview.src = url || getCurrent();
-        pin.noweEmoji = id;
-        applyPreviewHue();
-        notifyPickerChange(id, url);
-      }
+      const pickerPanel = document.createElement('div');
+      pickerPanel.className = 'emoji-picker-panel';
+      pickerPanel.style.display = 'none';
 
       const grid = document.createElement('div');
       grid.className = 'emoji-picker-grid';
+      grid.style.display = 'grid';
+
+      function hidePickerPanel() { pickerPanel.style.display = 'none'; }
+
+      function applyEmojiSelection(id, url) {
+        preview.src = url || getCurrent();
+        pin.noweEmoji = id;
+        applyPickerHue();
+        notifyPickerChange(id, url);
+      }
+
       const addBtn = document.createElement('button');
       addBtn.textContent = '+';
       addBtn.className = 'emoji-add-btn';
@@ -7242,7 +7299,7 @@ function emojiHtml(str, hue = 0) {
           const info = prompt('Nazwa nowego emoji:') || '';
           const id = await addEmojiToList(url, info);
           applyEmojiSelection(id, url);
-          grid.style.display = 'none';
+          hidePickerPanel();
         }
       });
       grid.appendChild(addBtn);
@@ -7252,6 +7309,9 @@ function emojiHtml(str, hue = 0) {
           const img = document.createElement('img');
           img.dataset.emojiItem = 'true';
           img.src = url;
+          img.style.setProperty('--emoji-hue', `${getPinEmojiHue(pin)}deg`);
+          img.classList.add('emoji-hue-filter');
+          img.classList.toggle('emoji-hue-filter', getPinEmojiHue(pin) !== 0);
           img.onerror = () => {
             img.onerror = null;
             img.src = 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
@@ -7260,32 +7320,38 @@ function emojiHtml(str, hue = 0) {
           img.addEventListener('click', e => {
             e.stopPropagation();
             applyEmojiSelection(id, url);
-            grid.style.display = 'none';
+            hidePickerPanel();
           });
           grid.insertBefore(img, addBtn);
         });
+        applyPickerHue();
       }
       renderGrid();
       subscribeEmojiList(renderGrid);
-      container.appendChild(grid);
       const hueControls = createEmojiHueControls({
         initialHue: getPinEmojiHue(pin),
         onChange: (hue) => {
           pin.noweEmojiHue = hue;
-          applyPreviewHue();
+          applyPickerHue(hue);
+          renderGrid();
+          updateVisiblePinEmojiHue(pin);
           notifyPickerChange(pin.noweEmoji !== undefined ? pin.noweEmoji : pin.emoji, getCurrent());
         }
       });
-      container.appendChild(hueControls.wrapper);
+      pickerPanel.appendChild(grid);
+      pickerPanel.appendChild(hueControls.wrapper);
+      container.appendChild(preview);
+      container.appendChild(pickerPanel);
+      applyPickerHue();
 
       const useFixedViewportPosition = !!container.closest('.trip-special-point-modal');
       preview.addEventListener('click', e => {
         e.stopPropagation();
-        grid.style.display = grid.style.display === 'grid' ? 'none' : 'grid';
-        positionEmojiGrid(preview, grid, { fixedToViewport: useFixedViewportPosition });
+        pickerPanel.style.display = pickerPanel.style.display === 'block' ? 'none' : 'block';
+        positionEmojiGrid(preview, pickerPanel, { fixedToViewport: useFixedViewportPosition });
       });
       document.addEventListener('click', function hide(e) {
-        if (!container.contains(e.target)) grid.style.display = 'none';
+        if (!container.contains(e.target)) hidePickerPanel();
       });
     }
 
@@ -7299,8 +7365,15 @@ function emojiHtml(str, hue = 0) {
       preview.width = 28;
       preview.height = 28;
 
+      const pickerPanel = document.createElement('div');
+      pickerPanel.className = 'emoji-picker-panel';
+      pickerPanel.style.display = 'none';
+
       const grid = document.createElement('div');
       grid.className = 'emoji-picker-grid';
+      grid.style.display = 'grid';
+
+      function hidePickerPanel() { pickerPanel.style.display = 'none'; }
 
       function currentUrl() {
         const val = (input.value || '').trim();
@@ -7319,11 +7392,18 @@ function emojiHtml(str, hue = 0) {
         if (typeof options.setHue === 'function') options.setHue(normalized);
       }
 
-      function updatePreview() {
-        preview.src = currentUrl();
-        const hue = getInputHue();
+      function applyPickerHue(hue = getInputHue()) {
+        container.querySelectorAll('img[data-emoji-item="true"], .emoji-picker-preview').forEach(el => {
+          el.style.setProperty('--emoji-hue', `${hue}deg`);
+          el.classList.toggle('emoji-hue-filter', hue !== 0);
+        });
         preview.style.setProperty('--emoji-hue', `${hue}deg`);
         preview.classList.toggle('emoji-hue-filter', hue !== 0);
+      }
+
+      function updatePreview() {
+        preview.src = currentUrl();
+        applyPickerHue();
       }
 
       const addBtn = document.createElement('button');
@@ -7337,16 +7417,19 @@ function emojiHtml(str, hue = 0) {
           const id = await addEmojiToList(url, info);
           input.value = id;
           updatePreview();
-          grid.style.display = 'none';
+          hidePickerPanel();
         }
       });
       grid.appendChild(addBtn);
       function renderGrid() {
         grid.querySelectorAll('img[data-emoji-item="true"]').forEach(el => el.remove());
+        const hue = getInputHue();
         emojiList.forEach(({id, url, info}) => {
           const img = document.createElement('img');
           img.dataset.emojiItem = 'true';
           img.src = url;
+          img.style.setProperty('--emoji-hue', `${hue}deg`);
+          img.classList.toggle('emoji-hue-filter', hue !== 0);
           img.onerror = () => {
             img.onerror = null;
             img.src = 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
@@ -7356,34 +7439,38 @@ function emojiHtml(str, hue = 0) {
             e.stopPropagation();
             input.value = id;
             updatePreview();
-            grid.style.display = 'none';
+            hidePickerPanel();
           });
           grid.insertBefore(img, addBtn);
         });
+        applyPickerHue(hue);
       }
       renderGrid();
       subscribeEmojiList(renderGrid);
 
-      container.appendChild(preview);
-      container.appendChild(grid);
       const hueControls = createEmojiHueControls({
         initialHue: getInputHue(),
         onChange: (hue) => {
           setInputHue(hue);
+          applyPickerHue(hue);
+          renderGrid();
           updatePreview();
           if (typeof options.onHueChange === 'function') options.onHueChange(hue);
         }
       });
-      container.appendChild(hueControls.wrapper);
+      pickerPanel.appendChild(grid);
+      pickerPanel.appendChild(hueControls.wrapper);
+      container.appendChild(preview);
+      container.appendChild(pickerPanel);
 
       preview.addEventListener('click', e => {
         e.stopPropagation();
-        grid.style.display = grid.style.display === 'grid' ? 'none' : 'grid';
-        positionEmojiGrid(preview, grid);
+        pickerPanel.style.display = pickerPanel.style.display === 'block' ? 'none' : 'block';
+        positionEmojiGrid(preview, pickerPanel);
       });
 
       document.addEventListener('click', e => {
-        if (!container.contains(e.target)) grid.style.display = 'none';
+        if (!container.contains(e.target)) hidePickerPanel();
       });
 
       input.addEventListener('input', updatePreview);
@@ -7391,7 +7478,7 @@ function emojiHtml(str, hue = 0) {
     }
 
     function positionEmojiGrid(preview, grid, options = {}) {
-      if (!preview || !grid || grid.style.display !== 'grid') return;
+      if (!preview || !grid || grid.style.display === 'none') return;
       if (options.fixedToViewport) {
         const rect = preview.getBoundingClientRect();
         const viewportW = window.innerWidth || document.documentElement.clientWidth || 0;
@@ -11491,7 +11578,7 @@ function zaladujPinezkiZFirestore() {
       layer.lista.forEach(p => {
         const emoji = layer.emoji || p.emoji;
         if (p.marker) p.marker.setIcon(createEmojiIcon(emoji, p.warstwaId, 32, p));
-        if (p.el) p.el.innerHTML = (emoji ? emojiHtml(emoji) + ' ' : '') + p.nazwa;
+        if (p.el) p.el.innerHTML = (emoji ? emojiHtml(emoji, getPinEmojiHue(p)) + ' ' : '') + p.nazwa;
       });
     }
 
@@ -15393,12 +15480,12 @@ function confirmLayerDelete() {
           mobileEmojiPickerInitialized = true;
         } else {
           const preview = emojiPicker.querySelector('.emoji-picker-preview');
-          const grid = emojiPicker.querySelector('.emoji-picker-grid');
+          const pickerPanel = emojiPicker.querySelector('.emoji-picker-panel');
           if (preview) {
             const val = (emojiInput.value || '').trim();
             preview.src = resolveEmoji(val) || 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
           }
-          if (grid) grid.style.display = 'none';
+          if (pickerPanel) pickerPanel.style.display = 'none';
         }
       }
 
@@ -15416,8 +15503,8 @@ function confirmLayerDelete() {
       mobileEmojiHue = 0;
       if (emojiWrapper) emojiWrapper.style.display = 'none';
       if (emojiPicker) {
-        const grid = emojiPicker.querySelector('.emoji-picker-grid');
-        if (grid) grid.style.display = 'none';
+        const pickerPanel = emojiPicker.querySelector('.emoji-picker-panel');
+        if (pickerPanel) pickerPanel.style.display = 'none';
       }
       inactiveInput.parentElement.style.display = 'none';
       closedInput.parentElement.style.display = 'none';
@@ -15773,6 +15860,7 @@ function confirmLayerDelete() {
     container.appendChild(preview);
     const grid = document.createElement('div');
     grid.className = 'emoji-picker-grid';
+    grid.style.display = 'none';
     const addBtn = document.createElement('button');
     addBtn.textContent = '+';
     addBtn.className = 'emoji-add-btn';
