@@ -723,15 +723,15 @@
     }
     .hillshade-dark { filter: grayscale(100%) brightness(60%); }
     .emoji-marker {
-      width: 32px;
-      height: 32px;
+      width: 24px;
+      height: 24px;
       overflow: visible;
       background: transparent;
       border: 0;
     }
     .emoji-marker-inner {
-      width: 32px;
-      height: 32px;
+      width: 24px;
+      height: 24px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -740,10 +740,10 @@
       transform: translateX(0);
     }
     .emoji-marker-img {
-      width: 28px;
-      height: 28px;
-      max-width: 28px;
-      max-height: 28px;
+      width: 24px;
+      height: 24px;
+      max-width: 24px;
+      max-height: 24px;
       min-width: 0;
       min-height: 0;
       object-fit: contain;
@@ -754,8 +754,8 @@
     }
     .emoji-sztosy {
   font-family: 'Noto Color Emoji', sans-serif;
-  font-size: 22.4px;
-  line-height: 25.6px;
+  font-size: 19px;
+  line-height: 24px;
   position: relative;
   color: inherit;
   text-shadow:
@@ -776,8 +776,8 @@
 }
   .emoji-marker span {
   font-family: 'Noto Color Emoji', sans-serif;
-  font-size: 12.4px;
-  line-height: 25.6px;
+  font-size: 19px;
+  line-height: 24px;
 }
 
     .emoji-marker span:not(.emoji-sztosy) {
@@ -2680,18 +2680,18 @@ html body #basemap-switcher { width: calc(264px * var(--ui-scale)); }
 
 /* Map markers must not be affected by UI scale */
 html body .leaflet-marker-icon.emoji-marker {
-  width: 32px !important;
-  height: 32px !important;
+  width: 24px !important;
+  height: 24px !important;
   overflow: visible !important;
   background: transparent !important;
   border: 0 !important;
-  font-size: 12.4px !important;
-  line-height: 25.6px !important;
+  font-size: 19px !important;
+  line-height: 24px !important;
 }
 
 html body .emoji-marker-inner {
-  width: 32px !important;
-  height: 32px !important;
+  width: 24px !important;
+  height: 24px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -2701,31 +2701,37 @@ html body .emoji-marker-inner {
 
 html body .emoji-marker span:not(.status-icon):not(.sztosy-gwiazda),
 html body .emoji-marker .emoji-sztosy {
-  font-size: 22.4px !important;
-  line-height: 25.6px !important;
+  font-size: 19px !important;
+  line-height: 24px !important;
 }
 
 html body .emoji-marker-img,
 html body .emoji-marker img.emoji-marker-img,
 html body .emoji-marker img.emoji-obrys,
 html body .emoji-marker img.emoji-obrys-sztosy {
-  width: 28px !important;
-  height: 28px !important;
-  max-width: 28px !important;
-  max-height: 28px !important;
+  width: 24px !important;
+  height: 24px !important;
+  max-width: 24px !important;
+  max-height: 24px !important;
   min-width: 0 !important;
   min-height: 0 !important;
   object-fit: contain !important;
   display: block !important;
 }
 
+html body .emoji-marker img.emoji-obrys,
+html body .emoji-marker img.emoji-obrys-sztosy {
+  margin-right: 0 !important;
+  vertical-align: middle !important;
+}
+
 html body .emoji-marker .status-icon {
-  font-size: 14px !important;
+  font-size: 12px !important;
   line-height: 1 !important;
 }
 
 html body .emoji-marker .sztosy-gwiazda {
-  font-size: 18px !important;
+  font-size: 15px !important;
 }
 
 /* Trip special point modal: bez podwójnego skalowania */
@@ -6063,11 +6069,11 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       }
     }
 
-    function createEmojiIcon(emojiOrUrl, warstwaId, size = 32, status = {}) {
+    function createEmojiIcon(emojiOrUrl, warstwaId, size = 24, status = {}) {
       emojiOrUrl = normalizePinEmojiValue(emojiOrUrl);
-      const markerScale = 0.8;
-      const scaledSize = size * markerScale;
-      const overlaySize = (20 * markerScale).toFixed(1);
+      const markerSize = 24;
+      const scaledSize = markerSize;
+      const overlaySize = 15;
       const isSztosy = warstwaId && warstwaId === sztosyId;
       const isHighlighted = isSztosy || status.wyroznione;
       if (warstwaId && warstwaId === orangeLayerId) {
@@ -6099,9 +6105,9 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
               <img src="${resolvedEmoji}" class="emoji-marker-img emoji-hue-filter ${cls}"${hueAttr}>
               ${overlay}
             </div>`,
-          iconSize: [32, 32],
-          iconAnchor: [16, 32],
-          popupAnchor: [0, -32]
+          iconSize: [markerSize, markerSize],
+          iconAnchor: [markerSize / 2, markerSize],
+          popupAnchor: [0, -markerSize]
         });
       }
 
@@ -6114,9 +6120,9 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
             <span class="${cls} emoji-hue-filter"${hueAttr}>${resolvedEmoji}</span>
             ${overlay}
           </div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -32]
+        iconSize: [markerSize, markerSize],
+        iconAnchor: [markerSize / 2, markerSize],
+        popupAnchor: [0, -markerSize]
       });
     }
 
@@ -9794,6 +9800,7 @@ function zaladujPinezkiZFirestore() {
         applyInactiveStyle(pin);
       }
       clearPinEditSession(pin);
+      updateVisiblePinEmojiHue(pin);
     }
 
     function startPinReposition(pin, container) {
