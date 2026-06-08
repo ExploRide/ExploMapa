@@ -627,8 +627,11 @@
     }
     .pin-list-emoji-base .emoji-inline {
       display: block;
-      width: 16px;
-      height: 16px;
+      max-width: 16px;
+      max-height: 16px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
       vertical-align: middle;
     }
     .pin-list-status-icon {
@@ -719,7 +722,27 @@
       cursor: pointer;
     }
     .hillshade-dark { filter: grayscale(100%) brightness(60%); }
-    .emoji-marker { background: none; border: none; }
+    .emoji-marker { background: transparent; border: none; }
+    .emoji-marker-inner {
+      position: relative;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform: translateX(0);
+    }
+    .emoji-marker-img {
+      display: block;
+      max-width: 28px;
+      max-height: 28px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      filter: hue-rotate(var(--emoji-hue, 0deg))
+        drop-shadow(0 0 1px black)
+        drop-shadow(0 0 1px black);
+    }
     .emoji-sztosy {
   font-family: 'Noto Color Emoji', sans-serif;
   font-size: 22.4px;
@@ -1815,6 +1838,11 @@ img.emoji {
 .emoji-hue-value { min-width: 38px; text-align: right; color: #cfd6e6; }
 .emoji-hue-reset { grid-column: 1 / -1; width: 100%; font-size: 11px; white-space: nowrap; }
 .emoji-inline, .emoji-hue-filter { filter: hue-rotate(var(--emoji-hue, 0deg)); }
+.emoji-marker-img.emoji-hue-filter {
+  filter: hue-rotate(var(--emoji-hue, 0deg))
+    drop-shadow(0 0 1px black)
+    drop-shadow(0 0 1px black);
+}
 .emoji-marker span.emoji-hue-filter:not(.emoji-sztosy) {
   filter: hue-rotate(var(--emoji-hue, 0deg))
     drop-shadow(0 0 1px black)
@@ -2646,7 +2674,7 @@ html body .leaflet-marker-icon.emoji-marker,
 html body .emoji-marker {
   font-size: 12.4px !important;
   line-height: 25.6px !important;
-  background: none !important;
+  background: transparent !important;
   border: none !important;
 }
 
@@ -3515,6 +3543,11 @@ body.mobile-layout #saveChanges {
 
     const DEFAULT_ROUTE_COLOR = '#00ccff';
     const DEFAULT_ROUTE_OPACITY = 1;
+    const DEFAULT_EMOJI_ID = 'emoji38';
+    const DEFAULT_EMOJI_URL = 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2.png';
+    const LEGACY_DEFAULT_EMOJI_URLS = new Set([
+      'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png'
+    ]);
 
     const emojiList = window.emojiList = [];
     const emojiMap = window.emojiMap = {};
@@ -3529,7 +3562,23 @@ body.mobile-layout #saveChanges {
       return () => emojiListListeners.delete(listener);
     }
     db.collection('emoji-list').onSnapshot(snapshot => {
-      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const seenDefaultPins = new Set();
+      const docs = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .map(e => e.id === DEFAULT_EMOJI_ID ? { ...e, url: DEFAULT_EMOJI_URL } : e)
+        .filter(e => {
+          const url = String(e.url || '').trim();
+          const isDefaultPinUrl = url === DEFAULT_EMOJI_URL || LEGACY_DEFAULT_EMOJI_URLS.has(url);
+          if (!isDefaultPinUrl) return true;
+          if (e.id === DEFAULT_EMOJI_ID) {
+            seenDefaultPins.add(DEFAULT_EMOJI_ID);
+            return true;
+          }
+          return false;
+        });
+      if (!seenDefaultPins.has(DEFAULT_EMOJI_ID)) {
+        docs.push({ id: DEFAULT_EMOJI_ID, url: DEFAULT_EMOJI_URL, info: 'red pin' });
+      }
       docs.sort((a, b) => {
         const na = parseInt(String(a.id).replace('emoji', '')) || 0;
         const nb = parseInt(String(b.id).replace('emoji', '')) || 0;
@@ -3547,7 +3596,32 @@ body.mobile-layout #saveChanges {
 
     function resolveEmoji(val) {
       if (!val) return val;
+      if (val === DEFAULT_EMOJI_ID) return DEFAULT_EMOJI_URL;
+      if (LEGACY_DEFAULT_EMOJI_URLS.has(String(val).trim())) return DEFAULT_EMOJI_URL;
       return emojiMap[val] || val;
+    }
+
+    function normalizePinEmojiValue(value) {
+      const emoji = String(value || '').trim();
+      if (!emoji || emoji === 'undefined') return DEFAULT_EMOJI_ID;
+      return LEGACY_DEFAULT_EMOJI_URLS.has(emoji) || emoji === DEFAULT_EMOJI_URL ? DEFAULT_EMOJI_ID : emoji;
+    }
+
+    function isStandardEmoji(value) {
+      const emoji = String(value || '').trim();
+      return emoji === DEFAULT_EMOJI_ID || resolveEmoji(emoji) === DEFAULT_EMOJI_URL;
+    }
+
+    function isImplicitDefaultEmoji(pin = {}) {
+      return !!(pin && (pin._emojiImplicitDefault || pin.emojiDefault === true));
+    }
+
+    function sidebarEmojiForPin(pin = {}, layerName = '') {
+      const layerEmoji = layerName && warstwy[layerName] ? warstwy[layerName].emoji : '';
+      if (layerEmoji) return layerEmoji;
+      const emoji = pin.noweEmoji !== undefined ? pin.noweEmoji : pin.emoji;
+      if (isImplicitDefaultEmoji(pin) && isStandardEmoji(emoji)) return '';
+      return emoji;
     }
 
     function normalizeEmojiHue(value) {
@@ -5150,7 +5224,7 @@ function slugify(str) {
       const el = document.createElement("div");
       el.className = "pinezka";
       el.dataset.pinId = String(pin.id);
-      const dispEmoji = warstwy[layerName].emoji || pin.emoji;
+      const dispEmoji = sidebarEmojiForPin(pin, layerName);
       const nameRow = document.createElement('div');
       nameRow.className = 'pin-name-row';
       const nameSpan = document.createElement('span');
@@ -5537,7 +5611,7 @@ function slugify(str) {
         if (!warstwy[importLayerKey]) {
           ensureLocalLayerObject(importLayerKey, getLayerDisplayName(importLayerKey), MAIN_CATEGORY_URBEX, { layer: createPinLayer().addTo(map), loaded: true, loading: false });
         }
-        const iconEmoji = warstwy[importLayerKey].emoji || data.emoji;
+        const iconEmoji = warstwy[importLayerKey].emoji || normalizePinEmojiValue(data.emoji);
         const marker = L.marker([data.lat, data.lng], { icon: createEmojiIcon(iconEmoji, data.warstwaId, 32, data) }).addTo(warstwy[importLayerKey].layer);
         marker.__pinRef = data;
         const popupDiv = document.createElement("div");
@@ -5940,7 +6014,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       if (pin.el) {
         const layerName = pin.el.closest('.warstwa')?.dataset?.nazwa || pin.warstwa || '';
         const title = pin.el.querySelector('.pin-title');
-        const emoji = (warstwy[layerName] && warstwy[layerName].emoji) || (pin.noweEmoji !== undefined ? pin.noweEmoji : pin.emoji);
+        const emoji = sidebarEmojiForPin(pin, layerName);
         if (title) {
           title.innerHTML = (emoji ? pinListEmojiHtml(emoji, pin, layerName) : '') + `<span class="pin-title-text">${pin.nazwa || ''}</span>`;
         }
@@ -5949,7 +6023,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       if (pin.marker && typeof pin.marker.setIcon === 'function') {
         const layerName = pin.warstwa || pin.el?.closest('.warstwa')?.dataset?.nazwa || '';
         const layerEmoji = layerName && warstwy[layerName] ? warstwy[layerName].emoji : '';
-        const markerEmoji = pin.noweEmoji !== undefined ? pin.noweEmoji : (layerEmoji || pin.emoji);
+        const markerEmoji = layerEmoji || normalizePinEmojiValue(pin.noweEmoji !== undefined ? pin.noweEmoji : pin.emoji);
         pin.marker.setIcon(createEmojiIcon(markerEmoji, pin.warstwaId, 32, pin));
       }
       if (popupEl) {
@@ -5961,11 +6035,10 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     }
 
     function createEmojiIcon(emojiOrUrl, warstwaId, size = 32, status = {}) {
-      emojiOrUrl = resolveEmoji(emojiOrUrl);
+      emojiOrUrl = normalizePinEmojiValue(emojiOrUrl);
       const markerScale = 0.8;
       const scaledSize = size * markerScale;
       const overlaySize = (20 * markerScale).toFixed(1);
-      const imageSize = (28 * markerScale).toFixed(1);
       const isSztosy = warstwaId && warstwaId === sztosyId;
       const isHighlighted = isSztosy || status.wyroznione;
       if (warstwaId && warstwaId === orangeLayerId) {
@@ -5983,18 +6056,8 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
         });
       }
 
-      if (!emojiOrUrl || String(emojiOrUrl).trim() === "" || emojiOrUrl === "undefined") {
-        const defaultMarkerHeight = 22.4;
-        const defaultMarkerWidth = defaultMarkerHeight * (27 / 43);
-        const defaultMarkerCenterOffsetX = defaultMarkerHeight * (2 / 43);
-        return L.icon({
-          iconUrl: 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png',
-          iconSize: [defaultMarkerWidth, defaultMarkerHeight],
-          iconAnchor: [(defaultMarkerWidth / 2) - defaultMarkerCenterOffsetX, defaultMarkerHeight]
-        });
-      }
-
-      const isUrl = emojiOrUrl && emojiOrUrl.startsWith("http");
+      const resolvedEmoji = resolveEmoji(emojiOrUrl);
+      const isUrl = resolvedEmoji && resolvedEmoji.startsWith("http");
       const overlay = pinStatusOverlayHtml(status, warstwaId, { className: 'status-icon', checkSize: overlaySize, includeHighlight: true });
       const hueAttr = emojiHueStyle(getPinEmojiHue(status));
 
@@ -6003,12 +6066,13 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
         return L.divIcon({
           className: 'emoji-marker',
           html: `
-            <div style="position: relative; display: inline-block;">
-              <img src="${emojiOrUrl}" class="${cls}" width="${imageSize}" height="${imageSize}"${hueAttr}>
+            <div class="emoji-marker-inner">
+              <img src="${resolvedEmoji}" class="emoji-marker-img emoji-hue-filter ${cls}"${hueAttr}>
               ${overlay}
             </div>`,
-          iconSize: [scaledSize, scaledSize],
-          iconAnchor: [scaledSize / 2, scaledSize]
+          iconSize: [32, 32],
+          iconAnchor: [16, 32],
+          popupAnchor: [0, -32]
         });
       }
 
@@ -6017,12 +6081,13 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       return L.divIcon({
         className: 'emoji-marker',
         html: `
-          <div style="position: relative; display: inline-block;">
-            <span class="${cls} emoji-hue-filter"${hueAttr}>${emojiOrUrl}</span>
+          <div class="emoji-marker-inner">
+            <span class="${cls} emoji-hue-filter"${hueAttr}>${resolvedEmoji}</span>
             ${overlay}
           </div>`,
-        iconSize: [scaledSize, scaledSize],
-        iconAnchor: [scaledSize / 2, scaledSize]
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
       });
     }
 
@@ -7219,6 +7284,7 @@ function emojiHtml(str, hue = 0) {
           img.addEventListener('mousedown', e => {
             e.preventDefault();
             input.value = id;
+            input.dataset.emojiDefault = 'false';
             updatePreview();
             list.style.display = 'none';
           });
@@ -7272,17 +7338,17 @@ function emojiHtml(str, hue = 0) {
       function getCurrent() {
         const val = pin.noweEmoji !== undefined ? pin.noweEmoji : pin.emoji;
         if (!val || String(val).trim() === '' || val === 'undefined') {
-          return 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
+          return DEFAULT_EMOJI_URL;
         }
         return resolveEmoji(val);
       }
       const applyPickerHue = (hue = getPinEmojiHue(pin)) => {
         container.querySelectorAll('img[data-emoji-item="true"], .emoji-picker-preview').forEach(el => {
           el.style.setProperty('--emoji-hue', `${hue}deg`);
-          el.classList.toggle('emoji-hue-filter', hue !== 0);
+          el.classList.add('emoji-hue-filter');
         });
         preview.style.setProperty('--emoji-hue', `${hue}deg`);
-        preview.classList.toggle('emoji-hue-filter', hue !== 0);
+        preview.classList.add('emoji-hue-filter');
       };
       preview.src = getCurrent();
 
@@ -7306,6 +7372,8 @@ function emojiHtml(str, hue = 0) {
       function applyEmojiSelection(id, url) {
         preview.src = url || getCurrent();
         pin.noweEmoji = id;
+        pin.emojiDefault = false;
+        pin._emojiImplicitDefault = false;
         applyPickerHue();
         notifyPickerChange(id, url);
       }
@@ -7332,10 +7400,9 @@ function emojiHtml(str, hue = 0) {
           img.src = url;
           img.style.setProperty('--emoji-hue', `${getPinEmojiHue(pin)}deg`);
           img.classList.add('emoji-hue-filter');
-          img.classList.toggle('emoji-hue-filter', getPinEmojiHue(pin) !== 0);
           img.onerror = () => {
             img.onerror = null;
-            img.src = 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
+            img.src = DEFAULT_EMOJI_URL;
           };
           if (info) { img.title = info; img.dataset.info = info; }
           img.addEventListener('click', e => {
@@ -7399,7 +7466,7 @@ function emojiHtml(str, hue = 0) {
       function currentUrl() {
         const val = (input.value || '').trim();
         const resolved = resolveEmoji(val);
-        return resolved || 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
+        return resolved || DEFAULT_EMOJI_URL;
       }
 
       function getInputHue() {
@@ -7416,10 +7483,10 @@ function emojiHtml(str, hue = 0) {
       function applyPickerHue(hue = getInputHue()) {
         container.querySelectorAll('img[data-emoji-item="true"], .emoji-picker-preview').forEach(el => {
           el.style.setProperty('--emoji-hue', `${hue}deg`);
-          el.classList.toggle('emoji-hue-filter', hue !== 0);
+          el.classList.add('emoji-hue-filter');
         });
         preview.style.setProperty('--emoji-hue', `${hue}deg`);
-        preview.classList.toggle('emoji-hue-filter', hue !== 0);
+        preview.classList.add('emoji-hue-filter');
       }
 
       function updatePreview() {
@@ -7437,6 +7504,7 @@ function emojiHtml(str, hue = 0) {
           const info = prompt('Nazwa nowego emoji:') || '';
           const id = await addEmojiToList(url, info);
           input.value = id;
+          input.dataset.emojiDefault = 'false';
           updatePreview();
           hidePickerPanel();
         }
@@ -7450,15 +7518,16 @@ function emojiHtml(str, hue = 0) {
           img.dataset.emojiItem = 'true';
           img.src = url;
           img.style.setProperty('--emoji-hue', `${hue}deg`);
-          img.classList.toggle('emoji-hue-filter', hue !== 0);
+          img.classList.add('emoji-hue-filter');
           img.onerror = () => {
             img.onerror = null;
-            img.src = 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
+            img.src = DEFAULT_EMOJI_URL;
           };
           if (info) { img.title = info; img.dataset.info = info; }
           img.addEventListener('click', e => {
             e.stopPropagation();
             input.value = id;
+            input.dataset.emojiDefault = 'false';
             updatePreview();
             hidePickerPanel();
           });
@@ -9361,6 +9430,12 @@ function zaladujPinezkiZFirestore() {
       p.sourceCollection = source.collection;
       p.id = id;
       if (!p.IDpinezki) p.IDpinezki = id;
+      const hadExplicitEmoji = !!String(p.emoji || '').trim();
+      p.emoji = normalizePinEmojiValue(p.emoji);
+      if (!hadExplicitEmoji && p.emojiDefault !== false) {
+        p.emojiDefault = true;
+        p._emojiImplicitDefault = true;
+      }
       if (p.trudnosc !== undefined) {
         p.trudnosc = parseInt(p.trudnosc, 10);
       }
@@ -10078,6 +10153,12 @@ function zaladujPinezkiZFirestore() {
     function applyPinData(p, data) {
       const staraWarstwa = p.warstwa || "Inne";
       Object.assign(p, data);
+      p.emoji = normalizePinEmojiValue(p.emoji);
+      if (p.emojiDefault === true && isStandardEmoji(p.emoji)) {
+        p._emojiImplicitDefault = true;
+      } else {
+        p._emojiImplicitDefault = false;
+      }
       const targetMainCategory = getPinMainCategory(p);
       const nowaWarstwa = p.warstwa || makeLayerKey('Inne', targetMainCategory);
       if (!warstwy[nowaWarstwa]) {
@@ -10088,13 +10169,13 @@ function zaladujPinezkiZFirestore() {
         if (idx > -1) warstwy[staraWarstwa].lista.splice(idx, 1);
         warstwy[nowaWarstwa].lista.push(p);
         if (p.marker) p.marker.remove();
-        const iconEmoji = warstwy[nowaWarstwa].emoji || p.emoji;
+        const iconEmoji = warstwy[nowaWarstwa].emoji || normalizePinEmojiValue(p.emoji);
         p.marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[nowaWarstwa].layer);
         p.marker.__pinRef = p;
         attachMarkerLongPress(p.marker, p);
         attachHighlight(p.marker, p.el);
       } else {
-        const iconEmoji = warstwy[nowaWarstwa].emoji || p.emoji;
+        const iconEmoji = warstwy[nowaWarstwa].emoji || normalizePinEmojiValue(p.emoji);
         if (p.marker) p.marker.setIcon(createEmojiIcon(iconEmoji, p.warstwaId, 32, p));
       }
       if (p.marker) {
@@ -10141,6 +10222,7 @@ function zaladujPinezkiZFirestore() {
         kategoriaGlowna: getPinMainCategory(p),
         emoji: p.emoji,
         emojiHue: getPinEmojiHue(p),
+        emojiDefault: !!p.emojiDefault,
         trudnosc: p.trudnosc,
         nieaktywne: p.nieaktywne,
         zamkniete: p.zamkniete,
@@ -10153,7 +10235,7 @@ function zaladujPinezkiZFirestore() {
         lat: editOriginal ? editOriginal.lat : p.lat,
         lng: editOriginal ? editOriginal.lng : p.lng
       } : null;
-      const emojiVal = p && p.noweEmoji !== undefined ? p.noweEmoji : (p ? p.emoji : '');
+      const emojiVal = normalizePinEmojiValue(p && p.noweEmoji !== undefined ? p.noweEmoji : (p ? p.emoji : ''));
       const emojiHueVal = p ? getPinEmojiHue(p) : 0;
       const nowa = {
         nazwa: nameVal,
@@ -10165,6 +10247,7 @@ function zaladujPinezkiZFirestore() {
         kategoriaGlowna: mainCatVal,
         emoji: emojiVal,
         emojiHue: emojiHueVal,
+        emojiDefault: p ? !!p.emojiDefault : false,
         trudnosc: parseInt(document.getElementById("etrudnosc").value, 10),
         ...getPinStatusStateFromSelect(document.getElementById("estatus"))
       };
@@ -10216,7 +10299,7 @@ function zaladujPinezkiZFirestore() {
 
     async function openNewPinPopup(latlng) {
       await emojiListReady;
-      const defaultEmoji = 'emoji38';
+      const defaultEmoji = DEFAULT_EMOJI_ID;
       const marker = L.marker(latlng, {icon: createEmojiIcon(defaultEmoji, null, 24)}).addTo(map);
       let addedPin = null;
       const syncNowePinezkiStorage = () => {
@@ -10279,6 +10362,8 @@ function zaladujPinezkiZFirestore() {
         slug: `tmp-${newId}`,
         emoji: defaultEmoji,
         emojiHue: 0,
+        emojiDefault: true,
+        _emojiImplicitDefault: true,
         trudnosc: 0
       };
       const container = document.createElement("div");
@@ -10367,7 +10452,7 @@ function zaladujPinezkiZFirestore() {
         if (osmPrefill.nazwa) container.querySelector('#nazwaNew').value = osmPrefill.nazwa;
         if (osmPrefill.opis) container.querySelector('#opisNew').value = osmPrefill.opis;
         if (osmPrefill.warstwa) container.querySelector('#warstwaNew').value = osmPrefill.warstwa;
-        if (osmPrefill.emoji) { tempPin.noweEmoji = osmPrefill.emoji; marker.setIcon(createEmojiIcon(osmPrefill.emoji, null, 24)); }
+        if (osmPrefill.emoji) { tempPin.noweEmoji = osmPrefill.emoji; tempPin.emojiDefault = false; tempPin._emojiImplicitDefault = false; marker.setIcon(createEmojiIcon(osmPrefill.emoji, null, 24)); }
         window.__osmPrefillNewPin = null;
       }
 
@@ -10437,8 +10522,9 @@ function zaladujPinezkiZFirestore() {
             warstwa: getLayerKeyFromInput(layerVal, mainCatVal),
             kategoria: catVal,
             kategoriaGlowna: mainCatVal,
-            emoji: tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji,
+            emoji: normalizePinEmojiValue(tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji),
             emojiHue: getPinEmojiHue(tempPin),
+            emojiDefault: !!tempPin.emojiDefault,
             nieaktywne: container.querySelector("#nieaktywneNew").checked,
             zamkniete: container.querySelector("#zamknieteNew").checked,
             tajne: container.querySelector("#tajneNew").checked,
@@ -10462,7 +10548,7 @@ function zaladujPinezkiZFirestore() {
           ensureLocalLayerObject(warstwaN, getLayerDisplayName(warstwaN), mainCatVal, { layer: createPinLayer().addTo(map), loaded: true, loading: false });
         }
         data.marker = marker;
-        const iconEmoji = warstwy[warstwaN].emoji || data.emoji;
+        const iconEmoji = warstwy[warstwaN].emoji || normalizePinEmojiValue(data.emoji);
         marker.setIcon(createEmojiIcon(iconEmoji, data.warstwaId, 32, data));
         applyInactiveStyle(data);
         const oldSlug = tempPin.slug;
@@ -10707,6 +10793,12 @@ function zaladujPinezkiZFirestore() {
         if (p.zwiedzone === undefined) p.zwiedzone = false;
         if (p.wyroznione === undefined) p.wyroznione = false;
         getPinMainCategory(p);
+        const hadExplicitEmoji = !!String(p.emoji || '').trim();
+        p.emoji = normalizePinEmojiValue(p.emoji);
+        if (!hadExplicitEmoji && p.emojiDefault !== false) {
+          p.emojiDefault = true;
+          p._emojiImplicitDefault = true;
+        }
         if (!p.slug) p.slug = slugify(p.nazwa);
         if (!p.dataDodania) p.dataDodania = Date.now();
         registerPinCategory(p);
@@ -10721,7 +10813,7 @@ function zaladujPinezkiZFirestore() {
           ensureLocalLayerObject(warstwaN, layerInfo.displayName, localPinMain, { layer: createPinLayer().addTo(map), loaded: true, loading: false });
         }
         p.emojiHue = normalizeEmojiHue(p.emojiHue);
-        const iconEmoji = warstwy[warstwaN].emoji || p.emoji;
+        const iconEmoji = warstwy[warstwaN].emoji || normalizePinEmojiValue(p.emoji);
         const marker = L.marker([p.lat, p.lng], {icon: createEmojiIcon(iconEmoji, p.warstwaId, 32, p)}).addTo(warstwy[warstwaN].layer);
         marker.__pinRef = p;
         if (p.trasy) {
@@ -13803,7 +13895,7 @@ function getTripPointEmoji(p) {
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
       pin.lat = lat;
       pin.lng = lng;
-      const iconEmoji = layerData.emoji || pin.emoji;
+      const iconEmoji = layerData.emoji || normalizePinEmojiValue(pin.emoji);
       const marker = L.marker([lat, lng], { icon: createEmojiIcon(iconEmoji, pin.warstwaId, 32, pin) });
       marker.__pinRef = pin;
       marker.bindPopup('<div class="popup-container">Ładowanie…</div>');
@@ -14052,7 +14144,7 @@ function getTripPointEmoji(p) {
           const el = document.createElement("div");
           el.className = "pinezka";
           el.dataset.pinId = String(p.id);
-          const dispEmoji = warstwy[nazwa].emoji || p.emoji;
+          const dispEmoji = sidebarEmojiForPin(p, nazwa);
           const nameRow = document.createElement('div');
           nameRow.className = 'pin-name-row';
           const nameSpan = document.createElement('span');
@@ -15276,8 +15368,9 @@ function confirmLayerDelete() {
       kategoria: p.kategoria,
       kategoriaGlowna: getPinMainCategory(p),
       kraj: p.kraj || '',
-      emoji: p.emoji,
+      emoji: normalizePinEmojiValue(p.emoji),
       emojiHue: getPinEmojiHue(p),
+      emojiDefault: !!p.emojiDefault,
       nieaktywne: p.nieaktywne || false,
       zamkniete: p.zamkniete || false,
       tajne: p.tajne || false,
@@ -15390,8 +15483,9 @@ function confirmLayerDelete() {
       warstwa: layerKey,
       kategoria: catVal,
       kategoriaGlowna: mainCatVal,
-      emoji: form.emoji,
+      emoji: normalizePinEmojiValue(form.emoji),
       emojiHue: normalizeEmojiHue(form.emojiHue),
+      emojiDefault: form.emojiDefault === true,
       trudnosc: parseInt(form.trudnosc, 10),
       nieaktywne: form.nieaktywne,
       zamkniete: form.zamkniete,
@@ -15412,7 +15506,7 @@ function confirmLayerDelete() {
     if (!warstwy[warstwaN]) {
       ensureLocalLayerObject(warstwaN, getLayerDisplayName(warstwaN), mainCatVal, { layer: createPinLayer().addTo(map), loaded: true, loading: false });
     }
-    const marker = L.marker(latlng, {icon: createEmojiIcon(warstwy[warstwaN].emoji || data.emoji, data.warstwaId, 32, data)}).addTo(warstwy[warstwaN].layer);
+    const marker = L.marker(latlng, {icon: createEmojiIcon(warstwy[warstwaN].emoji || normalizePinEmojiValue(data.emoji), data.warstwaId, 32, data)}).addTo(warstwy[warstwaN].layer);
     marker.__pinRef = data;
     applyInactiveStyle(data);
     data.marker = marker;
@@ -15504,7 +15598,7 @@ function confirmLayerDelete() {
           const pickerPanel = emojiPicker.querySelector('.emoji-picker-panel');
           if (preview) {
             const val = (emojiInput.value || '').trim();
-            preview.src = resolveEmoji(val) || 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
+            preview.src = resolveEmoji(val) || DEFAULT_EMOJI_URL;
           }
           if (pickerPanel) pickerPanel.style.display = 'none';
         }
@@ -15520,7 +15614,8 @@ function confirmLayerDelete() {
       layerInput.style.display = 'none';
       mainCatInput.style.display = 'none';
       catInput.style.display = 'none';
-      emojiInput.value = '';
+      emojiInput.value = DEFAULT_EMOJI_ID;
+      emojiInput.dataset.emojiDefault = 'true';
       mobileEmojiHue = 0;
       if (emojiWrapper) emojiWrapper.style.display = 'none';
       if (emojiPicker) {
@@ -15550,7 +15645,8 @@ function confirmLayerDelete() {
         categoryInput: catInput,
         layerInput
       });
-      emojiInput.value = '';
+      emojiInput.value = DEFAULT_EMOJI_ID;
+      emojiInput.dataset.emojiDefault = 'true';
       mobileEmojiHue = 0;
       if (emojiWrapper) emojiWrapper.style.display = '';
       inactiveInput.checked = false;
@@ -15638,8 +15734,9 @@ function confirmLayerDelete() {
           warstwa: layer,
           kategoriaGlowna: mainCatInput.value,
           kategoria: catInput.value,
-          emoji: emojiInput.value,
+          emoji: normalizePinEmojiValue(emojiInput.value),
           emojiHue: mobileEmojiHue,
+          emojiDefault: emojiInput.dataset.emojiDefault === 'true',
           nieaktywne: inactiveInput.checked,
           zamkniete: closedInput.checked,
           tajne: secretInput.checked,
@@ -15709,7 +15806,7 @@ function confirmLayerDelete() {
     <span id="photoModalDelete" onclick="deleteCurrentPhoto()">🗑️</span>
     <img id="photoModalImg" src="">
   </div>
-  <img id="centerMarker" src="https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png" alt="center marker">
+  <img id="centerMarker" src="https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2.png" alt="center marker">
   <button id="savePinBtn">ZAPISZ PIN</button>
   <div id="pinSavedMessage">Zapisano pinezkę</div>
   <div id="gpsLoadingMessage">Wczytuję lokalizację GPS...</div>
@@ -15875,7 +15972,7 @@ function confirmLayerDelete() {
     function current() {
       const val = input.value.trim();
       const resolved = resolveEmoji(val);
-      return resolved && resolved.startsWith('http') ? resolved : 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2_hdpi.png';
+      return resolved && resolved.startsWith('http') ? resolved : DEFAULT_EMOJI_URL;
     }
     preview.src = current();
     container.appendChild(preview);
