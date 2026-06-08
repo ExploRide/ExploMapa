@@ -1761,6 +1761,10 @@ img.emoji {
 
 .emoji-picker { position: relative; display: inline-block; }
 .emoji-picker-panel {
+  --emoji-picker-item-size: 1.8em;
+  --emoji-picker-gap: 4px;
+  --emoji-picker-columns: 8;
+  --emoji-picker-grid-width: calc((var(--emoji-picker-columns) * var(--emoji-picker-item-size)) + ((var(--emoji-picker-columns) - 1) * var(--emoji-picker-gap)));
   display: none;
   position: absolute;
   z-index: 2147483602;
@@ -1768,24 +1772,35 @@ img.emoji {
   border: 1px solid #3a3f4a;
   border-radius: 8px;
   padding: 6px;
+  box-sizing: content-box;
+  width: var(--emoji-picker-grid-width);
+  max-width: calc(100vw - 24px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 .emoji-picker-grid {
+  position: static;
   display: grid;
-  grid-template-columns: repeat(8, 1.8em);
-  gap: 4px;
+  grid-template-columns: repeat(var(--emoji-picker-columns), var(--emoji-picker-item-size));
+  gap: var(--emoji-picker-gap);
+  width: var(--emoji-picker-grid-width);
+  max-width: 100%;
   max-height: min(280px, 45vh);
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
 .emoji-hue-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  width: var(--emoji-picker-grid-width);
+  max-width: 100%;
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
+  box-sizing: border-box;
   font-size: 12px;
   color: #e8e8e8;
 }
@@ -1796,9 +1811,9 @@ img.emoji {
   flex: 1;
   min-width: 0;
 }
-.emoji-hue-controls input[type="range"] { flex: 1; min-width: 90px; }
+.emoji-hue-controls input[type="range"] { flex: 1; min-width: 0; }
 .emoji-hue-value { min-width: 38px; text-align: right; color: #cfd6e6; }
-.emoji-hue-reset { font-size: 11px; white-space: nowrap; }
+.emoji-hue-reset { grid-column: 1 / -1; width: 100%; font-size: 11px; white-space: nowrap; }
 .emoji-inline, .emoji-hue-filter { filter: hue-rotate(var(--emoji-hue, 0deg)); }
 .emoji-marker span.emoji-hue-filter:not(.emoji-sztosy) {
   filter: hue-rotate(var(--emoji-hue, 0deg))
@@ -5931,6 +5946,12 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
         }
       }
       const popupEl = pin.marker && pin.marker.getPopup && pin.marker.getPopup()?.getElement ? pin.marker.getPopup().getElement() : null;
+      if (pin.marker && typeof pin.marker.setIcon === 'function') {
+        const layerName = pin.warstwa || pin.el?.closest('.warstwa')?.dataset?.nazwa || '';
+        const layerEmoji = layerName && warstwy[layerName] ? warstwy[layerName].emoji : '';
+        const markerEmoji = pin.noweEmoji !== undefined ? pin.noweEmoji : (layerEmoji || pin.emoji);
+        pin.marker.setIcon(createEmojiIcon(markerEmoji, pin.warstwaId, 32, pin));
+      }
       if (popupEl) {
         popupEl.querySelectorAll('.emoji-inline, .emoji-hue-filter').forEach(el => {
           el.style.setProperty('--emoji-hue', `${hue}deg`);
