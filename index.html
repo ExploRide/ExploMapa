@@ -4221,6 +4221,7 @@ function slugify(str) {
     const warstwy = {};
     let wszystkiePinezki = [];
     let draggedLayer = null;
+    let layerDragCollapseStates = null;
     let highlightedItem = null;
     let highlightedMarker = null;
     let pinHighlightCircle = null;
@@ -10650,9 +10651,35 @@ function zaladujPinezkiZFirestore() {
       refreshCountriesFromPins();
     }
 
+    function getCurrentLayerCollapseStates() {
+      const states = {};
+      Object.entries(warstwy).forEach(([name, layerData]) => {
+        states[name] = !!layerData.collapsed;
+      });
+      return states;
+    }
+
+    function preserveLayerCollapseStatesForReorder() {
+      layerDragCollapseStates = getCurrentLayerCollapseStates();
+      saveLayerCollapseStates(layerDragCollapseStates);
+      return { ...layerDragCollapseStates };
+    }
+
+    function rerenderLayersAfterReorder() {
+      const collapseStates = layerDragCollapseStates ? { ...layerDragCollapseStates } : preserveLayerCollapseStatesForReorder();
+      requestAnimationFrame(() => {
+        generujListeWarstw({
+          deferMarkerVisibilityUpdate: true,
+          collapseStatesOverride: collapseStates
+        });
+        layerDragCollapseStates = null;
+      });
+    }
+
     function setupDrag(div, handle) {
       handle.draggable = true;
       handle.addEventListener('dragstart', () => {
+        layerDragCollapseStates = preserveLayerCollapseStatesForReorder();
         draggedLayer = div;
         handle.classList.add('dragging');
         div.classList.add('dragging');
@@ -10661,7 +10688,7 @@ function zaladujPinezkiZFirestore() {
         handle.classList.remove('dragging');
         div.classList.remove('dragging');
         draggedLayer = null;
-        requestAnimationFrame(() => generujListeWarstw({ deferMarkerVisibilityUpdate: true }));
+        rerenderLayersAfterReorder();
       });
       div.addEventListener('dragover', e => e.preventDefault());
       div.addEventListener('drop', e => {
@@ -10672,7 +10699,7 @@ function zaladujPinezkiZFirestore() {
           saveLayerOrder({ markChange: false });
           autosaveLayerOrderToFirestore(loadLayerOrder());
           updateLayerNumbers();
-          requestAnimationFrame(() => generujListeWarstw({ deferMarkerVisibilityUpdate: true }));
+          rerenderLayersAfterReorder();
         }
       });
 
@@ -10703,11 +10730,12 @@ function zaladujPinezkiZFirestore() {
         saveLayerOrder({ markChange: false });
         autosaveLayerOrderToFirestore(loadLayerOrder());
         updateLayerNumbers();
-        requestAnimationFrame(() => generujListeWarstw({ deferMarkerVisibilityUpdate: true }));
+        rerenderLayersAfterReorder();
       };
       handle.addEventListener('pointerdown', (event) => {
         if (event.button !== 0 && event.pointerType !== 'touch') return;
         event.preventDefault();
+        layerDragCollapseStates = preserveLayerCollapseStatesForReorder();
         draggedLayer = div;
         handle.classList.add('dragging');
         div.classList.add('dragging');
@@ -11490,8 +11518,10 @@ function zaladujPinezkiZFirestore() {
       orderInput.addEventListener('change', e => {
         const val = parseInt(orderInput.value, 10);
         if (!isNaN(val) && editedLayer) {
+          const collapseStates = getCurrentLayerCollapseStates();
           reorderLayer(editedLayer, val);
-          generujListeWarstw();
+          saveLayerCollapseStates(collapseStates);
+          generujListeWarstw({ collapseStatesOverride: collapseStates });
           orderInput.value = val;
         }
       });
@@ -13865,14 +13895,14 @@ function getTripPointEmoji(p) {
     }
 
     function generujListeWarstw(options = {}) {
-      const { deferMarkerVisibilityUpdate = false } = options;
+      const { deferMarkerVisibilityUpdate = false, collapseStatesOverride = null } = options;
       const sidebarRenderStartTs = performance.now();
       layerDomRefs = {};
       const lista = document.getElementById("lista-warstw");
       const pinTotalCounter = document.getElementById("pinTotalCounter");
       lista.innerHTML = "";
       const saved = loadLayerOrder();
-      const collapseStates = shouldIgnoreStoredLayerState ? {} : loadLayerCollapseStates();
+      const collapseStates = collapseStatesOverride || (shouldIgnoreStoredLayerState ? {} : loadLayerCollapseStates());
       const visibilityStates = shouldIgnoreStoredLayerState ? {} : loadLayerVisibilityStates();
       const nazwy = [...saved.filter(n => warstwy[n]), ...Object.keys(warstwy).filter(n => !saved.includes(n))];
       const tempLayers = nazwy.filter(n => warstwy[n].temporary);
