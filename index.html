@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-01 v.0.547';
+    const BUILD_VERSION = '2026-06-08 v.0.611';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1524,6 +1524,44 @@ text-shadow: 0 0 5px rgba(0, 0, 0, 1);
   border-radius: 2px;
 }
 
+
+    #pinViewportLoading {
+      display: none;
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2147483590;
+      align-items: center;
+      flex-direction: column;
+      gap: 6px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 12px;
+      background: rgba(18, 20, 27, 0.84);
+      color: #fff;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.38);
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+      font-weight: 700;
+    }
+    #pinViewportLoading .pin-loader {
+      width: 34px;
+      height: 34px;
+      border: 4px solid rgba(255,255,255,0.2);
+      border-top-color: #58a1ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    #pinViewportLoadingPercent {
+      font-size: 14px;
+      line-height: 1;
+    }
+    #pinViewportLoading .pin-loading-label {
+      font-size: 11px;
+      opacity: 0.85;
+      white-space: nowrap;
+    }
 #loading {
   position: fixed;
   top: 50%;
@@ -1808,6 +1846,24 @@ img.emoji {
   max-width: calc(100vw - 24px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
+.emoji-picker-close-btn {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.28);
+  background: #2a2f3d;
+  color: #fff;
+  line-height: 1;
+  font-weight: 800;
+  cursor: pointer;
+  z-index: 1;
+}
+.emoji-picker-close-btn:hover { background: #3a4050; }
 .emoji-picker-grid {
   position: static;
   display: grid;
@@ -2817,14 +2873,15 @@ body.mobile-layout #saveChanges {
 </style>
 </head>
 <body>
-  <div id="mobileTripDebug">27-05-26 v.0.543</div>
+  <div id="mobileTripDebug">08-06-26 v.0.611</div>
 <div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
-27-05-26 v.0.543
+08-06-26 v.0.611
 </div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:200px;right:200px;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="toast"></div>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
   <div id="loading"><div class="loader"></div></div>
+  <div id="pinViewportLoading" aria-live="polite"><div class="pin-loader"></div><div id="pinViewportLoadingPercent">0%</div><div class="pin-loading-label">Doczytywanie pinezek…</div></div>
   <div id="sidebar">
     <div id="sidebar-inner">
       <div class="sidebar-header">
@@ -2854,14 +2911,14 @@ body.mobile-layout #saveChanges {
   onclick="window.rawTripDebug('INLINE click modeTripBtn'); window.rawTripDebug('before forceTripFromInline typeof=' + typeof window.forceTripFromInline); window.forceTripFromInline(event)"
 >Plan tripu</button>
       </div>
-      <button id="mobileControlsToggle" type="button" aria-expanded="false" aria-controls="sidebarTopControls">
-        Filtry i akcje <span class="mobile-controls-indicator">▼</span>
-      </button>
-      <div id="sidebarTopControls">
       <div class="search-input-row">
         <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
         <button id="clearWyszukiwarkaBtn" type="button" aria-label="Wyczyść wyszukiwarkę">✕</button>
       </div>
+      <button id="mobileControlsToggle" type="button" aria-expanded="false" aria-controls="sidebarTopControls">
+        Filtry i akcje <span class="mobile-controls-indicator">▼</span>
+      </button>
+      <div id="sidebarTopControls">
       <select id="sortowanie">
         <option value="dateDesc">Sortuj wg daty – od najnowszych</option>
         <option value="dateAsc">Sortuj wg daty – od najstarszych</option>
@@ -4808,6 +4865,10 @@ function slugify(str) {
         chunkedLoading: true,
         chunkDelay: 24,
         chunkInterval: 64,
+        chunkProgress: (processed, total) => {
+          showPinViewportLoading(total ? (processed / total) * 100 : 0);
+          if (total && processed >= total) hidePinViewportLoading(220);
+        },
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: true,
         iconCreateFunction: cluster => {
@@ -5270,7 +5331,7 @@ function slugify(str) {
       if (target) {
         highlightListItem(target);
         if (options.scroll !== false) {
-          target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          target.scrollIntoView({ behavior: options.scrollBehavior || 'auto', block: 'nearest' });
         }
       }
       return target || pin.el || null;
@@ -5365,7 +5426,7 @@ function slugify(str) {
       shadowUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-shadow.png',
       iconSize: [25, 41],
       iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
+      popupAnchor: [1, -20],
       shadowSize: [41, 41]
     });
 
@@ -6031,7 +6092,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
             </div>`,
           iconSize: [markerSize, markerSize],
           iconAnchor: [markerSize / 2, markerSize],
-          popupAnchor: [0, -markerSize]
+          popupAnchor: [0, -14]
         });
       }
 
@@ -6046,7 +6107,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
           </div>`,
         iconSize: [markerSize, markerSize],
         iconAnchor: [markerSize / 2, markerSize],
-        popupAnchor: [0, -markerSize]
+        popupAnchor: [0, -14]
       });
     }
 
@@ -7286,6 +7347,23 @@ function emojiHtml(str, hue = 0) {
       updatePreview();
     }
 
+
+    function addEmojiPickerCloseButton(pickerPanel, hidePickerPanel) {
+      if (!pickerPanel || typeof hidePickerPanel !== 'function') return;
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'emoji-picker-close-btn';
+      closeBtn.setAttribute('aria-label', 'Zamknij wybór emoji');
+      closeBtn.title = 'Zamknij';
+      closeBtn.textContent = '✕';
+      closeBtn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        hidePickerPanel();
+      });
+      pickerPanel.appendChild(closeBtn);
+    }
+
     async function setupEmojiPicker(container, pin, options = {}) {
       if (!container || !pin) return;
       await emojiListReady;
@@ -7327,6 +7405,7 @@ function emojiHtml(str, hue = 0) {
       grid.style.display = 'grid';
 
       function hidePickerPanel() { pickerPanel.style.display = 'none'; }
+      addEmojiPickerCloseButton(pickerPanel, hidePickerPanel);
 
       function applyEmojiSelection(id, url) {
         preview.src = url || getCurrent();
@@ -7421,6 +7500,7 @@ function emojiHtml(str, hue = 0) {
       grid.style.display = 'grid';
 
       function hidePickerPanel() { pickerPanel.style.display = 'none'; }
+      addEmojiPickerCloseButton(pickerPanel, hidePickerPanel);
 
       function currentUrl() {
         const val = (input.value || '').trim();
@@ -7807,7 +7887,7 @@ function emojiHtml(str, hue = 0) {
         marker.unbindPopup();
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: true,
+          autoPan: false,
           keepInView: false
         });
 
@@ -7846,7 +7926,7 @@ function emojiHtml(str, hue = 0) {
           openPinViewPopup(marker, pin);
         }
 
-        revealPinInSidebar(pin);
+        revealPinInSidebar(pin, { scrollBehavior: 'auto' });
         return pin;
       }
 
@@ -7964,6 +8044,17 @@ function emojiHtml(str, hue = 0) {
           return rect.bottom;
         };
 
+        const getVisibleRect = selector => {
+          const el = document.querySelector(selector);
+          if (!el) return null;
+          const style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return null;
+          const rect = el.getBoundingClientRect();
+          if (!rect.width || !rect.height) return null;
+          if (rect.right <= mapRect.left || rect.left >= mapRect.right || rect.bottom <= mapRect.top || rect.top >= mapRect.bottom) return null;
+          return rect;
+        };
+
         const overlayBottoms = mobileLayout
           ? [
               getVisibleBottom('#toggleLayers'),
@@ -7973,13 +8064,22 @@ function emojiHtml(str, hue = 0) {
             ].filter(bottom => Number.isFinite(bottom))
           : [getVisibleBottom('#geosearch-container')].filter(bottom => Number.isFinite(bottom));
 
+        const sidebarRect = getVisibleRect('#sidebar');
+        const basemapRect = getVisibleRect('#basemap-switcher');
         const controlsBottom = overlayBottoms.length ? Math.max(...overlayBottoms) : null;
         const minTop = controlsBottom !== null
           ? Math.max(mapRect.top + padding.top, controlsBottom + 8)
           : mapRect.top + padding.top;
-        const maxRight = mapRect.right - padding.right;
+        let maxRight = mapRect.right - padding.right;
         const maxBottom = mapRect.bottom - padding.bottom;
-        const maxLeft = mapRect.left + padding.left;
+        let maxLeft = mapRect.left + padding.left;
+
+        if (sidebarRect && sidebarRect.left <= mapRect.left + 8 && sidebarRect.right > maxLeft) {
+          maxLeft = Math.min(mapRect.right - padding.right, Math.max(maxLeft, sidebarRect.right + 10));
+        }
+        if (basemapRect && basemapRect.right >= mapRect.right - 8 && basemapRect.left < maxRight) {
+          maxRight = Math.max(maxLeft + 1, Math.min(maxRight, basemapRect.left - 10));
+        }
         const maxWidth = Math.max(1, maxRight - maxLeft);
         const maxHeight = Math.max(1, maxBottom - minTop);
 
@@ -8051,6 +8151,12 @@ function emojiHtml(str, hue = 0) {
           console.warn('Nie udało się odczytać zapisanego widoku mapy.', e);
         }
       }
+      map.on('movestart zoomstart dragstart', () => {
+        showPinViewportLoading(0);
+      });
+      map.on('moveend zoomend dragend', () => {
+        scheduleMarkerVisibilityUpdate();
+      });
       map.on('popupopen', (e) => {
         if (!e || !e.popup) return;
         const token = ++popupAutoPanState.openSeq;
@@ -10079,7 +10185,7 @@ function zaladujPinezkiZFirestore() {
         const editPopup = L.popup({
           maxWidth: 340,
           minWidth: 320,
-          autoPan: true,
+          autoPan: false,
           autoPanPadding: L.point(30, 30),
           keepInView: false,
           closeButton: true
@@ -10962,7 +11068,7 @@ function zaladujPinezkiZFirestore() {
           centerFallbackTimer = null;
         }
         map.off('moveend', openPopupOnce);
-        requestAnimationFrame(openPopupForPin);
+        setTimeout(() => requestAnimationFrame(openPopupForPin), 180);
       };
       const targetZoom = Math.max(map.getZoom(), 16);
       const alreadyCentered = map.getZoom() === targetZoom && map.getCenter().distanceTo(pinLatLng) < 1;
@@ -11027,7 +11133,7 @@ function zaladujPinezkiZFirestore() {
       highlightedItem = el;
       if (highlightedItem) {
         highlightedItem.classList.add('active');
-        highlightedItem.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+        highlightedItem.scrollIntoView({behavior: 'auto', block: 'nearest'});
       }
     }
 
@@ -13812,6 +13918,37 @@ function getTripPointEmoji(p) {
     let markerZoomInProgress = false;
     let mapWhenReadyExecuted = false;
     let pinsFirestoreLoaded = false;
+    let pinViewportLoadingHideTimer = null;
+
+    function showPinViewportLoading(percent = null) {
+      const el = document.getElementById('pinViewportLoading');
+      const percentEl = document.getElementById('pinViewportLoadingPercent');
+      if (!el) return;
+      if (pinViewportLoadingHideTimer) {
+        clearTimeout(pinViewportLoadingHideTimer);
+        pinViewportLoadingHideTimer = null;
+      }
+      if (percentEl && Number.isFinite(percent)) {
+        percentEl.textContent = `${Math.max(0, Math.min(100, Math.round(percent)))}%`;
+      }
+      el.style.display = 'flex';
+    }
+
+    function updatePinViewportLoadingProgress(processed, total) {
+      const percentEl = document.getElementById('pinViewportLoadingPercent');
+      if (!percentEl || !Number.isFinite(total) || total <= 0) return;
+      percentEl.textContent = `${Math.max(0, Math.min(100, Math.round((processed / total) * 100)))}%`;
+    }
+
+    function hidePinViewportLoading(delay = 180) {
+      const el = document.getElementById('pinViewportLoading');
+      if (!el) return;
+      if (pinViewportLoadingHideTimer) clearTimeout(pinViewportLoadingHideTimer);
+      pinViewportLoadingHideTimer = setTimeout(() => {
+        el.style.display = 'none';
+        pinViewportLoadingHideTimer = null;
+      }, delay);
+    }
 
     // Changelog (mobile marker render fix, 2026-05-15):
     // 1) Dodano diagnostykę renderu markerów/klastrów oraz stanu mapy i filtrów.
@@ -13900,11 +14037,17 @@ function getTripPointEmoji(p) {
     function scheduleMarkerVisibilityUpdate() {
       if (markerZoomInProgress) {
         markerVisibilityUpdateDeferred = true;
+        showPinViewportLoading(0);
         return;
       }
+      showPinViewportLoading(0);
       if (markerVisibilityDebounceTimer) clearTimeout(markerVisibilityDebounceTimer);
       markerVisibilityDebounceTimer = setTimeout(() => {
-        if (markerViewportUpdateScheduled) return;
+        if (markerViewportUpdateScheduled) {
+          markerVisibilityDebounceTimer = null;
+          hidePinViewportLoading();
+          return;
+        }
         markerViewportUpdateScheduled = true;
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
@@ -13913,6 +14056,8 @@ function getTripPointEmoji(p) {
             } finally {
               markerViewportUpdateScheduled = false;
               markerVisibilityDebounceTimer = null;
+              updatePinViewportLoadingProgress(1, 1);
+              hidePinViewportLoading();
             }
           });
         });
@@ -13928,6 +14073,9 @@ function getTripPointEmoji(p) {
       let totalAdded = 0;
       let totalRemoved = 0;
       let visibleLayerCount = 0;
+      const totalPinsForProgress = Object.values(warstwy).reduce((sum, layer) => sum + (Array.isArray(layer?.lista) ? layer.lista.length : 0), 0);
+      let processedPinsForProgress = 0;
+      updatePinViewportLoadingProgress(0, totalPinsForProgress);
 
       Object.entries(warstwy).forEach(([layerName, w]) => {
         const toAdd = [];
@@ -13958,6 +14106,10 @@ function getTripPointEmoji(p) {
             }
           }
           updatePlanVisibilityForPin(p);
+          processedPinsForProgress++;
+          if (processedPinsForProgress === totalPinsForProgress || processedPinsForProgress % 250 === 0) {
+            updatePinViewportLoadingProgress(processedPinsForProgress, totalPinsForProgress);
+          }
         });
         if (toAdd.length || toRemove.length) {
           layerOps.set(w.layer, { toAdd, toRemove });
