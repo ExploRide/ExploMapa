@@ -4671,6 +4671,10 @@ function slugify(str) {
     let sztosyId = null;
     let visitedId = null;
     let movingLayerId = null;
+    const MOVING_LAYER_DISPLAY_NAME = 'Tryb w ruchu';
+    function getMovingLayerKey() {
+      return makeLayerKey(MOVING_LAYER_DISPLAY_NAME, MAIN_CATEGORY_URBEX);
+    }
     const orangeLayerId = 'Pwgv6ssxu9sTvrjTaB43';
     let layerEmojiChanges = {};
     let layerDefaultVisibilityChanges = {};
@@ -15575,18 +15579,18 @@ function confirmLayerDelete() {
 
   async function ensureMovingLayer() {
     if (movingLayerId) return;
-    const snap = await db.collection('layers').where('name','==','Tryb w ruchu').get();
+    const snap = await db.collection('layers').where('name','==', MOVING_LAYER_DISPLAY_NAME).get();
     if (!snap.empty) {
       movingLayerId = snap.docs[0].id;
     } else {
-      const doc = await db.collection('layers').add({name:'Tryb w ruchu', order:Object.keys(warstwy).length});
+      const doc = await db.collection('layers').add({name: MOVING_LAYER_DISPLAY_NAME, order:Object.keys(warstwy).length});
       movingLayerId = doc.id;
     }
-    const name = makeLayerKey('Tryb w ruchu', MAIN_CATEGORY_URBEX);
+    const name = getMovingLayerKey();
     layerDocs[name] = movingLayerId;
     layerNamesById[movingLayerId] = name;
     if (!warstwy[name]) {
-      ensureLocalLayerObject(name, 'Tryb w ruchu', MAIN_CATEGORY_URBEX, { layer: createPinLayer().addTo(map), loaded: true });
+      ensureLocalLayerObject(name, MOVING_LAYER_DISPLAY_NAME, MAIN_CATEGORY_URBEX, { layer: createPinLayer().addTo(map), loaded: true });
     }
     generujListeWarstw();
     updateSaveButton();
@@ -15656,35 +15660,40 @@ function confirmLayerDelete() {
     const capturedLocation = pendingMovingPinLocation;
     if (!capturedLocation) {
       alert('Brak aktualnej lokalizacji');
-      return;
+      return false;
     }
     const pinName = await resolveMovingPinName(name, capturedLocation);
     await ensureMovingLayer();
-    if (warstwy['Tryb w ruchu']) {
-      warstwy['Tryb w ruchu'].visible = true;
-      warstwy['Tryb w ruchu'].layer.addTo(map);
+    const movingLayerKey = getMovingLayerKey();
+    const movingLayer = warstwy[movingLayerKey];
+    if (!movingLayer) {
+      console.error('Brak lokalnej warstwy trybu w ruchu po ensureMovingLayer', { movingLayerKey, movingLayerId });
+      alert('Nie udało się przygotować warstwy „Tryb w ruchu”. Spróbuj ponownie.');
+      return false;
     }
+    movingLayer.visible = true;
+    movingLayer.layer.addTo(map);
     const IDpinezki = crypto.randomUUID();
-      const data = {
-        id: IDpinezki,
-        IDpinezki,
-        firebaseId: null,
-        nazwa: pinName,
-        opis: '',
-        warstwa: makeLayerKey('Tryb w ruchu', MAIN_CATEGORY_URBEX),
-        warstwaId: movingLayerId,
-        kategoria: '',
-        kategoriaGlowna: MAIN_CATEGORY_URBEX,
-        kraj: '',
-        emoji: 'emoji39',
-        trudnosc: 0,
-        lat: capturedLocation.lat,
-        lng: capturedLocation.lng,
-        dataDodania: Date.now(),
-        slug: slugify(pinName)
-      };
+    const data = {
+      id: IDpinezki,
+      IDpinezki,
+      firebaseId: null,
+      nazwa: pinName,
+      opis: '',
+      warstwa: movingLayerKey,
+      warstwaId: movingLayerId,
+      kategoria: '',
+      kategoriaGlowna: MAIN_CATEGORY_URBEX,
+      kraj: '',
+      emoji: 'emoji39',
+      trudnosc: 0,
+      lat: capturedLocation.lat,
+      lng: capturedLocation.lng,
+      dataDodania: Date.now(),
+      slug: slugify(pinName)
+    };
     const markerLocation = [capturedLocation.lat, capturedLocation.lng];
-    const marker = L.marker(markerLocation, {icon: createEmojiIcon('emoji39', movingLayerId)}).addTo(warstwy['Tryb w ruchu'].layer);
+    const marker = L.marker(markerLocation, {icon: createEmojiIcon('emoji39', movingLayerId)}).addTo(movingLayer.layer);
     marker.__pinRef = data;
     const popupDiv = document.createElement('div');
     popupDiv.className = 'popup-container';
@@ -15692,7 +15701,7 @@ function confirmLayerDelete() {
     marker.bindPopup(popupDiv);
     attachPopupHandlers(marker, data);
     data.marker = marker;
-    warstwy['Tryb w ruchu'].lista.push(data);
+    movingLayer.lista.push(data);
     wszystkiePinezki.push(data);
     refreshCategoryCollectionsFromPins();
     updateCategoryFilter();
@@ -15703,12 +15712,13 @@ function confirmLayerDelete() {
       pendingMovingPinLocation = null;
       delete data.unsaved;
       updateSaveButton();
-      return;
+      return true;
     }
 
     data.unsaved = true;
     nowePinezki.push(data);
     markDataDirty('pin:add');
+    return true;
   }
 
   function saveCenterPin(form) {
@@ -15996,7 +16006,14 @@ function confirmLayerDelete() {
         storePhotos(mobileDraftPhotosSlug, []);
         if (mobilePhotoGallery) renderGallery(mobilePhotoGallery);
       } else {
-        await saveMovingPin(name);
+        try {
+          const savedMovingPin = await saveMovingPin(name);
+          if (!savedMovingPin) return;
+        } catch (error) {
+          console.error('Błąd zapisu pinezki w trybie w ruchu', error);
+          alert('Nie udało się zapisać pinezki w trybie w ruchu. Spróbuj ponownie.');
+          return;
+        }
       }
       modal.style.display = 'none';
       showPinSavedMessage();
