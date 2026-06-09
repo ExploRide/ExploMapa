@@ -1467,12 +1467,14 @@ body:not(.trip-planner-mode) .trip-planner-panel {
 }
 .sztosy-gwiazda {
   position: absolute;
-  top: -8px;
-  right: 18px;
-  font-size: 18px;
-  padding: 1px;
+  top: auto;
+  right: -5px;
+  bottom: -3px;
+  font-size: 13px;
+  padding: 0;
   line-height: 1;
-  z-index: 10;
+  z-index: 21;
+  pointer-events: none;
 	/*
        filter: drop-shadow(0 0 0.2px red)
           drop-shadow(0 0 1px red)
@@ -1497,7 +1499,8 @@ body:not(.trip-planner-mode) .trip-planner-panel {
 }
 
 .sztosy {
-  top: -1px;
+  top: -4px;
+  right: -5px;
   bottom: auto;
   z-index: 20;
 }
@@ -1513,12 +1516,13 @@ body:not(.trip-planner-mode) .trip-planner-panel {
 
 	  .status-icon {
   position: absolute;
-  top: -6px;
-  right: -8px;
+  top: -4px;
+  right: -5px;
   bottom: auto;
   z-index: 20;
   line-height: 1;
-text-shadow: 0 0 5px rgba(0, 0, 0, 1);
+  pointer-events: none;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 1), 0 0 1px rgba(0, 0, 0, 1);
 }
 
 .checkmark-obrys {
@@ -2792,12 +2796,24 @@ html body .emoji-marker img.emoji-obrys-sztosy {
 }
 
 html body .emoji-marker .status-icon {
+  top: -4px !important;
+  right: -5px !important;
+  bottom: auto !important;
   font-size: 12px !important;
   line-height: 1 !important;
 }
 
+html body .emoji-marker img.status-icon.checkmark-obrys {
+  width: 12px !important;
+  height: 12px !important;
+}
+
 html body .emoji-marker .sztosy-gwiazda {
-  font-size: 15px !important;
+  top: auto !important;
+  right: -5px !important;
+  bottom: -3px !important;
+  font-size: 13px !important;
+  line-height: 1 !important;
 }
 
 /* Trip special point modal: bez podwójnego skalowania */
@@ -6087,7 +6103,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       emojiOrUrl = normalizePinEmojiValue(emojiOrUrl);
       const markerSize = 24;
       const scaledSize = markerSize;
-      const overlaySize = 15;
+      const overlaySize = 12;
       const isSztosy = warstwaId && warstwaId === sztosyId;
       const isHighlighted = isSztosy || status.wyroznione;
       if (warstwaId && warstwaId === orangeLayerId) {
