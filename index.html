@@ -2869,12 +2869,25 @@ html body .trip-special-point-modal label {
   transform: none !important;
 }
 
-#narzedzia .tool-btn img {
-  width: calc(24px * var(--ui-scale)) !important;
-  height: calc(24px * var(--ui-scale)) !important;
+#narzedzia .tool-icon {
+  width: calc(22px * var(--ui-scale)) !important;
+  height: calc(22px * var(--ui-scale)) !important;
   display: block !important;
   max-width: none !important;
   max-height: none !important;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#narzedzia .tool-icon-pin {
+  color: #e53935;
+}
+
+#narzedzia .tool-icon-pin circle {
+  stroke: #ffffff;
 }
 
 #narzedzia .tool-btn:active {
@@ -3044,15 +3057,33 @@ body.mobile-layout #saveChanges {
     <button id="geosearchBtn" class="tool-btn" title="Szukaj" type="submit">🔍</button>
     <div id="geosearch-suggestions"></div>
   </form>
-  <div id="narzedzia">
-    <button id="handTool" class="tool-btn">
-      <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f44b.svg" width="24" height="24" alt="hand">
+  <div id="narzedzia" aria-label="Narzędzia mapy">
+    <button id="handTool" class="tool-btn" title="Przesuwaj mapę" aria-label="Przesuwaj mapę">
+      <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M8.5 11.2V6.1a1.3 1.3 0 0 1 2.6 0v4.6" />
+        <path d="M11.1 10.4V4.8a1.3 1.3 0 0 1 2.6 0v5.9" />
+        <path d="M13.7 10.8V6.1a1.25 1.25 0 0 1 2.5 0v6" />
+        <path d="M16.2 12.5V8.4a1.2 1.2 0 0 1 2.4 0v5.7c0 4.1-2.4 6.9-6.1 6.9h-1.1c-2.1 0-3.8-.9-5.1-2.5l-2.1-2.8a1.35 1.35 0 0 1 2-1.8l2.3 1.9" />
+      </svg>
     </button>
-    <button id="pinTool" class="tool-btn">
-      <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/svg/1f4cd.svg" width="24" height="24" alt="pin">
+    <button id="pinTool" class="tool-btn" title="Dodaj pinezkę" aria-label="Dodaj pinezkę">
+      <svg class="tool-icon tool-icon-pin" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 21s6-5.4 6-11a6 6 0 0 0-12 0c0 5.6 6 11 6 11Z" />
+        <circle cx="12" cy="10" r="2.1" />
+      </svg>
     </button>
-    <button id="undoBtn" class="tool-btn" title="Cofnij">⬅️</button>
-    <button id="redoBtn" class="tool-btn" title="Ponów">➡️</button>
+    <button id="undoBtn" class="tool-btn" title="Cofnij" aria-label="Cofnij">
+      <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M9 7 4 12l5 5" />
+        <path d="M5 12h9.5a5.5 5.5 0 0 1 5.5 5.5V18" />
+      </svg>
+    </button>
+    <button id="redoBtn" class="tool-btn" title="Ponów" aria-label="Ponów">
+      <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="m15 7 5 5-5 5" />
+        <path d="M19 12H9.5A5.5 5.5 0 0 0 4 17.5V18" />
+      </svg>
+    </button>
   </div>
   <div id="map"></div>
   <div id="planEditor" class="plan-editor-panel" style="display:none;">
