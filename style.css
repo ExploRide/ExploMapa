@@ -281,7 +281,7 @@
 }
 
 @media (max-width: 800px) {
-  #savePinBtn { display: block; z-index: 250; }
+  #savePinBtn { z-index: 250; }
 }
 
 #centerMarker {

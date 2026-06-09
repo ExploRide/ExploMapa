@@ -5930,6 +5930,7 @@ function slugify(str) {
           cm.style.display = 'none';
         }
       }
+      if (typeof window.updateMobileSavePinButton === 'function') window.updateMobileSavePinButton();
     }
     if (handBtn) handBtn.addEventListener("click", () => selectTool("hand"));
 if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
@@ -15521,6 +15522,7 @@ function confirmLayerDelete() {
     followGps = false;
     const gpsBtn = document.getElementById('gpsFollowBtn');
     if (gpsBtn) gpsBtn.style.display = 'block';
+    if (typeof window.updateMobileSavePinButton === 'function') window.updateMobileSavePinButton();
     if (reason) console.log('GPS follow disabled:', reason);
   }
 
@@ -15566,6 +15568,7 @@ function confirmLayerDelete() {
       if (followGps) {
         map.setView(currentLocation, map.getZoom());
       }
+      if (typeof window.updateMobileSavePinButton === 'function') window.updateMobileSavePinButton();
       if (isMobile && gpsLoading) {
         gpsLoading.style.display = 'none';
       }
@@ -15830,6 +15833,20 @@ function confirmLayerDelete() {
       const mobilePhotoGallery = document.getElementById('mobilePinPhotoGallery');
       const mobileAddPhotoBtn = document.getElementById('mobilePinAddPhotoBtn');
       if (!btn || !modal || !ok || !cancel || !nameInput || !trudInput || !trudLabel || !trudWrapper) return;
+
+      function updateMobileSavePinButton() {
+        if (!btn) return;
+        const isMobileViewport = window.innerWidth <= 800;
+        const pinToolActive = currentTool === 'pin';
+        const gpsPositionCentered = followGps && Array.isArray(currentLocation);
+        const shouldShow = isMobileViewport && (pinToolActive || gpsPositionCentered);
+        btn.style.display = shouldShow ? 'block' : 'none';
+        btn.textContent = pinToolActive ? 'ZAPISZ PINEZKĘ' : 'ZAPISZ POZYCJĘ';
+      }
+      window.updateMobileSavePinButton = updateMobileSavePinButton;
+      window.addEventListener('resize', updateMobileSavePinButton);
+      updateMobileSavePinButton();
+
       setupTrudnoscInput(trudInput, trudLabel);
       const mobileDraftPhotosSlug = '__mobile_pin_draft__';
       if (mobilePhotoGallery) {
@@ -16026,6 +16043,7 @@ function confirmLayerDelete() {
         if (currentLocation) {
           map.setView(currentLocation, map.getZoom());
         }
+        updateMobileSavePinButton();
       });
     }
   }
@@ -16069,7 +16087,7 @@ function confirmLayerDelete() {
     <img id="photoModalImg" src="">
   </div>
   <img id="centerMarker" src="https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi2.png" alt="center marker">
-  <button id="savePinBtn">ZAPISZ PIN</button>
+  <button id="savePinBtn">ZAPISZ POZYCJĘ</button>
   <div id="pinSavedMessage">Zapisano pinezkę</div>
   <div id="gpsLoadingMessage">Wczytuję lokalizację GPS...</div>
   <div id="osmOverlayStatus" class="osm-status-loading">Wczytywanie miejsc OSM dla aktualnego obszaru…</div>
