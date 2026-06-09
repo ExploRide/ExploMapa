@@ -15642,12 +15642,23 @@ function confirmLayerDelete() {
     return true;
   }
 
+  async function resolveMovingPinName(name, location) {
+    const typedName = (name || '').trim();
+    if (typedName) return typedName;
+
+    const address = await resolveAddress(location.lat, location.lng);
+    if (address) return address;
+
+    return `Lokalizacja ${formatCoords(location.lat, location.lng)}`;
+  }
+
   async function saveMovingPin(name) {
     const capturedLocation = pendingMovingPinLocation;
     if (!capturedLocation) {
       alert('Brak aktualnej lokalizacji');
       return;
     }
+    const pinName = await resolveMovingPinName(name, capturedLocation);
     await ensureMovingLayer();
     if (warstwy['Tryb w ruchu']) {
       warstwy['Tryb w ruchu'].visible = true;
@@ -15658,7 +15669,7 @@ function confirmLayerDelete() {
         id: IDpinezki,
         IDpinezki,
         firebaseId: null,
-        nazwa: name,
+        nazwa: pinName,
         opis: '',
         warstwa: makeLayerKey('Tryb w ruchu', MAIN_CATEGORY_URBEX),
         warstwaId: movingLayerId,
@@ -15670,7 +15681,7 @@ function confirmLayerDelete() {
         lat: capturedLocation.lat,
         lng: capturedLocation.lng,
         dataDodania: Date.now(),
-        slug: slugify(name)
+        slug: slugify(pinName)
       };
     const markerLocation = [capturedLocation.lat, capturedLocation.lng];
     const marker = L.marker(markerLocation, {icon: createEmojiIcon('emoji39', movingLayerId)}).addTo(warstwy['Tryb w ruchu'].layer);
@@ -15958,7 +15969,7 @@ function confirmLayerDelete() {
       const name = nameInput.value.trim();
       const layer = layerInput.value.trim();
       const missing = [];
-      if (!name) missing.push('Wpisz nazwę pinezki');
+      if (currentTool === 'pin' && !name) missing.push('Wpisz nazwę pinezki');
       if (currentTool === 'pin' && !layer) missing.push('Wybierz warstwę');
       if (missing.length) { alert(missing.join('\n')); return; }
       if (currentTool === 'pin') {
