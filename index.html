@@ -15956,7 +15956,7 @@ function confirmLayerDelete() {
       }
 
     if (window.innerWidth <= 800) {
-      btn.style.display = 'block';
+      updateMobileSavePinButton();
       if (typeof map !== 'undefined' && map) {
         initGeolocation();
       } else {
