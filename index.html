@@ -11147,11 +11147,30 @@ function zaladujPinezkiZFirestore() {
       const layerName = p.warstwa || "Inne";
       const layerData = warstwy[layerName];
       if (layerData && !p.marker) createLeafletMarkerForPin(p, layerName);
-      if (layerData && p.marker && typeof layerData.layer?.hasLayer === 'function' && !layerData.layer.hasLayer(p.marker)) {
-        layerData.layer.addLayer(p.marker);
-      }
+
+      const ensurePinLayerReady = () => {
+        if (!layerData || !p.marker || !layerData.layer) return false;
+        if (layerData.visible === false) {
+          layerData.visible = true;
+          const layerSection = Array.from(document.querySelectorAll('#lista-warstw .warstwa'))
+            .find(section => section.dataset.nazwa === layerName);
+          const layerCheckbox = layerSection ? layerSection.querySelector('input[type="checkbox"]') : null;
+          if (layerCheckbox) layerCheckbox.checked = true;
+          setLayerVisibilityState(layerName, true);
+        }
+        if (!map.hasLayer(layerData.layer) && typeof layerData.layer.addTo === 'function') {
+          layerData.layer.addTo(map);
+        }
+        if (typeof layerData.layer.hasLayer === 'function' && !layerData.layer.hasLayer(p.marker)) {
+          layerData.layer.addLayer(p.marker);
+        }
+        return true;
+      };
+
+      ensurePinLayerReady();
       const openPopupForPin = () => {
         updateMarkerVisibility();
+        ensurePinLayerReady();
         if (!p.marker || !layerData || typeof layerData.layer.zoomToShowLayer !== 'function') {
           if (p.marker) {
             openPinViewPopup(p.marker, p);
@@ -11160,6 +11179,7 @@ function zaladujPinezkiZFirestore() {
           return;
         }
         layerData.layer.zoomToShowLayer(p.marker, () => {
+          ensurePinLayerReady();
           openPinViewPopup(p.marker, p);
           rebindPinPopupAfterOpen(p.marker, p);
         });
