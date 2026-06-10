@@ -1108,3 +1108,105 @@ html body .popup-container .popup-route-actions .popup-direct-route-btn:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* Compact desktop pin popup sizing overrides */
+@media (min-width: 701px) {
+  html body .leaflet-popup-content {
+    width: 340px !important;
+    max-width: 340px !important;
+  }
+
+  html body .popup-container {
+    padding: 12px !important;
+    gap: 7px !important;
+  }
+
+  html body .popup-title,
+  html body .popup-card-title,
+  html body .popup-pin-title {
+    font-size: 18px !important;
+    line-height: 1.2 !important;
+  }
+
+  html body .popup-status-line {
+    font-size: 12px !important;
+    line-height: 1.25 !important;
+    margin-bottom: 4px !important;
+  }
+
+  html body .popup-section-label {
+    font-size: 10px !important;
+    margin-bottom: 4px !important;
+  }
+
+  html body .popup-description {
+    font-size: 13px !important;
+    line-height: 1.35 !important;
+  }
+
+  html body .popup-google-card,
+  html body .popup-chatgpt-btn {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+    border-radius: 8px !important;
+  }
+
+  html body .popup-details summary {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding: 6px 10px !important;
+    font-size: 13px !important;
+  }
+
+  html body .popup-details {
+    border-radius: 8px !important;
+  }
+
+  html body .popup-route-actions {
+    gap: 8px !important;
+  }
+
+  html body .popup-route-actions button,
+  html body .popup-route-actions .popup-route-btn,
+  html body .popup-route-actions .popup-direct-route-btn {
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 5px 8px !important;
+    font-size: 13px !important;
+    border-radius: 8px !important;
+  }
+
+  html body .popup-edit-btn,
+  html body .popup-delete-btn {
+    width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+  }
+
+  html body .popup-soft-separator {
+    margin: 4px 0 !important;
+  }
+}
+
+@media (max-width: 700px) {
+  html body .leaflet-popup-content {
+    width: min(92vw, 430px) !important;
+    max-width: min(92vw, 430px) !important;
+  }
+
+  html body .popup-container {
+    padding: 16px !important;
+    gap: 10px !important;
+  }
+
+  html body .popup-route-actions button,
+  html body .popup-route-actions .popup-route-btn,
+  html body .popup-route-actions .popup-direct-route-btn {
+    min-height: 46px !important;
+    font-size: 15px !important;
+  }
+}
