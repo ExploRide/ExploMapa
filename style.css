@@ -635,3 +635,316 @@ bottom: 2px;
   max-height: 120px;
   overflow: auto;
 }
+
+/* Modern glass popup card for map pins */
+html body .leaflet-pane.leaflet-popup-pane,
+html body .leaflet-popup {
+  z-index: 2147483600 !important;
+}
+
+html body .leaflet-popup-content-wrapper {
+  background: rgba(18, 23, 32, 0.92) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  overflow: hidden !important;
+}
+
+html body .leaflet-popup-content {
+  max-width: min(360px, calc(100vw - 42px)) !important;
+  width: min(360px, calc(100vw - 42px)) !important;
+  margin: 0 !important;
+  color: #f8fafc !important;
+  text-align: left !important;
+}
+
+html body .leaflet-popup-tip {
+  background: rgba(18, 23, 32, 0.92) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+html body .leaflet-popup-close-button {
+  color: #f8fafc !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8) !important;
+}
+
+html body .popup-container {
+  box-sizing: border-box;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 14px;
+  color: #f8fafc;
+}
+
+html body .popup-container a {
+  color: #60a5fa;
+}
+
+html body .popup-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+html body .popup-card-title {
+  min-width: 0;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+html body .popup-card-title img {
+  vertical-align: -0.18em;
+}
+
+html body .popup-edit-row {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0;
+}
+
+html body .popup-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+html body .popup-edit-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+html body .popup-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 7px;
+  color: rgba(226, 232, 240, 0.88);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+html body .popup-status-line .trudnosc-text {
+  margin: 0;
+  font-weight: 700;
+}
+
+html body .popup-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0.9;
+}
+
+html body .popup-status-separator {
+  color: rgba(148, 163, 184, 0.75);
+}
+
+html body .popup-google-card,
+html body .popup-chatgpt-btn {
+  box-sizing: border-box;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+}
+
+html body .popup-google-card {
+  border: 1px solid rgba(96, 165, 250, 0.34);
+  background: rgba(37, 99, 235, 0.16);
+  color: #93c5fd !important;
+}
+
+html body .popup-google-card:hover {
+  background: rgba(37, 99, 235, 0.26);
+}
+
+html body .popup-description {
+  box-sizing: border-box;
+  width: 100%;
+  color: rgba(248, 250, 252, 0.94);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+html body .popup-description.scrollable {
+  max-height: 150px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+html body .popup-chatgpt-btn {
+  border: 1px solid rgba(129, 140, 248, 0.42) !important;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(14, 165, 233, 0.9)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 24px rgba(59, 130, 246, 0.24);
+}
+
+html body .popup-chatgpt-btn:hover {
+  filter: brightness(1.06);
+}
+
+html body .popup-details {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.34);
+  overflow: hidden;
+}
+
+html body .popup-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 9px 11px;
+  color: #f8fafc;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+html body .popup-details summary::-webkit-details-marker {
+  display: none;
+}
+
+html body .popup-details summary::after {
+  content: "⌄";
+  margin-left: auto;
+  color: rgba(203, 213, 225, 0.85);
+  transition: transform 0.18s ease;
+}
+
+html body .popup-details[open] summary::after {
+  transform: rotate(180deg);
+}
+
+html body .popup-details-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.18);
+  color: #bfdbfe;
+  font-size: 11px;
+}
+
+html body .popup-details-body {
+  display: grid;
+  gap: 6px;
+  padding: 0 11px 11px;
+}
+
+html body .popup-info-item {
+  color: rgba(226, 232, 240, 0.9);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+html body .popup-route-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 0;
+}
+
+html body .popup-route-actions button,
+html body .popup-route-actions .popup-route-btn,
+html body .popup-route-actions .popup-direct-route-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  height: 42px;
+  padding: 8px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  font-weight: 750;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+}
+
+html body .popup-route-actions button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+@media (max-width: 700px) {
+  html body .leaflet-popup {
+    top: 50% !important;
+    bottom: auto !important;
+    left: 50% !important;
+    width: min(94vw, 430px) !important;
+    max-width: 94vw !important;
+    margin: 0 !important;
+    transform: translate3d(-50%, -50%, 0) !important;
+  }
+
+  html body .leaflet-popup-content-wrapper {
+    max-height: calc(90dvh - env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  html body .leaflet-popup-content {
+    width: min(94vw, 430px) !important;
+    max-width: 94vw !important;
+  }
+
+  html body .popup-container {
+    padding: 14px;
+  }
+
+  html body .leaflet-popup-tip-container {
+    display: none !important;
+  }
+}
+
+@media (max-width: 340px) {
+  html body .popup-route-actions {
+    grid-template-columns: 1fr;
+  }
+}

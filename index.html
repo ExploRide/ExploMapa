@@ -7146,44 +7146,47 @@ function emojiHtml(str, hue = 0) {
       const slug = p.slug || slugify(p.nazwa || '');
       const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId, getPinMainCategory(p)).displayName || 'Inne';
       const trudHtml = p.trudnosc !== undefined ?
-        `<div class="trudnosc-wrapper">
-          <div class="trudnosc-text" id="trudnoscLabel-${p.id}" style="color:${trudnoscColor(p.trudnosc)}">Poziom trudności: ${trudnoscText(p.trudnosc)}</div>
-        </div>` : '';
-      const statusHtml = `
-        ${(p.niedostepne || p.nieaktywne) ? `<div style="opacity:0.8;">Niedostępne ⛔</div>` : ''}
-        ${p.zamkniete ? `<div style="opacity:0.8;">Zamknięte 🔐</div>` : ''}
-        ${p.tajne ? `<div style="opacity:0.8;">Tajne 🤫</div>` : ''}
-        ${p.doSprawdzenia ? `<div style="opacity:0.8;">Do sprawdzenia ❔</div>` : ''}
-        ${p.zdewastowane ? `<div style="opacity:0.8;">Zdewastowane 💥</div>` : ''}
-        ${p.zwiedzone ? `<div style="opacity:0.8;">Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys"></div>` : ''}
-        ${p.wyroznione ? `<div style="opacity:0.8;">Wyróżnione ⭐</div>` : ''}`;
+        `<span class="trudnosc-text" id="trudnoscLabel-${p.id}" style="color:${trudnoscColor(p.trudnosc)}">Poziom trudności: ${trudnoscText(p.trudnosc)}</span>` : '';
+      const statusItems = [
+        (p.niedostepne || p.nieaktywne) ? 'Niedostępne ⛔' : '',
+        p.zamkniete ? 'Zamknięte 🔐' : '',
+        p.tajne ? 'Tajne 🤫' : '',
+        p.doSprawdzenia ? 'Do sprawdzenia ❔' : '',
+        p.zdewastowane ? 'Zdewastowane 💥' : '',
+        p.zwiedzone ? 'Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys">' : '',
+        p.wyroznione ? 'Wyróżnione ⭐' : ''
+      ].filter(Boolean);
+      const statusHtml = statusItems.map(item => `<span class="popup-status-item">${item}</span>`).join('<span class="popup-status-separator">•</span>');
+      const statusLineHtml = [trudHtml, statusHtml].filter(Boolean).join('<span class="popup-status-separator">•</span>');
       return `
         <div class="photo-gallery" data-slug="${slug}"></div>
-        <b>${p.emoji ? emojiHtml(p.emoji, getPinEmojiHue(p)) + ' ' : ''}${p.nazwa}</b>
-        ${trudHtml}
-        ${statusHtml}
-        <div style="border-top:1px solid #444;"></div>
-        <div style="height:4px;"></div>
+        <div class="popup-card-header">
+          <div class="popup-card-title">${p.emoji ? emojiHtml(p.emoji, getPinEmojiHue(p)) + ' ' : ''}<b>${p.nazwa}</b></div>
+          <div class="popup-edit-row">
+            <button class="popup-edit-btn popup-edit-pin-btn" title="Edytuj pinezkę">✏️</button>
+            <button class="popup-edit-btn popup-delete-btn" title="Usuń pinezkę">🗑️</button>
+          </div>
+        </div>
+        <div class="popup-status-line">${statusLineHtml}</div>
+        <a class="popup-google-card" href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" rel="noopener noreferrer">📍 Google Maps</a>
         ${(() => {
           const sanitized = sanitizeOpis(p.opis);
           const shouldScroll = sanitized && sanitized.length > 100;
           return `<div class="popup-description${shouldScroll ? ' scrollable' : ''}">${linkify(p.opis)}</div>`;
         })()}
-        <div style="height:4px;"></div>
-        <div style="border-top:1px solid #444;"></div>
-        <div class="popup-info-item">Warstwa: ${layerLabel}</div>
-        <div class="popup-info-item">Kategoria główna: ${getPinMainCategory(p)}</div>
-        ${p.kategoria ? `<div class="popup-info-item">Podkategoria: ${p.kategoria}</div>` : ''}
-        ${p.odKogo ? `<div class="popup-info-item">Od kogo: ${p.odKogo}</div>` : ''}
-        <div class="popup-info-item">Data dodania: ${formatDate(p.dataDodania)}</div>
-        <div class="popup-info-item popup-address" data-lat="${p.lat}" data-lng="${p.lng}">Adres: wyszukiwanie...</div>
-        <div class="popup-info-item">${formatCoords(p.lat, p.lng)}</div>
-        <div class="popup-info-item"><a href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" rel="noopener noreferrer">📍 Google Maps</a></div>
         <a class="popup-chatgpt-btn" href="#" data-chatgpt-pin-id="${p.id}" rel="noopener noreferrer">💬 Zapytaj ChatGPT</a>
-        <div class="popup-edit-row">
-          <button class="popup-edit-btn popup-edit-pin-btn" title="Edytuj pinezkę">✏️</button>
-          <button class="popup-edit-btn popup-delete-btn" title="Usuń pinezkę">🗑️</button>
-        </div>
+        <details class="popup-details">
+          <summary>Szczegóły <span class="popup-details-count">8</span></summary>
+          <div class="popup-details-body">
+            <div class="popup-info-item">Warstwa: ${layerLabel}</div>
+            <div class="popup-info-item">Kategoria główna: ${getPinMainCategory(p)}</div>
+            <div class="popup-info-item">Podkategoria: ${p.kategoria || '—'}</div>
+            <div class="popup-info-item">Od kogo: ${p.odKogo || '—'}</div>
+            <div class="popup-info-item">Data dodania: ${formatDate(p.dataDodania)}</div>
+            <div class="popup-info-item popup-address" data-lat="${p.lat}" data-lng="${p.lng}">Adres: wyszukiwanie...</div>
+            <div class="popup-info-item">Współrzędne: ${formatCoords(p.lat, p.lng)}</div>
+          </div>
+        </details>
         <div class="popup-route-actions">
           <button class="popup-route-btn popup-route-add-btn">Dodaj trasę</button>
           <button class="popup-direct-route-btn popup-route-direct-btn">Wyznacz trasę do</button>
