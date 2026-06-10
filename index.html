@@ -7168,12 +7168,20 @@ function emojiHtml(str, hue = 0) {
           </div>
         </div>
         <div class="popup-status-line">${statusLineHtml}</div>
-        <a class="popup-google-card" href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" rel="noopener noreferrer">📍 Google Maps</a>
-        ${(() => {
-          const sanitized = sanitizeOpis(p.opis);
-          const shouldScroll = sanitized && sanitized.length > 100;
-          return `<div class="popup-description${shouldScroll ? ' scrollable' : ''}">${linkify(p.opis)}</div>`;
-        })()}
+        <div class="popup-soft-separator"></div>
+        <section class="popup-description-section">
+          <div class="popup-section-label">Opis</div>
+          ${(() => {
+            const sanitized = sanitizeOpis(p.opis);
+            const shouldScroll = sanitized && sanitized.length > 100;
+            return `<div class="popup-description${shouldScroll ? ' scrollable' : ''}">${linkify(p.opis)}</div>`;
+          })()}
+        </section>
+        <a class="popup-google-card" href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" rel="noopener noreferrer">
+          <span class="popup-action-icon">📍</span>
+          <span>Google Maps</span>
+          <span class="popup-external-icon">↗</span>
+        </a>
         <a class="popup-chatgpt-btn" href="#" data-chatgpt-pin-id="${p.id}" rel="noopener noreferrer">💬 Zapytaj ChatGPT</a>
         <details class="popup-details">
           <summary>Szczegóły <span class="popup-details-count">8</span></summary>

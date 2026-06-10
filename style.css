@@ -678,9 +678,9 @@ html body .popup-container {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 14px;
+  padding: 18px;
   color: #f8fafc;
 }
 
@@ -763,6 +763,26 @@ html body .popup-status-separator {
   color: rgba(148, 163, 184, 0.75);
 }
 
+html body .popup-soft-separator {
+  height: 1px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 2px 0 4px;
+}
+
+html body .popup-section-label {
+  margin-bottom: 8px;
+  color: rgba(203, 213, 225, 0.72);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+html body .popup-description-section {
+  display: block;
+}
+
 html body .popup-google-card,
 html body .popup-chatgpt-btn {
   box-sizing: border-box;
@@ -770,29 +790,38 @@ html body .popup-chatgpt-btn {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 42px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  font-weight: 800;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 750;
   line-height: 1.2;
   text-align: center;
   text-decoration: none;
 }
 
 html body .popup-google-card {
-  border: 1px solid rgba(96, 165, 250, 0.34);
-  background: rgba(37, 99, 235, 0.16);
+  justify-content: flex-start;
+  gap: 12px;
+  border: 1px solid rgba(96, 165, 250, 0.38);
+  background: rgba(37, 99, 235, 0.12);
   color: #93c5fd !important;
 }
 
+html body .popup-google-card .popup-external-icon {
+  margin-left: auto;
+  opacity: .75;
+}
+
 html body .popup-google-card:hover {
-  background: rgba(37, 99, 235, 0.26);
+  background: rgba(37, 99, 235, 0.2);
 }
 
 html body .popup-description {
   box-sizing: border-box;
   width: 100%;
-  color: rgba(248, 250, 252, 0.94);
+  color: rgba(248, 250, 252, 0.96);
+  font-size: 15px;
   line-height: 1.45;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -806,10 +835,10 @@ html body .popup-description.scrollable {
 }
 
 html body .popup-chatgpt-btn {
-  border: 1px solid rgba(129, 140, 248, 0.42) !important;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(14, 165, 233, 0.9)) !important;
+  border: 1px solid rgba(129, 140, 248, .35) !important;
+  background: linear-gradient(135deg, rgba(99, 102, 241, .62), rgba(14, 165, 233, .58)) !important;
   color: #ffffff !important;
-  box-shadow: 0 10px 24px rgba(59, 130, 246, 0.24);
+  box-shadow: none;
 }
 
 html body .popup-chatgpt-btn:hover {
@@ -817,9 +846,9 @@ html body .popup-chatgpt-btn:hover {
 }
 
 html body .popup-details {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  background: rgba(2, 6, 23, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
   overflow: hidden;
 }
 
@@ -880,7 +909,7 @@ html body .popup-info-item {
 html body .popup-route-actions {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   margin-top: 0;
 }
@@ -894,21 +923,25 @@ html body .popup-route-actions .popup-direct-route-btn {
   justify-content: center;
   width: 100%;
   min-width: 0;
-  min-height: 42px;
-  height: 42px;
-  padding: 8px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.08);
+  min-height: 48px;
+  height: 48px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.055);
   color: #f8fafc;
+  font-size: 14px;
   font-weight: 750;
+  box-shadow: none;
   line-height: 1.15;
   text-align: center;
   cursor: pointer;
 }
 
-html body .popup-route-actions button:hover {
-  background: rgba(255, 255, 255, 0.14);
+html body .popup-route-actions button:hover,
+html body .popup-route-actions .popup-route-btn:hover,
+html body .popup-route-actions .popup-direct-route-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
 }
 
 @media (max-width: 700px) {
@@ -935,7 +968,11 @@ html body .popup-route-actions button:hover {
   }
 
   html body .popup-container {
-    padding: 14px;
+    width: 100%;
+    max-height: calc(90dvh - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 16px;
   }
 
   html body .leaflet-popup-tip-container {
@@ -945,6 +982,129 @@ html body .popup-route-actions button:hover {
 
 @media (max-width: 340px) {
   html body .popup-route-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Refined pin popup card overrides */
+html body .popup-container {
+  gap: 12px;
+  padding: 18px;
+}
+
+html body .popup-container .popup-soft-separator {
+  height: 1px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 2px 0 4px;
+}
+
+html body .popup-container .popup-section-label {
+  margin-bottom: 8px;
+  color: rgba(203, 213, 225, 0.72);
+  font-size: 11px !important;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+html body .popup-container .popup-description-section {
+  display: block;
+}
+
+html body .popup-container .popup-description {
+  color: rgba(248, 250, 252, 0.96);
+  font-size: 15px !important;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+html body .popup-container .popup-google-card,
+html body .popup-container .popup-chatgpt-btn {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 15px !important;
+  font-weight: 750;
+  margin: 0;
+  box-shadow: none;
+}
+
+html body .popup-container .popup-google-card {
+  justify-content: flex-start;
+  gap: 12px;
+  background: rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.38);
+  color: #93c5fd !important;
+}
+
+html body .popup-container .popup-google-card .popup-external-icon {
+  margin-left: auto;
+  opacity: .75;
+}
+
+html body .popup-container .popup-chatgpt-btn {
+  background: linear-gradient(135deg, rgba(99, 102, 241, .62), rgba(14, 165, 233, .58)) !important;
+  border: 1px solid rgba(129, 140, 248, .35) !important;
+  box-shadow: none !important;
+}
+
+html body .popup-container .popup-details {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.10) !important;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+}
+
+html body .popup-container .popup-details summary {
+  min-height: 38px;
+  padding: 9px 11px;
+}
+
+html body .popup-container .popup-details summary:focus-visible {
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.18) !important;
+}
+
+html body .popup-container .popup-route-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+html body .popup-container .popup-route-actions button,
+html body .popup-container .popup-route-actions .popup-route-btn,
+html body .popup-container .popup-route-actions .popup-direct-route-btn {
+  height: 48px;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  font-size: 14px !important;
+  font-weight: 750;
+  box-shadow: none;
+}
+
+html body .popup-container .popup-route-actions button:hover,
+html body .popup-container .popup-route-actions .popup-route-btn:hover,
+html body .popup-container .popup-route-actions .popup-direct-route-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+@media (max-width: 700px) {
+  html body .popup-container {
+    width: 100%;
+    max-height: calc(90dvh - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (max-width: 340px) {
+  html body .popup-container .popup-route-actions {
     grid-template-columns: 1fr;
   }
 }
