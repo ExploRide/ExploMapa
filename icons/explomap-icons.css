@@ -1,0 +1,4 @@
+/* ExploMapa icon helper */
+.ex-icon{width:1.15em;height:1.15em;display:inline-block;vertical-align:-0.18em;stroke:currentColor;fill:none}
+.ex-icon-btn{display:inline-flex;align-items:center;justify-content:center;gap:.45em}
+.ex-icon-btn img,.ex-icon-img{width:1.15em;height:1.15em;object-fit:contain;filter:none;background:transparent}
