@@ -7256,7 +7256,78 @@ function emojiHtml(str, hue = 0) {
       bindCurrentPopupButtons(marker, p);
     }
 
+    function getPointerClientPoint(event) {
+      const source = event?.originalEvent || event;
+      const touch = source?.changedTouches?.[0] || source?.touches?.[0];
+      if (touch) return { x: touch.clientX, y: touch.clientY };
+      if (Number.isFinite(source?.clientX) && Number.isFinite(source?.clientY)) {
+        return { x: source.clientX, y: source.clientY };
+      }
+      return null;
+    }
+
+    function attachMarkerMobileTapOpen(marker, p) {
+      if (!marker || !p) return;
+      if (marker._mobileTapOpenHandlers) {
+        const { start, move, end } = marker._mobileTapOpenHandlers;
+        marker.off('touchstart', start);
+        marker.off('touchmove', move);
+        marker.off('touchend', end);
+        marker.off('pointerdown', start);
+        marker.off('pointermove', move);
+        marker.off('pointerup', end);
+      }
+
+      const state = { x: 0, y: 0, startedAt: 0, moved: false };
+      const maxTapMovePx = 14;
+      const maxTapDurationMs = 1200;
+
+      const start = event => {
+        const point = getPointerClientPoint(event);
+        if (!point) return;
+        state.x = point.x;
+        state.y = point.y;
+        state.startedAt = Date.now();
+        state.moved = false;
+      };
+
+      const move = event => {
+        if (!state.startedAt) return;
+        const point = getPointerClientPoint(event);
+        if (!point) return;
+        if (Math.hypot(point.x - state.x, point.y - state.y) > maxTapMovePx) {
+          state.moved = true;
+        }
+      };
+
+      const end = event => {
+        if (!state.startedAt) return;
+        const elapsed = Date.now() - state.startedAt;
+        const point = getPointerClientPoint(event);
+        const moved = state.moved || (point && Math.hypot(point.x - state.x, point.y - state.y) > maxTapMovePx);
+        state.startedAt = 0;
+        if (moved || elapsed > maxTapDurationMs) return;
+        if (marker._lastMobileTapOpenAt && Date.now() - marker._lastMobileTapOpenAt < 350) return;
+
+        const originalEvent = event?.originalEvent || event;
+        if (originalEvent?.preventDefault) originalEvent.preventDefault();
+        if (originalEvent?.stopPropagation) originalEvent.stopPropagation();
+
+        marker._lastMobileTapOpenAt = Date.now();
+        handlePinOpen(marker, p);
+      };
+
+      marker.on('touchstart', start);
+      marker.on('touchmove', move);
+      marker.on('touchend', end);
+      marker.on('pointerdown', start);
+      marker.on('pointermove', move);
+      marker.on('pointerup', end);
+      marker._mobileTapOpenHandlers = { start, move, end };
+    }
+
     function attachPopupHandlers(marker, p) {
+      attachMarkerMobileTapOpen(marker, p);
     /*  console.log('Wywołano attachPopupHandlers dla pinezki:', p); // <-- dodane */
       const bindPopupAction = (element, action) => {
         if (!element || element.dataset.popupActionBound === '1') return;
@@ -11505,6 +11576,7 @@ function zaladujPinezkiZFirestore() {
         marker.off('click', marker._highlightHandler);
       }
       marker._highlightHandler = () => {
+        if (marker._lastMobileTapOpenAt && Date.now() - marker._lastMobileTapOpenAt < 350) return;
         handlePinOpen(marker, marker.__pinRef || null);
       };
       marker.on('click', marker._highlightHandler);
