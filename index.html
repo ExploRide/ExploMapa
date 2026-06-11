@@ -1159,16 +1159,51 @@ body, #sidebar, #basemap-switcher {
 .edit-popup .edit-form-field textarea {
   resize: vertical;
 }
+.edit-popup .edit-add-row,
 .edit-popup .edit-layer-row {
   display: flex;
   gap: 6px;
   align-items: center;
 }
+.edit-popup .edit-add-row .inline-labeled-input,
 .edit-popup .edit-layer-row .inline-labeled-input {
   flex: 1;
 }
+.edit-popup .edit-add-row input,
 .edit-popup .edit-layer-row input {
   flex: 1;
+}
+.edit-popup-name-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+.edit-popup-name-dialog {
+  width: min(360px, 100%);
+  padding: 16px;
+  border-radius: 14px;
+  background: #1f2430;
+  color: #fff;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+.edit-popup-name-dialog h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+.edit-popup-name-dialog input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 12px;
+}
+.edit-popup-name-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .popup-edit-btn {
   position: static;
@@ -9826,7 +9861,7 @@ function zaladujPinezkiZFirestore() {
 
     const pinStatusFieldKeys = ['nieaktywne', 'zamkniete', 'tajne', 'doSprawdzenia', 'zdewastowane', 'zwiedzone', 'wyroznione'];
     const pinStatusSelectOptions = [
-      { value: '', label: 'Status' },
+      { value: '', label: 'Brak' },
       { value: 'nieaktywne', label: 'Niedostępne ⛔' },
       { value: 'zamkniete', label: 'Zamknięte 🔐' },
       { value: 'tajne', label: 'Tajne 🤫' },
@@ -10076,6 +10111,127 @@ function zaladujPinezkiZFirestore() {
       enforceLayerMatch();
     }
 
+    function setInputValueAndNotify(input, value) {
+      if (!input) return;
+      input.value = value || '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function openEditPopupNameDialog({ title, placeholder, buttonText, initialValue = '' } = {}) {
+      return new Promise(resolve => {
+        const backdrop = document.createElement('div');
+        backdrop.className = 'edit-popup-name-dialog-backdrop';
+        const dialog = document.createElement('div');
+        dialog.className = 'edit-popup-name-dialog';
+        const heading = document.createElement('h3');
+        heading.textContent = title || 'Dodaj';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = placeholder || 'Nazwa';
+        input.value = initialValue || '';
+        const actions = document.createElement('div');
+        actions.className = 'edit-popup-name-dialog-actions';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Anuluj';
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.textContent = buttonText || 'Dodaj';
+        actions.append(cancelBtn, addBtn);
+        dialog.append(heading, input, actions);
+        backdrop.appendChild(dialog);
+        document.body.appendChild(backdrop);
+
+        const close = value => {
+          backdrop.remove();
+          resolve(value);
+        };
+        const submit = () => {
+          const value = input.value.trim();
+          if (!value) {
+            input.focus();
+            return;
+          }
+          close(value);
+        };
+        cancelBtn.addEventListener('click', () => close(null));
+        addBtn.addEventListener('click', submit);
+        input.addEventListener('keydown', event => {
+          if (event.key === 'Enter') submit();
+          if (event.key === 'Escape') close(null);
+        });
+        backdrop.addEventListener('click', event => {
+          if (event.target === backdrop) close(null);
+        });
+        setTimeout(() => input.focus(), 0);
+      });
+    }
+
+    async function handlePinLayerAdd({ container, inputSelector, mainCategorySelector, existingMessage, addedMessage }) {
+      const layerInput = container ? container.querySelector(inputSelector) : null;
+      const mainCategoryInput = container ? container.querySelector(mainCategorySelector) : null;
+      if (!layerInput || !mainCategoryInput) return;
+      const selectedMain = normalizeMainCategory((mainCategoryInput.value || '').trim());
+      if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
+      const typedName = (layerInput.value || '').trim();
+      const typedKey = typedName ? getLayerKeyFromInput(typedName, selectedMain) : '';
+      const shouldAskForName = !typedName || !!warstwy[typedKey];
+      const layerName = shouldAskForName
+        ? await openEditPopupNameDialog({
+            title: 'Nowa warstwa',
+            placeholder: 'Nazwa nowej warstwy',
+            buttonText: 'Dodaj nową warstwę'
+          })
+        : typedName;
+      if (!layerName) return;
+      const layerKey = getLayerKeyFromInput(layerName, selectedMain);
+      if (warstwy[layerKey]) {
+        setInputValueAndNotify(layerInput, getLayerDisplayName(layerKey));
+        showToast(existingMessage || 'Ta warstwa już istnieje. Kliknij Zapisz, aby przypisać do niej pinezkę.');
+        return;
+      }
+      const addedKey = addLayer(layerName, true, selectedMain) || getLayerKeyFromInput(layerName, selectedMain);
+      setInputValueAndNotify(layerInput, getLayerDisplayName(addedKey) || layerName);
+      showToast(addedMessage || 'Dodano warstwę. Kliknij Zapisz, aby przypisać do niej pinezkę.');
+    }
+
+    function addCategoryToCollections(categoryName, mainCategory) {
+      const category = (categoryName || '').trim();
+      if (!category) return '';
+      const normalizedMain = normalizeMainCategory(mainCategory);
+      categories.add(category);
+      if (categoriesByMain[normalizedMain]) categoriesByMain[normalizedMain].add(category);
+      updateCategoryFilter();
+      return category;
+    }
+
+    async function handlePinCategoryAdd({ container, inputSelector, mainCategorySelector, existingMessage, addedMessage }) {
+      const categoryInput = container ? container.querySelector(inputSelector) : null;
+      const mainCategoryInput = container ? container.querySelector(mainCategorySelector) : null;
+      if (!categoryInput || !mainCategoryInput) return;
+      const selectedMain = normalizeMainCategory((mainCategoryInput.value || '').trim());
+      if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną podkategorii.');
+      const existingCategories = getCategorySuggestions(selectedMain);
+      const typedName = (categoryInput.value || '').trim();
+      const typedExists = typedName && existingCategories.some(cat => cat.localeCompare(typedName, 'pl', { sensitivity: 'accent' }) === 0);
+      const shouldAskForName = !typedName || typedExists;
+      const categoryName = shouldAskForName
+        ? await openEditPopupNameDialog({
+            title: 'Nowa podkategoria',
+            placeholder: 'Nazwa nowej podkategorii',
+            buttonText: 'Dodaj nową podkategorię'
+          })
+        : typedName;
+      if (!categoryName) return;
+      const alreadyExists = existingCategories.some(cat => cat.localeCompare(categoryName, 'pl', { sensitivity: 'accent' }) === 0);
+      const selectedCategory = alreadyExists ? categoryName : addCategoryToCollections(categoryName, selectedMain);
+      setInputValueAndNotify(categoryInput, selectedCategory);
+      showToast(alreadyExists
+        ? (existingMessage || 'Ta podkategoria już istnieje. Kliknij Zapisz, aby przypisać do niej pinezkę.')
+        : (addedMessage || 'Dodano podkategorię. Kliknij Zapisz, aby przypisać do niej pinezkę.'));
+    }
+
     function isMobilePinFormPreferred() {
       const narrow = window.matchMedia('(max-width: 800px)').matches;
       const coarse = window.matchMedia('(pointer: coarse)').matches;
@@ -10175,9 +10331,12 @@ function zaladujPinezkiZFirestore() {
           </span>
         </div>
         <div class="edit-form-field">
-          <span class="inline-labeled-input" data-label="Podkategoria" style="--inline-label-offset: 108px;">
-            <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Podkategoria">
-          </span>
+          <div class="edit-add-row">
+            <span class="inline-labeled-input" data-label="Podkategoria" style="--inline-label-offset: 108px;">
+              <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Podkategoria">
+            </span>
+            <button id="addCategoryFromPinEdit" type="button" title="Dodaj nową podkategorię">＋</button>
+          </div>
         </div>
         <div class="edit-form-field">
           <div class="edit-layer-row">
@@ -10230,20 +10389,21 @@ function zaladujPinezkiZFirestore() {
       const editMainCategoryInput = container.querySelector('#ekategoriaGlowna');
       const editCategoryInput = container.querySelector('#ekategoria');
       const addLayerFromPinEditBtn = container.querySelector('#addLayerFromPinEdit');
-      if (addLayerFromPinEditBtn) addLayerFromPinEditBtn.addEventListener('click', () => {
-        const layerName = (container.querySelector('#ewarstwa').value || '').trim();
-        const selectedMain = normalizeMainCategory((container.querySelector('#ekategoriaGlowna').value || '').trim());
-        if (!layerName) return alert('Wpisz nazwę nowej warstwy.');
-        if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
-        const layerKey = getLayerKeyFromInput(layerName, selectedMain);
-        if (!warstwy[layerKey]) {
-          addLayer(layerName, true, selectedMain);
-          showToast('Dodano warstwę. Kliknij Zapisz, aby przypisać do niej pinezkę.');
-        } else {
-          warstwy[layerKey].mainCategory = normalizeMainCategory(warstwy[layerKey].mainCategory || selectedMain);
-          showToast('Ta warstwa już istnieje. Kliknij Zapisz, aby przypisać do niej pinezkę.');
-        }
-      });
+      if (addLayerFromPinEditBtn) addLayerFromPinEditBtn.addEventListener('click', () => handlePinLayerAdd({
+        container,
+        inputSelector: '#ewarstwa',
+        mainCategorySelector: '#ekategoriaGlowna',
+        existingMessage: 'Ta warstwa już istnieje. Kliknij Zapisz, aby przypisać do niej pinezkę.',
+        addedMessage: 'Dodano warstwę. Kliknij Zapisz, aby przypisać do niej pinezkę.'
+      }));
+      const addCategoryFromPinEditBtn = container.querySelector('#addCategoryFromPinEdit');
+      if (addCategoryFromPinEditBtn) addCategoryFromPinEditBtn.addEventListener('click', () => handlePinCategoryAdd({
+        container,
+        inputSelector: '#ekategoria',
+        mainCategorySelector: '#ekategoriaGlowna',
+        existingMessage: 'Ta podkategoria już istnieje. Kliknij Zapisz, aby przypisać do niej pinezkę.',
+        addedMessage: 'Dodano podkategorię. Kliknij Zapisz, aby przypisać do niej pinezkę.'
+      }));
       setupDropdownInput(editCategoryInput, () => getCategorySuggestions(editMainCategoryInput ? editMainCategoryInput.value : getPinMainCategory(p)));
       if (editMainCategoryInput) {
         editMainCategoryInput.addEventListener('change', () => {
@@ -10601,8 +10761,11 @@ function zaladujPinezkiZFirestore() {
           <option value="URBEX">URBEX</option>
           <option value="TURYSTYCZNE">TURYSTYCZNE</option>
         </select><br>
-        <input id="kategoriaNew" placeholder="Podkategoria" style="width: 102%"><br>
-        <div style="display:flex; gap:6px; align-items:center;">
+        <div class="edit-add-row">
+          <input id="kategoriaNew" placeholder="Podkategoria" style="width: 100%">
+          <button id="addCategoryFromPinNew" type="button" title="Dodaj nową podkategorię">＋</button>
+        </div><br>
+        <div class="edit-add-row">
           <input id="warstwaNew" placeholder="Warstwa" style="width: 100%">
           <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
         </div><br>
@@ -10646,20 +10809,21 @@ function zaladujPinezkiZFirestore() {
       });
       setupLayerDropdownByMainCategory(newLayerInput, newMainCategoryInput);
       const addLayerFromPinNewBtn = container.querySelector('#addLayerFromPinNew');
-      if (addLayerFromPinNewBtn) addLayerFromPinNewBtn.addEventListener('click', () => {
-        const layerName = (container.querySelector('#warstwaNew').value || '').trim();
-        const selectedMain = normalizeMainCategory((container.querySelector('#kategoriaGlownaNew').value || '').trim());
-        if (!layerName) return alert('Wpisz nazwę nowej warstwy.');
-        if (!MAIN_CATEGORY_OPTIONS.includes(selectedMain)) return alert('Wybierz kategorię główną warstwy.');
-        const layerKey = getLayerKeyFromInput(layerName, selectedMain);
-        if (!warstwy[layerKey]) {
-          addLayer(layerName, true, selectedMain);
-          showToast('Dodano warstwę. Ta pinezka zostanie do niej przypisana po zapisie.');
-        } else {
-          warstwy[layerKey].mainCategory = normalizeMainCategory(warstwy[layerKey].mainCategory || selectedMain);
-          showToast('Ta warstwa już istnieje. Ta pinezka zostanie do niej przypisana po zapisie.');
-        }
-      });
+      if (addLayerFromPinNewBtn) addLayerFromPinNewBtn.addEventListener('click', () => handlePinLayerAdd({
+        container,
+        inputSelector: '#warstwaNew',
+        mainCategorySelector: '#kategoriaGlownaNew',
+        existingMessage: 'Ta warstwa już istnieje. Ta pinezka zostanie do niej przypisana po zapisie.',
+        addedMessage: 'Dodano warstwę. Ta pinezka zostanie do niej przypisana po zapisie.'
+      }));
+      const addCategoryFromPinNewBtn = container.querySelector('#addCategoryFromPinNew');
+      if (addCategoryFromPinNewBtn) addCategoryFromPinNewBtn.addEventListener('click', () => handlePinCategoryAdd({
+        container,
+        inputSelector: '#kategoriaNew',
+        mainCategorySelector: '#kategoriaGlownaNew',
+        existingMessage: 'Ta podkategoria już istnieje. Ta pinezka zostanie do niej przypisana po zapisie.',
+        addedMessage: 'Dodano podkategorię. Ta pinezka zostanie do niej przypisana po zapisie.'
+      }));
       setupDropdownInput(newCategoryInput, () => getCategorySuggestions(newMainCategoryInput ? newMainCategoryInput.value : MAIN_CATEGORY_URBEX));
       if (newMainCategoryInput) newMainCategoryInput.addEventListener('change', () => { if (newCategoryInput) newCategoryInput.value = ''; });
       setupTrudnoscInput(container.querySelector('#trudnoscNew'), container.querySelector('#trudnoscNewLabel'));
