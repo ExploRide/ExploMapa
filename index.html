@@ -15,7 +15,7 @@
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-05-31-zoom-1" />
+  <link rel="stylesheet" href="style.css?v=2026-06-11-popup-fixes-1" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -7145,8 +7145,21 @@ function emojiHtml(str, hue = 0) {
     function createPopupHtml(p) {
       const slug = p.slug || slugify(p.nazwa || '');
       const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId, getPinMainCategory(p)).displayName || 'Inne';
+      const pinName = String(p.nazwa || 'Bez nazwy');
+      const escapedPinName = escapeHtml(pinName);
+      const longTitleClass = pinName.length > 34 ? ' popup-card-title-long' : '';
+      const sanitizedDescription = sanitizeOpis(p.opis);
+      const descriptionHtml = sanitizedDescription ? (() => {
+        const shouldScroll = sanitizedDescription.length > 100;
+        return `
+        <section class="popup-description-section">
+          <div class="popup-section-label">Opis</div>
+          <div class="popup-description${shouldScroll ? ' scrollable' : ''}">${linkify(p.opis)}</div>
+        </section>`;
+      })() : '';
+      const popupIcon = (path) => `<span class="popup-action-svg" style="--popup-icon-url: url('${path}')" aria-hidden="true"></span>`;
       const trudHtml = p.trudnosc !== undefined ?
-        `<span class="trudnosc-text" id="trudnoscLabel-${p.id}" style="color:${trudnoscColor(p.trudnosc)}">Poziom trudności: ${trudnoscText(p.trudnosc)}</span>` : '';
+        `<span class="trudnosc-text" id="trudnoscLabel-${p.id}">Poziom trudności: ${trudnoscText(p.trudnosc)}</span>` : '';
       const statusItems = [
         (p.niedostepne || p.nieaktywne) ? 'Niedostępne ⛔' : '',
         p.zamkniete ? 'Zamknięte 🔐' : '',
@@ -7156,27 +7169,19 @@ function emojiHtml(str, hue = 0) {
         p.zwiedzone ? 'Zwiedzone <img src="https://upload.wikimedia.org/wikipedia/commons/0/03/Green_check.svg" width="16" height="16" class="checkmark-obrys">' : '',
         p.wyroznione ? 'Wyróżnione ⭐' : ''
       ].filter(Boolean);
-      const statusHtml = statusItems.map(item => `<span class="popup-status-item">${item}</span>`).join('<span class="popup-status-separator">•</span>');
-      const statusLineHtml = [trudHtml, statusHtml].filter(Boolean).join('<span class="popup-status-separator">•</span>');
+      const statusHtml = statusItems.length ? `<span class="popup-status-row">${statusItems.map(item => `<span class="popup-status-item">${item}</span>`).join('')}</span>` : '';
+      const statusLineHtml = [trudHtml, statusHtml].filter(Boolean).join('');
       return `
         <div class="photo-gallery" data-slug="${slug}"></div>
         <div class="popup-card-header">
-          <div class="popup-card-title">${p.emoji ? emojiHtml(p.emoji, getPinEmojiHue(p)) + ' ' : ''}<b>${p.nazwa}</b></div>
+          <div class="popup-card-title${longTitleClass}" title="${escapedPinName}">${p.emoji ? emojiHtml(p.emoji, getPinEmojiHue(p)) + ' ' : ''}<b>${escapedPinName}</b></div>
           <div class="popup-edit-row">
             <button class="popup-edit-btn popup-edit-pin-btn" title="Edytuj pinezkę">✏️</button>
             <button class="popup-edit-btn popup-delete-btn" title="Usuń pinezkę">🗑️</button>
           </div>
         </div>
         <div class="popup-status-line">${statusLineHtml}</div>
-        <div class="popup-soft-separator"></div>
-        <section class="popup-description-section">
-          <div class="popup-section-label">Opis</div>
-          ${(() => {
-            const sanitized = sanitizeOpis(p.opis);
-            const shouldScroll = sanitized && sanitized.length > 100;
-            return `<div class="popup-description${shouldScroll ? ' scrollable' : ''}">${linkify(p.opis)}</div>`;
-          })()}
-        </section>
+        <div class="popup-soft-separator"></div>${descriptionHtml}
         <a class="popup-google-card" href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" rel="noopener noreferrer">
           <span class="popup-action-icon">📍</span>
           <span>Google Maps</span>
@@ -7196,10 +7201,10 @@ function emojiHtml(str, hue = 0) {
           </div>
         </details>
         <div class="popup-route-actions">
-          <button class="popup-route-btn popup-route-add-btn">Dodaj trasę</button>
-          <button class="popup-direct-route-btn popup-route-direct-btn">Wyznacz trasę do</button>
-          <button class="popup-route-btn popup-plan-btn">Dodaj plan</button>
-          <button class="popup-route-btn popup-trip-add-btn">+ Do tripa</button>
+          <button class="popup-route-btn popup-route-add-btn">${popupIcon('icons/route.svg')}<span>Dodaj trasę</span></button>
+          <button class="popup-direct-route-btn popup-route-direct-btn">${popupIcon('icons/route-add.svg')}<span>Wyznacz trasę do</span></button>
+          <button class="popup-route-btn popup-plan-btn">${popupIcon('icons/blueprint-grid.svg')}<span>Dodaj plan</span></button>
+          <button class="popup-route-btn popup-trip-add-btn">${popupIcon('icons/backpack.svg')}<span>+ Do tripa</span></button>
         </div>
       `;
     }
@@ -10186,10 +10191,12 @@ function zaladujPinezkiZFirestore() {
           </div>
           <div class="trudnosc-value" id="etrudnoscLabel" style="color:${trudnoscColor(p.trudnosc ?? 0)}">${trudnoscText(p.trudnosc ?? 0)}</div>
         </div>
-        <button id="movePinBtn-${id}">📍 Zmień położenie</button>
-        ${hasEditablePinPlans(p) ? `<button id="editPinPlanBtn-${id}" type="button">🗺️ Edytuj plan</button>` : ''}
-        <button onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
-        <button id="deleteBtn-${id}">🗑️</button>
+        ${hasEditablePinPlans(p) ? `<button id="editPinPlanBtn-${id}" type="button" class="edit-popup-plan-btn">🗺️ Edytuj plan</button>` : ''}
+        <div class="edit-popup-action-row">
+          <button id="movePinBtn-${id}" type="button" class="edit-popup-move-btn">📍 Zmień położenie</button>
+          <button id="deleteBtn-${id}" type="button" class="edit-popup-delete-btn">🗑️ Usuń</button>
+        </div>
+        <button class="edit-popup-save-btn" onclick="zapiszLokalnie('${id}')">💾 Zapisz</button>
       `;
       L.DomEvent.disableClickPropagation(container);
       const eOpisInput = container.querySelector('#eopis');
@@ -12092,14 +12099,21 @@ function showRoutePopup(pinId, tr, latlng) {
       searchMarker = L.marker(latlng, {icon: greenIcon}).addTo(searchLayer.layer);
       const coordsDisplay = formatCoords(latNum, lngNum);
       const container = document.createElement('div');
+      container.className = 'popup-container search-result-popup';
       container.innerHTML = `
-        <div>${label}</div>
-        <div>${coordsDisplay}</div>
-        <div class="popup-info-item"><a href="https://maps.google.com/?q=${latNum},${lngNum}" target="_blank" rel="noopener noreferrer">📍 Google Maps</a></div>
+        <div class="popup-card-header">
+          <div class="popup-card-title search-result-title" title="${escapeHtml(label)}"><b>${escapeHtml(label)}</b></div>
+        </div>
+        <div class="popup-status-line"><span class="popup-status-item">${coordsDisplay}</span></div>
+        <a class="popup-google-card" href="https://maps.google.com/?q=${latNum},${lngNum}" target="_blank" rel="noopener noreferrer">
+          <span class="popup-action-icon">📍</span>
+          <span>Google Maps</span>
+          <span class="popup-external-icon">↗</span>
+        </a>
         <div class="popup-route-actions">
-          <button class="popup-direct-route-btn" id="routeSearchBtn">Wyznacz trasę do</button>
+          <button class="popup-direct-route-btn" id="routeSearchBtn"><span class="popup-action-svg" style="--popup-icon-url: url('icons/route-add.svg')" aria-hidden="true"></span><span>Wyznacz trasę do</span></button>
           <button class="popup-route-btn" id="addSearchPin">dodaj pinezkę</button>
-          <button class="popup-route-btn" id="addSearchToTripBtn">+ Do tripa</button>
+          <button class="popup-route-btn" id="addSearchToTripBtn"><span class="popup-action-svg" style="--popup-icon-url: url('icons/backpack.svg')" aria-hidden="true"></span><span>+ Do tripa</span></button>
         </div>`;
       searchMarker.bindPopup(container).openPopup();
       container.querySelector('#addSearchPin').addEventListener('click', () => {
