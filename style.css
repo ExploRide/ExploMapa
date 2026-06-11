@@ -1311,7 +1311,7 @@ html body .search-result-popup .popup-route-actions {
 
 html body .edit-popup .edit-popup-action-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   width: 100%;
 }
@@ -1323,8 +1323,10 @@ html body .edit-popup .edit-popup-plan-btn {
   border-radius: 8px;
 }
 
+html body .edit-popup .edit-popup-move-btn,
 html body .edit-popup .edit-popup-delete-btn {
-  min-width: 86px;
+  min-width: 0;
+  width: 100%;
 }
 
 html body .edit-popup .edit-popup-save-btn {

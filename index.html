@@ -15,7 +15,7 @@
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-11-popup-fixes-1" />
+  <link rel="stylesheet" href="style.css?v=2026-06-11-popup-fixes-2" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -8186,6 +8186,13 @@ function emojiHtml(str, hue = 0) {
         // Utrzymuj pełną skalę popupu — CSS zoom potrafi rozjechać hitboxy przycisków
         // (np. edycja/usuwanie) na części przeglądarek i poziomów mapy.
         popupEl.style.zoom = '';
+        if (mobileLayout) {
+          popup._autoPanHandledToken = token;
+          popupAutoPanState.lastRunTs = Date.now();
+          popupAutoPanState.duringAutoPan = false;
+          return;
+        }
+
         const popupRect = popupEl.getBoundingClientRect();
 
         let dx = 0;
@@ -12112,7 +12119,7 @@ function showRoutePopup(pinId, tr, latlng) {
         </a>
         <div class="popup-route-actions">
           <button class="popup-direct-route-btn" id="routeSearchBtn"><span class="popup-action-svg" style="--popup-icon-url: url('icons/route-add.svg')" aria-hidden="true"></span><span>Wyznacz trasę do</span></button>
-          <button class="popup-route-btn" id="addSearchPin">dodaj pinezkę</button>
+          <button class="popup-route-btn" id="addSearchPin"><span class="popup-action-svg" style="--popup-icon-url: url('icons/location.svg')" aria-hidden="true"></span><span>Dodaj pinezkę</span></button>
           <button class="popup-route-btn" id="addSearchToTripBtn"><span class="popup-action-svg" style="--popup-icon-url: url('icons/backpack.svg')" aria-hidden="true"></span><span>+ Do tripa</span></button>
         </div>`;
       searchMarker.bindPopup(container).openPopup();
