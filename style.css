@@ -951,8 +951,8 @@ html body .popup-route-actions .popup-direct-route-btn:hover {
   }
 
   html body .leaflet-popup-content {
-    width: min(94vw, 430px) !important;
-    max-width: 94vw !important;
+    max-width: min(92vw, 340px) !important;
+    width: auto !important;
   }
 
   html body .popup-container {
@@ -1178,8 +1178,8 @@ html body .popup-container .popup-route-actions .popup-direct-route-btn:hover {
 
 @media (max-width: 700px) {
   html body .leaflet-popup-content {
-    width: min(92vw, 430px) !important;
-    max-width: min(92vw, 430px) !important;
+    max-width: min(92vw, 340px) !important;
+    width: auto !important;
   }
 
   html body .popup-container {

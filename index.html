@@ -5751,9 +5751,9 @@ function slugify(str) {
         popupDiv.innerHTML = createPopupHtml(data);
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: false,
-          keepInView: false,
-          offset: L.point(0, -24)
+          autoPan: true,
+          autoPanPadding: L.point(24, 80),
+          keepInView: true
         });
         attachPopupHandlers(marker, data);
         attachMarkerLongPress(marker, data);
@@ -7282,9 +7282,9 @@ function emojiHtml(str, hue = 0) {
       if (typeof marker.bindPopup === 'function') {
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: false,
-          keepInView: false,
-          offset: L.point(0, -24)
+          autoPan: true,
+          autoPanPadding: L.point(24, 80),
+          keepInView: true
         });
       }
     }
@@ -8085,9 +8085,9 @@ function emojiHtml(str, hue = 0) {
         marker.unbindPopup();
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: false,
-          keepInView: false,
-          offset: L.point(0, -24)
+          autoPan: true,
+          autoPanPadding: L.point(24, 80),
+          keepInView: true
         });
 
         attachPopupHandlers(marker, p);
@@ -10627,9 +10627,9 @@ function zaladujPinezkiZFirestore() {
       popupDiv.innerHTML = createPopupHtml(p);
       p.marker.bindPopup(popupDiv, {
         maxWidth: 300,
-        autoPan: false,
-        keepInView: false,
-        offset: L.point(0, -24)
+        autoPan: true,
+        autoPanPadding: L.point(24, 80),
+        keepInView: true
       });
       attachPopupHandlers(p.marker, p);
       attachMarkerLongPress(p.marker, p);
@@ -11016,9 +11016,9 @@ function zaladujPinezkiZFirestore() {
         popupDiv.innerHTML = createPopupHtml(data);
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: false,
-          keepInView: false,
-          offset: L.point(0, -24)
+          autoPan: true,
+          autoPanPadding: L.point(24, 80),
+          keepInView: true
         });
         attachPopupHandlers(marker, data);
         attachMarkerLongPress(marker, data);
@@ -11287,9 +11287,9 @@ function zaladujPinezkiZFirestore() {
         popupDiv.innerHTML = createPopupHtml(p);
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: false,
-          keepInView: false,
-          offset: L.point(0, -24)
+          autoPan: true,
+          autoPanPadding: L.point(24, 80),
+          keepInView: true
         });
         attachPopupHandlers(marker, p);
         attachMarkerLongPress(marker, p);
@@ -11727,9 +11727,9 @@ function zaladujPinezkiZFirestore() {
         popupDiv.innerHTML = createPopupHtml(pin);
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: false,
-          keepInView: false,
-          offset: L.point(0, -24)
+          autoPan: true,
+          autoPanPadding: L.point(24, 80),
+          keepInView: true
         });
         attachPopupHandlers(marker, pin);
         updateSaveButton();
@@ -14424,9 +14424,9 @@ function getTripPointEmoji(p) {
       marker.__pinRef = pin;
       marker.bindPopup('<div class="popup-container">Ładowanie…</div>', {
         maxWidth: 300,
-        autoPan: false,
-        keepInView: false,
-        offset: L.point(0, -24)
+        autoPan: true,
+        autoPanPadding: L.point(24, 80),
+        keepInView: true
       });
       attachPopupHandlers(marker, pin);
       marker.on('popupopen', (evt) => {
@@ -16008,9 +16008,9 @@ function confirmLayerDelete() {
     popupDiv.innerHTML = createPopupHtml(data);
     marker.bindPopup(popupDiv, {
       maxWidth: 300,
-      autoPan: false,
-      keepInView: false,
-      offset: L.point(0, -24)
+      autoPan: true,
+      autoPanPadding: L.point(24, 80),
+      keepInView: true
     });
     attachPopupHandlers(marker, data);
     data.marker = marker;
@@ -16089,9 +16089,9 @@ function confirmLayerDelete() {
     popupDiv.innerHTML = createPopupHtml(data);
     marker.bindPopup(popupDiv, {
       maxWidth: 300,
-      autoPan: false,
-      keepInView: false,
-      offset: L.point(0, -24)
+      autoPan: true,
+      autoPanPadding: L.point(24, 80),
+      keepInView: true
     });
     attachPopupHandlers(marker, data);
     data.unsaved = true;
