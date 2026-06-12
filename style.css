@@ -654,8 +654,8 @@ html body .leaflet-popup-content-wrapper {
 }
 
 html body .leaflet-popup-content {
-  max-width: min(360px, calc(100vw - 42px)) !important;
-  width: min(360px, calc(100vw - 42px)) !important;
+  max-width: min(380px, calc(100vw - 32px)) !important;
+  width: min(380px, calc(100vw - 32px)) !important;
   margin: 0 !important;
   color: #f8fafc !important;
   text-align: left !important;
@@ -951,8 +951,8 @@ html body .popup-route-actions .popup-direct-route-btn:hover {
   }
 
   html body .leaflet-popup-content {
-    max-width: min(92vw, 340px) !important;
-    width: auto !important;
+    max-width: min(380px, calc(100vw - 32px)) !important;
+    width: min(380px, calc(100vw - 32px)) !important;
   }
 
   html body .popup-container {
@@ -1178,8 +1178,8 @@ html body .popup-container .popup-route-actions .popup-direct-route-btn:hover {
 
 @media (max-width: 700px) {
   html body .leaflet-popup-content {
-    max-width: min(92vw, 340px) !important;
-    width: auto !important;
+    max-width: min(380px, calc(100vw - 32px)) !important;
+    width: min(380px, calc(100vw - 32px)) !important;
   }
 
   html body .popup-container {
