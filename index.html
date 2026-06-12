@@ -1490,12 +1490,6 @@ body:not(.trip-planner-mode) .trip-planner-panel {
   color: #f0f0f0;
 }
 
-    .leaflet-popup {
-    position: absolute;
-    text-align: center;
-    margin-bottom: 40px;
-}
-
 .popup-description.scrollable {
   max-height: 150px;
   overflow-y: auto;
@@ -2512,8 +2506,8 @@ img.emoji {
     }
 
     .leaflet-popup-tip {
-      background: #171a21;
-      border: 1px solid var(--ui-border);
+      background: #2b2b2b;
+      border: 1px solid #444;
     }
 
     #deleteModal,
@@ -5755,7 +5749,12 @@ function slugify(str) {
         const popupDiv = document.createElement("div");
         popupDiv.className = "popup-container";
         popupDiv.innerHTML = createPopupHtml(data);
-        marker.bindPopup(popupDiv);
+        marker.bindPopup(popupDiv, {
+          maxWidth: 300,
+          autoPan: false,
+          keepInView: false,
+          offset: L.point(0, -24)
+        });
         attachPopupHandlers(marker, data);
         attachMarkerLongPress(marker, data);
         attachHighlight(marker, null);
@@ -6211,7 +6210,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
             </div>`,
           iconSize: [markerSize, markerSize],
           iconAnchor: [markerSize / 2, markerSize],
-          popupAnchor: [0, -14]
+          popupAnchor: [0, -24]
         });
       }
 
@@ -6226,7 +6225,7 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
           </div>`,
         iconSize: [markerSize, markerSize],
         iconAnchor: [markerSize / 2, markerSize],
-        popupAnchor: [0, -14]
+        popupAnchor: [0, -24]
       });
     }
 
@@ -7284,7 +7283,8 @@ function emojiHtml(str, hue = 0) {
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
           autoPan: false,
-          keepInView: false
+          keepInView: false,
+          offset: L.point(0, -24)
         });
       }
     }
@@ -8086,7 +8086,8 @@ function emojiHtml(str, hue = 0) {
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
           autoPan: false,
-          keepInView: false
+          keepInView: false,
+          offset: L.point(0, -24)
         });
 
         attachPopupHandlers(marker, p);
@@ -10624,7 +10625,12 @@ function zaladujPinezkiZFirestore() {
       const popupDiv = document.createElement("div");
       popupDiv.className = "popup-container";
       popupDiv.innerHTML = createPopupHtml(p);
-      p.marker.bindPopup(popupDiv);
+      p.marker.bindPopup(popupDiv, {
+        maxWidth: 300,
+        autoPan: false,
+        keepInView: false,
+        offset: L.point(0, -24)
+      });
       attachPopupHandlers(p.marker, p);
       attachMarkerLongPress(p.marker, p);
       if (p.plany) {
@@ -11008,7 +11014,12 @@ function zaladujPinezkiZFirestore() {
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(data);
-        marker.bindPopup(popupDiv);
+        marker.bindPopup(popupDiv, {
+          maxWidth: 300,
+          autoPan: false,
+          keepInView: false,
+          offset: L.point(0, -24)
+        });
         attachPopupHandlers(marker, data);
         attachMarkerLongPress(marker, data);
 
@@ -11274,7 +11285,12 @@ function zaladujPinezkiZFirestore() {
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
-        marker.bindPopup(popupDiv);
+        marker.bindPopup(popupDiv, {
+          maxWidth: 300,
+          autoPan: false,
+          keepInView: false,
+          offset: L.point(0, -24)
+        });
         attachPopupHandlers(marker, p);
         attachMarkerLongPress(marker, p);
         attachHighlight(marker, null);
@@ -11709,7 +11725,12 @@ function zaladujPinezkiZFirestore() {
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(pin);
-        marker.bindPopup(popupDiv);
+        marker.bindPopup(popupDiv, {
+          maxWidth: 300,
+          autoPan: false,
+          keepInView: false,
+          offset: L.point(0, -24)
+        });
         attachPopupHandlers(marker, pin);
         updateSaveButton();
       };
@@ -14401,7 +14422,12 @@ function getTripPointEmoji(p) {
       const iconEmoji = layerData.emoji || normalizePinEmojiValue(pin.emoji);
       const marker = L.marker([lat, lng], { icon: createEmojiIcon(iconEmoji, pin.warstwaId, 32, pin) });
       marker.__pinRef = pin;
-      marker.bindPopup('<div class="popup-container">Ładowanie…</div>');
+      marker.bindPopup('<div class="popup-container">Ładowanie…</div>', {
+        maxWidth: 300,
+        autoPan: false,
+        keepInView: false,
+        offset: L.point(0, -24)
+      });
       attachPopupHandlers(marker, pin);
       marker.on('popupopen', (evt) => {
         const popupStartTs = performance.now();
@@ -15980,7 +16006,12 @@ function confirmLayerDelete() {
     const popupDiv = document.createElement('div');
     popupDiv.className = 'popup-container';
     popupDiv.innerHTML = createPopupHtml(data);
-    marker.bindPopup(popupDiv);
+    marker.bindPopup(popupDiv, {
+      maxWidth: 300,
+      autoPan: false,
+      keepInView: false,
+      offset: L.point(0, -24)
+    });
     attachPopupHandlers(marker, data);
     data.marker = marker;
     movingLayer.lista.push(data);
@@ -16056,7 +16087,12 @@ function confirmLayerDelete() {
     const popupDiv = document.createElement('div');
     popupDiv.className = 'popup-container';
     popupDiv.innerHTML = createPopupHtml(data);
-    marker.bindPopup(popupDiv);
+    marker.bindPopup(popupDiv, {
+      maxWidth: 300,
+      autoPan: false,
+      keepInView: false,
+      offset: L.point(0, -24)
+    });
     attachPopupHandlers(marker, data);
     data.unsaved = true;
     nowePinezki.push(data);
