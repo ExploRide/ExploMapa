@@ -7281,7 +7281,8 @@ function emojiHtml(str, hue = 0) {
       if (typeof marker.unbindPopup === 'function') marker.unbindPopup();
       if (typeof marker.bindPopup === 'function') {
         marker.bindPopup(popupDiv, {
-          maxWidth: 300,
+          maxWidth: 380,
+          minWidth: window.innerWidth <= 700 ? 340 : 300,
           autoPan: true,
           autoPanPadding: L.point(24, 80),
           keepInView: true
@@ -8084,7 +8085,8 @@ function emojiHtml(str, hue = 0) {
 
         marker.unbindPopup();
         marker.bindPopup(popupDiv, {
-          maxWidth: 300,
+          maxWidth: 380,
+          minWidth: window.innerWidth <= 700 ? 340 : 300,
           autoPan: true,
           autoPanPadding: L.point(24, 80),
           keepInView: true
