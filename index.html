@@ -7256,6 +7256,59 @@ function emojiHtml(str, hue = 0) {
       bindCurrentPopupButtons(marker, p);
     }
 
+    function ensureViewPopup(marker, pin, options = {}) {
+      if (!marker || !pin || typeof createPopupHtml !== 'function') return;
+      if (pin._isEditing === true) return;
+      delete pin._editDraft;
+
+      if (marker._editCloseHandler) {
+        marker.off('popupclose', marker._editCloseHandler);
+        if (map) map.off('popupclose', marker._editCloseHandler);
+        marker._editCloseHandler = null;
+      }
+      if (marker._editPopupRemoveHandler && marker._editPopup) {
+        marker._editPopup.off('remove', marker._editPopupRemoveHandler);
+        marker._editPopupRemoveHandler = null;
+      }
+      if (marker._editPopup) {
+        if (map && typeof map.closePopup === 'function') map.closePopup(marker._editPopup);
+        marker._editPopup = null;
+      }
+
+      const popupDiv = document.createElement('div');
+      popupDiv.className = 'popup-container';
+      popupDiv.innerHTML = createPopupHtml(pin);
+
+      if (typeof marker.unbindPopup === 'function') marker.unbindPopup();
+      if (typeof marker.bindPopup === 'function') {
+        marker.bindPopup(popupDiv, {
+          maxWidth: 300,
+          autoPan: false,
+          keepInView: false
+        });
+      }
+    }
+
+    function handlePinOpen(marker, pin) {
+      if (!marker || drawingRoute) return null;
+      const resolvedPin = pin || marker.__pinRef || wszystkiePinezki.find(item => item && item.marker === marker) || null;
+      if (resolvedPin) {
+        marker.__pinRef = resolvedPin;
+        resolvedPin._isEditing = false;
+      }
+
+      if (resolvedPin) {
+        ensureViewPopup(marker, resolvedPin);
+        attachPopupHandlers(marker, resolvedPin);
+        if (typeof attachMarkerLongPress === 'function') attachMarkerLongPress(marker, resolvedPin);
+      }
+
+      if (typeof marker.openPopup === 'function') {
+        marker.openPopup();
+      }
+      return resolvedPin;
+    }
+
     function getPointerClientPoint(event) {
       const source = event?.originalEvent || event;
       const touch = source?.changedTouches?.[0] || source?.touches?.[0];
