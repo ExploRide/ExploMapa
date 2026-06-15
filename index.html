@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-15 v.0.638';
+    const BUILD_VERSION = '2026-06-15 v.0.639';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1523,6 +1523,13 @@ body:not(.trip-planner-mode) .trip-planner-panel {
   -webkit-overflow-scrolling: touch;
 }
 
+body.mobile-layout .leaflet-popup-content {
+  max-height: calc(100dvh - 150px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 body.mobile-layout .popup-description.scrollable {
   max-height: 110px;
   max-height: min(110px, 22dvh);
@@ -1530,6 +1537,13 @@ body.mobile-layout .popup-description.scrollable {
 }
 
 @media (max-width: 700px) {
+  .leaflet-popup-content {
+    max-height: calc(100dvh - 150px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .popup-description.scrollable {
     max-height: 110px;
     max-height: min(110px, 22dvh);
@@ -8351,7 +8365,12 @@ function emojiHtml(str, hue = 0) {
           dx = popupRect.right - maxRight;
         }
 
-        if (popupRect.top < minTop) {
+        if (popupRect.height > maxHeight) {
+          // Na małych ekranach długie popupy nie mieszczą się w całości.
+          // Wtedy trzymaj ich górę pod kontrolkami i pozwól przewijać treść,
+          // zamiast przesuwać mapę tak wysoko, że nagłówek popupu znika.
+          dy = popupRect.top - minTop;
+        } else if (popupRect.top < minTop) {
           dy = popupRect.top - minTop;
         } else if (popupRect.bottom > maxBottom) {
           dy = popupRect.bottom - maxBottom;
@@ -8406,6 +8425,7 @@ function emojiHtml(str, hue = 0) {
         }
       }
       map.on('movestart zoomstart dragstart', () => {
+        if (consumeSuppressPinViewportLoading()) return;
         showPinViewportLoading(0);
       });
       map.on('moveend zoomend dragend', () => {
@@ -14373,6 +14393,17 @@ function getTripPointEmoji(p) {
     let mapWhenReadyExecuted = false;
     let pinsFirestoreLoaded = false;
     let pinViewportLoadingHideTimer = null;
+    let suppressNextPinViewportLoading = false;
+
+    function suppressGpsFollowViewportLoading() {
+      suppressNextPinViewportLoading = true;
+    }
+
+    function consumeSuppressPinViewportLoading() {
+      if (!suppressNextPinViewportLoading) return false;
+      suppressNextPinViewportLoading = false;
+      return true;
+    }
 
     function showPinViewportLoading(percent = null) {
       const el = document.getElementById('pinViewportLoading');
@@ -15919,6 +15950,7 @@ function confirmLayerDelete() {
         updateGpsHeading(heading);
       }
       if (followGps) {
+        suppressGpsFollowViewportLoading();
         map.setView(currentLocation, map.getZoom());
       }
       if (typeof window.updateMobileSavePinButton === 'function') window.updateMobileSavePinButton();
