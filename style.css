@@ -1339,3 +1339,39 @@ html body .popup-status-row {
   flex-wrap: wrap;
   gap: 3px 8px;
 }
+
+/* Desktop pin popup compact text and one-time autopan compatibility */
+@media (min-width: 701px) {
+  html body .leaflet-popup .popup-container,
+  html body .leaflet-popup .popup-container *:not(.popup-action-svg) {
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+  }
+
+  html body .leaflet-popup .popup-card-title,
+  html body .leaflet-popup .popup-title,
+  html body .leaflet-popup .popup-pin-title {
+    font-size: 12px !important;
+    line-height: 1.18 !important;
+  }
+
+  html body .leaflet-popup .popup-google-card,
+  html body .leaflet-popup .popup-chatgpt-btn,
+  html body .leaflet-popup .popup-container .popup-google-card,
+  html body .leaflet-popup .popup-container .popup-chatgpt-btn {
+    min-height: 30px !important;
+    height: 30px !important;
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+    line-height: 1.1 !important;
+    border-radius: 7px !important;
+  }
+
+  html body .leaflet-popup .popup-google-card .popup-external-icon,
+  html body .leaflet-popup .popup-chatgpt-btn .popup-external-icon,
+  html body .leaflet-popup .popup-chatgpt-btn img,
+  html body .leaflet-popup .popup-google-card img {
+    width: 14px !important;
+    height: 14px !important;
+  }
+}
