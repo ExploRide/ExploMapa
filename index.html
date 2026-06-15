@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-15 v.0.634';
+    const BUILD_VERSION = '2026-06-15 v.0.635';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-15-popup-compact-autopan" />
+  <link rel="stylesheet" href="style.css?v=2026-06-15-popup-single-photo-cover" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -1355,6 +1355,10 @@ body:not(.trip-planner-mode) .trip-planner-panel {
   object-fit: contain;
   background: #111;
   cursor: pointer;
+}
+.photo-gallery.single-photo .popup-photo {
+  object-fit: cover;
+  background: transparent;
 }
 .photo-gallery {
   display: flex;
@@ -6254,7 +6258,9 @@ function emojiHtml(str, hue = 0) {
       const slug = gallery.dataset.slug;
       const photos = getStoredPhotos(slug);
       gallery.innerHTML = '';
+      gallery.classList.remove('single-photo');
       if (photos.length === 0) return;
+      gallery.classList.toggle('single-photo', photos.length === 1);
       photos.forEach((ph, idx) => {
         const url = getPhotoEntryUrl(ph);
         if (!url) return;
