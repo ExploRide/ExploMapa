@@ -8261,6 +8261,8 @@ function emojiHtml(str, hue = 0) {
               getVisibleBottom('#toggleLayers'),
               getVisibleBottom('#toggleBasemaps'),
               getVisibleBottom('#geosearch-container'),
+              // Na mobile popup pinezki ma zostać odsunięty poniżej panelu „narzędzia”,
+              // żeby panel nie przykrywał górnej części popupu po jego otwarciu.
               getVisibleBottom('#narzedzia')
             ].filter(bottom => Number.isFinite(bottom))
           : [getVisibleBottom('#geosearch-container')].filter(bottom => Number.isFinite(bottom));
@@ -8287,12 +8289,6 @@ function emojiHtml(str, hue = 0) {
         // Utrzymuj pełną skalę popupu — CSS zoom potrafi rozjechać hitboxy przycisków
         // (np. edycja/usuwanie) na części przeglądarek i poziomów mapy.
         popupEl.style.zoom = '';
-        if (mobileLayout) {
-          popup._autoPanHandledToken = token;
-          popupAutoPanState.lastRunTs = Date.now();
-          popupAutoPanState.duringAutoPan = false;
-          return;
-        }
 
         const popupRect = popupEl.getBoundingClientRect();
 
