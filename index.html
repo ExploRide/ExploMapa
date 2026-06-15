@@ -15,7 +15,7 @@
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-11-popup-fixes-2" />
+  <link rel="stylesheet" href="style.css?v=2026-06-15-popup-compact-autopan" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -5753,7 +5753,7 @@ function slugify(str) {
           maxWidth: 300,
           autoPan: true,
           autoPanPadding: L.point(24, 80),
-          keepInView: true
+          keepInView: false
         });
         attachPopupHandlers(marker, data);
         attachMarkerLongPress(marker, data);
@@ -7285,7 +7285,7 @@ function emojiHtml(str, hue = 0) {
           minWidth: window.innerWidth <= 700 ? 340 : 300,
           autoPan: true,
           autoPanPadding: L.point(24, 80),
-          keepInView: true
+          keepInView: false
         });
       }
     }
@@ -8089,7 +8089,7 @@ function emojiHtml(str, hue = 0) {
           minWidth: window.innerWidth <= 700 ? 340 : 300,
           autoPan: true,
           autoPanPadding: L.point(24, 80),
-          keepInView: true
+          keepInView: false
         });
 
         attachPopupHandlers(marker, p);
@@ -10627,7 +10627,7 @@ function zaladujPinezkiZFirestore() {
         maxWidth: 300,
         autoPan: true,
         autoPanPadding: L.point(24, 80),
-        keepInView: true
+        keepInView: false
       });
       attachPopupHandlers(p.marker, p);
       attachMarkerLongPress(p.marker, p);
@@ -11016,7 +11016,7 @@ function zaladujPinezkiZFirestore() {
           maxWidth: 300,
           autoPan: true,
           autoPanPadding: L.point(24, 80),
-          keepInView: true
+          keepInView: false
         });
         attachPopupHandlers(marker, data);
         attachMarkerLongPress(marker, data);
@@ -11287,7 +11287,7 @@ function zaladujPinezkiZFirestore() {
           maxWidth: 300,
           autoPan: true,
           autoPanPadding: L.point(24, 80),
-          keepInView: true
+          keepInView: false
         });
         attachPopupHandlers(marker, p);
         attachMarkerLongPress(marker, p);
@@ -11727,7 +11727,7 @@ function zaladujPinezkiZFirestore() {
           maxWidth: 300,
           autoPan: true,
           autoPanPadding: L.point(24, 80),
-          keepInView: true
+          keepInView: false
         });
         attachPopupHandlers(marker, pin);
         updateSaveButton();
@@ -14424,7 +14424,7 @@ function getTripPointEmoji(p) {
         maxWidth: 300,
         autoPan: true,
         autoPanPadding: L.point(24, 80),
-        keepInView: true
+        keepInView: false
       });
       attachPopupHandlers(marker, pin);
       marker.on('popupopen', (evt) => {
@@ -16008,7 +16008,7 @@ function confirmLayerDelete() {
       maxWidth: 300,
       autoPan: true,
       autoPanPadding: L.point(24, 80),
-      keepInView: true
+      keepInView: false
     });
     attachPopupHandlers(marker, data);
     data.marker = marker;
@@ -16089,7 +16089,7 @@ function confirmLayerDelete() {
       maxWidth: 300,
       autoPan: true,
       autoPanPadding: L.point(24, 80),
-      keepInView: true
+      keepInView: false
     });
     attachPopupHandlers(marker, data);
     data.unsaved = true;
