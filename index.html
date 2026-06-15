@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-15 v.0.637';
+    const BUILD_VERSION = '2026-06-15 v.0.638';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -8300,16 +8300,22 @@ function emojiHtml(str, hue = 0) {
           return rect;
         };
 
-        const overlayBottoms = mobileLayout
+        const topOverlaySelectors = mobileLayout
           ? [
-              getVisibleBottom('#toggleLayers'),
-              getVisibleBottom('#toggleBasemaps'),
-              getVisibleBottom('#geosearch-container'),
-              // Na mobile popup pinezki ma zostać odsunięty poniżej panelu „narzędzia”,
+              '#toggleLayers',
+              '#toggleBasemaps',
+              '#geosearch-container',
+              '#narzedzia'
+            ]
+          : [
+              '#geosearch-container',
+              // Popup pinezki ma zostać odsunięty poniżej panelu „narzędzia”,
               // żeby panel nie przykrywał górnej części popupu po jego otwarciu.
-              getVisibleBottom('#narzedzia')
-            ].filter(bottom => Number.isFinite(bottom))
-          : [getVisibleBottom('#geosearch-container')].filter(bottom => Number.isFinite(bottom));
+              '#narzedzia'
+            ];
+        const overlayBottoms = topOverlaySelectors
+          .map(selector => getVisibleBottom(selector))
+          .filter(bottom => Number.isFinite(bottom));
 
         const sidebarRect = getVisibleRect('#sidebar');
         const basemapRect = getVisibleRect('#basemap-switcher');
