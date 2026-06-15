@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-15 v.0.639';
+    const BUILD_VERSION = '2026-06-15 v.0.640';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-15-mobile-edit-labels" />
+  <link rel="stylesheet" href="style.css?v=2026-06-15-mobile-panel-popup-fix" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -5650,6 +5650,14 @@ function slugify(str) {
         sidebarEl.classList.toggle("show");
       });
     }
+    const closeMobileSidebarOnOutsideClick = event => {
+      if (!document.body.classList.contains("mobile-layout")) return;
+      if (!sidebarEl || !sidebarEl.classList.contains("show")) return;
+      const target = event.target;
+      if (target && target.closest && (target.closest("#sidebar") || target.closest("#toggleLayers"))) return;
+      sidebarEl.classList.remove("show");
+    };
+    document.addEventListener("click", closeMobileSidebarOnOutsideClick);
     const toggleBasemapsBtn = document.getElementById("toggleBasemaps");
     const basemapSwitcherEl = document.getElementById("basemap-switcher");
     if (toggleBasemapsBtn && basemapSwitcherEl) {
@@ -5807,7 +5815,8 @@ function slugify(str) {
         popupDiv.innerHTML = createPopupHtml(data);
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: true,
+          autoPan: false,
+          closeOnClick: false,
           autoPanPadding: L.point(24, 80),
           keepInView: false
         });
@@ -7341,7 +7350,8 @@ function emojiHtml(str, hue = 0) {
         marker.bindPopup(popupDiv, {
           maxWidth: 380,
           minWidth: window.innerWidth <= 700 ? 340 : 300,
-          autoPan: true,
+          autoPan: false,
+          closeOnClick: false,
           autoPanPadding: L.point(24, 80),
           keepInView: false
         });
@@ -8145,7 +8155,8 @@ function emojiHtml(str, hue = 0) {
         marker.bindPopup(popupDiv, {
           maxWidth: 380,
           minWidth: window.innerWidth <= 700 ? 340 : 300,
-          autoPan: true,
+          autoPan: false,
+          closeOnClick: false,
           autoPanPadding: L.point(24, 80),
           keepInView: false
         });
@@ -10695,7 +10706,8 @@ function zaladujPinezkiZFirestore() {
       popupDiv.innerHTML = createPopupHtml(p);
       p.marker.bindPopup(popupDiv, {
         maxWidth: 300,
-        autoPan: true,
+        autoPan: false,
+        closeOnClick: false,
         autoPanPadding: L.point(24, 80),
         keepInView: false
       });
@@ -11084,7 +11096,8 @@ function zaladujPinezkiZFirestore() {
         popupDiv.innerHTML = createPopupHtml(data);
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: true,
+          autoPan: false,
+          closeOnClick: false,
           autoPanPadding: L.point(24, 80),
           keepInView: false
         });
@@ -11355,7 +11368,8 @@ function zaladujPinezkiZFirestore() {
         popupDiv.innerHTML = createPopupHtml(p);
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: true,
+          autoPan: false,
+          closeOnClick: false,
           autoPanPadding: L.point(24, 80),
           keepInView: false
         });
@@ -11795,7 +11809,8 @@ function zaladujPinezkiZFirestore() {
         popupDiv.innerHTML = createPopupHtml(pin);
         marker.bindPopup(popupDiv, {
           maxWidth: 300,
-          autoPan: true,
+          autoPan: false,
+          closeOnClick: false,
           autoPanPadding: L.point(24, 80),
           keepInView: false
         });
@@ -14503,7 +14518,8 @@ function getTripPointEmoji(p) {
       marker.__pinRef = pin;
       marker.bindPopup('<div class="popup-container">Ładowanie…</div>', {
         maxWidth: 300,
-        autoPan: true,
+        autoPan: false,
+        closeOnClick: false,
         autoPanPadding: L.point(24, 80),
         keepInView: false
       });
@@ -16088,7 +16104,8 @@ function confirmLayerDelete() {
     popupDiv.innerHTML = createPopupHtml(data);
     marker.bindPopup(popupDiv, {
       maxWidth: 300,
-      autoPan: true,
+      autoPan: false,
+      closeOnClick: false,
       autoPanPadding: L.point(24, 80),
       keepInView: false
     });
@@ -16169,7 +16186,8 @@ function confirmLayerDelete() {
     popupDiv.innerHTML = createPopupHtml(data);
     marker.bindPopup(popupDiv, {
       maxWidth: 300,
-      autoPan: true,
+      autoPan: false,
+      closeOnClick: false,
       autoPanPadding: L.point(24, 80),
       keepInView: false
     });
