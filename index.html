@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-15 v.0.635';
+    const BUILD_VERSION = '2026-06-15 v.0.636';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-15-popup-single-photo-cover" />
+  <link rel="stylesheet" href="style.css?v=2026-06-15-mobile-edit-labels" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -1172,6 +1172,28 @@ body, #sidebar, #basemap-switcher {
 .edit-popup .edit-add-row input,
 .edit-popup .edit-layer-row input {
   flex: 1;
+}
+@media (max-width: 700px) and (hover: none) and (pointer: coarse) {
+  .edit-popup .inline-labeled-input {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .edit-popup .inline-labeled-input::before {
+    position: static;
+    display: none;
+    transform: none;
+    margin-left: 2px;
+    line-height: 1.15;
+    white-space: normal;
+  }
+  .edit-popup .inline-labeled-input.has-value::before {
+    display: block;
+  }
+  .edit-popup .inline-labeled-input.has-value input,
+  .edit-popup .inline-labeled-input.has-value select {
+    padding-left: 6px;
+  }
 }
 .edit-popup-name-dialog-backdrop {
   position: fixed;
