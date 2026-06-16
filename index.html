@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-15 v.0.643';
+    const BUILD_VERSION = '2026-06-16 v.0.645';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-15-mobile-popup-compact-no-edit" />
+  <link rel="stylesheet" href="style.css?v=2026-06-16-spinner-only" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -670,6 +670,23 @@
     }
     .pinezka.active .pin-edit-btn { display: inline-flex; }
     .pinezki-lista { margin-left: 10px; display: block; }
+    .layer-loading-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 4px;
+    }
+    .layer-loading-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #7CFF7C;
+      border-radius: 50%;
+      animation: layer-loading-spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    .warstwa.is-loading .toggle-btn { opacity: 0.65; pointer-events: none; }
+    @keyframes layer-loading-spin { to { transform: rotate(360deg); } }
 
     body.layer-drag-active,
     body.layer-drag-active * {
@@ -1524,10 +1541,15 @@ body:not(.trip-planner-mode) .trip-planner-panel {
 }
 
 body.mobile-layout .leaflet-popup-content {
+  max-width: 260px;
   max-height: calc(100dvh - 150px);
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+body.mobile-layout .leaflet-popup-content-wrapper {
+  max-width: min(292px, calc(100vw - 56px));
 }
 
 body.mobile-layout .popup-description.scrollable {
@@ -1538,6 +1560,7 @@ body.mobile-layout .popup-description.scrollable {
 
 @media (max-width: 700px) {
   .leaflet-popup-content {
+    max-width: 260px;
     max-height: calc(100dvh - 150px);
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -9660,7 +9683,16 @@ function emojiHtml(str, hue = 0) {
           if (currentBase !== 'osm' && roadsLayer) roadsLayer.addTo(map);
         });
       });
-    map.on("click", e => { if (currentTool === "pin" && !drawingRoute && window.innerWidth > 800) onMapClick(e); });
+    map.on("click", e => {
+      const popup = map && map._popup;
+      const popupEl = popup && typeof popup.getElement === 'function' ? popup.getElement() : null;
+      const clickedInsidePopup = !!(popupEl && e.originalEvent && popupEl.contains(e.originalEvent.target));
+      const isEditPopup = !!(popupEl && popupEl.querySelector('.edit-popup, .edit-form-field, #saveNew, #saveEdit'));
+      if (document.body.classList.contains('mobile-layout') && popup && popup.isOpen && popup.isOpen() && !clickedInsidePopup && !isEditPopup) {
+        map.closePopup(popup);
+      }
+      if (currentTool === "pin" && !drawingRoute && window.innerWidth > 800) onMapClick(e);
+    });
     map.on(L.Draw.Event.CREATED, onRouteCreated);
     map.on('draw:drawstop', () => { drawingRoute = false; activeRoutePin = null; });
     map.on('zoomstart', () => { markerZoomInProgress = true; });
@@ -14943,25 +14975,54 @@ function getTripPointEmoji(p) {
           listaP.dataset.rendered = '1';
           layerDomRefs[nazwa].items = Array.from(listaP.querySelectorAll('.pinezka'));
         }
-        const toggleLayerCollapse = (ev) => {
+        let layerCollapseLoading = false;
+        const showLayerLoading = () => {
+          listaP.innerHTML = '<div class="layer-loading-indicator" role="status" aria-label="Wczytywanie pinezek"><span class="layer-loading-spinner" aria-hidden="true"></span></div>';
+          listaP.classList.remove("ukryta");
+          div.classList.add('is-loading');
+          toggleBtn.setAttribute('aria-busy', 'true');
+        };
+        const hideLayerLoading = () => {
+          div.classList.remove('is-loading');
+          toggleBtn.removeAttribute('aria-busy');
+        };
+        const renderLayerPinListAfterPaint = () => new Promise(resolve => {
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              buildLayerPinList(nazwa, listaP);
+              resolve();
+            }, 0);
+          });
+        });
+        const toggleLayerCollapse = async (ev) => {
           if (ev) {
             ev.preventDefault();
             ev.stopPropagation();
           }
+          if (layerCollapseLoading) return;
           warstwy[nazwa].collapsed = !warstwy[nazwa].collapsed;
           const willExpand = !warstwy[nazwa].collapsed;
+          updateLayerToggleSymbol();
+          setLayerCollapseState(nazwa, warstwy[nazwa].collapsed);
           if (willExpand && !listaP.dataset.rendered) {
-            buildLayerPinList(nazwa, listaP);
-            listaP.dataset.rendered = '1';
-            layerDomRefs[nazwa].items = Array.from(listaP.querySelectorAll('.pinezka'));
+            layerCollapseLoading = true;
+            showLayerLoading();
+            try {
+              await renderLayerPinListAfterPaint();
+              listaP.dataset.rendered = '1';
+              layerDomRefs[nazwa].items = Array.from(listaP.querySelectorAll('.pinezka'));
+            } finally {
+              layerCollapseLoading = false;
+              hideLayerLoading();
+            }
           } else if (!willExpand) {
             listaP.innerHTML = '';
             listaP.dataset.rendered = '';
             layerDomRefs[nazwa].items = [];
+            listaP.classList.add("ukryta");
+          } else {
+            listaP.classList.remove("ukryta");
           }
-          listaP.classList.toggle("ukryta");
-          updateLayerToggleSymbol();
-          setLayerCollapseState(nazwa, warstwy[nazwa].collapsed);
         };
         toggleBtn.addEventListener('pointerup', toggleLayerCollapse);
         h3.addEventListener('click', (ev) => {
