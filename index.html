@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-16 v.0.645';
+    const BUILD_VERSION = '2026-06-17 v.0.646';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -11554,19 +11554,18 @@ function zaladujPinezkiZFirestore() {
       ensurePinLayerReady();
       const openPopupForPin = () => {
         updateMarkerVisibility();
-        ensurePinLayerReady();
-        if (!p.marker || !layerData || typeof layerData.layer.zoomToShowLayer !== 'function') {
-          if (p.marker) {
-            openPinViewPopup(p.marker, p);
-            rebindPinPopupAfterOpen(p.marker, p);
-          }
-          return;
-        }
-        layerData.layer.zoomToShowLayer(p.marker, () => {
+        if (p.marker) {
           ensurePinLayerReady();
-          openPinViewPopup(p.marker, p);
-          rebindPinPopupAfterOpen(p.marker, p);
-        });
+
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              ensurePinLayerReady();
+              openPinViewPopup(p.marker, p);
+              rebindPinPopupAfterOpen(p.marker, p);
+              if (typeof setMarkerHighlight === 'function') setMarkerHighlight(p.marker);
+            });
+          });
+        }
       };
       let popupOpened = false;
       let centerFallbackTimer = null;
