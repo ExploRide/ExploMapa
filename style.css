@@ -894,7 +894,11 @@ html body .popup-details-count {
 html body .popup-details-body {
   display: grid;
   gap: 6px;
+  max-height: min(220px, 34vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0 11px 11px;
+  -webkit-overflow-scrolling: touch;
 }
 
 html body .popup-info-item {
@@ -1493,7 +1497,11 @@ html body .popup-status-row {
 
   html body .leaflet-popup .popup-details-body {
     gap: 4px !important;
+    max-height: min(120px, 24dvh) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
     padding: 0 8px 8px !important;
+    -webkit-overflow-scrolling: touch !important;
   }
 
   html body .leaflet-popup .popup-route-actions,
