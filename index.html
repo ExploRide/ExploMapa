@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-17 v.0.647';
+    const BUILD_VERSION = '2026-06-17 v.0.648';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -8206,6 +8206,8 @@ function emojiHtml(str, hue = 0) {
         marker.openPopup();
       }
 
+      window.openPinViewPopup = openPinViewPopup;
+
       function handlePinOpen(marker, p, options = {}) {
         if (!marker || drawingRoute) return null;
         const pin = p || marker.__pinRef || wszystkiePinezki.find(item => item && item.marker === marker);
@@ -8224,7 +8226,7 @@ function emojiHtml(str, hue = 0) {
           popupMarker.openPopup();
           setMarkerHighlight(marker);
         } else {
-          openPinViewPopup(marker, pin);
+          window.openPinViewPopup(marker, pin);
         }
 
         revealPinInSidebar(pin, { scrollBehavior: 'auto' });
@@ -11588,7 +11590,15 @@ function zaladujPinezkiZFirestore() {
           return;
         }
 
-        openPinViewPopup(p.marker, p);
+        if (typeof window.openPinViewPopup === 'function') {
+          window.openPinViewPopup(p.marker, p);
+        } else {
+          console.error('[popup] Brak window.openPinViewPopup — popup nie może się otworzyć', {
+            pin: p,
+            marker: p?.marker
+          });
+          return;
+        }
         rebindPinPopupAfterOpen(p.marker, p);
         if (typeof setMarkerHighlight === 'function') setMarkerHighlight(p.marker);
 
@@ -12634,7 +12644,7 @@ function showRoutePopup(pinId, tr, latlng) {
         window.requestAnimationFrame(() => {
           const marker = pin.marker;
           if (!marker) return;
-          openPinViewPopup(marker, pin);
+          window.openPinViewPopup(marker, pin);
           setMarkerHighlight(marker);
         });
       }
