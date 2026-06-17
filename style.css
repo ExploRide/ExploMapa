@@ -1378,17 +1378,29 @@ html body .popup-status-row {
 
 /* Mobile pin popup: compact sizing to keep long descriptions from forcing map autopan. */
 @media (max-width: 700px) {
+  html body .leaflet-popup {
+    max-width: calc(100vw - 24px) !important;
+  }
+
   html body .leaflet-popup-content {
+    box-sizing: border-box !important;
+    width: calc(100vw - 56px) !important;
+    min-width: 0 !important;
+    max-width: min(300px, calc(100vw - 56px)) !important;
     max-height: calc(76dvh - env(safe-area-inset-bottom)) !important;
     overflow-y: auto !important;
+    overflow-x: hidden !important;
     overscroll-behavior: contain !important;
     -webkit-overflow-scrolling: touch !important;
   }
 
   html body .leaflet-popup-content-wrapper {
+    box-sizing: border-box !important;
+    max-width: calc(100vw - 32px) !important;
     max-height: calc(76dvh - env(safe-area-inset-bottom)) !important;
     border-radius: 12px !important;
     overflow-y: auto !important;
+    overflow-x: hidden !important;
     overscroll-behavior: contain !important;
     -webkit-overflow-scrolling: touch !important;
   }
@@ -1400,16 +1412,21 @@ html body .popup-status-row {
   }
 
   html body .leaflet-popup .popup-container {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
     max-height: calc(76dvh - env(safe-area-inset-bottom)) !important;
     padding: 10px !important;
     gap: 6px !important;
     overflow-y: auto !important;
+    overflow-x: hidden !important;
     overscroll-behavior: contain !important;
     -webkit-overflow-scrolling: touch !important;
   }
 
   html body .leaflet-popup .popup-card-header {
     gap: 8px !important;
+    min-width: 0 !important;
   }
 
   html body .leaflet-popup .popup-card-title,
@@ -1422,8 +1439,11 @@ html body .popup-status-row {
   html body .leaflet-popup .popup-status-line,
   html body .leaflet-popup .popup-info-item,
   html body .leaflet-popup .popup-description {
+    min-width: 0 !important;
     font-size: 12px !important;
     line-height: 1.25 !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
   }
 
   html body .leaflet-popup .popup-description.scrollable {
@@ -1446,6 +1466,8 @@ html body .popup-status-row {
   html body .leaflet-popup .popup-chatgpt-btn,
   html body .leaflet-popup .popup-container .popup-google-card,
   html body .leaflet-popup .popup-container .popup-chatgpt-btn {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
     min-height: 30px !important;
     height: 30px !important;
     padding: 4px 8px !important;
@@ -1477,6 +1499,8 @@ html body .popup-status-row {
   html body .leaflet-popup .popup-route-actions,
   html body .leaflet-popup .popup-container .popup-route-actions {
     gap: 6px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    min-width: 0 !important;
   }
 
   html body .leaflet-popup .popup-route-actions button,
@@ -1485,6 +1509,8 @@ html body .popup-status-row {
   html body .leaflet-popup .popup-container .popup-route-actions button,
   html body .leaflet-popup .popup-container .popup-route-actions .popup-route-btn,
   html body .leaflet-popup .popup-container .popup-route-actions .popup-direct-route-btn {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
     min-height: 30px !important;
     height: 30px !important;
     padding: 3px 6px !important;
@@ -1492,6 +1518,8 @@ html body .popup-status-row {
     font-size: 11px !important;
     line-height: 1.05 !important;
     gap: 4px !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
   }
 
   html body .leaflet-popup .popup-action-svg {
