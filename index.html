@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-17 v.0.649';
+    const BUILD_VERSION = '2026-06-18 v.0.650';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-17-popup-details-scroll" />
+  <link rel="stylesheet" href="style.css?v=2026-06-18-sidebar-buttons" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -1318,7 +1318,10 @@ body.trip-planner-mode .trip-mode-toggle { display:flex !important; }
 .trip-planner-panel { background:#17191f; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:8px; margin-bottom:8px; }
 .trip-select-row { display:flex; gap:6px; margin-bottom:8px; }
 .trip-planner-toggle-row, .main-pins-toggle-row { margin-top:8px; padding-top:8px; border-top:1px solid var(--ui-border); }
+.main-pins-toggle-row { display:flex; gap:4px; align-items:center; }
 #tripPinsVisibilityToggle, #mainPinsVisibilityToggle { width:100%; background:#1d2028; color:#eee; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); font-size:12px; padding:6px; cursor:pointer; }
+.main-pins-toggle-row #collapseAllLayers,
+.main-pins-toggle-row #mainPinsVisibilityToggle { flex:1 1 0; min-width:0; width:auto; font-size:11px; line-height:1.1; padding:6px 4px; white-space:nowrap; }
 #tripActiveBox { border-top:1px solid var(--ui-border); margin-top:8px; padding-top:8px; max-height:min(68vh, calc(100dvh - 180px)); overflow-y:auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
 .trip-select-row select,.trip-select-row button { background:#1d2028; color:#eee; border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); font-size:12px; padding:5px; }
 .trip-day-card { border:1px solid var(--ui-border); border-radius:var(--ui-radius-sm); padding:7px; margin-bottom:8px; background:#1d2028; }
@@ -2386,15 +2389,13 @@ img.emoji {
       text-align: center;
     }
 
-    .layer-actions-row #collapseAllLayers,
     .layer-actions-row #toggleVisibility {
       margin-top: 0;
-      flex: 1 1 0;
-      width: auto;
+      width: 100%;
       min-height: 26px;
-      font-size: 9px;
+      font-size: 11px;
       line-height: 1.1;
-   /*   white-space: nowrap;*/
+      white-space: nowrap;
     }
 
     #addLayerBtn {
@@ -3099,7 +3100,6 @@ body.mobile-layout #saveChanges {
         </div>
       </div>
       <div class="layer-actions-row">
-        <button id="collapseAllLayers">Rozwiń warstwy</button>
         <button id="toggleVisibility">Ukryj warstwy</button>
       </div>
       <button id="addLayerBtn">+ Nowa warstwa</button>
@@ -3125,7 +3125,8 @@ body.mobile-layout #saveChanges {
           <label><input type="checkbox" id="maincat-turystyczne" checked> TURYSTYCZNE</label>
         </div>
         <div class="main-pins-toggle-row">
-          <button id="mainPinsVisibilityToggle" type="button">Ukryj pinezki główne</button>
+          <button id="collapseAllLayers" type="button">Rozwiń</button>
+          <button id="mainPinsVisibilityToggle" type="button">Ukryj pinezki</button>
         </div>
       </div>
       <div id="pinTotalCounter" class="pin-total-counter">Liczba miejsc: 0</div>
@@ -3136,7 +3137,7 @@ body.mobile-layout #saveChanges {
           <button id="tripNewBtn" type="button">+ Nowy trip</button>
         </div>
         <div class="trip-planner-toggle-row">
-          <button id="tripPinsVisibilityToggle" type="button">Ukryj pinezki główne</button>
+          <button id="tripPinsVisibilityToggle" type="button">Ukryj pinezki</button>
         </div>
         <div id="tripActiveBox"></div>
       </div>
@@ -5934,7 +5935,7 @@ function slugify(str) {
           warstwy[n].collapsed = allLayersCollapsed;
         });
         persistAllLayerCollapseStates();
-        collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń warstwy' : 'Zwiń warstwy';
+        collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń' : 'Zwiń';
         generujListeWarstw();
       });
     }
@@ -13640,7 +13641,7 @@ function getTripPointEmoji(p) {
     }
 
     function updateMainPinsVisibilityToggleLabels() {
-      const label = hideMainPinsInTripMode ? 'Pokaż wszystkie pinezki' : 'Ukryj pinezki główne';
+      const label = hideMainPinsInTripMode ? 'Pokaż pinezki' : 'Ukryj pinezki';
       ['tripPinsVisibilityToggle', 'mainPinsVisibilityToggle'].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.textContent = label;
@@ -15111,7 +15112,7 @@ function getTripPointEmoji(p) {
       applySearchFilter();
       allLayersCollapsed = Object.values(warstwy).every(w => !!w.collapsed);
       if (collapseAllBtn) {
-        collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń warstwy' : 'Zwiń warstwy';
+        collapseAllBtn.textContent = allLayersCollapsed ? 'Rozwiń' : 'Zwiń';
       }
       allLayersVisible = Object.values(warstwy).every(w => w.visible);
       if (toggleVisibilityBtn) {
