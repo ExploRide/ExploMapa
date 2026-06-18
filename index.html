@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-18 v.0.650';
+    const BUILD_VERSION = '2026-06-18 v.0.651';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -3027,9 +3027,9 @@ body.mobile-layout #saveChanges {
 </style>
 </head>
 <body>
-  <div id="mobileTripDebug">08-06-26 v.0.611</div>
+  <div id="mobileTripDebug">18-06-26 v.0.651</div>
 <div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
-08-06-26 v.0.611
+18-06-26 v.0.651
 </div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:200px;right:200px;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="toast"></div>
@@ -10934,12 +10934,69 @@ function zaladujPinezkiZFirestore() {
         _emojiImplicitDefault: true,
         trudnosc: 0
       };
+      const useMobilePinForm = isMobilePinFormPreferred();
       const container = document.createElement("div");
-      container.className = "popup-container edit-popup";
+      container.className = `popup-container edit-popup${useMobilePinForm ? '' : ' new-pin-popup'}`;
       // Zapobiega zamykaniu popupu przy dotyku na urządzeniach mobilnych
       // i umożliwia poprawne działanie przycisków wewnątrz popupu.
       L.DomEvent.disableClickPropagation(container);
-      container.innerHTML = `
+      const desktopNewPinFormHtml = `
+        <div class="photo-gallery" data-slug="${tempPin.slug}"></div>
+        <div class="popup-media-row">
+          <button class="popup-add-photo" data-slug="${tempPin.slug}">📷</button>
+          <div id="emojiPickerNew" class="emoji-picker"></div>
+        </div>
+        <div class="edit-form-field">
+          <input id="nazwaNew" placeholder="Nazwa">
+        </div>
+        <div class="edit-form-field">
+          <textarea id="opisNew" placeholder="Opis" style="height: 50px"></textarea>
+        </div>
+        <div class="edit-form-field">
+          <span class="inline-labeled-input" data-label="Od kogo" style="--inline-label-offset: 78px;">
+            <input id="odKogoNew" placeholder="Od kogo">
+          </span>
+        </div>
+        <div class="edit-form-field">
+          <span class="inline-labeled-input" data-label="Kategoria główna" style="--inline-label-offset: 132px;">
+            <select id="kategoriaGlownaNew">
+              <option value="URBEX">URBEX</option>
+              <option value="TURYSTYCZNE">TURYSTYCZNE</option>
+            </select>
+          </span>
+        </div>
+        <div class="edit-form-field">
+          <div class="edit-add-row">
+            <span class="inline-labeled-input" data-label="Podkategoria" style="--inline-label-offset: 108px;">
+              <input id="kategoriaNew" placeholder="Podkategoria">
+            </span>
+            <button id="addCategoryFromPinNew" type="button" title="Dodaj nową podkategorię">＋</button>
+          </div>
+        </div>
+        <div class="edit-form-field">
+          <div class="edit-add-row">
+            <span class="inline-labeled-input" data-label="Warstwa" style="--inline-label-offset: 76px;">
+              <input id="warstwaNew" placeholder="Warstwa">
+            </span>
+            <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
+          </div>
+        </div>
+        <div class="trudnosc-wrapper">
+          <div class="trudnosc-title">Poziom trudności</div>
+          <input type="range" id="trudnoscNew" class="trudnosc-range" min="0" max="5" step="1" value="0">
+          <div class="trudnosc-labels">
+            <span>Nieznany</span><span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
+          </div>
+          <div class="trudnosc-value" id="trudnoscNewLabel" style="color:${trudnoscColor(0)}">${trudnoscText(0)}</div>
+        </div>
+        <div class="edit-form-field">
+          ${buildStatusSelect('statusNew', {})}
+        </div>
+        <div class="edit-popup-action-row">
+          <button id="cancelNew" type="button" class="edit-popup-delete-btn">Anuluj</button>
+        </div>
+        <button id="saveNew" type="button" class="edit-popup-save-btn">💾 Zapisz</button>`;
+      const mobileNewPinFormHtml = `
         <div class="photo-gallery" data-slug="${tempPin.slug}"></div>
         <div class="popup-media-row">
           <button class="popup-add-photo" data-slug="${tempPin.slug}">📷</button>
@@ -10972,13 +11029,16 @@ function zaladujPinezkiZFirestore() {
         ${buildStatusGrid('', 'New')}
         <button id="saveNew">💾 Zapisz</button>
         <button id="cancelNew">Anuluj</button>`;
+      container.innerHTML = useMobilePinForm ? mobileNewPinFormHtml : desktopNewPinFormHtml;
 
       setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'), {
         markUnsaved: false
       });
-      const refreshNewPinIcon = () => {
-        const status = {
+      const getNewPinStatusState = () => {
+        const statusSelect = container.querySelector('#statusNew');
+        if (statusSelect) return getPinStatusStateFromSelect(statusSelect);
+        return {
           nieaktywne: !!container.querySelector('#nieaktywneNew')?.checked,
           zamkniete: !!container.querySelector('#zamknieteNew')?.checked,
           tajne: !!container.querySelector('#tajneNew')?.checked,
@@ -10987,6 +11047,9 @@ function zaladujPinezkiZFirestore() {
           zwiedzone: !!container.querySelector('#zwiedzoneNew')?.checked,
           wyroznione: !!container.querySelector('#wyroznioneNew')?.checked
         };
+      };
+      const refreshNewPinIcon = () => {
+        const status = getNewPinStatusState();
         const emojiVal = tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji || defaultEmoji;
         marker.setIcon(createEmojiIcon(emojiVal, null, 24, { ...status, emojiHue: getPinEmojiHue(tempPin) }));
       };
@@ -11018,6 +11081,13 @@ function zaladujPinezkiZFirestore() {
       }));
       setupDropdownInput(newCategoryInput, () => getCategorySuggestions(newMainCategoryInput ? newMainCategoryInput.value : MAIN_CATEGORY_URBEX));
       if (newMainCategoryInput) newMainCategoryInput.addEventListener('change', () => { if (newCategoryInput) newCategoryInput.value = ''; });
+      if (!useMobilePinForm) {
+        setupInlineFieldLabel(container.querySelector('#odKogoNew'), 'Od kogo');
+        setupInlineFieldLabel(container.querySelector('#kategoriaGlownaNew'), 'Kategoria główna');
+        setupInlineFieldLabel(container.querySelector('#kategoriaNew'), 'Podkategoria');
+        setupInlineFieldLabel(container.querySelector('#warstwaNew'), 'Warstwa');
+        setupInlineFieldLabel(container.querySelector('#statusNew'), 'Status');
+      }
       setupTrudnoscInput(container.querySelector('#trudnoscNew'), container.querySelector('#trudnoscNewLabel'));
       const osmPrefill = window.__osmPrefillNewPin && window.__osmPrefillNewPin.defaults ? window.__osmPrefillNewPin.defaults : null;
       if (osmPrefill) {
@@ -11028,7 +11098,7 @@ function zaladujPinezkiZFirestore() {
         window.__osmPrefillNewPin = null;
       }
 
-      if (isMobilePinFormPreferred()) {
+      if (useMobilePinForm) {
         openFormInMobileModal(container, () => {
           if (!saved && map.hasLayer(marker)) map.removeLayer(marker);
           updateSaveButton();
@@ -11038,27 +11108,24 @@ function zaladujPinezkiZFirestore() {
       }
       attachHighlight(marker, null);
 
-      const chkNewInactive = container.querySelector('#nieaktywneNew');
-      const chkNewClosed = container.querySelector('#zamknieteNew');
-      const chkNewSecret = container.querySelector('#tajneNew');
-      const chkNewTodo = container.querySelector('#doSprawdzeniaNew');
-      const chkNewDestroyed = container.querySelector('#zdewastowaneNew');
-      const chkNewVisited = container.querySelector('#zwiedzoneNew');
-      const chkNewHighlighted = container.querySelector('#wyroznioneNew');
-      const refreshIcon = refreshNewPinIcon;
-      if (chkNewInactive) {
-        chkNewInactive.addEventListener('change', () => {
-          const tmp = { marker, el: null, nieaktywne: chkNewInactive.checked };
+      const statusNewSelect = container.querySelector('#statusNew');
+      if (statusNewSelect) {
+        statusNewSelect.addEventListener('change', () => {
+          const tmp = { marker, el: null, ...getNewPinStatusState() };
           applyInactiveStyle(tmp);
-          refreshIcon();
+          refreshNewPinIcon();
+        });
+      } else {
+        pinStatusFieldKeys.forEach(key => {
+          const checkbox = container.querySelector(`#${key}New`);
+          if (!checkbox) return;
+          checkbox.addEventListener('change', () => {
+            const tmp = { marker, el: null, ...getNewPinStatusState() };
+            applyInactiveStyle(tmp);
+            refreshNewPinIcon();
+          });
         });
       }
-      if (chkNewClosed) chkNewClosed.addEventListener('change', refreshIcon);
-      if (chkNewSecret) chkNewSecret.addEventListener('change', refreshIcon);
-      if (chkNewTodo) chkNewTodo.addEventListener('change', refreshIcon);
-      if (chkNewDestroyed) chkNewDestroyed.addEventListener('change', refreshIcon);
-      if (chkNewVisited) chkNewVisited.addEventListener('change', refreshIcon);
-      if (chkNewHighlighted) chkNewHighlighted.addEventListener('change', refreshIcon);
 
       let saved = false;
       const removeOnClose = () => {
@@ -11097,13 +11164,7 @@ function zaladujPinezkiZFirestore() {
             emoji: normalizePinEmojiValue(tempPin.noweEmoji !== undefined ? tempPin.noweEmoji : tempPin.emoji),
             emojiHue: getPinEmojiHue(tempPin),
             emojiDefault: !!tempPin.emojiDefault,
-            nieaktywne: container.querySelector("#nieaktywneNew").checked,
-            zamkniete: container.querySelector("#zamknieteNew").checked,
-            tajne: container.querySelector("#tajneNew").checked,
-            doSprawdzenia: container.querySelector("#doSprawdzeniaNew").checked,
-            zdewastowane: container.querySelector("#zdewastowaneNew").checked,
-            zwiedzone: container.querySelector("#zwiedzoneNew").checked,
-            wyroznione: container.querySelector("#wyroznioneNew").checked,
+            ...getNewPinStatusState(),
             odKogo: container.querySelector("#odKogoNew").value,
             trudnosc: parseInt(container.querySelector("#trudnoscNew").value, 10),
             lat: latlng.lat,
