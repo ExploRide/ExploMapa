@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-18 v.0.651';
+    const BUILD_VERSION = '2026-06-18 v.0.652';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -7324,7 +7324,7 @@ function emojiHtml(str, hue = 0) {
             <div class="popup-info-item">Od kogo: ${p.odKogo || '—'}</div>
             <div class="popup-info-item">Data dodania: ${formatDate(p.dataDodania)}</div>
             <div class="popup-info-item popup-address" data-lat="${p.lat}" data-lng="${p.lng}">Adres: wyszukiwanie...</div>
-            <div class="popup-info-item">Współrzędne: ${formatCoords(p.lat, p.lng)}</div>
+            <button type="button" class="popup-info-item popup-coords-copy" data-coords="${escapeHtml(formatCoords(p.lat, p.lng))}" title="Kliknij, aby skopiować współrzędne">Współrzędne: <span>${formatCoords(p.lat, p.lng)}</span></button>
           </div>
         </details>
         <div class="popup-route-actions">
@@ -7412,6 +7412,31 @@ function emojiHtml(str, hue = 0) {
         return { x: source.clientX, y: source.clientY };
       }
       return null;
+    }
+
+
+    async function copyTextToClipboard(text) {
+      const value = String(text || '').trim();
+      if (!value) return false;
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      let copied = false;
+      try {
+        copied = document.execCommand('copy');
+      } finally {
+        document.body.removeChild(textarea);
+      }
+      return copied;
     }
 
     function attachPopupHandlers(marker, p) {
@@ -7525,6 +7550,22 @@ function emojiHtml(str, hue = 0) {
         const tripBtn = container.querySelector('.popup-trip-add-btn');
         bindPopupAction(tripBtn, async () => {
           await addPointToTripFromData({ type: 'existing', pinId: p.id, pinFirebaseId: p.firebaseId || null, nameSnapshot: p.nazwa, lat: p.lat, lng: p.lng, emojiSnapshot: p.emoji || '', defaultPointType: 'urbex', defaultVisitMinutes: 60 });
+        });
+
+        const coordsCopyBtn = container.querySelector('.popup-coords-copy');
+        bindPopupAction(coordsCopyBtn, async () => {
+          const coords = coordsCopyBtn?.dataset?.coords || formatCoords(p.lat, p.lng);
+          try {
+            const copied = await copyTextToClipboard(coords);
+            if (copied) {
+              showToast(`Skopiowano współrzędne: ${coords}`);
+            } else {
+              showToast('Nie udało się skopiować współrzędnych.', 4000);
+            }
+          } catch (err) {
+            console.warn('Nie udało się skopiować współrzędnych:', err);
+            showToast('Nie udało się skopiować współrzędnych.', 4000);
+          }
         });
 
         updatePopupAddress(container, p.lat, p.lng);

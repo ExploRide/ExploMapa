@@ -907,6 +907,27 @@ html body .popup-info-item {
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
+html body .popup-coords-copy {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: copy;
+}
+
+html body .popup-coords-copy span {
+  color: #8fd3ff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+html body .popup-coords-copy:hover span,
+html body .popup-coords-copy:focus-visible span {
+  color: #b9e7ff;
+}
+
 
 html body .popup-route-actions {
   display: grid !important;
