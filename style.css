@@ -1557,3 +1557,46 @@ html body .popup-status-row {
     flex-basis: 14px !important;
   }
 }
+
+/* New pin popup refinements */
+html body .new-pin-popup .edit-form-field {
+  margin-bottom: 3px;
+}
+
+html body .new-pin-popup .edit-form-field input,
+html body .new-pin-popup .edit-form-field select,
+html body .new-pin-popup .edit-form-field textarea {
+  margin: 0;
+}
+
+html body .new-pin-popup .edit-popup-save-btn,
+html body .new-pin-popup .edit-popup-cancel-btn {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+
+html body .new-pin-popup .edit-popup-cancel-btn {
+  min-height: 34px;
+  border-radius: 8px;
+}
+
+html body .new-pin-mobile-actions,
+html body .mobile-pin-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+html body .new-pin-mobile-actions button,
+html body .mobile-pin-actions button {
+  width: 100%;
+}
+
+html body .new-pin-mobile-actions {
+  gap: 6px;
+}
+
+html body .mobile-pin-actions {
+  gap: 8px;
+}
