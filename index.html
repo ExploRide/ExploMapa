@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-18 v.0.652';
+    const BUILD_VERSION = '2026-06-18 v.0.653';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -10134,7 +10134,7 @@ function zaladujPinezkiZFirestore() {
       const selected = getSelectedPinStatusKey(status);
       const options = buildInlineSelectOptions(pinStatusSelectOptions, selected);
       return `
-        <span class="inline-labeled-input" data-label="Status" style="--inline-label-offset: 64px;">
+        <span class="inline-labeled-input has-value" data-label="Status" style="--inline-label-offset: 64px;">
           <select id="${id}">${options}</select>
         </span>
       `;
@@ -11033,10 +11033,8 @@ function zaladujPinezkiZFirestore() {
         <div class="edit-form-field">
           ${buildStatusSelect('statusNew', {})}
         </div>
-        <div class="edit-popup-action-row">
-          <button id="cancelNew" type="button" class="edit-popup-delete-btn">Anuluj</button>
-        </div>
-        <button id="saveNew" type="button" class="edit-popup-save-btn">💾 Zapisz</button>`;
+        <button id="saveNew" type="button" class="edit-popup-save-btn">💾 Zapisz</button>
+        <button id="cancelNew" type="button" class="edit-popup-delete-btn edit-popup-cancel-btn">Anuluj</button>`;
       const mobileNewPinFormHtml = `
         <div class="photo-gallery" data-slug="${tempPin.slug}"></div>
         <div class="popup-media-row">
@@ -11068,8 +11066,10 @@ function zaladujPinezkiZFirestore() {
           <div class="trudnosc-value" id="trudnoscNewLabel" style="color:${trudnoscColor(0)}">${trudnoscText(0)}</div>
         </div>
         ${buildStatusGrid('', 'New')}
-        <button id="saveNew">💾 Zapisz</button>
-        <button id="cancelNew">Anuluj</button>`;
+        <div class="new-pin-mobile-actions">
+          <button id="saveNew">💾 Zapisz</button>
+          <button id="cancelNew">Anuluj</button>
+        </div>`;
       container.innerHTML = useMobilePinForm ? mobileNewPinFormHtml : desktopNewPinFormHtml;
 
       setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
