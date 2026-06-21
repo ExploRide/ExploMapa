@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-18 v.0.653';
+    const BUILD_VERSION = '2026-06-21 v.0.654';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -12673,6 +12673,53 @@ function showRoutePopup(pinId, tr, latlng) {
       generujListeWarstw();
     }
 
+    function normalizeAddressQueryWhitespace(value) {
+      return String(value || '')
+        .trim()
+        .replace(/[\u00A0\u202F]/g, ' ')
+        .replace(/\s+/g, ' ');
+    }
+
+    function buildAddressSearchQueries(query) {
+      const original = normalizeAddressQueryWhitespace(query);
+      if (!original) return [];
+
+      const variants = [original];
+      const addVariant = value => {
+        const normalized = normalizeAddressQueryWhitespace(value);
+        if (normalized && !variants.some(item => item.localeCompare(normalized, undefined, { sensitivity: 'accent' }) === 0)) {
+          variants.push(normalized);
+        }
+      };
+
+      const withoutCountryPunctuation = original.replace(/,?\s*(czechy|czech republic|česko|cesko|cz)$/i, '').trim();
+      if (withoutCountryPunctuation && withoutCountryPunctuation !== original) {
+        addVariant(withoutCountryPunctuation);
+        addVariant(`${withoutCountryPunctuation}, Czech Republic`);
+        addVariant(`${withoutCountryPunctuation}, Česko`);
+      }
+
+      const postalPrefixMatch = original.match(/^(\d{3})\s*(\d{2})\s+(.+)$/);
+      if (postalPrefixMatch) {
+        const postalCode = `${postalPrefixMatch[1]} ${postalPrefixMatch[2]}`;
+        const rest = postalPrefixMatch[3].trim();
+        const restWithoutCountry = rest.replace(/^,\s*/, '').replace(/,?\s*(czechy|czech republic|česko|cesko|cz)$/i, '').trim();
+        if (restWithoutCountry) {
+          addVariant(restWithoutCountry);
+          addVariant(`${restWithoutCountry}, ${postalCode}`);
+          addVariant(`${restWithoutCountry}, ${postalCode}, Czech Republic`);
+          addVariant(`${restWithoutCountry}, Czech Republic`);
+          addVariant(`${postalCode}, ${restWithoutCountry}, Czech Republic`);
+        }
+      }
+
+      variants.slice().forEach(value => {
+        if (value.includes('-')) addVariant(value.replace(/\s*-\s*/g, ' '));
+      });
+
+      return variants;
+    }
+
     function initGeoSearch() {
       const input = document.getElementById('geosearch');
       const form = document.getElementById('geosearch-container');
@@ -12680,8 +12727,23 @@ function showRoutePopup(pinId, tr, latlng) {
       if (!input) return;
 
       async function fetchNominatimSuggestions(q, limit = 5) {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=${limit}&q=${encodeURIComponent(q)}`);
-        return response.json();
+        const queries = buildAddressSearchQueries(q).slice(0, 8);
+        const seen = new Set();
+        const results = [];
+        for (const queryVariant of queries) {
+          const remaining = limit - results.length;
+          if (remaining <= 0) break;
+          const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=${remaining}&q=${encodeURIComponent(queryVariant)}`);
+          const data = await response.json();
+          (data || []).forEach(item => {
+            const key = item.osm_type && item.osm_id ? `${item.osm_type}:${item.osm_id}` : `${item.lat},${item.lon},${item.display_name}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              results.push(item);
+            }
+          });
+        }
+        return results.slice(0, limit);
       }
 
       function normalizeGeoSuggestionText(value) {
@@ -13097,14 +13159,19 @@ function showRoutePopup(pinId, tr, latlng) {
         }
       }
 
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
-      const data = await response.json();
-      if (!data || !data[0]) return null;
-      return {
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon),
-        label: data[0].display_name
-      };
+      const queries = buildAddressSearchQueries(q);
+      for (const queryVariant of queries) {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(queryVariant)}`);
+        const data = await response.json();
+        if (data && data[0]) {
+          return {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon),
+            label: data[0].display_name
+          };
+        }
+      }
+      return null;
     }
 
     function normalizeCoordinateText(value) {
