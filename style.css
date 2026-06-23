@@ -1600,3 +1600,56 @@ html body .new-pin-mobile-actions {
 html body .mobile-pin-actions {
   gap: 8px;
 }
+
+/* Mobile new-pin form fixes */
+@media (max-width: 800px) {
+  #mobilePinModal .mobile-modal-content select,
+  #mobilePinModal .mobile-pin-status-select {
+    width: 100%;
+    min-height: 42px;
+    box-sizing: border-box;
+    color: #f0f0f0;
+    background: #1d2028;
+    border: 1px solid #555;
+    border-radius: 6px;
+  }
+
+  #mobilePinModal #mobilePinMainCategory,
+  #mobilePinModal #kategoriaGlownaNew {
+    min-width: 100%;
+    height: 44px;
+    line-height: 1.25;
+    padding: 8px 34px 8px 10px;
+    font-size: 16px;
+  }
+
+  #mobilePinModal .dropdown-input-wrapper {
+    width: 100%;
+  }
+
+  #mobilePinModal .list-dropdown {
+    color: #f0f0f0;
+    background: #1f222b;
+    border-color: #555;
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  #mobilePinModal .list-dropdown div {
+    padding: 10px 12px;
+    min-height: 20px;
+  }
+
+  #mobilePinModal .mobile-emoji-picker .emoji-picker-grid,
+  #mobilePinModal #emojiPickerNew .emoji-picker-grid {
+    top: 0 !important;
+    bottom: auto !important;
+    left: calc(100% + 8px) !important;
+    right: auto !important;
+    grid-template-columns: repeat(4, 24px);
+    width: calc(4 * 24px + 3 * 8px);
+    max-width: calc(100vw - 96px);
+  }
+}
