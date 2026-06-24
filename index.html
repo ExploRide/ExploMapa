@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-21 v.0.655';
+    const BUILD_VERSION = '2026-06-23 v.0.656';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1965,6 +1965,7 @@ img.emoji {
 	/*
   --emoji-picker-grid-width: calc((var(--emoji-picker-columns) * var(--emoji-picker-item-size)) + ((var(--emoji-picker-columns) - 1) * var(--emoji-picker-gap)));
   */
+  --emoji-picker-grid-width: calc((var(--emoji-picker-columns) * var(--emoji-picker-item-size)) + ((var(--emoji-picker-columns) - 1) * var(--emoji-picker-gap)));
 	display: none;
   position: absolute;
   z-index: 2147483602;
@@ -7955,7 +7956,7 @@ function emojiHtml(str, hue = 0) {
         const margin = 8;
         const spacing = 6;
         const gridRect = grid.getBoundingClientRect();
-        const gridW = gridRect.width || 248;
+        const gridW = gridRect.width || Math.min(248, viewportW - 16);
         const gridH = gridRect.height || Math.min(280, Math.floor(viewportH * 0.45));
         const maxLeft = Math.max(margin, viewportW - gridW - margin);
         const left = Math.min(Math.max(margin, rect.left), maxLeft);
@@ -8035,7 +8036,8 @@ function emojiHtml(str, hue = 0) {
           list.style.position = 'fixed';
           list.style.left = `${Math.max(8, rect.left)}px`;
           list.style.top = `${Math.min(window.innerHeight - 170, rect.bottom + 2)}px`;
-          list.style.width = `${Math.min(rect.width, window.innerWidth - 16)}px`;
+          list.style.width = `${Math.min(Math.max(rect.width, 220), window.innerWidth - 16)}px`;
+          list.style.maxHeight = `${Math.max(140, Math.min(260, window.innerHeight - rect.bottom - 16))}px`;
           list.style.zIndex = '2147483605';
         } else {
           list.style.position = 'absolute';
@@ -11066,22 +11068,41 @@ function zaladujPinezkiZFirestore() {
           <button class="popup-add-photo" data-slug="${tempPin.slug}">📷</button>
           <div id="emojiPickerNew" class="emoji-picker"></div>
         </div>
-        <input id="nazwaNew" placeholder="Nazwa" style="width: 100%"><br>
-        <textarea id="opisNew" placeholder="Opis" style="width: 100%; height: 100px"></textarea><br>
-        <input id="odKogoNew" placeholder="Od kogo" style="width: 100%"><br>
-        <label for="kategoriaGlownaNew">Kategoria główna</label><br>
-        <select id="kategoriaGlownaNew" style="width: 100%">
-          <option value="URBEX">URBEX</option>
-          <option value="TURYSTYCZNE">TURYSTYCZNE</option>
-        </select><br>
-        <div class="edit-add-row">
-          <input id="warstwaNew" placeholder="Warstwa" style="width: 100%">
-          <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
-        </div><br>
-        <div class="edit-add-row">
-          <input id="kategoriaNew" placeholder="Podkategoria" style="width: 100%">
-          <button id="addCategoryFromPinNew" type="button" title="Dodaj nową podkategorię">＋</button>
-        </div><br>
+        <div class="edit-form-field">
+          <input id="nazwaNew" placeholder="Nazwa">
+        </div>
+        <div class="edit-form-field">
+          <textarea id="opisNew" placeholder="Opis" style="height: 72px"></textarea>
+        </div>
+        <div class="edit-form-field">
+          <span class="inline-labeled-input" data-label="Od kogo" style="--inline-label-offset: 78px;">
+            <input id="odKogoNew" placeholder="Od kogo">
+          </span>
+        </div>
+        <div class="edit-form-field">
+          <span class="inline-labeled-input" data-label="Kategoria główna" style="--inline-label-offset: 132px;">
+            <select id="kategoriaGlownaNew">
+              <option value="URBEX">URBEX</option>
+              <option value="TURYSTYCZNE">TURYSTYCZNE</option>
+            </select>
+          </span>
+        </div>
+        <div class="edit-form-field">
+          <div class="edit-add-row">
+            <span class="inline-labeled-input" data-label="Warstwa" style="--inline-label-offset: 76px;">
+              <input id="warstwaNew" placeholder="Warstwa">
+            </span>
+            <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
+          </div>
+        </div>
+        <div class="edit-form-field">
+          <div class="edit-add-row">
+            <span class="inline-labeled-input" data-label="Podkategoria" style="--inline-label-offset: 108px;">
+              <input id="kategoriaNew" placeholder="Podkategoria">
+            </span>
+            <button id="addCategoryFromPinNew" type="button" title="Dodaj nową podkategorię">＋</button>
+          </div>
+        </div>
         <div class="trudnosc-wrapper">
           <div class="trudnosc-title">Poziom trudności</div>
           <input type="range" id="trudnoscNew" class="trudnosc-range" min="0" max="5" step="1" value="0">
@@ -11090,8 +11111,9 @@ function zaladujPinezkiZFirestore() {
           </div>
           <div class="trudnosc-value" id="trudnoscNewLabel" style="color:${trudnoscColor(0)}">${trudnoscText(0)}</div>
         </div>
-        <label for="statusNew">Status</label><br>
-        ${buildStatusSelect('statusNew', {})}
+        <div class="edit-form-field">
+          ${buildStatusSelect('statusNew', {})}
+        </div>
         <div class="new-pin-mobile-actions">
           <button id="saveNew">💾 Zapisz</button>
           <button id="cancelNew">Anuluj</button>
@@ -11148,13 +11170,11 @@ function zaladujPinezkiZFirestore() {
       }));
       setupDropdownInput(newCategoryInput, () => getCategorySuggestions(newMainCategoryInput ? newMainCategoryInput.value : MAIN_CATEGORY_URBEX));
       if (newMainCategoryInput) newMainCategoryInput.addEventListener('change', () => { if (newCategoryInput) newCategoryInput.value = ''; });
-      if (!useMobilePinForm) {
-        setupInlineFieldLabel(container.querySelector('#odKogoNew'), 'Od kogo');
-        setupInlineFieldLabel(container.querySelector('#kategoriaGlownaNew'), 'Kategoria główna');
-        setupInlineFieldLabel(container.querySelector('#kategoriaNew'), 'Podkategoria');
-        setupInlineFieldLabel(container.querySelector('#warstwaNew'), 'Warstwa');
-        setupInlineFieldLabel(container.querySelector('#statusNew'), 'Status');
-      }
+      setupInlineFieldLabel(container.querySelector('#odKogoNew'), 'Od kogo');
+      setupInlineFieldLabel(container.querySelector('#kategoriaGlownaNew'), 'Kategoria główna');
+      setupInlineFieldLabel(container.querySelector('#kategoriaNew'), 'Podkategoria');
+      setupInlineFieldLabel(container.querySelector('#warstwaNew'), 'Warstwa');
+      setupInlineFieldLabel(container.querySelector('#statusNew'), 'Status');
       setupTrudnoscInput(container.querySelector('#trudnoscNew'), container.querySelector('#trudnoscNewLabel'));
       const osmPrefill = window.__osmPrefillNewPin && window.__osmPrefillNewPin.defaults ? window.__osmPrefillNewPin.defaults : null;
       if (osmPrefill) {
