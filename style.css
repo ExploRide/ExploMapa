@@ -1661,15 +1661,15 @@ html body .mobile-pin-actions {
 
   #mobilePinModal .edit-popup .inline-labeled-input {
     position: relative;
-    display: block;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
   }
 
   #mobilePinModal .edit-popup .inline-labeled-input::before {
     content: attr(data-label) ":";
-    position: absolute;
-    left: 8px;
-    top: 50%;
-    transform: translateY(-50%);
+    position: static;
+    transform: none;
     z-index: 1;
     display: none;
     color: #aaa;
@@ -1687,7 +1687,7 @@ html body .mobile-pin-actions {
 
   #mobilePinModal .edit-popup .inline-labeled-input.has-value input,
   #mobilePinModal .edit-popup .inline-labeled-input.has-value select {
-    padding-left: var(--inline-label-offset, 82px);
+    padding-left: 10px;
   }
 
   #mobilePinModal .mobile-emoji-picker .emoji-picker-panel,

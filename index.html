@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-23 v.0.656';
+    const BUILD_VERSION = '2026-06-25 v.0.657';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -10115,7 +10115,7 @@ function zaladujPinezkiZFirestore() {
 
     const pinStatusFieldKeys = ['nieaktywne', 'zamkniete', 'tajne', 'doSprawdzenia', 'zdewastowane', 'zwiedzone', 'wyroznione'];
     const pinStatusSelectOptions = [
-      { value: '', label: 'Brak' },
+      { value: '', label: 'Status: brak' },
       { value: 'nieaktywne', label: 'Niedostępne ⛔' },
       { value: 'zamkniete', label: 'Zamknięte 🔐' },
       { value: 'tajne', label: 'Tajne 🤫' },
@@ -10161,7 +10161,7 @@ function zaladujPinezkiZFirestore() {
       const selected = getSelectedPinStatusKey(status);
       const options = buildInlineSelectOptions(pinStatusSelectOptions, selected);
       return `
-        <span class="inline-labeled-input has-value" data-label="Status" style="--inline-label-offset: 64px;">
+        <span class="inline-labeled-input${selected ? ' has-value' : ''}" data-label="Status" style="--inline-label-offset: 64px;">
           <select id="${id}">${options}</select>
         </span>
       `;
@@ -10522,19 +10522,22 @@ function zaladujPinezkiZFirestore() {
         if (ev.target === modal) cleanup();
       };
       modalContent.innerHTML = '';
-      closeBtn = document.createElement('button');
-      closeBtn.type = 'button';
-      closeBtn.id = 'mobileCustomFormCancel';
-      closeBtn.textContent = 'Anuluj';
-      closeBtn.style.marginLeft = '8px';
-      closeBtn.addEventListener('click', cleanup);
-      const saveBtnInForm = formContainer.querySelector('button[onclick^="zapiszLokalnie("]');
-      if (saveBtnInForm && saveBtnInForm.parentNode) {
-        saveBtnInForm.insertAdjacentElement('afterend', closeBtn);
-      } else {
-        closeBtn.style.alignSelf = 'flex-end';
-        closeBtn.style.marginBottom = '8px';
-        modalContent.appendChild(closeBtn);
+      const formHasOwnCancelButton = !!formContainer.querySelector('#cancelNew');
+      if (!formHasOwnCancelButton) {
+        closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.id = 'mobileCustomFormCancel';
+        closeBtn.textContent = 'Anuluj';
+        closeBtn.style.marginLeft = '8px';
+        closeBtn.addEventListener('click', cleanup);
+        const saveBtnInForm = formContainer.querySelector('button[onclick^="zapiszLokalnie("]');
+        if (saveBtnInForm && saveBtnInForm.parentNode) {
+          saveBtnInForm.insertAdjacentElement('afterend', closeBtn);
+        } else {
+          closeBtn.style.alignSelf = 'flex-end';
+          closeBtn.style.marginBottom = '8px';
+          modalContent.appendChild(closeBtn);
+        }
       }
       modalContent.appendChild(formContainer);
       modal.dataset.customFormOpen = '1';
