@@ -1659,36 +1659,6 @@ html body .mobile-pin-actions {
   }
 
 
-  #mobilePinModal .edit-popup .inline-labeled-input {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-
-  #mobilePinModal .edit-popup .inline-labeled-input::before {
-    content: attr(data-label) ":";
-    position: static;
-    transform: none;
-    z-index: 1;
-    display: none;
-    color: #aaa;
-    font-size: 13px;
-    font-weight: 700;
-    pointer-events: none;
-    margin: 0;
-    line-height: normal;
-    white-space: nowrap;
-  }
-
-  #mobilePinModal .edit-popup .inline-labeled-input.has-value::before {
-    display: block;
-  }
-
-  #mobilePinModal .edit-popup .inline-labeled-input.has-value input,
-  #mobilePinModal .edit-popup .inline-labeled-input.has-value select {
-    padding-left: 10px;
-  }
 
   #mobilePinModal .mobile-emoji-picker .emoji-picker-panel,
   #mobilePinModal #emojiPickerNew .emoji-picker-panel {
