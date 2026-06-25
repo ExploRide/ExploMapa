@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-25 v.0.657';
+    const BUILD_VERSION = '2026-06-25 v.0.658';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -3028,9 +3028,9 @@ body.mobile-layout #saveChanges {
 </style>
 </head>
 <body>
-  <div id="mobileTripDebug">18-06-26 v.0.651</div>
+  <div id="mobileTripDebug">25-06-26 v.0.658</div>
 <div id="htmlHardDebugV3" style="position:fixed;top:90px;left:10px;z-index:2147483647;background:blue;color:white;padding:20px;font-size:20px;display:block!important;">
-18-06-26 v.0.651
+25-06-26 v.0.658
 </div>
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:200px;right:200px;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="toast"></div>
@@ -7998,6 +7998,7 @@ function emojiHtml(str, hue = 0) {
 
     function setupDropdownInput(input, itemsFn) {
       if (!input) return;
+      if (input.parentElement?.classList?.contains('dropdown-input-wrapper')) return;
       const wrapper = document.createElement('div');
       wrapper.style.position = 'relative';
       wrapper.className = 'dropdown-input-wrapper';
@@ -11065,62 +11066,7 @@ function zaladujPinezkiZFirestore() {
         </div>
         <button id="saveNew" type="button" class="edit-popup-save-btn">💾 Zapisz</button>
         <button id="cancelNew" type="button" class="edit-popup-delete-btn edit-popup-cancel-btn">Anuluj</button>`;
-      const mobileNewPinFormHtml = `
-        <div class="photo-gallery" data-slug="${tempPin.slug}"></div>
-        <div class="popup-media-row">
-          <button class="popup-add-photo" data-slug="${tempPin.slug}">📷</button>
-          <div id="emojiPickerNew" class="emoji-picker"></div>
-        </div>
-        <div class="edit-form-field">
-          <input id="nazwaNew" placeholder="Nazwa">
-        </div>
-        <div class="edit-form-field">
-          <textarea id="opisNew" placeholder="Opis" style="height: 72px"></textarea>
-        </div>
-        <div class="edit-form-field">
-          <span class="inline-labeled-input" data-label="Od kogo" style="--inline-label-offset: 78px;">
-            <input id="odKogoNew" placeholder="Od kogo">
-          </span>
-        </div>
-        <div class="edit-form-field">
-          <span class="inline-labeled-input" data-label="Kategoria główna" style="--inline-label-offset: 132px;">
-            <select id="kategoriaGlownaNew">
-              <option value="URBEX">URBEX</option>
-              <option value="TURYSTYCZNE">TURYSTYCZNE</option>
-            </select>
-          </span>
-        </div>
-        <div class="edit-form-field">
-          <div class="edit-add-row">
-            <span class="inline-labeled-input" data-label="Warstwa" style="--inline-label-offset: 76px;">
-              <input id="warstwaNew" placeholder="Warstwa">
-            </span>
-            <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
-          </div>
-        </div>
-        <div class="edit-form-field">
-          <div class="edit-add-row">
-            <span class="inline-labeled-input" data-label="Podkategoria" style="--inline-label-offset: 108px;">
-              <input id="kategoriaNew" placeholder="Podkategoria">
-            </span>
-            <button id="addCategoryFromPinNew" type="button" title="Dodaj nową podkategorię">＋</button>
-          </div>
-        </div>
-        <div class="trudnosc-wrapper">
-          <div class="trudnosc-title">Poziom trudności</div>
-          <input type="range" id="trudnoscNew" class="trudnosc-range" min="0" max="5" step="1" value="0">
-          <div class="trudnosc-labels">
-            <span>Nieznany</span><span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
-          </div>
-          <div class="trudnosc-value" id="trudnoscNewLabel" style="color:${trudnoscColor(0)}">${trudnoscText(0)}</div>
-        </div>
-        <div class="edit-form-field">
-          ${buildStatusSelect('statusNew', {})}
-        </div>
-        <div class="new-pin-mobile-actions">
-          <button id="saveNew">💾 Zapisz</button>
-          <button id="cancelNew">Anuluj</button>
-        </div>`;
+      const mobileNewPinFormHtml = desktopNewPinFormHtml;
       container.innerHTML = useMobilePinForm ? mobileNewPinFormHtml : desktopNewPinFormHtml;
 
       setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
@@ -16599,6 +16545,80 @@ function confirmLayerDelete() {
       }
       setupAddPhotoButton(mobileAddPhotoBtn, mobileDraftPhotosSlug, mobilePhotoGallery, { capture: 'environment' });
 
+      function ensureStandaloneMobileInlineField(input, label, offset = '100px') {
+        if (!input || input.closest('.inline-labeled-input')) return;
+        const wrapper = document.createElement('span');
+        wrapper.className = 'inline-labeled-input';
+        wrapper.dataset.label = label;
+        wrapper.style.setProperty('--inline-label-offset', offset);
+        input.parentNode.insertBefore(wrapper, input);
+        wrapper.appendChild(input);
+        setupInlineFieldLabel(input, label);
+      }
+
+      function ensureStandaloneMobileAddRow(input, buttonId, title) {
+        if (!input || document.getElementById(buttonId)) return;
+        const fieldWrapper = input.closest('.inline-labeled-input') || input;
+        const row = document.createElement('div');
+        row.className = 'edit-add-row';
+        fieldWrapper.parentNode.insertBefore(row, fieldWrapper);
+        row.appendChild(fieldWrapper);
+        const addBtn = document.createElement('button');
+        addBtn.id = buttonId;
+        addBtn.type = 'button';
+        addBtn.title = title;
+        addBtn.textContent = '＋';
+        row.appendChild(addBtn);
+      }
+
+      function prepareStandaloneMobilePinFormControls() {
+        ensureStandaloneMobileInlineField(fromInput, 'Od kogo', '78px');
+        ensureStandaloneMobileInlineField(mainCatInput, 'Kategoria główna', '132px');
+        ensureStandaloneMobileInlineField(catInput, 'Podkategoria', '108px');
+        ensureStandaloneMobileInlineField(layerInput, 'Warstwa', '76px');
+        ensureStandaloneMobileInlineField(statusSelect, 'Status', '64px');
+        ensureStandaloneMobileAddRow(catInput, 'addCategoryFromMobilePin', 'Dodaj nową podkategorię');
+        ensureStandaloneMobileAddRow(layerInput, 'addLayerFromMobilePin', 'Dodaj nową warstwę');
+        const addLayerBtn = document.getElementById('addLayerFromMobilePin');
+        if (addLayerBtn && !addLayerBtn.dataset.bound) {
+          addLayerBtn.dataset.bound = '1';
+          addLayerBtn.addEventListener('click', () => handlePinLayerAdd({
+            container: modal,
+            inputSelector: '#mobilePinLayer',
+            mainCategorySelector: '#mobilePinMainCategory',
+            existingMessage: 'Ta warstwa już istnieje. Ta pinezka zostanie do niej przypisana po zapisie.',
+            addedMessage: 'Dodano warstwę. Ta pinezka zostanie do niej przypisana po zapisie.'
+          }));
+        }
+        const addCategoryBtn = document.getElementById('addCategoryFromMobilePin');
+        if (addCategoryBtn && !addCategoryBtn.dataset.bound) {
+          addCategoryBtn.dataset.bound = '1';
+          addCategoryBtn.addEventListener('click', () => handlePinCategoryAdd({
+            container: modal,
+            inputSelector: '#mobilePinCategory',
+            mainCategorySelector: '#mobilePinMainCategory',
+            existingMessage: 'Ta podkategoria już istnieje. Ta pinezka zostanie do niej przypisana po zapisie.',
+            addedMessage: 'Dodano podkategorię. Ta pinezka zostanie do niej przypisana po zapisie.'
+          }));
+        }
+      }
+      prepareStandaloneMobilePinFormControls();
+      if (statusLabel) statusLabel.style.display = 'none';
+
+      function setStandaloneFieldVisible(input, visible) {
+        if (!input) return;
+        const row = input.closest('.edit-add-row');
+        const wrapper = input.closest('.inline-labeled-input');
+        const target = row || wrapper || input;
+        target.style.display = visible ? '' : 'none';
+        input.style.display = '';
+      }
+
+      function setStandaloneStatusVisible(visible) {
+        setStandaloneFieldVisible(statusSelect, visible);
+        if (statusLabel) statusLabel.style.display = 'none';
+      }
+
       let mobileEmojiPickerInitialized = false;
       let mobileEmojiHue = 0;
       function refreshMobileEmojiPicker() {
@@ -16627,9 +16647,9 @@ function confirmLayerDelete() {
       if (mobilePhotoGallery) mobilePhotoGallery.style.display = 'none';
       if (mobileAddPhotoBtn) mobileAddPhotoBtn.style.display = 'none';
       descInput.style.display = 'none';
-      layerInput.style.display = 'none';
-      mainCatInput.style.display = 'none';
-      catInput.style.display = 'none';
+      setStandaloneFieldVisible(layerInput, false);
+      setStandaloneFieldVisible(mainCatInput, false);
+      setStandaloneFieldVisible(catInput, false);
       emojiInput.value = DEFAULT_EMOJI_ID;
       emojiInput.dataset.emojiDefault = 'true';
       mobileEmojiHue = 0;
@@ -16638,9 +16658,8 @@ function confirmLayerDelete() {
         const pickerPanel = emojiPicker.querySelector('.emoji-picker-panel');
         if (pickerPanel) pickerPanel.style.display = 'none';
       }
-      if (statusSelect) statusSelect.style.display = 'none';
-      if (statusLabel) statusLabel.style.display = 'none';
-        fromInput.style.display = 'none';
+      setStandaloneStatusVisible(false);
+        setStandaloneFieldVisible(fromInput, false);
         trudWrapper.style.display = 'none';
         modal.style.display = 'flex';
       }
@@ -16669,12 +16688,11 @@ function confirmLayerDelete() {
       if (mobilePhotoGallery) mobilePhotoGallery.style.display = '';
       if (mobileAddPhotoBtn) mobileAddPhotoBtn.style.display = '';
       descInput.style.display = '';
-      layerInput.style.display = '';
-      mainCatInput.style.display = '';
-      catInput.style.display = '';
-      if (statusSelect) statusSelect.style.display = '';
-      if (statusLabel) statusLabel.style.display = '';
-        fromInput.style.display = '';
+      setStandaloneFieldVisible(layerInput, true);
+      setStandaloneFieldVisible(mainCatInput, true);
+      setStandaloneFieldVisible(catInput, true);
+      setStandaloneStatusVisible(true);
+        setStandaloneFieldVisible(fromInput, true);
         fromInput.value = '';
         trudWrapper.style.display = '';
         trudInput.value = 0;
@@ -16817,7 +16835,7 @@ function confirmLayerDelete() {
   <div id="gpsLoadingMessage">Wczytuję lokalizację GPS...</div>
   <div id="osmOverlayStatus" class="osm-status-loading">Wczytywanie miejsc OSM dla aktualnego obszaru…</div>
   <div id="mobilePinModal" class="mobile-modal">
-    <div id="mobilePinModalContent" class="mobile-modal-content">
+    <div id="mobilePinModalContent" class="mobile-modal-content edit-popup">
       <div class="photo-gallery mobile-pin-photo-gallery" id="mobilePinPhotoGallery"></div>
       <button id="mobilePinAddPhotoBtn" class="popup-add-photo mobile-pin-add-photo-btn" type="button">📷</button>
       <input type="text" id="mobilePinName" placeholder="Nazwa pinezki" style="width: 100%">
