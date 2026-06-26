@@ -1624,17 +1624,73 @@ html body .mobile-pin-actions {
   }
 
   #mobilePinModal .dropdown-input-wrapper {
+    position: relative;
     width: 100%;
+    overflow: visible !important;
+  }
+
+  #mobilePinModal .edit-popup .edit-form-field,
+  #mobilePinModal .edit-add-row,
+  #mobilePinModal .edit-layer-row,
+  #mobilePinModal .inline-labeled-input {
+    overflow: visible !important;
   }
 
   #mobilePinModal .list-dropdown {
+    position: absolute !important;
+    z-index: 99999 !important;
+    display: block;
     color: #f0f0f0;
     background: #1f222b;
     border-color: #555;
     border-radius: 8px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
-    max-height: 160px;
-    overflow-y: auto;
+    max-height: 200px !important;
+    overflow-y: auto !important;
+    width: 100%;
+    left: 0;
+    top: 100%;
+  }
+
+  #mobilePinModal .inline-labeled-input input,
+  #mobilePinModal .inline-labeled-input select,
+  #mobilePinModal .inline-labeled-input .dropdown-input-wrapper input {
+    padding-left: 90px !important;
+  }
+
+  #mobilePinModal .inline-labeled-input::before {
+    position: absolute !important;
+    left: 10px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    display: block !important;
+    pointer-events: none;
+  }
+
+  #mobilePinModal .edit-add-row,
+  #mobilePinModal .edit-layer-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  #mobilePinModal .edit-add-row .inline-labeled-input,
+  #mobilePinModal .edit-layer-row .inline-labeled-input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  #mobilePinModal .edit-add-row button,
+  #mobilePinModal .edit-layer-row button {
+    flex: 0 0 auto;
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    padding: 0;
+    line-height: 1;
   }
 
   #mobilePinModal .list-dropdown div {
