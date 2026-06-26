@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-25 v.0.658';
+    const BUILD_VERSION = '2026-06-26 v.0.659';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1181,8 +1181,10 @@ body, #sidebar, #basemap-switcher {
 .edit-popup .edit-add-row,
 .edit-popup .edit-layer-row {
   display: flex;
-  gap: 6px;
+  flex-direction: row;
   align-items: center;
+  gap: 6px;
+  width: 100%;
 }
 .edit-popup .edit-add-row .inline-labeled-input,
 .edit-popup .edit-layer-row .inline-labeled-input {
@@ -1192,26 +1194,14 @@ body, #sidebar, #basemap-switcher {
 .edit-popup .edit-layer-row input {
   flex: 1;
 }
-@media (max-width: 700px) and (hover: none) and (pointer: coarse) {
-  .edit-popup .inline-labeled-input {
+@media (max-width: 700px), (max-width: 800px) {
+  .edit-popup .edit-add-row,
+  .edit-popup .edit-layer-row {
     display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-  .edit-popup .inline-labeled-input::before {
-    position: static;
-    display: none;
-    transform: none;
-    margin-left: 2px;
-    line-height: 1.15;
-    white-space: normal;
-  }
-  .edit-popup .inline-labeled-input.has-value::before {
-    display: block;
-  }
-  .edit-popup .inline-labeled-input.has-value input,
-  .edit-popup .inline-labeled-input.has-value select {
-    padding-left: 6px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
   }
 }
 .edit-popup-name-dialog-backdrop {
