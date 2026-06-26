@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-26 v.0.660';
+    const BUILD_VERSION = '2026-06-26 v.0.661';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -8021,30 +8021,23 @@ function emojiHtml(str, hue = 0) {
       }
       function show() {
         populate();
-        const inMobileModal = wrapper.closest('#mobilePinModal');
-        if (inMobileModal && window.matchMedia('(max-width: 800px)').matches) {
-          const rect = wrapper.getBoundingClientRect();
-          list.style.position = 'fixed';
-          list.style.left = `${Math.max(8, rect.left)}px`;
-          list.style.top = `${Math.min(window.innerHeight - 170, rect.bottom + 2)}px`;
-          list.style.width = `${Math.min(Math.max(rect.width, 220), window.innerWidth - 16)}px`;
-          list.style.maxHeight = `${Math.max(140, Math.min(260, window.innerHeight - rect.bottom - 16))}px`;
-          list.style.zIndex = '2147483605';
-        } else {
-          list.style.position = 'absolute';
-          list.style.left = '';
-          list.style.top = '';
-          list.style.width = '100%';
-          list.style.zIndex = '';
-        }
+        list.style.position = 'absolute';
+        list.style.left = '0';
+        list.style.right = '0';
+        list.style.top = 'calc(100% + 2px)';
+        list.style.width = 'auto';
+        list.style.maxHeight = wrapper.closest('#mobilePinModal') && window.matchMedia('(max-width: 800px)').matches ? '220px' : '';
+        list.style.zIndex = wrapper.closest('#mobilePinModal') ? '2147483605' : '';
         list.style.display = 'block';
       }
       function hide() {
         list.style.display = 'none';
         list.style.position = 'absolute';
         list.style.left = '';
+        list.style.right = '';
         list.style.top = '';
-        list.style.width = '100%';
+        list.style.width = '';
+        list.style.maxHeight = '';
       }
       arrow.addEventListener('click', e => { e.stopPropagation(); list.style.display === 'block' ? hide() : show(); });
       document.addEventListener('click', e => { if (!wrapper.contains(e.target)) hide(); });
@@ -10106,7 +10099,7 @@ function zaladujPinezkiZFirestore() {
 
     const pinStatusFieldKeys = ['nieaktywne', 'zamkniete', 'tajne', 'doSprawdzenia', 'zdewastowane', 'zwiedzone', 'wyroznione'];
     const pinStatusSelectOptions = [
-      { value: '', label: 'Status: brak' },
+      { value: '', label: 'brak' },
       { value: 'nieaktywne', label: 'Niedostępne ⛔' },
       { value: 'zamkniete', label: 'Zamknięte 🔐' },
       { value: 'tajne', label: 'Tajne 🤫' },
@@ -10140,7 +10133,7 @@ function zaladujPinezkiZFirestore() {
       if (!wrapper) return;
       wrapper.dataset.label = label;
       const update = () => {
-        wrapper.classList.toggle('has-value', Boolean((input.value || '').trim()));
+        wrapper.classList.toggle('has-value', Boolean((input.value || '').trim()) || wrapper.dataset.inlineLabelAlways === 'true');
       };
       input.addEventListener('input', update);
       input.addEventListener('change', update);
@@ -10152,7 +10145,7 @@ function zaladujPinezkiZFirestore() {
       const selected = getSelectedPinStatusKey(status);
       const options = buildInlineSelectOptions(pinStatusSelectOptions, selected);
       return `
-        <span class="inline-labeled-input${selected ? ' has-value' : ''}" data-label="Status" style="--inline-label-offset: 64px;">
+        <span class="inline-labeled-input has-value" data-label="Status" data-inline-label-always="true">
           <select id="${id}">${options}</select>
         </span>
       `;
@@ -10564,12 +10557,12 @@ function zaladujPinezkiZFirestore() {
           <textarea id="eopis" placeholder="Opis" style="height: 50px"></textarea>
         </div>
         <div class="edit-form-field">
-          <span class="inline-labeled-input" data-label="Od kogo" style="--inline-label-offset: 78px;">
-            <input id="eodKogo" value="${p.odKogo || ''}" placeholder="Od kogo">
+          <span class="inline-labeled-input" data-label="Od kogo">
+            <input id="eodKogo" value="${p.odKogo || ''}" placeholder="">
           </span>
         </div>
         <div class="edit-form-field">
-          <span class="inline-labeled-input" data-label="Kategoria główna" style="--inline-label-offset: 132px;">
+          <span class="inline-labeled-input" data-label="Kategoria główna">
             <select id="ekategoriaGlowna">
               ${buildInlineSelectOptions([
                 { value: MAIN_CATEGORY_URBEX, label: MAIN_CATEGORY_URBEX },
@@ -10580,16 +10573,16 @@ function zaladujPinezkiZFirestore() {
         </div>
         <div class="edit-form-field">
           <div class="edit-add-row">
-            <span class="inline-labeled-input" data-label="Podkategoria" style="--inline-label-offset: 108px;">
-              <input id="ekategoria" value="${p.kategoria || ''}" placeholder="Podkategoria">
+            <span class="inline-labeled-input" data-label="Podkategoria">
+              <input id="ekategoria" value="${p.kategoria || ''}" placeholder="">
             </span>
             <button id="addCategoryFromPinEdit" type="button" title="Dodaj nową podkategorię">＋</button>
           </div>
         </div>
         <div class="edit-form-field">
           <div class="edit-layer-row">
-            <span class="inline-labeled-input" data-label="Warstwa" style="--inline-label-offset: 76px;">
-              <input id="ewarstwa" value="${layerLabel}" placeholder="Warstwa">
+            <span class="inline-labeled-input" data-label="Warstwa">
+              <input id="ewarstwa" value="${layerLabel}" placeholder="">
             </span>
             <button id="addLayerFromPinEdit" type="button" title="Dodaj nową warstwę">＋</button>
           </div>
@@ -11015,12 +11008,12 @@ function zaladujPinezkiZFirestore() {
           <textarea id="opisNew" placeholder="Opis" style="height: 50px"></textarea>
         </div>
         <div class="edit-form-field">
-          <span class="inline-labeled-input" data-label="Od kogo" style="--inline-label-offset: 78px;">
-            <input id="odKogoNew" placeholder="Od kogo">
+          <span class="inline-labeled-input" data-label="Od kogo">
+            <input id="odKogoNew" placeholder="">
           </span>
         </div>
         <div class="edit-form-field">
-          <span class="inline-labeled-input" data-label="Kategoria główna" style="--inline-label-offset: 132px;">
+          <span class="inline-labeled-input" data-label="Kategoria główna">
             <select id="kategoriaGlownaNew">
               <option value="URBEX">URBEX</option>
               <option value="TURYSTYCZNE">TURYSTYCZNE</option>
@@ -11029,16 +11022,16 @@ function zaladujPinezkiZFirestore() {
         </div>
         <div class="edit-form-field">
           <div class="edit-add-row">
-            <span class="inline-labeled-input" data-label="Podkategoria" style="--inline-label-offset: 108px;">
-              <input id="kategoriaNew" placeholder="Podkategoria">
+            <span class="inline-labeled-input" data-label="Podkategoria">
+              <input id="kategoriaNew" placeholder="">
             </span>
             <button id="addCategoryFromPinNew" type="button" title="Dodaj nową podkategorię">＋</button>
           </div>
         </div>
         <div class="edit-form-field">
           <div class="edit-add-row">
-            <span class="inline-labeled-input" data-label="Warstwa" style="--inline-label-offset: 76px;">
-              <input id="warstwaNew" placeholder="Warstwa">
+            <span class="inline-labeled-input" data-label="Warstwa">
+              <input id="warstwaNew" placeholder="">
             </span>
             <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
           </div>
@@ -16535,12 +16528,13 @@ function confirmLayerDelete() {
       }
       setupAddPhotoButton(mobileAddPhotoBtn, mobileDraftPhotosSlug, mobilePhotoGallery, { capture: 'environment' });
 
-      function ensureStandaloneMobileInlineField(input, label, offset = '100px') {
-        if (!input || input.closest('.inline-labeled-input')) return;
+      function ensureStandaloneMobileInlineField(input, label) {
+        if (!input) return;
+        input.setAttribute('placeholder', '');
+        if (input.closest('.inline-labeled-input')) return;
         const wrapper = document.createElement('span');
         wrapper.className = 'inline-labeled-input';
         wrapper.dataset.label = label;
-        wrapper.style.setProperty('--inline-label-offset', offset);
         input.parentNode.insertBefore(wrapper, input);
         wrapper.appendChild(input);
         setupInlineFieldLabel(input, label);
@@ -16562,11 +16556,16 @@ function confirmLayerDelete() {
       }
 
       function prepareStandaloneMobilePinFormControls() {
-        ensureStandaloneMobileInlineField(fromInput, 'Od kogo', '78px');
-        ensureStandaloneMobileInlineField(mainCatInput, 'Kategoria główna', '132px');
-        ensureStandaloneMobileInlineField(catInput, 'Podkategoria', '108px');
-        ensureStandaloneMobileInlineField(layerInput, 'Warstwa', '76px');
-        ensureStandaloneMobileInlineField(statusSelect, 'Status', '64px');
+        ensureStandaloneMobileInlineField(fromInput, 'Od kogo');
+        ensureStandaloneMobileInlineField(mainCatInput, 'Kategoria główna');
+        ensureStandaloneMobileInlineField(catInput, 'Podkategoria');
+        ensureStandaloneMobileInlineField(layerInput, 'Warstwa');
+        ensureStandaloneMobileInlineField(statusSelect, 'Status');
+        const statusWrapper = statusSelect?.closest('.inline-labeled-input');
+        if (statusWrapper) {
+          statusWrapper.dataset.inlineLabelAlways = 'true';
+          statusWrapper.classList.add('has-value');
+        }
         ensureStandaloneMobileAddRow(catInput, 'addCategoryFromMobilePin', 'Dodaj nową podkategorię');
         ensureStandaloneMobileAddRow(layerInput, 'addLayerFromMobilePin', 'Dodaj nową warstwę');
         const addLayerBtn = document.getElementById('addLayerFromMobilePin');
@@ -16672,6 +16671,7 @@ function confirmLayerDelete() {
       if (statusSelect) {
         statusSelect.innerHTML = buildInlineSelectOptions(pinStatusSelectOptions, '');
         statusSelect.value = '';
+        statusSelect.closest('.inline-labeled-input')?.classList.add('has-value');
       }
       storePhotos(mobileDraftPhotosSlug, []);
       if (mobilePhotoGallery) renderGallery(mobilePhotoGallery);
@@ -16830,13 +16830,13 @@ function confirmLayerDelete() {
       <button id="mobilePinAddPhotoBtn" class="popup-add-photo mobile-pin-add-photo-btn" type="button">📷</button>
       <input type="text" id="mobilePinName" placeholder="Nazwa pinezki" style="width: 100%">
       <textarea id="mobilePinDesc" placeholder="Opis" style="width: 100%; height: 100px"></textarea>
-      <input type="text" id="mobilePinFrom" placeholder="Od kogo" style="width: 100%">
+      <input type="text" id="mobilePinFrom" placeholder="" style="width: 100%">
       <select id="mobilePinMainCategory" style="width: 100%">
         <option value="URBEX">URBEX</option>
         <option value="TURYSTYCZNE">TURYSTYCZNE</option>
       </select>
-      <input type="text" id="mobilePinLayer" placeholder="Warstwa" style="width: 100%">
-      <input type="text" id="mobilePinCategory" placeholder="Podkategoria" style="width: 100%">
+      <input type="text" id="mobilePinLayer" placeholder="" style="width: 100%">
+      <input type="text" id="mobilePinCategory" placeholder="" style="width: 100%">
       <div id="mobileEmojiPickerWrapper" class="mobile-emoji-picker">
         <div id="mobilePinEmojiPicker" class="emoji-picker"></div>
         <input type="hidden" id="mobilePinEmoji">

@@ -166,15 +166,24 @@
   color: #333;
 }
 
+.dropdown-input-wrapper {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+}
+
 .list-dropdown {
   position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 2000;
+  display: none;
+  max-height: 180px;
+  overflow-y: auto;
   background: #2b2b2b;
   border: 1px solid #444;
-  z-index: 2000;
-  max-height: 150px;
-  overflow-y: auto;
-  width: 100%;
-  display: none;
+  width: auto;
 }
 
 .list-dropdown div {
@@ -1623,12 +1632,12 @@ html body .mobile-pin-actions {
     font-size: 16px;
   }
 
-  #mobilePinModal .dropdown-input-wrapper {
-    position: relative;
-    width: 100%;
-    overflow: visible !important;
+  #mobilePinModal .mobile-modal-content {
+    overflow-y: auto;
+    overflow-x: visible;
   }
 
+  #mobilePinModal .dropdown-input-wrapper,
   #mobilePinModal .edit-popup .edit-form-field,
   #mobilePinModal .edit-add-row,
   #mobilePinModal .edit-layer-row,
@@ -1638,33 +1647,23 @@ html body .mobile-pin-actions {
 
   #mobilePinModal .list-dropdown {
     position: absolute !important;
-    z-index: 99999 !important;
-    display: block;
+    top: calc(100% + 2px) !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 2147483605 !important;
+    display: none;
     color: #f0f0f0;
     background: #1f222b;
     border-color: #555;
     border-radius: 8px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
-    max-height: 200px !important;
+    max-height: 220px !important;
     overflow-y: auto !important;
-    width: 100%;
-    left: 0;
-    top: 100%;
+    width: auto !important;
   }
 
-  #mobilePinModal .inline-labeled-input input,
-  #mobilePinModal .inline-labeled-input select,
-  #mobilePinModal .inline-labeled-input .dropdown-input-wrapper input {
-    padding-left: 90px !important;
-  }
-
-  #mobilePinModal .inline-labeled-input::before {
-    position: absolute !important;
-    left: 10px !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
-    display: block !important;
-    pointer-events: none;
+  #mobilePinModal .inline-labeled-input {
+    --inline-label-offset: clamp(112px, 34vw, 142px);
   }
 
   #mobilePinModal .edit-add-row,
