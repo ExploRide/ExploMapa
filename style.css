@@ -172,6 +172,33 @@
   overflow: visible;
 }
 
+.edit-popup .inline-labeled-input {
+  display: grid;
+  grid-template-columns: minmax(112px, 34%) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+}
+.edit-popup .inline-field-label {
+  display: none;
+  color: #aaa;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.edit-popup .inline-labeled-input.has-value .inline-field-label { display: block; }
+.edit-popup .inline-labeled-input > input,
+.edit-popup .inline-labeled-input > select,
+.edit-popup .inline-labeled-input > .dropdown-input-wrapper {
+  min-width: 0;
+  width: 100%;
+  grid-column: 1 / -1;
+}
+.edit-popup .inline-labeled-input.has-value > input,
+.edit-popup .inline-labeled-input.has-value > select,
+.edit-popup .inline-labeled-input.has-value > .dropdown-input-wrapper { grid-column: 2; }
+
 .list-dropdown {
   position: absolute;
   top: calc(100% + 2px);
@@ -1663,7 +1690,8 @@ html body .mobile-pin-actions {
   }
 
   #mobilePinModal .inline-labeled-input {
-    --inline-label-offset: clamp(112px, 34vw, 142px);
+    grid-template-columns: 124px minmax(0, 1fr);
+    column-gap: 10px;
   }
 
   #mobilePinModal .edit-add-row,

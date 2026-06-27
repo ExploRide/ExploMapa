@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-26 v.0.661';
+    const BUILD_VERSION = '2026-06-26 v.0.662';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-26-v0.660" />
+  <link rel="stylesheet" href="style.css?v=2026-06-26-v0.662" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -1146,28 +1146,34 @@ body, #sidebar, #basemap-switcher {
   margin-bottom: 6px;
 }
 .edit-popup .inline-labeled-input {
-  position: relative;
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(112px, 34%) minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
 }
-.edit-popup .inline-labeled-input::before {
-  content: attr(data-label) ":";
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
+.edit-popup .inline-field-label {
   display: none;
   color: #aaa;
   font-size: 13px;
   font-weight: 700;
-  pointer-events: none;
+  line-height: 1.2;
+  white-space: nowrap;
 }
-.edit-popup .inline-labeled-input.has-value::before {
+.edit-popup .inline-labeled-input.has-value .inline-field-label {
   display: block;
 }
-.edit-popup .inline-labeled-input.has-value input,
-.edit-popup .inline-labeled-input.has-value select {
-  padding-left: var(--inline-label-offset, 82px);
+.edit-popup .inline-labeled-input > input,
+.edit-popup .inline-labeled-input > select,
+.edit-popup .inline-labeled-input > .dropdown-input-wrapper {
+  min-width: 0;
+  width: 100%;
+  grid-column: 1 / -1;
+}
+.edit-popup .inline-labeled-input.has-value > input,
+.edit-popup .inline-labeled-input.has-value > select,
+.edit-popup .inline-labeled-input.has-value > .dropdown-input-wrapper {
+  grid-column: 2;
 }
 .edit-popup .edit-form-field input,
 .edit-popup .edit-form-field textarea,
@@ -7987,14 +7993,18 @@ function emojiHtml(str, hue = 0) {
     }
 
     function setupDropdownInput(input, itemsFn) {
-      if (!input) return;
-      if (input.parentElement?.classList?.contains('dropdown-input-wrapper')) return;
-      const wrapper = document.createElement('div');
-      wrapper.style.position = 'relative';
+      if (!input || typeof itemsFn !== 'function') return;
+      let wrapper = input.parentElement?.classList?.contains('dropdown-input-wrapper') ? input.parentElement : null;
+      if (wrapper) {
+        wrapper._dropdownItemsFn = itemsFn;
+        return;
+      }
+      wrapper = document.createElement('div');
       wrapper.className = 'dropdown-input-wrapper';
+      wrapper._dropdownItemsFn = itemsFn;
       input.parentNode.insertBefore(wrapper, input);
       wrapper.appendChild(input);
-      input.style.paddingRight = '20px';
+      input.style.paddingRight = '28px';
       input.style.boxSizing = 'border-box';
       const arrow = document.createElement('span');
       arrow.textContent = '▼';
@@ -8004,14 +8014,20 @@ function emojiHtml(str, hue = 0) {
       list.className = 'list-dropdown';
       wrapper.appendChild(list);
 
+      function getItems() {
+        const items = wrapper._dropdownItemsFn ? wrapper._dropdownItemsFn() : [];
+        return Array.isArray(items) ? items.filter(item => item !== null && item !== undefined && `${item}`.trim()) : [];
+      }
+
       function populate() {
         list.innerHTML = '';
-        itemsFn().forEach(item => {
+        getItems().forEach(item => {
+          const value = `${item}`;
           const div = document.createElement('div');
-          div.textContent = item;
+          div.textContent = value;
           div.addEventListener('mousedown', e => {
             e.preventDefault();
-            input.value = item;
+            input.value = value;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
             hide();
@@ -8021,6 +8037,10 @@ function emojiHtml(str, hue = 0) {
       }
       function show() {
         populate();
+        if (!list.children.length) {
+          hide();
+          return;
+        }
         list.style.position = 'absolute';
         list.style.left = '0';
         list.style.right = '0';
@@ -8032,14 +8052,16 @@ function emojiHtml(str, hue = 0) {
       }
       function hide() {
         list.style.display = 'none';
-        list.style.position = 'absolute';
         list.style.left = '';
         list.style.right = '';
         list.style.top = '';
         list.style.width = '';
         list.style.maxHeight = '';
       }
-      arrow.addEventListener('click', e => { e.stopPropagation(); list.style.display === 'block' ? hide() : show(); });
+      arrow.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); list.style.display === 'block' ? hide() : show(); });
+      input.addEventListener('focus', show);
+      input.addEventListener('click', e => { e.stopPropagation(); show(); });
+      input.addEventListener('input', () => { if (list.style.display === 'block') show(); });
       document.addEventListener('click', e => { if (!wrapper.contains(e.target)) hide(); });
     }
 
@@ -10132,12 +10154,22 @@ function zaladujPinezkiZFirestore() {
       const wrapper = input.closest('.inline-labeled-input');
       if (!wrapper) return;
       wrapper.dataset.label = label;
+      let labelEl = wrapper.querySelector(':scope > .inline-field-label');
+      if (!labelEl) {
+        labelEl = document.createElement('span');
+        labelEl.className = 'inline-field-label';
+        wrapper.insertBefore(labelEl, wrapper.firstChild);
+      }
+      labelEl.textContent = `${label}:`;
       const update = () => {
         wrapper.classList.toggle('has-value', Boolean((input.value || '').trim()) || wrapper.dataset.inlineLabelAlways === 'true');
       };
-      input.addEventListener('input', update);
-      input.addEventListener('change', update);
-      input.addEventListener('blur', update);
+      if (!input.dataset.inlineLabelBound) {
+        input.addEventListener('input', update);
+        input.addEventListener('change', update);
+        input.addEventListener('blur', update);
+        input.dataset.inlineLabelBound = '1';
+      }
       update();
     }
 
