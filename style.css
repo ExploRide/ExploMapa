@@ -1690,8 +1690,72 @@ html body .mobile-pin-actions {
   }
 
   #mobilePinModal .inline-labeled-input {
-    grid-template-columns: 124px minmax(0, 1fr);
-    column-gap: 10px;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: center;
+    width: 100%;
+    min-height: 54px;
+    padding: 0 14px;
+    border: 1px solid #343946;
+    border-radius: 8px;
+    background: #1d2028;
+    box-sizing: border-box;
+  }
+
+  #mobilePinModal .inline-labeled-input .inline-field-label {
+    display: block;
+    color: #bfc3cc;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  #mobilePinModal .inline-labeled-input > input,
+  #mobilePinModal .inline-labeled-input > select,
+  #mobilePinModal .inline-labeled-input > .dropdown-input-wrapper,
+  #mobilePinModal .inline-labeled-input.has-value > input,
+  #mobilePinModal .inline-labeled-input.has-value > select,
+  #mobilePinModal .inline-labeled-input.has-value > .dropdown-input-wrapper {
+    grid-column: 2;
+    width: 100%;
+    min-width: 0;
+  }
+
+  #mobilePinModal .inline-labeled-input > input,
+  #mobilePinModal .inline-labeled-input > select,
+  #mobilePinModal .inline-labeled-input .dropdown-input-wrapper > input {
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    outline: none;
+    background: transparent;
+    color: #f0f0f0;
+    box-shadow: none;
+    font-size: 16px;
+  }
+
+  #mobilePinModal .inline-labeled-input > select {
+    padding-right: 28px;
+  }
+
+  #mobilePinModal .inline-labeled-input > #mobilePinMainCategory,
+  #mobilePinModal .inline-labeled-input > #kategoriaGlownaNew,
+  #mobilePinModal .inline-labeled-input > #ekategoriaGlowna {
+    min-width: 0;
+    height: auto;
+    min-height: 0;
+    padding: 0 28px 0 0;
+    border: 0;
+    background: transparent;
+  }
+
+  #mobilePinModal .inline-labeled-input .dropdown-arrow {
+    right: 0;
+    color: #bfc3cc;
   }
 
   #mobilePinModal .edit-add-row,
