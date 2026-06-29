@@ -219,6 +219,21 @@
   color: #f0f0f0;
   box-shadow: none;
 }
+
+.edit-popup select option,
+#mobilePinModal select option,
+.trip-select-row select option,
+.archive-imagery-controls select option {
+  background: #ffffff;
+  color: #1f2937;
+}
+.edit-popup select option:checked,
+#mobilePinModal select option:checked,
+.trip-select-row select option:checked,
+.archive-imagery-controls select option:checked {
+  background: Highlight;
+  color: HighlightText;
+}
 .edit-popup .inline-labeled-input > select {
   padding-right: 28px;
 }

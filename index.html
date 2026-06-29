@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-29 v.0.667';
+    const BUILD_VERSION = '2026-06-29 v.0.668';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-29-v0.667" />
+  <link rel="stylesheet" href="style.css?v=2026-06-29-v0.668" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -1200,6 +1200,21 @@ body, #sidebar, #basemap-switcher {
   background: transparent;
   color: #f0f0f0;
   box-shadow: none;
+}
+
+.edit-popup select option,
+#mobilePinModal select option,
+.trip-select-row select option,
+.archive-imagery-controls select option {
+  background: #ffffff;
+  color: #1f2937;
+}
+.edit-popup select option:checked,
+#mobilePinModal select option:checked,
+.trip-select-row select option:checked,
+.archive-imagery-controls select option:checked {
+  background: Highlight;
+  color: HighlightText;
 }
 .edit-popup .inline-labeled-input > select {
   padding-right: 28px;
@@ -8245,6 +8260,10 @@ function emojiHtml(str, hue = 0) {
       const MAPBOX_ACCESS_TOKEN = "pk.eyJ1IjoiY3pyYnJ6IiwiYSI6ImNtbnlnZWs0NTAwZWcyb3NlYzNrdW53YmoifQ.rN_RTUqLtI5Fnk5tocolMA";
       const MAX_MAP_ZOOM = 22;
       const NATIVE_TILE_ZOOM = 19;
+      // Esri World Imagery starts returning placeholder tiles above zoom 18 in some areas.
+      // With MAX_MAP_ZOOM=22 this matches the app zoom indicator at ~82%, so higher
+      // map zooms scale z18 imagery instead of requesting unavailable Esri tiles.
+      const ESRI_WORLD_IMAGERY_NATIVE_TILE_ZOOM = 18;
       const ARCHIVE_NATIVE_TILE_ZOOM = 16;
       const COPERNICUS_MONTH_WINDOW = 24;
       const DEFAULT_SHADE_OVERLAY_OPACITY = 0.5;
@@ -8735,7 +8754,7 @@ function emojiHtml(str, hue = 0) {
 
       const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Esri',
-        maxNativeZoom: NATIVE_TILE_ZOOM,
+        maxNativeZoom: ESRI_WORLD_IMAGERY_NATIVE_TILE_ZOOM,
         maxZoom: MAX_MAP_ZOOM
       });
        const mapboxSatelliteLayer = L.tileLayer(
@@ -9616,9 +9635,29 @@ function emojiHtml(str, hue = 0) {
           const { lat, lng } = items[0];
           const names = items.map((item) => item.name);
           const marker = L.marker([lat, lng], { icon: getOsmIcon(names), keyboard: false });
-          const popupItems = items.map((item) => `<div><strong>${escapeHtml(item.name)}</strong><br><span>${escapeHtml(item.typeLabel)}</span></div>`).join('<hr style="border:none;border-top:1px solid rgba(255,255,255,0.22);margin:6px 0;">');
+          const popupItems = items.map((item) => `
+            <div class="osm-popup-place">
+              <div class="popup-card-title search-result-title" title="${escapeHtml(item.name)}"><b>${escapeHtml(item.name)}</b></div>
+              <div class="popup-status-line"><span class="popup-status-item">${escapeHtml(item.typeLabel)}</span></div>
+            </div>`).join('<div class="popup-soft-separator"></div>');
           const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
-          const popupHtml = `<div class="osm-popup">${popupItems}<small>Źródło: OpenStreetMap</small><br><a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">Otwórz w Google Maps</a><div style="height:8px"></div><button class="osm-trip-add-btn">+ Do tripa</button><br><button class="osm-import-pin">Dodaj jako pinezkę</button></div>`;
+          const popupHtml = `
+            <div class="popup-container search-result-popup osm-popup">
+              <div class="popup-card-header">
+                <div class="popup-section-label">Miejsce OSM</div>
+              </div>
+              ${popupItems}
+              <div class="popup-status-line"><span class="popup-status-item">Źródło: OpenStreetMap</span></div>
+              <a class="popup-google-card" href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">
+                <span class="popup-action-icon">📍</span>
+                <span>Google Maps</span>
+                <span class="popup-external-icon">↗</span>
+              </a>
+              <div class="popup-route-actions">
+                <button class="popup-route-btn osm-trip-add-btn"><span class="popup-action-svg" style="--popup-icon-url: url('icons/backpack.svg')" aria-hidden="true"></span><span>+ Do tripa</span></button>
+                <button class="popup-route-btn osm-import-pin"><span class="popup-action-svg" style="--popup-icon-url: url('icons/location.svg')" aria-hidden="true"></span><span>Dodaj pinezkę</span></button>
+              </div>
+            </div>`;
           marker.bindPopup(popupHtml);
           marker.on('popupopen', (evt) => {
             const popupEl = evt.popup.getElement();
