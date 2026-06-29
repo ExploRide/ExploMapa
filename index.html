@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-29 v.0.666';
+    const BUILD_VERSION = '2026-06-29 v.0.667';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-29-v0.666" />
+  <link rel="stylesheet" href="style.css?v=2026-06-29-v0.667" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -3192,7 +3192,6 @@ body.mobile-layout #saveChanges {
         <input type="file" id="importKmlInput" accept=".kml" style="display:none;">
       </div>
       </div>
-      <button id="loadPinsBtn">Załaduj pinezki</button>
       <div id="mainCategoryFilters" class="main-category-filters">
         <div class="main-category-title">Kategoria główna</div>
         <div class="main-category-options">
@@ -3204,7 +3203,10 @@ body.mobile-layout #saveChanges {
           <button id="mainPinsVisibilityToggle" type="button">Ukryj pinezki</button>
         </div>
       </div>
-      <div id="pinTotalCounter" class="pin-total-counter">Liczba miejsc: 0</div>
+      <div class="pin-counter-actions-row">
+        <div id="pinTotalCounter" class="pin-total-counter">Liczba miejsc: 0</div>
+        <button id="loadPinsBtn">Załaduj pinezki</button>
+      </div>
       <div id="tripPlannerPanel" class="trip-planner-panel" style="display:none;">
         <h3>Plan tripu</h3>
         <div class="trip-select-row">
