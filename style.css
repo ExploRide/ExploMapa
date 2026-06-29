@@ -337,10 +337,41 @@
   display: none;
 }
 
+.pin-counter-actions-row {
+  display: block;
+}
+
 @media (max-width: 700px) {
+  .pin-counter-actions-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .pin-counter-actions-row .pin-total-counter {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   #loadPinsBtn {
-    display: block;
-    margin-top: 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 48%;
+    margin-top: 0;
+    padding: 7px 8px;
+    white-space: nowrap;
+    box-sizing: border-box;
   }
 }
 
