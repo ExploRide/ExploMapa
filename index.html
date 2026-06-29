@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-28 v.0.663';
+    const BUILD_VERSION = '2026-06-29 v.0.664';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-28-v0.663" />
+  <link rel="stylesheet" href="style.css?v=2026-06-29-v0.664" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -1147,13 +1147,19 @@ body, #sidebar, #basemap-switcher {
 }
 .edit-popup .inline-labeled-input {
   display: grid;
-  grid-template-columns: minmax(112px, 34%) minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
-  column-gap: 10px;
+  column-gap: 8px;
   width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid #343946;
+  border-radius: 8px;
+  background: #1d2028;
+  box-sizing: border-box;
 }
 .edit-popup .inline-field-label {
-  display: none;
+  display: block;
   color: #aaa;
   font-size: 13px;
   font-weight: 700;
@@ -1168,7 +1174,7 @@ body, #sidebar, #basemap-switcher {
 .edit-popup .inline-labeled-input > .dropdown-input-wrapper {
   min-width: 0;
   width: 100%;
-  grid-column: 1 / -1;
+  grid-column: 2;
 }
 .edit-popup .inline-labeled-input.has-value > input,
 .edit-popup .inline-labeled-input.has-value > select,
@@ -1180,6 +1186,27 @@ body, #sidebar, #basemap-switcher {
 .edit-popup .edit-form-field select {
   box-sizing: border-box;
   width: 100%;
+}
+
+.edit-popup .inline-labeled-input > input,
+.edit-popup .inline-labeled-input > select,
+.edit-popup .inline-labeled-input .dropdown-input-wrapper > input {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: #f0f0f0;
+  box-shadow: none;
+}
+.edit-popup .inline-labeled-input > select {
+  padding-right: 28px;
+}
+.edit-popup .inline-labeled-input .dropdown-arrow {
+  right: 0;
+  color: #bfc3cc;
 }
 .edit-popup .edit-form-field textarea {
   resize: vertical;
@@ -8019,50 +8046,90 @@ function emojiHtml(str, hue = 0) {
         return Array.isArray(items) ? items.filter(item => item !== null && item !== undefined && `${item}`.trim()) : [];
       }
 
+      function chooseValue(value, event) {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        hide();
+      }
+
       function populate() {
         list.innerHTML = '';
         getItems().forEach(item => {
           const value = `${item}`;
           const div = document.createElement('div');
           div.textContent = value;
-          div.addEventListener('mousedown', e => {
-            e.preventDefault();
-            input.value = value;
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            hide();
-          });
+          div.addEventListener('pointerdown', e => chooseValue(value, e));
+          div.addEventListener('mousedown', e => chooseValue(value, e));
           list.appendChild(div);
         });
       }
+
+      function positionList() {
+        const useFixed = wrapper.closest('#mobilePinModal') && window.matchMedia('(max-width: 800px)').matches;
+        if (!useFixed) {
+          list.style.position = 'absolute';
+          list.style.left = '0';
+          list.style.right = '0';
+          list.style.top = 'calc(100% + 2px)';
+          list.style.width = 'auto';
+          list.style.maxHeight = '';
+          list.style.zIndex = '';
+          return;
+        }
+        const rect = wrapper.getBoundingClientRect();
+        const viewportHeight = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+        const spaceBelow = Math.max(120, viewportHeight - rect.bottom - 8);
+        list.style.position = 'fixed';
+        list.style.left = `${Math.round(rect.left)}px`;
+        list.style.right = 'auto';
+        list.style.top = `${Math.round(rect.bottom + 2)}px`;
+        list.style.width = `${Math.round(rect.width)}px`;
+        list.style.maxHeight = `${Math.min(220, spaceBelow)}px`;
+        list.style.zIndex = '2147483605';
+      }
+
       function show() {
         populate();
         if (!list.children.length) {
           hide();
           return;
         }
-        list.style.position = 'absolute';
-        list.style.left = '0';
-        list.style.right = '0';
-        list.style.top = 'calc(100% + 2px)';
-        list.style.width = 'auto';
-        list.style.maxHeight = wrapper.closest('#mobilePinModal') && window.matchMedia('(max-width: 800px)').matches ? '220px' : '';
-        list.style.zIndex = wrapper.closest('#mobilePinModal') ? '2147483605' : '';
+        positionList();
         list.style.display = 'block';
       }
       function hide() {
         list.style.display = 'none';
+        list.style.position = '';
         list.style.left = '';
         list.style.right = '';
         list.style.top = '';
         list.style.width = '';
         list.style.maxHeight = '';
+        list.style.zIndex = '';
       }
-      arrow.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); list.style.display === 'block' ? hide() : show(); });
+      let lastPointerToggleAt = 0;
+      const toggle = e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.type === 'click' && Date.now() - lastPointerToggleAt < 500) return;
+        if (e.type === 'pointerdown') lastPointerToggleAt = Date.now();
+        list.style.display === 'block' ? hide() : show();
+      };
+      arrow.addEventListener('pointerdown', toggle);
+      arrow.addEventListener('click', toggle);
       input.addEventListener('focus', show);
       input.addEventListener('click', e => { e.stopPropagation(); show(); });
+      input.addEventListener('pointerdown', e => { e.stopPropagation(); });
       input.addEventListener('input', () => { if (list.style.display === 'block') show(); });
-      document.addEventListener('click', e => { if (!wrapper.contains(e.target)) hide(); });
+      window.addEventListener('resize', () => { if (list.style.display === 'block') positionList(); });
+      window.visualViewport?.addEventListener('resize', () => { if (list.style.display === 'block') positionList(); });
+      window.visualViewport?.addEventListener('scroll', () => { if (list.style.display === 'block') positionList(); });
+      document.addEventListener('click', e => { if (!wrapper.contains(e.target) && !list.contains(e.target)) hide(); });
     }
 
     function setupTrudnoscInput(range, label) {

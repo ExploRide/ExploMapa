@@ -174,13 +174,19 @@
 
 .edit-popup .inline-labeled-input {
   display: grid;
-  grid-template-columns: minmax(112px, 34%) minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
-  column-gap: 10px;
+  column-gap: 8px;
   width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px solid #343946;
+  border-radius: 8px;
+  background: #1d2028;
+  box-sizing: border-box;
 }
 .edit-popup .inline-field-label {
-  display: none;
+  display: block;
   color: #aaa;
   font-size: 13px;
   font-weight: 700;
@@ -193,11 +199,33 @@
 .edit-popup .inline-labeled-input > .dropdown-input-wrapper {
   min-width: 0;
   width: 100%;
-  grid-column: 1 / -1;
+  grid-column: 2;
 }
 .edit-popup .inline-labeled-input.has-value > input,
 .edit-popup .inline-labeled-input.has-value > select,
 .edit-popup .inline-labeled-input.has-value > .dropdown-input-wrapper { grid-column: 2; }
+
+
+.edit-popup .inline-labeled-input > input,
+.edit-popup .inline-labeled-input > select,
+.edit-popup .inline-labeled-input .dropdown-input-wrapper > input {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  color: #f0f0f0;
+  box-shadow: none;
+}
+.edit-popup .inline-labeled-input > select {
+  padding-right: 28px;
+}
+.edit-popup .inline-labeled-input .dropdown-arrow {
+  right: 0;
+  color: #bfc3cc;
+}
 
 .list-dropdown {
   position: absolute;
@@ -1673,20 +1701,20 @@ html body .mobile-pin-actions {
   }
 
   #mobilePinModal .list-dropdown {
-    position: absolute !important;
-    top: calc(100% + 2px) !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 2147483605 !important;
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    z-index: 2147483605;
     display: none;
     color: #f0f0f0;
     background: #1f222b;
     border-color: #555;
     border-radius: 8px;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
-    max-height: 220px !important;
-    overflow-y: auto !important;
-    width: auto !important;
+    max-height: 220px;
+    overflow-y: auto;
+    width: auto;
   }
 
   #mobilePinModal .inline-labeled-input {
@@ -1695,8 +1723,8 @@ html body .mobile-pin-actions {
     column-gap: 12px;
     align-items: center;
     width: 100%;
-    min-height: 54px;
-    padding: 0 14px;
+    min-height: 44px;
+    padding: 0 10px;
     border: 1px solid #343946;
     border-radius: 8px;
     background: #1d2028;
@@ -1763,7 +1791,7 @@ html body .mobile-pin-actions {
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     width: 100%;
     flex-wrap: nowrap;
   }
@@ -1795,7 +1823,7 @@ html body .mobile-pin-actions {
   }
 
   #mobilePinModal .edit-popup .edit-form-field {
-    margin-bottom: 4px;
+    margin-bottom: 3px;
   }
 
   #mobilePinModal .edit-popup input,
