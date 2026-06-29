@@ -918,11 +918,14 @@ html body .popup-details summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  min-height: 38px;
-  padding: 9px 11px;
+  gap: 6px;
+  min-height: 20px;
+  height: auto;
+  padding: 2px 7px;
   color: #f8fafc;
   font-weight: 800;
+  font-size: 11px;
+  line-height: 1.1;
   cursor: pointer;
   list-style: none;
 }
@@ -1131,8 +1134,9 @@ html body .popup-container .popup-details {
 }
 
 html body .popup-container .popup-details summary {
-  min-height: 38px;
-  padding: 9px 11px;
+  min-height: 20px;
+  height: auto;
+  padding: 2px 7px;
 }
 
 html body .popup-container .popup-details summary:focus-visible {
@@ -1227,10 +1231,11 @@ html body .popup-container .popup-route-actions .popup-direct-route-btn:hover {
   }
 
   html body .popup-details summary {
-    min-height: 34px !important;
-    height: 34px !important;
-    padding: 6px 10px !important;
-    font-size: 13px !important;
+    min-height: 22px !important;
+    height: auto !important;
+    padding: 2px 7px !important;
+    font-size: 11px !important;
+    line-height: 1.1 !important;
   }
 
   html body .popup-details {
@@ -1327,10 +1332,10 @@ html body .popup-status-separator {
 
 html body .popup-details summary,
 html body .popup-container .popup-details summary {
-  min-height: 28px !important;
-  height: 28px !important;
-  padding: 4px 9px !important;
-  font-size: 12px !important;
+  min-height: 20px !important;
+  height: auto !important;
+  padding: 2px 7px !important;
+  font-size: 11px !important;
   line-height: 1.1 !important;
 }
 
@@ -1573,9 +1578,9 @@ html body .popup-status-row {
 
   html body .leaflet-popup .popup-details summary,
   html body .leaflet-popup .popup-container .popup-details summary {
-    min-height: 26px !important;
-    height: 26px !important;
-    padding: 3px 8px !important;
+    min-height: 20px !important;
+    height: auto !important;
+    padding: 2px 7px !important;
     font-size: 11px !important;
     line-height: 1.1 !important;
   }
