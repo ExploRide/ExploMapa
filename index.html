@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-29 v.0.668';
+    const BUILD_VERSION = '2026-06-29 v.0.669';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-29-v0.668" />
+  <link rel="stylesheet" href="style.css?v=2026-06-29-v0.669" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -9961,7 +9961,7 @@ function emojiHtml(str, hue = 0) {
       const popupEl = popup && typeof popup.getElement === 'function' ? popup.getElement() : null;
       const clickedInsidePopup = !!(popupEl && e.originalEvent && popupEl.contains(e.originalEvent.target));
       const isEditPopup = !!(popupEl && popupEl.querySelector('.edit-popup, .edit-form-field, #saveNew, #saveEdit'));
-      if (document.body.classList.contains('mobile-layout') && popup && popup.isOpen && popup.isOpen() && !clickedInsidePopup && !isEditPopup) {
+      if (popup && popup.isOpen && popup.isOpen() && !clickedInsidePopup && !isEditPopup) {
         map.closePopup(popup);
       }
       if (currentTool === "pin" && !drawingRoute && window.innerWidth > 800) onMapClick(e);
