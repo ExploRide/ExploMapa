@@ -1851,3 +1851,54 @@ html body .mobile-pin-actions {
     max-width: 100%;
   }
 }
+
+
+/* Compact inline fields in pin add/edit forms */
+.edit-popup .edit-form-field-inline-compact {
+  margin-bottom: 3px;
+}
+.edit-popup .edit-form-field-inline-compact .inline-labeled-input {
+  min-height: 32px;
+  padding: 0 8px;
+  column-gap: 6px;
+}
+.edit-popup .edit-form-field-inline-compact .inline-field-label {
+  font-size: 12px;
+  line-height: 1.05;
+}
+.edit-popup .edit-form-field-inline-compact .inline-labeled-input > input,
+.edit-popup .edit-form-field-inline-compact .inline-labeled-input > select,
+.edit-popup .edit-form-field-inline-compact .inline-labeled-input .dropdown-input-wrapper > input {
+  font-size: 13px;
+  line-height: 1.15;
+}
+.edit-popup .edit-form-field-inline-compact .edit-add-row {
+  gap: 4px;
+}
+.edit-popup .edit-form-field-inline-compact .edit-add-row button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  line-height: 1;
+}
+@media (max-width: 800px) {
+  #mobilePinModal .edit-form-field-inline-compact {
+    margin-bottom: 3px;
+  }
+  #mobilePinModal .edit-form-field-inline-compact .inline-labeled-input {
+    min-height: 34px;
+    padding: 0 8px;
+  }
+  #mobilePinModal .edit-form-field-inline-compact .inline-labeled-input > input,
+  #mobilePinModal .edit-form-field-inline-compact .inline-labeled-input > select,
+  #mobilePinModal .edit-form-field-inline-compact .inline-labeled-input .dropdown-input-wrapper > input {
+    font-size: 15px;
+    line-height: 1.15;
+  }
+  #mobilePinModal .edit-form-field-inline-compact .edit-add-row button {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+  }
+}

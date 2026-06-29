@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-29 v.0.664';
+    const BUILD_VERSION = '2026-06-29 v.0.665';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-29-v0.664" />
+  <link rel="stylesheet" href="style.css?v=2026-06-29-v0.665" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -3048,6 +3048,57 @@ body.mobile-layout #saveChanges {
   min-width: 170px !important;
   z-index: 2147483646 !important;
 }
+
+/* Compact inline fields in pin add/edit forms */
+.edit-popup .edit-form-field-inline-compact {
+  margin-bottom: 3px;
+}
+.edit-popup .edit-form-field-inline-compact .inline-labeled-input {
+  min-height: 32px;
+  padding: 0 8px;
+  column-gap: 6px;
+}
+.edit-popup .edit-form-field-inline-compact .inline-field-label {
+  font-size: 12px;
+  line-height: 1.05;
+}
+.edit-popup .edit-form-field-inline-compact .inline-labeled-input > input,
+.edit-popup .edit-form-field-inline-compact .inline-labeled-input > select,
+.edit-popup .edit-form-field-inline-compact .inline-labeled-input .dropdown-input-wrapper > input {
+  font-size: 13px;
+  line-height: 1.15;
+}
+.edit-popup .edit-form-field-inline-compact .edit-add-row {
+  gap: 4px;
+}
+.edit-popup .edit-form-field-inline-compact .edit-add-row button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  line-height: 1;
+}
+@media (max-width: 800px) {
+  #mobilePinModal .edit-form-field-inline-compact {
+    margin-bottom: 3px;
+  }
+  #mobilePinModal .edit-form-field-inline-compact .inline-labeled-input {
+    min-height: 34px;
+    padding: 0 8px;
+  }
+  #mobilePinModal .edit-form-field-inline-compact .inline-labeled-input > input,
+  #mobilePinModal .edit-form-field-inline-compact .inline-labeled-input > select,
+  #mobilePinModal .edit-form-field-inline-compact .inline-labeled-input .dropdown-input-wrapper > input {
+    font-size: 15px;
+    line-height: 1.15;
+  }
+  #mobilePinModal .edit-form-field-inline-compact .edit-add-row button {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -8040,6 +8091,29 @@ function emojiHtml(str, hue = 0) {
       const list = document.createElement('div');
       list.className = 'list-dropdown';
       wrapper.appendChild(list);
+      let listPortalPlaceholder = null;
+
+      function useMobileFixedList() {
+        return !!(wrapper.closest('#mobilePinModal') && window.matchMedia('(max-width: 800px)').matches);
+      }
+
+      function moveListToBodyForMobile() {
+        if (!useMobileFixedList() || list.parentElement === document.body) return;
+        listPortalPlaceholder = document.createComment('dropdown-list-placeholder');
+        wrapper.appendChild(listPortalPlaceholder);
+        document.body.appendChild(list);
+      }
+
+      function restoreListToWrapper() {
+        if (list.parentElement === wrapper) return;
+        if (listPortalPlaceholder && listPortalPlaceholder.parentNode) {
+          listPortalPlaceholder.parentNode.insertBefore(list, listPortalPlaceholder);
+          listPortalPlaceholder.remove();
+        } else {
+          wrapper.appendChild(list);
+        }
+        listPortalPlaceholder = null;
+      }
 
       function getItems() {
         const items = wrapper._dropdownItemsFn ? wrapper._dropdownItemsFn() : [];
@@ -8070,7 +8144,7 @@ function emojiHtml(str, hue = 0) {
       }
 
       function positionList() {
-        const useFixed = wrapper.closest('#mobilePinModal') && window.matchMedia('(max-width: 800px)').matches;
+        const useFixed = useMobileFixedList();
         if (!useFixed) {
           list.style.position = 'absolute';
           list.style.left = '0';
@@ -8099,6 +8173,7 @@ function emojiHtml(str, hue = 0) {
           hide();
           return;
         }
+        moveListToBodyForMobile();
         positionList();
         list.style.display = 'block';
       }
@@ -8111,6 +8186,7 @@ function emojiHtml(str, hue = 0) {
         list.style.width = '';
         list.style.maxHeight = '';
         list.style.zIndex = '';
+        restoreListToWrapper();
       }
       let lastPointerToggleAt = 0;
       const toggle = e => {
@@ -8121,14 +8197,18 @@ function emojiHtml(str, hue = 0) {
         list.style.display === 'block' ? hide() : show();
       };
       arrow.addEventListener('pointerdown', toggle);
+      arrow.addEventListener('touchstart', toggle, { passive: false });
       arrow.addEventListener('click', toggle);
       input.addEventListener('focus', show);
       input.addEventListener('click', e => { e.stopPropagation(); show(); });
+      input.addEventListener('touchstart', e => { e.stopPropagation(); show(); }, { passive: true });
       input.addEventListener('pointerdown', e => { e.stopPropagation(); });
+      wrapper.addEventListener('click', e => { e.stopPropagation(); if (e.target === wrapper) show(); });
       input.addEventListener('input', () => { if (list.style.display === 'block') show(); });
       window.addEventListener('resize', () => { if (list.style.display === 'block') positionList(); });
       window.visualViewport?.addEventListener('resize', () => { if (list.style.display === 'block') positionList(); });
       window.visualViewport?.addEventListener('scroll', () => { if (list.style.display === 'block') positionList(); });
+      document.addEventListener('pointerdown', e => { if (!wrapper.contains(e.target) && !list.contains(e.target)) hide(); });
       document.addEventListener('click', e => { if (!wrapper.contains(e.target) && !list.contains(e.target)) hide(); });
     }
 
@@ -10655,12 +10735,12 @@ function zaladujPinezkiZFirestore() {
         <div class="edit-form-field">
           <textarea id="eopis" placeholder="Opis" style="height: 50px"></textarea>
         </div>
-        <div class="edit-form-field">
+        <div class="edit-form-field edit-form-field-inline-compact">
           <span class="inline-labeled-input" data-label="Od kogo">
             <input id="eodKogo" value="${p.odKogo || ''}" placeholder="">
           </span>
         </div>
-        <div class="edit-form-field">
+        <div class="edit-form-field edit-form-field-inline-compact">
           <span class="inline-labeled-input" data-label="Kategoria główna">
             <select id="ekategoriaGlowna">
               ${buildInlineSelectOptions([
@@ -10670,7 +10750,7 @@ function zaladujPinezkiZFirestore() {
             </select>
           </span>
         </div>
-        <div class="edit-form-field">
+        <div class="edit-form-field edit-form-field-inline-compact">
           <div class="edit-add-row">
             <span class="inline-labeled-input" data-label="Podkategoria">
               <input id="ekategoria" value="${p.kategoria || ''}" placeholder="">
@@ -10678,7 +10758,7 @@ function zaladujPinezkiZFirestore() {
             <button id="addCategoryFromPinEdit" type="button" title="Dodaj nową podkategorię">＋</button>
           </div>
         </div>
-        <div class="edit-form-field">
+        <div class="edit-form-field edit-form-field-inline-compact">
           <div class="edit-layer-row">
             <span class="inline-labeled-input" data-label="Warstwa">
               <input id="ewarstwa" value="${layerLabel}" placeholder="">
@@ -10686,7 +10766,7 @@ function zaladujPinezkiZFirestore() {
             <button id="addLayerFromPinEdit" type="button" title="Dodaj nową warstwę">＋</button>
           </div>
         </div>
-        <div class="edit-form-field">
+        <div class="edit-form-field edit-form-field-inline-compact">
           ${buildStatusSelect('estatus', p)}
         </div>
         <div class="trudnosc-wrapper">
@@ -11019,6 +11099,63 @@ function zaladujPinezkiZFirestore() {
     }
 
 
+    function buildNewPinFormHtml(tempPin) {
+      return `
+        <div class="photo-gallery" data-slug="${tempPin.slug}"></div>
+        <div class="popup-media-row">
+          <button class="popup-add-photo" data-slug="${tempPin.slug}">📷</button>
+          <div id="emojiPickerNew" class="emoji-picker"></div>
+        </div>
+        <div class="edit-form-field">
+          <input id="nazwaNew" placeholder="Nazwa">
+        </div>
+        <div class="edit-form-field">
+          <textarea id="opisNew" placeholder="Opis" style="height: 50px"></textarea>
+        </div>
+        <div class="edit-form-field edit-form-field-inline-compact">
+          <span class="inline-labeled-input" data-label="Od kogo">
+            <input id="odKogoNew" placeholder="">
+          </span>
+        </div>
+        <div class="edit-form-field edit-form-field-inline-compact">
+          <span class="inline-labeled-input" data-label="Kategoria główna">
+            <select id="kategoriaGlownaNew">
+              <option value="URBEX">URBEX</option>
+              <option value="TURYSTYCZNE">TURYSTYCZNE</option>
+            </select>
+          </span>
+        </div>
+        <div class="edit-form-field edit-form-field-inline-compact">
+          <div class="edit-add-row">
+            <span class="inline-labeled-input" data-label="Podkategoria">
+              <input id="kategoriaNew" placeholder="">
+            </span>
+            <button id="addCategoryFromPinNew" type="button" title="Dodaj nową podkategorię">＋</button>
+          </div>
+        </div>
+        <div class="edit-form-field edit-form-field-inline-compact">
+          <div class="edit-add-row">
+            <span class="inline-labeled-input" data-label="Warstwa">
+              <input id="warstwaNew" placeholder="">
+            </span>
+            <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
+          </div>
+        </div>
+        <div class="trudnosc-wrapper">
+          <div class="trudnosc-title">Poziom trudności</div>
+          <input type="range" id="trudnoscNew" class="trudnosc-range" min="0" max="5" step="1" value="0">
+          <div class="trudnosc-labels">
+            <span>Nieznany</span><span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
+          </div>
+          <div class="trudnosc-value" id="trudnoscNewLabel" style="color:${trudnoscColor(0)}">${trudnoscText(0)}</div>
+        </div>
+        <div class="edit-form-field edit-form-field-inline-compact">
+          ${buildStatusSelect('statusNew', {})}
+        </div>
+        <button id="saveNew" type="button" class="edit-popup-save-btn">💾 Zapisz</button>
+        <button id="cancelNew" type="button" class="edit-popup-delete-btn edit-popup-cancel-btn">Anuluj</button>`;
+    }
+
     async function openNewPinPopup(latlng) {
       await emojiListReady;
       const defaultEmoji = DEFAULT_EMOJI_ID;
@@ -11094,62 +11231,7 @@ function zaladujPinezkiZFirestore() {
       // Zapobiega zamykaniu popupu przy dotyku na urządzeniach mobilnych
       // i umożliwia poprawne działanie przycisków wewnątrz popupu.
       L.DomEvent.disableClickPropagation(container);
-      const desktopNewPinFormHtml = `
-        <div class="photo-gallery" data-slug="${tempPin.slug}"></div>
-        <div class="popup-media-row">
-          <button class="popup-add-photo" data-slug="${tempPin.slug}">📷</button>
-          <div id="emojiPickerNew" class="emoji-picker"></div>
-        </div>
-        <div class="edit-form-field">
-          <input id="nazwaNew" placeholder="Nazwa">
-        </div>
-        <div class="edit-form-field">
-          <textarea id="opisNew" placeholder="Opis" style="height: 50px"></textarea>
-        </div>
-        <div class="edit-form-field">
-          <span class="inline-labeled-input" data-label="Od kogo">
-            <input id="odKogoNew" placeholder="">
-          </span>
-        </div>
-        <div class="edit-form-field">
-          <span class="inline-labeled-input" data-label="Kategoria główna">
-            <select id="kategoriaGlownaNew">
-              <option value="URBEX">URBEX</option>
-              <option value="TURYSTYCZNE">TURYSTYCZNE</option>
-            </select>
-          </span>
-        </div>
-        <div class="edit-form-field">
-          <div class="edit-add-row">
-            <span class="inline-labeled-input" data-label="Podkategoria">
-              <input id="kategoriaNew" placeholder="">
-            </span>
-            <button id="addCategoryFromPinNew" type="button" title="Dodaj nową podkategorię">＋</button>
-          </div>
-        </div>
-        <div class="edit-form-field">
-          <div class="edit-add-row">
-            <span class="inline-labeled-input" data-label="Warstwa">
-              <input id="warstwaNew" placeholder="">
-            </span>
-            <button id="addLayerFromPinNew" type="button" title="Dodaj nową warstwę">＋</button>
-          </div>
-        </div>
-        <div class="trudnosc-wrapper">
-          <div class="trudnosc-title">Poziom trudności</div>
-          <input type="range" id="trudnoscNew" class="trudnosc-range" min="0" max="5" step="1" value="0">
-          <div class="trudnosc-labels">
-            <span>Nieznany</span><span>B.łatwy</span><span>Łatwy</span><span>Średni</span><span>Trudny</span><span>B.trudny</span>
-          </div>
-          <div class="trudnosc-value" id="trudnoscNewLabel" style="color:${trudnoscColor(0)}">${trudnoscText(0)}</div>
-        </div>
-        <div class="edit-form-field">
-          ${buildStatusSelect('statusNew', {})}
-        </div>
-        <button id="saveNew" type="button" class="edit-popup-save-btn">💾 Zapisz</button>
-        <button id="cancelNew" type="button" class="edit-popup-delete-btn edit-popup-cancel-btn">Anuluj</button>`;
-      const mobileNewPinFormHtml = desktopNewPinFormHtml;
-      container.innerHTML = useMobilePinForm ? mobileNewPinFormHtml : desktopNewPinFormHtml;
+      container.innerHTML = buildNewPinFormHtml(tempPin);
 
       setupGallery(container.querySelector('.photo-gallery'), { markUnsaved: false });
       setupAddPhotoButton(container.querySelector('.popup-add-photo'), tempPin.slug, container.querySelector('.photo-gallery'), {
@@ -16807,9 +16889,9 @@ function confirmLayerDelete() {
       }
     }
 
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       if (currentTool === 'pin') {
-        openCenterModal();
+        await openNewPinPopup(map.getCenter());
       } else {
         if (!followGps || !currentLocation) {
           alert('Brak aktualnej lokalizacji');
