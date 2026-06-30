@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-30 v.0.670';
+    const BUILD_VERSION = '2026-06-30 v.0.671';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-30-v0.670" />
+  <link rel="stylesheet" href="style.css?v=2026-06-30-v0.671" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -437,7 +437,56 @@
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
     }
+    .layer-category-add-btn {
+      width: 22px;
+      height: 22px;
+      border: 1px solid #666;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      color: #f0f0f0;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 18px;
+      padding: 0;
+    }
+    .layer-category-add-btn:hover { background: rgba(255, 255, 255, 0.16); }
+    .new-layer-inline-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 4px 0 6px;
+      padding: 6px 8px;
+      border: 1px dashed #666;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .new-layer-inline-row input {
+      flex: 1;
+      min-width: 0;
+      background: #1f1f1f;
+      color: #f0f0f0;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 5px 7px;
+    }
+    .new-layer-inline-action {
+      width: 28px;
+      height: 28px;
+      border: 1px solid #555;
+      border-radius: 4px;
+      background: transparent;
+      color: #f0f0f0;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .new-layer-inline-action.confirm { color: #9cff9c; }
+    .new-layer-inline-action.cancel { color: #ffb0b0; }
     .layer-category-heading:first-child {
       margin-top: 0;
     }
@@ -3192,7 +3241,7 @@ body.mobile-layout #saveChanges {
       <div class="layer-actions-row">
         <button id="toggleVisibility">Ukryj warstwy</button>
       </div>
-      <button id="addLayerBtn">+ Nowa warstwa</button>
+      <button id="addLayerBtn" style="display:none;">+ Nowa warstwa</button>
       <div id="newLayerControls" class="new-layer-controls" style="display:none;">
         <div class="new-layer-row">
           <input type="text" id="newLayerInput" placeholder="Nazwa warstwy">
@@ -5842,21 +5891,32 @@ function slugify(str) {
     const toggleVisibilityBtn = document.getElementById('toggleVisibility');
     let allLayersCollapsed = true;
     let allLayersVisible = true;
+    let pendingNewLayerMainCategory = null;
     const hideNewLayerControls = () => {
+      pendingNewLayerMainCategory = null;
       if (!newLayerControls) return;
       newLayerControls.style.display = 'none';
       if (newLayerInput) newLayerInput.value = '';
       if (newLayerMainCategory) newLayerMainCategory.value = '';
       if (importKmlInput) importKmlInput.value = '';
+      generujListeWarstw({ deferMarkerVisibilityUpdate: true });
     };
-    const showNewLayerControls = () => {
-      if (!newLayerControls) return;
-      newLayerControls.style.display = 'block';
-      if (newLayerInput) newLayerInput.focus();
+    const showNewLayerControls = (mainCategory = MAIN_CATEGORY_URBEX) => {
+      pendingNewLayerMainCategory = normalizeMainCategory(mainCategory);
+      if (newLayerControls) newLayerControls.style.display = 'none';
+      generujListeWarstw({ deferMarkerVisibilityUpdate: true });
+      requestAnimationFrame(() => {
+        const input = document.querySelector(`.new-layer-inline-row[data-main-category="${pendingNewLayerMainCategory}"] input`);
+        if (input) {
+          input.focus();
+          input.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      });
     };
-    const ensureLayerExists = (name, mainCategory = '') => {
+    const ensureLayerExists = (name, mainCategory = '', options = {}) => {
       if (!name) return false;
-      if (!warstwy[name]) addLayer(name, true, mainCategory);
+      const layerKey = getLayerKeyFromInput(name, mainCategory || MAIN_CATEGORY_URBEX);
+      if (!warstwy[layerKey]) addLayer(name, true, mainCategory, options);
       return true;
     };
     const parseKmlContent = (content) => {
@@ -5963,7 +6023,7 @@ function slugify(str) {
     };
     if (addLayerBtn && newLayerControls && newLayerInput) {
       addLayerBtn.addEventListener('click', () => {
-        showNewLayerControls();
+        showNewLayerControls(MAIN_CATEGORY_URBEX);
       });
       newLayerInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
@@ -12297,7 +12357,7 @@ function zaladujPinezkiZFirestore() {
       };
     }
 
-    function addLayer(name, record = true, mainCategory = MAIN_CATEGORY_URBEX) {
+    function addLayer(name, record = true, mainCategory = MAIN_CATEGORY_URBEX, options = {}) {
       const displayName = getLayerDisplayName((name || '').trim());
       if (!displayName) return;
       const normalizedMain = normalizeMainCategory(mainCategory);
@@ -12311,7 +12371,8 @@ function zaladujPinezkiZFirestore() {
       setLayerVisibilityState(layerKey, true);
       layersToAdd.push(layerKey);
       const order = prevOrder.slice();
-      order.unshift(layerKey);
+      if (options.placement === 'end') order.push(layerKey);
+      else order.unshift(layerKey);
       localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(order));
       generujListeWarstw();
       markDataDirty('layer:edit');
@@ -12334,7 +12395,8 @@ function zaladujPinezkiZFirestore() {
             warstwy[layerKey].visible = true;
             layersToAdd = prevLayersToAdd.concat(layerKey);
             const o = prevOrder.slice();
-            o.unshift(layerKey);
+            if (options.placement === 'end') o.push(layerKey);
+            else o.unshift(layerKey);
             localStorage.setItem(LAYER_ORDER_STORAGE_KEY, JSON.stringify(o));
             setLayerCollapseState(layerKey, true);
             setLayerVisibilityState(layerKey, true);
@@ -15214,8 +15276,8 @@ function getTripPointEmoji(p) {
         return acc;
       }, {});
       const visibleLayerSections = MAIN_CATEGORY_OPTIONS
-        .filter(main => selectedMainCategories.has(main) && (layersByMainCategory[main] || []).length > 0)
-        .map(main => ({ title: `${main}:`, layers: layersByMainCategory[main] }));
+        .filter(main => selectedMainCategories.has(main))
+        .map(main => ({ title: `${main}:`, layers: layersByMainCategory[main] || [] }));
       const totalPinsCount = regularLayers.reduce((sum, name) => sum + (warstwy[name]?.lista?.length || 0), 0);
       if (pinTotalCounter) {
         pinTotalCounter.textContent = `Liczba miejsc: ${totalPinsCount}`;
@@ -15466,9 +15528,58 @@ function getTripPointEmoji(p) {
       visibleLayerSections.forEach((section) => {
         const heading = document.createElement('div');
         heading.className = 'layer-category-heading';
-        heading.textContent = section.title;
+        const headingLabel = document.createElement('span');
+        headingLabel.textContent = section.title;
+        const addCategoryLayerBtn = document.createElement('button');
+        addCategoryLayerBtn.type = 'button';
+        addCategoryLayerBtn.className = 'layer-category-add-btn';
+        addCategoryLayerBtn.textContent = '+';
+        addCategoryLayerBtn.setAttribute('aria-label', `Dodaj warstwę w kategorii ${section.title.replace(':', '')}`);
+        addCategoryLayerBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          showNewLayerControls(section.title.replace(':', ''));
+        });
+        heading.appendChild(headingLabel);
+        heading.appendChild(addCategoryLayerBtn);
         lista.appendChild(heading);
         section.layers.forEach((nazwa, idx) => renderLayer(nazwa, idx, section.layers));
+        if (pendingNewLayerMainCategory === section.title.replace(':', '')) {
+          const row = document.createElement('div');
+          row.className = 'new-layer-inline-row';
+          row.dataset.mainCategory = pendingNewLayerMainCategory;
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.placeholder = 'Nazwa warstwy';
+          const confirmBtn = document.createElement('button');
+          confirmBtn.type = 'button';
+          confirmBtn.className = 'new-layer-inline-action confirm';
+          confirmBtn.textContent = '✓';
+          confirmBtn.setAttribute('aria-label', 'Zatwierdź dodanie warstwy');
+          const cancelBtn = document.createElement('button');
+          cancelBtn.type = 'button';
+          cancelBtn.className = 'new-layer-inline-action cancel';
+          cancelBtn.textContent = '×';
+          cancelBtn.setAttribute('aria-label', 'Anuluj dodawanie warstwy');
+          const submitNewLayer = () => {
+            const name = input.value.trim();
+            if (!name) return;
+            const main = pendingNewLayerMainCategory;
+            pendingNewLayerMainCategory = null;
+            ensureLayerExists(name, main, { placement: 'end' });
+          };
+          confirmBtn.addEventListener('click', submitNewLayer);
+          cancelBtn.addEventListener('click', hideNewLayerControls);
+          input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') submitNewLayer();
+            if (ev.key === 'Escape') hideNewLayerControls();
+          });
+          row.appendChild(input);
+          row.appendChild(confirmBtn);
+          row.appendChild(cancelBtn);
+          lista.appendChild(row);
+          requestAnimationFrame(() => row.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+        }
       });
       saveLayerOrder({ markChange: false });
       updateLayerNumbers();
