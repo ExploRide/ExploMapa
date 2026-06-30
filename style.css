@@ -1338,7 +1338,8 @@ html body .popup-container .popup-route-actions .popup-direct-route-btn:hover {
 /* Popup pinezki: kompaktowy nagłówek, statusy i akcje */
 html body .popup-card-title {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
+  gap: 0.42em;
   flex: 1 1 auto;
   min-width: 0;
   min-height: calc(2em * 1.18);
@@ -1355,6 +1356,18 @@ html body .popup-card-title.popup-card-title-long {
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+html body .popup-card-title-emoji {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  line-height: inherit;
+}
+
+html body .popup-card-title-text {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 

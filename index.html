@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-30 v.0.671';
+    const BUILD_VERSION = '2026-06-30 v.0.672';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-30-v0.671" />
+  <link rel="stylesheet" href="style.css?v=2026-06-30-v0.672" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -7454,7 +7454,7 @@ function emojiHtml(str, hue = 0) {
       return `
         <div class="photo-gallery" data-slug="${slug}"></div>
         <div class="popup-card-header">
-          <div class="popup-card-title${longTitleClass}" title="${escapedPinName}">${p.emoji ? emojiHtml(p.emoji, getPinEmojiHue(p)) + ' ' : ''}<b>${escapedPinName}</b></div>
+          <div class="popup-card-title${longTitleClass}" title="${escapedPinName}">${p.emoji ? `<span class="popup-card-title-emoji">${emojiHtml(p.emoji, getPinEmojiHue(p))}</span>` : ''}<b class="popup-card-title-text">${escapedPinName}</b></div>
           <div class="popup-edit-row">
             <button class="popup-edit-btn popup-edit-pin-btn" title="Edytuj pinezkę">✏️</button>
             <button class="popup-edit-btn popup-delete-btn" title="Usuń pinezkę">🗑️</button>
