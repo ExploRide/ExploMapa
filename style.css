@@ -1337,8 +1337,11 @@ html body .popup-container .popup-route-actions .popup-direct-route-btn:hover {
 
 /* Popup pinezki: kompaktowy nagłówek, statusy i akcje */
 html body .popup-card-title {
+  display: flex;
+  align-items: flex-end;
   flex: 1 1 auto;
   min-width: 0;
+  min-height: calc(2em * 1.18);
   font-size: 15px !important;
   line-height: 1.18 !important;
   white-space: nowrap;
