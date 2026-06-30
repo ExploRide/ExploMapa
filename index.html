@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-29 v.0.669';
+    const BUILD_VERSION = '2026-06-30 v.0.670';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-29-v0.669" />
+  <link rel="stylesheet" href="style.css?v=2026-06-30-v0.670" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -7390,6 +7390,7 @@ function emojiHtml(str, hue = 0) {
       ].filter(Boolean);
       const statusHtml = statusItems.length ? `<span class="popup-status-row">${statusItems.map(item => `<span class="popup-status-item">${item}</span>`).join('')}</span>` : '';
       const statusLineHtml = [trudHtml, statusHtml].filter(Boolean).join('');
+      const popupStatusLineHtml = statusLineHtml ? `<div class="popup-status-line">${statusLineHtml}</div>` : '';
       return `
         <div class="photo-gallery" data-slug="${slug}"></div>
         <div class="popup-card-header">
@@ -7399,7 +7400,7 @@ function emojiHtml(str, hue = 0) {
             <button class="popup-edit-btn popup-delete-btn" title="Usuń pinezkę">🗑️</button>
           </div>
         </div>
-        <div class="popup-status-line">${statusLineHtml}</div>
+        ${popupStatusLineHtml}
         <div class="popup-soft-separator"></div>${descriptionHtml}
         <a class="popup-google-card" href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" rel="noopener noreferrer">
           <span class="popup-action-icon">📍</span>
