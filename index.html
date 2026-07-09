@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-06-30 v.0.672';
+    const BUILD_VERSION = '2026-07-05 v.0.673';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
-  <link rel="stylesheet" href="style.css?v=2026-06-30-v0.672" />
+  <link rel="stylesheet" href="style.css?v=2026-07-05-v0.673" />
   <link rel="icon" type="image/png" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 <link rel="apple-touch-icon" sizes="1080x1080" href="/ExploMapa/fav1080.png">
 
@@ -12916,7 +12916,7 @@ function showRoutePopup(pinId, tr, latlng) {
           searchMarker = null;
           generujListeWarstw();
         }
-        openNewPinPopup(latlng);
+        openNewPinPopupWithDefaults(latlng, { nazwa: label });
       });
       const routeBtn = container.querySelector('#routeSearchBtn');
       if (routeBtn) {
