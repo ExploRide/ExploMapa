@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-07-21 v.0.674';
+    const BUILD_VERSION = '2026-07-21 v.0.675';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -6262,8 +6262,39 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
       return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
     }
 
+    function normalizeCountryName(country) {
+      return (country || '').toString().replace(/\s+/g, ' ').trim();
+    }
+
+    function getReverseGeocodeKey(lat, lng) {
+      return `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
+    }
+
+    function extractCountryFromReverseGeocode(data) {
+      return normalizeCountryName(data?.address?.country || '');
+    }
+
+    function formatAddressFromReverseGeocode(data) {
+      const address = data && data.address ? data.address : {};
+      const locality = address.city || address.town || address.village || address.municipality || address.hamlet || address.locality;
+      const road = address.road || address.pedestrian || address.footway || address.path || address.cycleway || address.residential;
+      const houseNumber = address.house_number || address.house;
+      const country = extractCountryFromReverseGeocode(data);
+      let parts = [];
+      if (locality) parts.push(locality);
+      if (road && houseNumber) parts.push(`${road} ${houseNumber}`);
+      else if (road) parts.push(road);
+      if (!parts.length && data && data.display_name) {
+        parts = data.display_name.split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
+      }
+      if (country && !parts.some(part => normalizeCountryName(part).toLocaleLowerCase('pl') === country.toLocaleLowerCase('pl'))) {
+        parts.push(country);
+      }
+      return parts.join(', ') || country || null;
+    }
+
     function resolveAddress(lat, lng) {
-      const key = `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
+      const key = getReverseGeocodeKey(lat, lng);
       if (addressCache.has(key)) {
         return Promise.resolve(addressCache.get(key));
       }
@@ -6271,8 +6302,13 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
         return addressPromises.get(key);
       }
 
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&accept-language=pl`;
-      const request = fetch(url)
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&accept-language=pl&addressdetails=1`;
+      const request = fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'Accept-Language': 'pl'
+        }
+      })
         .then(resp => {
           if (!resp.ok) {
             throw new Error(`Reverse geocoding error: ${resp.status}`);
@@ -6280,20 +6316,11 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
           return resp.json();
         })
         .then(data => {
-          const address = data && data.address ? data.address : {};
-          const locality = address.city || address.town || address.village || address.municipality || address.hamlet || address.locality;
-          const road = address.road || address.pedestrian || address.footway || address.path || address.cycleway || address.residential;
-          const houseNumber = address.house_number || address.house;
-          let formatted = '';
-          if (road && houseNumber && locality) {
-            formatted = `${locality}, ${road} ${houseNumber}`;
-          } else if (road && locality) {
-            formatted = `${locality}, ${road}`;
-          } else if (locality) {
-            formatted = locality;
-          } else if (data && data.display_name) {
-            const segments = data.display_name.split(',').map(s => s.trim()).filter(Boolean);
-            formatted = segments.slice(0, 3).join(', ');
+          const country = extractCountryFromReverseGeocode(data);
+          const formatted = formatAddressFromReverseGeocode(data);
+          if (country) {
+            countryCache.set(key, country);
+            applyResolvedCountryToPins(key, country);
           }
           addressCache.set(key, formatted || null);
           return formatted || null;
@@ -14508,7 +14535,25 @@ function getTripPointEmoji(p) {
     }
 
     function getPinCountry(p) {
-      return (p?.kraj || p?.country || p?.panstwo || '').toString().trim();
+      return normalizeCountryName(p?.kraj || p?.country || p?.panstwo || '');
+    }
+
+    function applyResolvedCountryToPins(key, country) {
+      const normalizedCountry = normalizeCountryName(country);
+      if (!key || !normalizedCountry) return;
+      let addedCountry = false;
+      wszystkiePinezki.forEach(pin => {
+        if (!pin || !Number.isFinite(pin.lat) || !Number.isFinite(pin.lng)) return;
+        if (getReverseGeocodeKey(pin.lat, pin.lng) !== key) return;
+        if (!getPinCountry(pin)) {
+          pin.kraj = normalizedCountry;
+          persistPinCountryInFirestore(pin, normalizedCountry);
+        }
+        const prevSize = countries.size;
+        registerPinCountry(pin);
+        if (countries.size !== prevSize) addedCountry = true;
+      });
+      if (addedCountry) generujListeWarstw();
     }
 
     function registerPinCountry(p) {
@@ -14543,7 +14588,7 @@ function getTripPointEmoji(p) {
 
     function enqueueCountryFetch(p) {
       if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return;
-      const key = `${Number(p.lat).toFixed(6)},${Number(p.lng).toFixed(6)}`;
+      const key = getReverseGeocodeKey(p.lat, p.lng);
       if (countryLookupQueuedKeys.has(key)) return;
       countryLookupQueuedKeys.add(key);
       countryLookupQueue.push({ key, pin: p });
@@ -14571,7 +14616,7 @@ function getTripPointEmoji(p) {
         registerPinCountry(p);
         return;
       }
-      const key = keyOverride || `${Number(p.lat).toFixed(6)},${Number(p.lng).toFixed(6)}`;
+      const key = keyOverride || getReverseGeocodeKey(p.lat, p.lng);
       if (countryCache.has(key)) {
         const cached = countryCache.get(key);
         if (cached) {
@@ -14597,7 +14642,7 @@ function getTripPointEmoji(p) {
         updateCountryFilterMeta();
         return;
       }
-      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(p.lat)}&lon=${encodeURIComponent(p.lng)}&accept-language=pl&zoom=3`;
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(p.lat)}&lon=${encodeURIComponent(p.lng)}&accept-language=pl&addressdetails=1`;
       const request = fetch(url, {
         headers: {
           Accept: 'application/json',
@@ -14614,8 +14659,11 @@ function getTripPointEmoji(p) {
           return resp.json();
         })
         .then(data => {
-          const country = (data?.address?.country || '').trim();
+          const country = extractCountryFromReverseGeocode(data);
+          const formatted = formatAddressFromReverseGeocode(data);
           countryCache.set(key, country || null);
+          if (formatted) addressCache.set(key, formatted);
+          if (country) applyResolvedCountryToPins(key, country);
           return country || null;
         })
         .catch(err => {
