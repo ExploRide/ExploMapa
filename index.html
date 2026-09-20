@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-07-21 v.0.675';
+    const BUILD_VERSION = '2026-09-20 v.0.676';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -738,6 +738,22 @@
     }
     .warstwa.is-loading .toggle-btn { opacity: 0.65; pointer-events: none; }
     @keyframes layer-loading-spin { to { transform: rotate(360deg); } }
+    #lista-warstw.is-searching { position: relative; opacity: 0.45; pointer-events: none; }
+    #lista-warstw.is-searching::after {
+      content: "Szukam…";
+      position: sticky;
+      top: 12px;
+      display: block;
+      width: max-content;
+      margin: 12px auto;
+      padding: 7px 12px;
+      border-radius: 6px;
+      background: rgba(25, 25, 25, 0.92);
+      color: #fff;
+      font-weight: 600;
+      opacity: 1;
+      z-index: 4;
+    }
 
     body.layer-drag-active,
     body.layer-drag-active * {
@@ -4650,7 +4666,7 @@ function slugify(str) {
     function syncMainLoadingVisibility() {
       const el = document.getElementById('loading');
       if (!el) return;
-      el.style.display = loadingCount > 0 && !isPinViewportLoadingVisible() ? 'flex' : 'none';
+      el.style.display = loadingCount > 0 && !isPinViewportLoadingVisible() && !shouldHideMovementLoaders() ? 'flex' : 'none';
     }
     function setMainLoadingProgress(percent = null) {
       const percentEl = document.getElementById('loadingPercent');
@@ -5611,12 +5627,18 @@ function slugify(str) {
       return el;
     }
 
-    function renderSidebarPinList(layerName, listEl) {
+    function pinMatchesSidebarSearch(pin, layerName, query = currentSearchTerm) {
+      if (!query) return true;
+      return [pin?.nazwa, pin?.opis, pin?.kategoria, pin?.kraj, getLayerDisplayName(layerName)]
+        .filter(Boolean).join(' ').toLowerCase().includes(query);
+    }
+
+    function renderSidebarPinList(layerName, listEl, searchQuery = '') {
       if (!warstwy[layerName] || !listEl) return [];
       const pinListStartTs = performance.now();
       listEl.innerHTML = '';
       const sorted = warstwy[layerName].lista.slice().filter(pin => {
-        return pinMatchesAllFilters(pin, true, false);
+        return pinMatchesAllFilters(pin, true, false) && pinMatchesSidebarSearch(pin, layerName, searchQuery);
       }).sort((a, b) => {
         const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
         const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
@@ -5632,6 +5654,7 @@ function slugify(str) {
       });
       sorted.forEach(pin => listEl.appendChild(createSidebarPinElement(pin, layerName)));
       listEl.dataset.rendered = '1';
+      listEl.dataset.searchQuery = searchQuery;
       const items = Array.from(listEl.querySelectorAll('.pinezka'));
       if (layerDomRefs[layerName]) {
         layerDomRefs[layerName].items = items;
@@ -5684,16 +5707,13 @@ function slugify(str) {
       const query = currentSearchTerm;
       Object.values(layerDomRefs).forEach(info => {
         if (!info || !info.label) return;
-        if (query && info.listEl && !info.listEl.dataset.rendered) {
-          renderSidebarPinList(info.name, info.listEl);
-        }
-        const items = info.items || [];
-        let visibleCount = 0;
-        items.forEach(el => {
-          const match = !query || el.textContent.toLowerCase().includes(query);
-          el.style.display = match ? 'block' : 'none';
-          if (match) visibleCount++;
-        });
+        const collapsed = !!warstwy[info.name]?.collapsed;
+        const listHasRequestedSearch = info.listEl?.dataset.searchQuery === query;
+        const items = (query || !collapsed) && info.listEl
+          ? (listHasRequestedSearch ? (info.items || []) : renderSidebarPinList(info.name, info.listEl, query))
+          : [];
+        info.items = items;
+        const visibleCount = items.length;
         const countToShow = query ? visibleCount : info.totalCount;
         info.label.textContent = `${getLayerDisplayName(info.name)} (${countToShow})`;
         if (info.listEl) {
@@ -5702,7 +5722,6 @@ function slugify(str) {
             info.listEl.classList.toggle('ukryta', !shouldShowList);
             updateSidebarLayerToggle(info, !shouldShowList);
           } else {
-            const collapsed = !!warstwy[info.name]?.collapsed;
             if (collapsed) {
               info.listEl.innerHTML = '';
               info.listEl.dataset.rendered = '';
@@ -5741,24 +5760,37 @@ function slugify(str) {
 
     const searchInput = document.getElementById('wyszukiwarka');
     const clearSearchBtn = document.getElementById('clearWyszukiwarkaBtn');
+    let sidebarSearchTimer = null;
+    let sidebarSearchSequence = 0;
+    function scheduleSidebarSearch(value, { immediate = false } = {}) {
+      currentSearchTerm = value.trim().toLowerCase();
+      const sequence = ++sidebarSearchSequence;
+      const list = document.getElementById('lista-warstw');
+      if (sidebarSearchTimer) clearTimeout(sidebarSearchTimer);
+      list?.classList.add('is-searching');
+      const run = () => requestAnimationFrame(() => setTimeout(() => {
+        if (sequence !== sidebarSearchSequence) return;
+        applySearchFilter();
+        scheduleMarkerVisibilityUpdate();
+        list?.classList.remove('is-searching');
+        sidebarSearchTimer = null;
+      }, 0));
+      sidebarSearchTimer = setTimeout(run, immediate ? 0 : 250);
+    }
     function updateClearSearchBtnVisibility() {
       if (!searchInput || !clearSearchBtn) return;
       clearSearchBtn.style.display = searchInput.value.trim() ? 'flex' : 'none';
     }
     if (searchInput) {
       searchInput.addEventListener('input', e => {
-        currentSearchTerm = e.target.value.trim().toLowerCase();
-        applySearchFilter();
-        scheduleMarkerVisibilityUpdate();
         updateClearSearchBtnVisibility();
+        scheduleSidebarSearch(e.target.value);
       });
     }
     if (clearSearchBtn && searchInput) {
       clearSearchBtn.addEventListener('click', () => {
         searchInput.value = '';
-        currentSearchTerm = '';
-        applySearchFilter();
-        scheduleMarkerVisibilityUpdate();
+        scheduleSidebarSearch('', { immediate: true });
         updateClearSearchBtnVisibility();
         searchInput.focus();
       });
@@ -15038,6 +15070,10 @@ function getTripPointEmoji(p) {
     let pinViewportLoadingHideTimer = null;
     let suppressNextPinViewportLoading = false;
 
+    function shouldHideMovementLoaders() {
+      return window.innerWidth <= 700 && window.gpsFollowActive === true;
+    }
+
     function suppressGpsFollowViewportLoading() {
       suppressNextPinViewportLoading = true;
     }
@@ -15052,6 +15088,11 @@ function getTripPointEmoji(p) {
       const el = document.getElementById('pinViewportLoading');
       const percentEl = document.getElementById('pinViewportLoadingPercent');
       if (!el) return;
+      if (shouldHideMovementLoaders()) {
+        el.style.display = 'none';
+        syncMainLoadingVisibility();
+        return;
+      }
       if (pinViewportLoadingHideTimer) {
         clearTimeout(pinViewportLoadingHideTimer);
         pinViewportLoadingHideTimer = null;
@@ -15569,6 +15610,7 @@ function getTripPointEmoji(p) {
         } else {
           buildLayerPinList(nazwa, listaP);
           listaP.dataset.rendered = '1';
+          listaP.dataset.searchQuery = '';
           layerDomRefs[nazwa].items = Array.from(listaP.querySelectorAll('.pinezka'));
         }
         let layerCollapseLoading = false;
@@ -15606,6 +15648,7 @@ function getTripPointEmoji(p) {
             try {
               await renderLayerPinListAfterPaint();
               listaP.dataset.rendered = '1';
+              listaP.dataset.searchQuery = '';
               layerDomRefs[nazwa].items = Array.from(listaP.querySelectorAll('.pinezka'));
             } finally {
               layerCollapseLoading = false;
@@ -16621,11 +16664,13 @@ function confirmLayerDelete() {
     iconAnchor: [12, 12]
   });
   let followGps = true;
+  window.gpsFollowActive = true;
   window.stopGpsFollow = stopGpsFollow;
 
   function stopGpsFollow(reason = '') {
     if (!followGps) return;
     followGps = false;
+    window.gpsFollowActive = false;
     const gpsBtn = document.getElementById('gpsFollowBtn');
     if (gpsBtn) gpsBtn.style.display = 'block';
     if (typeof window.updateMobileSavePinButton === 'function') window.updateMobileSavePinButton();
@@ -17213,6 +17258,7 @@ function confirmLayerDelete() {
     if (gpsBtn) {
       gpsBtn.addEventListener('click', () => {
         followGps = true;
+        window.gpsFollowActive = true;
         gpsBtn.style.display = 'none';
         if (currentLocation) {
           map.setView(currentLocation, map.getZoom());
