@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-09-20 v.0.676';
+    const BUILD_VERSION = '2026-09-21 v.0.677';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -5329,7 +5329,7 @@ function slugify(str) {
         const hiddenByTripMode = hideMainPinsInTripMode && typeof isOfficialPinsLayer === 'function' && isOfficialPinsLayer(layerData);
         if (!layerVisible || !layerChecked || hiddenByTripMode) return count;
         return count + layerData.lista.reduce((sum, pin) => {
-          return sum + (pin && pin.visible !== false && pinMatchesAllFilters(pin, true) ? 1 : 0);
+          return sum + (pin && pin.visible !== false && pinMatchesAllFilters(pin, true, false) ? 1 : 0);
         }, 0);
       }, 0);
     }
@@ -5771,7 +5771,6 @@ function slugify(str) {
       const run = () => requestAnimationFrame(() => setTimeout(() => {
         if (sequence !== sidebarSearchSequence) return;
         applySearchFilter();
-        scheduleMarkerVisibilityUpdate();
         list?.classList.remove('is-searching');
         sidebarSearchTimer = null;
       }, 0));
@@ -6747,7 +6746,7 @@ function emojiHtml(str, hue = 0) {
       if (activePlanPlacement && activePlanPlacement.plan === plan) return true;
       if (!pinPlansOverlayVisible) return false;
       const layerVisible = pin && pin.warstwa && warstwy[pin.warstwa] ? warstwy[pin.warstwa].visible !== false : true;
-      const pinVisible = pinMatchesAllFilters(pin, false);
+      const pinVisible = pinMatchesAllFilters(pin, false, false);
       return isActivePlanForPin(pin, plan) && (plan.widoczny !== false) && layerVisible && pinVisible;
     }
 
@@ -15266,7 +15265,7 @@ function getTripPointEmoji(p) {
         w.lista.forEach(p => {
           if (!p) return;
           beforeFilters++;
-          const visibleByFilters = pinMatchesAllFilters(p, true) && p.visible !== false;
+          const visibleByFilters = pinMatchesAllFilters(p, true, false) && p.visible !== false;
           if (visibleByFilters) afterFilters++;
           const inViewport = visibleByFilters && pinIsInViewport(p, currentBounds);
           if (inViewport) inBounds++;
@@ -15327,7 +15326,7 @@ function getTripPointEmoji(p) {
       const renderedMarkers = getAttachedMarkerCount();
       console.log('[viewport-render:diagnostics]', {
         totalPins: wszystkiePinezki.length,
-        pinsAfterFilters: Object.values(warstwy).reduce((acc, w) => acc + (w?.lista?.filter(p => pinMatchesAllFilters(p, true) && p.visible !== false).length || 0), 0),
+        pinsAfterFilters: Object.values(warstwy).reduce((acc, w) => acc + (w?.lista?.filter(p => pinMatchesAllFilters(p, true, false) && p.visible !== false).length || 0), 0),
         markersPassedToRenderer: totalAdded,
         renderedMarkers,
         visibleClusters,
