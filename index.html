@@ -10114,6 +10114,11 @@ function emojiHtml(str, hue = 0) {
         map.closePopup(popup);
       }
       if (currentTool === "pin" && !drawingRoute && window.innerWidth > 800) onMapClick(e);
+      if (currentTool === "hand" && !drawingRoute && !pinRepositionState &&
+          !(tripPrivatePointArmed && tripPlannerMode === 'trip') &&
+          !clickedInsidePopup && !isEditPopup && !e.propagatedFrom) {
+        openMapLocationPopup(e.latlng);
+      }
     });
     map.on(L.Draw.Event.CREATED, onRouteCreated);
     map.on('draw:drawstop', () => { drawingRoute = false; activeRoutePin = null; });
@@ -11621,6 +11626,36 @@ function zaladujPinezkiZFirestore() {
     async function onMapClick(e) {
       await openNewPinPopup(e.latlng);
       selectTool('hand');
+    }
+
+    function openMapLocationPopup(latlng) {
+      const location = map.wrapLatLng(latlng);
+      const { lat, lng } = location;
+      const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
+      const container = document.createElement('div');
+      container.className = 'popup-container';
+      container.innerHTML = `
+        <div class="popup-info-item popup-address" aria-live="polite"></div>
+        <div class="popup-info-item">Współrzędne GPS: ${formatCoords(lat, lng)}</div>
+        <a class="popup-google-card" href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer">
+          <span class="popup-action-icon" aria-hidden="true">📍</span>
+          <span>Google Maps</span>
+          <span class="popup-external-icon" aria-hidden="true">↗</span>
+        </a>
+        <div class="popup-route-actions">
+          <button type="button" class="popup-route-btn">
+            <span class="popup-action-svg" style="--popup-icon-url: url('icons/location.svg')" aria-hidden="true"></span>
+            <span>Dodaj pinezkę</span>
+          </button>
+        </div>`;
+
+      const popup = L.popup({ autoPan: false }).setLatLng(latlng).setContent(container);
+      container.querySelector('button').addEventListener('click', () => {
+        map.closePopup(popup);
+        openNewPinPopup(location);
+      }, { once: true });
+      updatePopupAddress(container, lat, lng);
+      popup.openOn(map);
     }
 
     function findMarkerByLatLng(lat, lng) {
