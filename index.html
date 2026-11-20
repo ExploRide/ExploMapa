@@ -3391,6 +3391,12 @@ body.mobile-layout #saveChanges {
         <button id="basemapCollapseToggle" class="panel-toggle-btn" type="button" aria-label="Schowaj panel map" title="Schowaj panel map">▶</button>
         <h3>Rodzaj mapy</h3>
       </div>
+      <label for="pinClusteringMode">Klastrowanie pinezek</label>
+      <select id="pinClusteringMode">
+        <option value="auto">Automatyczne</option>
+        <option value="on">Włączone</option>
+        <option value="off">Wyłączone</option>
+      </select>
       <div id="map-date-controls"><span id="map-date-badge"></span><select id="map-year-select" style="display:none;"></select></div>
       <details>
         <summary><strong>Bazy</strong></summary>
@@ -5011,7 +5017,18 @@ function slugify(str) {
 
     const ADAPTIVE_CLUSTER_DISABLE_BELOW = 500;
     const ADAPTIVE_CLUSTER_ENABLE_ABOVE = 550;
-    let adaptiveClusteringEnabled = false;
+    const PIN_CLUSTERING_MODE_STORAGE_KEY = 'pinClusteringMode';
+    const pinClusteringModeSelect = document.getElementById('pinClusteringMode');
+    const savedPinClusteringMode = localStorage.getItem(PIN_CLUSTERING_MODE_STORAGE_KEY);
+    pinClusteringModeSelect.value = ['on', 'off'].includes(savedPinClusteringMode)
+      ? savedPinClusteringMode
+      : 'auto';
+
+    let adaptiveClusteringEnabled = pinClusteringModeSelect.value === 'on';
+    pinClusteringModeSelect.addEventListener('change', () => {
+      localStorage.setItem(PIN_CLUSTERING_MODE_STORAGE_KEY, pinClusteringModeSelect.value);
+      if (map) updateMarkerVisibility();
+    });
 
     function createPlainPinLayer() {
       const layer = L.layerGroup();
@@ -5229,13 +5246,8 @@ function slugify(str) {
         maxClusterRadius: () => 105,
         animate: true,
         animateAddingMarkers: true,
-        chunkedLoading: true,
-        chunkDelay: 24,
-        chunkInterval: 64,
-        chunkProgress: (processed, total) => {
-          showPinViewportLoading(total ? (processed / total) * 100 : 0);
-          if (total && processed >= total) hidePinViewportLoading(220);
-        },
+        // MarkerCluster's queued batches cannot be cancelled when replacing a layer.
+        chunkedLoading: false,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: true,
         iconCreateFunction: cluster => {
@@ -5368,7 +5380,9 @@ function slugify(str) {
     function updateAdaptiveClusteringMode(reason = 'unknown') {
       const activePins = countAdaptiveActivePins();
       let nextEnabled = adaptiveClusteringEnabled;
-      if (!adaptiveClusteringEnabled && activePins > ADAPTIVE_CLUSTER_ENABLE_ABOVE) {
+      if (pinClusteringModeSelect.value !== 'auto') {
+        nextEnabled = pinClusteringModeSelect.value === 'on';
+      } else if (!adaptiveClusteringEnabled && activePins > ADAPTIVE_CLUSTER_ENABLE_ABOVE) {
         nextEnabled = true;
       } else if (adaptiveClusteringEnabled && activePins <= ADAPTIVE_CLUSTER_DISABLE_BELOW) {
         nextEnabled = false;
