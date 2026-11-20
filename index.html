@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-20 v.0.679';
+    const BUILD_VERSION = '2026-11-20 v.0.680';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -532,6 +532,45 @@
       gap: 6px;
       margin-bottom: 8px;
       flex-shrink: 0;
+    }
+    .pin-map-search-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 28px;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .pin-map-search-toggle input {
+      appearance: none;
+      width: 32px;
+      height: 18px;
+      margin: 0;
+      display: inline-flex;
+      align-items: center;
+      padding: 2px;
+      border: 1px solid #89909a;
+      border-radius: 999px;
+      background: #363a43;
+      box-sizing: border-box;
+      cursor: inherit;
+    }
+    .pin-map-search-toggle input::before {
+      content: "";
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #fff;
+    }
+    .pin-map-search-toggle input:checked {
+      justify-content: flex-end;
+      background: var(--ui-accent);
+    }
+    .pin-map-search-toggle input:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 2px;
     }
     .pin-clustering-control {
       display: flex;
@@ -3255,6 +3294,10 @@ body.mobile-layout #saveChanges {
         <input type="text" id="wyszukiwarka" placeholder="Szukaj pinezki...">
         <button id="clearWyszukiwarkaBtn" type="button" aria-label="Wyczyść wyszukiwarkę">✕</button>
       </div>
+      <label class="pin-map-search-toggle">
+        <input type="checkbox" id="pinMapSearchToggle" role="switch" checked>
+        Filtruj na mapie
+      </label>
       <button id="mobileControlsToggle" type="button" aria-expanded="false" aria-controls="sidebarTopControls">
         Filtry i akcje <span class="mobile-controls-indicator">▼</span>
       </button>
@@ -5020,6 +5063,7 @@ function slugify(str) {
     let countryFilterTouched = false;
     let layerDomRefs = {};
     let currentSearchTerm = '';
+    let filterPinsOnMap = document.getElementById('pinMapSearchToggle').checked;
     const selectedPinIds = new Set();
     let lastSelectedPinId = null;
     let fullPinsLoaded = false;
@@ -5367,7 +5411,7 @@ function slugify(str) {
         const hiddenByTripMode = hideMainPinsInTripMode && typeof isOfficialPinsLayer === 'function' && isOfficialPinsLayer(layerData);
         if (!layerVisible || !layerChecked || hiddenByTripMode) return count;
         return count + layerData.lista.reduce((sum, pin) => {
-          return sum + (pin && pin.visible !== false && pinMatchesAllFilters(pin, true) && pinMatchesSidebarSearch(pin, layerName) ? 1 : 0);
+          return sum + (pin && pin.visible !== false && pinMatchesAllFilters(pin, true) && pinMatchesMapSearch(pin, layerName) ? 1 : 0);
         }, 0);
       }, 0);
     }
@@ -5672,6 +5716,10 @@ function slugify(str) {
         .filter(Boolean).join(' ').toLowerCase().includes(query);
     }
 
+    function pinMatchesMapSearch(pin, layerName) {
+      return !filterPinsOnMap || pinMatchesSidebarSearch(pin, layerName);
+    }
+
     function renderSidebarPinList(layerName, listEl, searchQuery = '') {
       if (!warstwy[layerName] || !listEl) return [];
       const pinListStartTs = performance.now();
@@ -5810,12 +5858,17 @@ function slugify(str) {
       const run = () => requestAnimationFrame(() => setTimeout(() => {
         if (sequence !== sidebarSearchSequence) return;
         applySearchFilter();
-        if (map) scheduleMarkerVisibilityUpdate();
+        if (map && filterPinsOnMap) scheduleMarkerVisibilityUpdate();
         list?.classList.remove('is-searching');
         sidebarSearchTimer = null;
       }, 0));
       sidebarSearchTimer = setTimeout(run, immediate ? 0 : 250);
     }
+    document.getElementById('pinMapSearchToggle').addEventListener('change', event => {
+      filterPinsOnMap = event.target.checked;
+      if (map) scheduleMarkerVisibilityUpdate();
+    });
+
     function updateClearSearchBtnVisibility() {
       if (!searchInput || !clearSearchBtn) return;
       clearSearchBtn.style.display = searchInput.value.trim() ? 'flex' : 'none';
@@ -11076,7 +11129,7 @@ function zaladujPinezkiZFirestore() {
       const marker = p.marker || createLeafletMarkerForPin(p, p.warstwa || 'Inne') || findMarkerByLatLng(lat, lng);
       if (marker) {
         const markerLayer = warstwy[p.warstwa || 'Inne']?.layer;
-        if (markerLayer && pinMatchesSidebarSearch(p, p.warstwa || 'Inne') && !markerLayer.hasLayer(marker)) {
+        if (markerLayer && pinMatchesMapSearch(p, p.warstwa || 'Inne') && !markerLayer.hasLayer(marker)) {
           markerLayer.addLayer(marker);
         }
         p.marker = marker;
@@ -12047,7 +12100,7 @@ function zaladujPinezkiZFirestore() {
       if (!p.marker) createLeafletMarkerForPin(p, layerName);
 
       const ensurePinLayerReady = () => {
-        if (!pinMatchesSidebarSearch(p, layerName)) return false;
+        if (!pinMatchesMapSearch(p, layerName)) return false;
         let layerData = getLayerData();
         if (!p.marker) createLeafletMarkerForPin(p, layerName);
         layerData = getLayerData();
@@ -12072,7 +12125,7 @@ function zaladujPinezkiZFirestore() {
       };
 
       const openFallbackPopup = () => {
-        if (!pinMatchesSidebarSearch(p, layerName)) return;
+        if (!pinMatchesMapSearch(p, layerName)) return;
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
@@ -15345,7 +15398,7 @@ function getTripPointEmoji(p) {
         w.lista.forEach(p => {
           if (!p) return;
           beforeFilters++;
-          const matchesSearch = pinMatchesSidebarSearch(p, layerName);
+          const matchesSearch = pinMatchesMapSearch(p, layerName);
           const visibleByFilters = matchesSearch && pinMatchesAllFilters(p, true) && p.visible !== false;
           if (visibleByFilters) afterFilters++;
           const inViewport = visibleByFilters && pinIsInViewport(p, currentBounds);
