@@ -8911,7 +8911,7 @@ function emojiHtml(str, hue = 0) {
         popupAutoPanState.duringAutoPan = false;
       }
 
-      map = L.map('map', { crs: L.CRS.EPSG3857, maxZoom: MAX_MAP_ZOOM }).setView([52.1, 20.9], 7);
+      map = L.map('map', { crs: L.CRS.EPSG3857, maxZoom: MAX_MAP_ZOOM, doubleClickZoom: false }).setView([52.1, 20.9], 7);
       window.map = map;
       setupZoomPercentageControl();
       map.whenReady(() => {
@@ -10185,11 +10185,14 @@ function emojiHtml(str, hue = 0) {
         map.closePopup(popup);
       }
       if (currentTool === "pin" && !drawingRoute && window.innerWidth > 800) onMapClick(e);
-      if (currentTool === "hand" && !drawingRoute && !pinRepositionState &&
-          !(tripPrivatePointArmed && tripPlannerMode === 'trip') &&
-          !clickedInsidePopup && !isEditPopup && !e.propagatedFrom) {
-        openMapLocationPopup(e.latlng);
-      }
+    });
+    map.on('dblclick', e => {
+      if (currentTool !== 'hand' || drawingRoute || pinRepositionState ||
+          (tripPrivatePointArmed && tripPlannerMode === 'trip') || e.propagatedFrom) return;
+      if (e.originalEvent?.target?.closest?.('.leaflet-marker-icon, .leaflet-popup')) return;
+      const popupEl = map._popup?.getElement();
+      if (popupEl?.querySelector('.edit-popup, .edit-form-field, #saveNew, #saveEdit')) return;
+      openMapLocationPopup(e.latlng);
     });
     map.on(L.Draw.Event.CREATED, onRouteCreated);
     map.on('draw:drawstop', () => { drawingRoute = false; activeRoutePin = null; });
