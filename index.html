@@ -4709,7 +4709,8 @@ function slugify(str) {
     const MAP_VIEW_PRESERVE_KEY = 'mapViewPreserveOnce';
     const PINTEREST_LAYER_NAME = 'pinterest_diane_g';
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
-    const CLUSTER_DISABLE_AT_ZOOM = 14; // skupiaj pinezki aż do średniego przybliżenia mapy
+    const MOBILE_CLUSTER_DISABLE_AT_ZOOM = 14;
+    const DESKTOP_CLUSTER_DISABLE_PERCENT = 55;
     const CLUSTER_MIN_MARKERS = 5; // próg pomocniczy dla logiki dużych/łączonych klastrów; małe klastry nadal pokazują licznik
     const CLUSTER_IDLE_REFRESH_DELAY = 80;
     const BIG_CLUSTER_COUNT = 500;
@@ -5028,6 +5029,13 @@ function slugify(str) {
         return createPlainPinLayer();
       }
 
+      const minZoom = map.getMinZoom();
+      const zoomRange = Math.max(1, map.getMaxZoom() - minZoom);
+      // Uwzględnij zaokrąglenie do pełnego procentu na wskaźniku mapy.
+      const disableClusteringAtZoom = shouldUseMobileLayout()
+        ? MOBILE_CLUSTER_DISABLE_AT_ZOOM
+        : Math.ceil(minZoom + zoomRange * ((DESKTOP_CLUSTER_DISABLE_PERCENT - 0.5) / 100));
+
       let clusterLayer = null;
       let mergedOverlayLayer = null;
       const hiddenClusterIds = new Set();
@@ -5139,7 +5147,6 @@ function slugify(str) {
         }
         if (!map || !clusterLayer || !clusterLayer._featureGroup) return;
         if (!mergedOverlayLayer || !map.hasLayer(clusterLayer)) return;
-        if (map.getZoom() >= CLUSTER_DISABLE_AT_ZOOM) return;
 
         // Przywróć widoczność klastrów ukrytych podczas poprzedniego przebiegu.
         for (const id of hiddenClusterIds) {
@@ -5147,6 +5154,7 @@ function slugify(str) {
           if (cluster) setClusterMarkerVisibility(cluster, true);
         }
         clearMergedClusterOverlays();
+        if (map.getZoom() >= disableClusteringAtZoom) return;
 
         const clusters = getVisibleTopClusters();
         if (clusters.length < 2 || clusters.length > MAX_CLUSTERS_TO_MERGE_FAST) return;
@@ -5217,7 +5225,7 @@ function slugify(str) {
       }
 
       clusterLayer = L.markerClusterGroup({
-        disableClusteringAtZoom: CLUSTER_DISABLE_AT_ZOOM,
+        disableClusteringAtZoom,
         maxClusterRadius: () => 105,
         animate: true,
         animateAddingMarkers: true,
