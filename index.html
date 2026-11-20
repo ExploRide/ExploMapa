@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-09-21 v.0.677';
+    const BUILD_VERSION = '2026-11-20 v.0.679';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -532,6 +532,29 @@
       gap: 6px;
       margin-bottom: 8px;
       flex-shrink: 0;
+    }
+    .pin-clustering-control {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+      font-size: 12px;
+    }
+    .pin-clustering-control button {
+      flex: 1;
+      min-height: 32px;
+      padding: 4px 8px;
+      border: 1px solid var(--ui-border);
+      border-radius: var(--ui-radius-sm);
+      background: #1d2028;
+      color: #ddd;
+      cursor: pointer;
+    }
+    .pin-clustering-control button[aria-pressed="true"] {
+      background: var(--ui-accent);
+      border-color: var(--ui-accent);
+      color: #fff;
     }
     #wyszukiwarka {
       width: 100%;
@@ -3391,12 +3414,12 @@ body.mobile-layout #saveChanges {
         <button id="basemapCollapseToggle" class="panel-toggle-btn" type="button" aria-label="Schowaj panel map" title="Schowaj panel map">▶</button>
         <h3>Rodzaj mapy</h3>
       </div>
-      <label for="pinClusteringMode">Klastrowanie pinezek</label>
-      <select id="pinClusteringMode">
-        <option value="auto">Automatyczne</option>
-        <option value="on">Włączone</option>
-        <option value="off">Wyłączone</option>
-      </select>
+      <div id="pinClusteringMode" class="pin-clustering-control" role="group" aria-labelledby="pinClusteringLabel">
+        <span id="pinClusteringLabel">Klastrowanie</span>
+        <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+        <button type="button" data-mode="on" aria-pressed="false">Wł.</button>
+        <button type="button" data-mode="off" aria-pressed="false">Wył.</button>
+      </div>
       <div id="map-date-controls"><span id="map-date-badge"></span><select id="map-year-select" style="display:none;"></select></div>
       <details>
         <summary><strong>Bazy</strong></summary>
@@ -5018,16 +5041,23 @@ function slugify(str) {
     const ADAPTIVE_CLUSTER_DISABLE_BELOW = 500;
     const ADAPTIVE_CLUSTER_ENABLE_ABOVE = 550;
     const PIN_CLUSTERING_MODE_STORAGE_KEY = 'pinClusteringMode';
-    const pinClusteringModeSelect = document.getElementById('pinClusteringMode');
     const savedPinClusteringMode = localStorage.getItem(PIN_CLUSTERING_MODE_STORAGE_KEY);
-    pinClusteringModeSelect.value = ['on', 'off'].includes(savedPinClusteringMode)
-      ? savedPinClusteringMode
-      : 'auto';
+    let pinClusteringMode = ['on', 'off'].includes(savedPinClusteringMode) ? savedPinClusteringMode : 'auto';
+    let activePinClusteringMode = pinClusteringMode;
+    let adaptiveClusteringEnabled = pinClusteringMode === 'on' && !!L.markerClusterGroup;
 
-    let adaptiveClusteringEnabled = pinClusteringModeSelect.value === 'on';
-    pinClusteringModeSelect.addEventListener('change', () => {
-      localStorage.setItem(PIN_CLUSTERING_MODE_STORAGE_KEY, pinClusteringModeSelect.value);
-      if (map) updateMarkerVisibility();
+    const pinClusteringButtons = document.querySelectorAll('#pinClusteringMode button');
+    pinClusteringButtons.forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.mode === pinClusteringMode));
+      button.addEventListener('click', () => {
+        if (pinClusteringMode === button.dataset.mode) return;
+        pinClusteringMode = button.dataset.mode;
+        localStorage.setItem(PIN_CLUSTERING_MODE_STORAGE_KEY, pinClusteringMode);
+        pinClusteringButtons.forEach(option => {
+          option.setAttribute('aria-pressed', String(option === button));
+        });
+        if (map) updateMarkerVisibility();
+      });
     });
 
     function createPlainPinLayer() {
@@ -5046,13 +5076,15 @@ function slugify(str) {
         return createPlainPinLayer();
       }
 
-      const minZoom = map.getMinZoom();
-      const zoomRange = Math.max(1, map.getMaxZoom() - minZoom);
-      // Uwzględnij zaokrąglenie do pełnego procentu na wskaźniku mapy.
-      const disableClusteringAtZoom = shouldUseMobileLayout()
-        ? MOBILE_CLUSTER_DISABLE_AT_ZOOM
-        : Math.ceil(minZoom + zoomRange * ((DESKTOP_CLUSTER_DISABLE_PERCENT - 0.5) / 100));
-
+      let disableClusteringAtZoom = null;
+      if (pinClusteringMode === 'auto') {
+        const minZoom = map.getMinZoom();
+        const zoomRange = Math.max(1, map.getMaxZoom() - minZoom);
+        // Uwzględnij zaokrąglenie do pełnego procentu na wskaźniku mapy.
+        disableClusteringAtZoom = shouldUseMobileLayout()
+          ? MOBILE_CLUSTER_DISABLE_AT_ZOOM
+          : Math.ceil(minZoom + zoomRange * ((DESKTOP_CLUSTER_DISABLE_PERCENT - 0.5) / 100));
+      }
       let clusterLayer = null;
       let mergedOverlayLayer = null;
       const hiddenClusterIds = new Set();
@@ -5171,7 +5203,7 @@ function slugify(str) {
           if (cluster) setClusterMarkerVisibility(cluster, true);
         }
         clearMergedClusterOverlays();
-        if (map.getZoom() >= disableClusteringAtZoom) return;
+        if (disableClusteringAtZoom !== null && map.getZoom() >= disableClusteringAtZoom) return;
 
         const clusters = getVisibleTopClusters();
         if (clusters.length < 2 || clusters.length > MAX_CLUSTERS_TO_MERGE_FAST) return;
@@ -5322,20 +5354,6 @@ function slugify(str) {
       return clusterLayer;
     }
 
-    function pinMatchesSearchFilter(pin) {
-      const query = currentSearchTerm;
-      if (!query) return true;
-      const searchable = [
-        pin?.nazwa,
-        pin?.opis,
-        pin?.kategoria,
-        pin?.kategoriaGlowna,
-        pin?.warstwa,
-        pin?.kraj
-      ].filter(value => value != null).join(' ').toLowerCase();
-      return searchable.includes(query);
-    }
-
     function getLayerCheckboxChecked(layerName, fallbackVisible) {
       const layerCheckbox = document.querySelector(`.warstwa[data-nazwa="${CSS.escape(layerName)}"] .layer-toggle`);
       return layerCheckbox ? !!layerCheckbox.checked : fallbackVisible;
@@ -5349,18 +5367,17 @@ function slugify(str) {
         const hiddenByTripMode = hideMainPinsInTripMode && typeof isOfficialPinsLayer === 'function' && isOfficialPinsLayer(layerData);
         if (!layerVisible || !layerChecked || hiddenByTripMode) return count;
         return count + layerData.lista.reduce((sum, pin) => {
-          return sum + (pin && pin.visible !== false && pinMatchesAllFilters(pin, true, false) ? 1 : 0);
+          return sum + (pin && pin.visible !== false && pinMatchesAllFilters(pin, true) && pinMatchesSidebarSearch(pin, layerName) ? 1 : 0);
         }, 0);
       }, 0);
     }
 
-    function replacePinLayer(layerName, layerData, clusteringEnabled) {
-      if (!layerData || !layerData.layer || layerData.layer.__adaptiveClusterEnabled === clusteringEnabled) return;
+    function replacePinLayer(layerName, layerData, clusteringEnabled, modeChanged) {
+      if (!layerData?.layer) return;
+      if (layerData.layer.__adaptiveClusterEnabled === clusteringEnabled && !(clusteringEnabled && modeChanged)) return;
       const previousLayer = layerData.layer;
       const wasOnMap = map && map.hasLayer(previousLayer);
-      const visibleMarkers = (layerData.lista || [])
-        .map(pin => pin && pin.marker)
-        .filter(marker => marker && typeof previousLayer.hasLayer === 'function' && previousLayer.hasLayer(marker));
+      const visibleMarkers = previousLayer.getLayers();
       if (wasOnMap) map.removeLayer(previousLayer);
       if (typeof previousLayer.clearLayers === 'function') previousLayer.clearLayers();
 
@@ -5378,20 +5395,20 @@ function slugify(str) {
     }
 
     function updateAdaptiveClusteringMode(reason = 'unknown') {
-      const activePins = countAdaptiveActivePins();
-      let nextEnabled = adaptiveClusteringEnabled;
-      if (pinClusteringModeSelect.value !== 'auto') {
-        nextEnabled = pinClusteringModeSelect.value === 'on';
-      } else if (!adaptiveClusteringEnabled && activePins > ADAPTIVE_CLUSTER_ENABLE_ABOVE) {
-        nextEnabled = true;
-      } else if (adaptiveClusteringEnabled && activePins <= ADAPTIVE_CLUSTER_DISABLE_BELOW) {
-        nextEnabled = false;
-      }
+      const modeChanged = activePinClusteringMode !== pinClusteringMode;
+      const activePins = pinClusteringMode === 'auto' ? countAdaptiveActivePins() : null;
+      const autoThreshold = adaptiveClusteringEnabled && !modeChanged
+        ? ADAPTIVE_CLUSTER_DISABLE_BELOW
+        : ADAPTIVE_CLUSTER_ENABLE_ABOVE;
+      const nextEnabled = !!L.markerClusterGroup && (
+        pinClusteringMode === 'on' || (pinClusteringMode === 'auto' && activePins > autoThreshold)
+      );
 
-      if (nextEnabled !== adaptiveClusteringEnabled) {
+      if (nextEnabled !== adaptiveClusteringEnabled || modeChanged) {
         adaptiveClusteringEnabled = nextEnabled;
+        activePinClusteringMode = pinClusteringMode;
         Object.entries(warstwy).forEach(([layerName, layerData]) => {
-          replacePinLayer(layerName, layerData, adaptiveClusteringEnabled);
+          replacePinLayer(layerName, layerData, adaptiveClusteringEnabled, modeChanged);
         });
       }
 
@@ -5660,7 +5677,7 @@ function slugify(str) {
       const pinListStartTs = performance.now();
       listEl.innerHTML = '';
       const sorted = warstwy[layerName].lista.slice().filter(pin => {
-        return pinMatchesAllFilters(pin, true, false) && pinMatchesSidebarSearch(pin, layerName, searchQuery);
+        return pinMatchesAllFilters(pin, true) && pinMatchesSidebarSearch(pin, layerName, searchQuery);
       }).sort((a, b) => {
         const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
         const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
@@ -5793,6 +5810,7 @@ function slugify(str) {
       const run = () => requestAnimationFrame(() => setTimeout(() => {
         if (sequence !== sidebarSearchSequence) return;
         applySearchFilter();
+        if (map) scheduleMarkerVisibilityUpdate();
         list?.classList.remove('is-searching');
         sidebarSearchTimer = null;
       }, 0));
@@ -6768,7 +6786,7 @@ function emojiHtml(str, hue = 0) {
       if (activePlanPlacement && activePlanPlacement.plan === plan) return true;
       if (!pinPlansOverlayVisible) return false;
       const layerVisible = pin && pin.warstwa && warstwy[pin.warstwa] ? warstwy[pin.warstwa].visible !== false : true;
-      const pinVisible = pinMatchesAllFilters(pin, false, false);
+      const pinVisible = pinMatchesAllFilters(pin);
       return isActivePlanForPin(pin, plan) && (plan.widoczny !== false) && layerVisible && pinVisible;
     }
 
@@ -11058,7 +11076,7 @@ function zaladujPinezkiZFirestore() {
       const marker = p.marker || createLeafletMarkerForPin(p, p.warstwa || 'Inne') || findMarkerByLatLng(lat, lng);
       if (marker) {
         const markerLayer = warstwy[p.warstwa || 'Inne']?.layer;
-        if (markerLayer && typeof markerLayer.hasLayer === 'function' && !markerLayer.hasLayer(marker)) {
+        if (markerLayer && pinMatchesSidebarSearch(p, p.warstwa || 'Inne') && !markerLayer.hasLayer(marker)) {
           markerLayer.addLayer(marker);
         }
         p.marker = marker;
@@ -11367,12 +11385,12 @@ function zaladujPinezkiZFirestore() {
           if (map.hasLayer(marker)) map.removeLayer(marker);
           return;
         }
-        if (addedPin.marker) map.removeLayer(addedPin.marker);
         if (addedPin.plany) addedPin.plany.forEach(pl => removePlanOverlay(pl));
         const idxN = nowePinezki.indexOf(addedPin);
         if (idxN > -1) nowePinezki.splice(idxN, 1);
         const layer = warstwy[addedPin.warstwa || makeLayerKey('Inne', getPinMainCategory(addedPin))];
         if (layer) {
+          if (addedPin.marker) layer.layer.removeLayer(addedPin.marker);
           const idxL = layer.lista.indexOf(addedPin);
           if (idxL > -1) layer.lista.splice(idxL, 1);
         }
@@ -11393,7 +11411,6 @@ function zaladujPinezkiZFirestore() {
         if (!warstwy[layerName].lista.includes(addedPin)) warstwy[layerName].lista.push(addedPin);
         if (!wszystkiePinezki.includes(addedPin)) wszystkiePinezki.push(addedPin);
         if (!nowePinezki.includes(addedPin)) nowePinezki.push(addedPin);
-        if (addedPin.marker && !map.hasLayer(addedPin.marker)) addedPin.marker.addTo(map);
         if (addedPin.plany) addedPin.plany.forEach(pl => ensurePlanOverlay(addedPin, pl));
         syncNowePinezkiStorage();
         refreshCountriesFromPins();
@@ -11609,6 +11626,7 @@ function zaladujPinezkiZFirestore() {
         syncNowePinezkiStorage();
         warstwy[warstwaN].lista.push(data);
         wszystkiePinezki.push(data);
+        map.removeLayer(marker);
         refreshCategoryCollectionsFromPins();
         updateCategoryFilter();
         generujListeWarstw();
@@ -12029,6 +12047,7 @@ function zaladujPinezkiZFirestore() {
       if (!p.marker) createLeafletMarkerForPin(p, layerName);
 
       const ensurePinLayerReady = () => {
+        if (!pinMatchesSidebarSearch(p, layerName)) return false;
         let layerData = getLayerData();
         if (!p.marker) createLeafletMarkerForPin(p, layerName);
         layerData = getLayerData();
@@ -12053,6 +12072,7 @@ function zaladujPinezkiZFirestore() {
       };
 
       const openFallbackPopup = () => {
+        if (!pinMatchesSidebarSearch(p, layerName)) return;
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
@@ -12097,7 +12117,10 @@ function zaladujPinezkiZFirestore() {
 
       const openPopupForPin = () => {
         if (!p.marker) createLeafletMarkerForPin(p, layerName);
-        ensurePinLayerReady();
+        if (!ensurePinLayerReady()) {
+          openFallbackPopup();
+          return;
+        }
         const layerData = getLayerData();
         if (layerData?.layer && p.marker && typeof layerData.layer.zoomToShowLayer === 'function') {
           layerData.layer.zoomToShowLayer(p.marker, () => {
@@ -14876,11 +14899,10 @@ function getTripPointEmoji(p) {
       return selected.has(pin.kategoria || '');
     }
 
-    function pinMatchesAllFilters(pin, includeCountry = false, includeSearch = true) {
+    function pinMatchesAllFilters(pin, includeCountry = false) {
       if (!pinMatchesCategoryFilters(pin)) return false;
       if (!pinMatchesStatus(pin)) return false;
       if (includeCountry && !pinMatchesCountry(pin)) return false;
-      if (includeSearch && !pinMatchesSearchFilter(pin)) return false;
       return true;
     }
 
@@ -15306,6 +15328,7 @@ function getTripPointEmoji(p) {
       let totalAdded = 0;
       let totalRemoved = 0;
       let visibleLayerCount = 0;
+      let pinsAfterFilters = 0;
       const totalPinsForProgress = Object.values(warstwy).reduce((sum, layer) => sum + (Array.isArray(layer?.lista) ? layer.lista.length : 0), 0);
       let processedPinsForProgress = 0;
       updatePinViewportLoadingProgress(0, totalPinsForProgress);
@@ -15322,12 +15345,13 @@ function getTripPointEmoji(p) {
         w.lista.forEach(p => {
           if (!p) return;
           beforeFilters++;
-          const visibleByFilters = pinMatchesAllFilters(p, true, false) && p.visible !== false;
+          const matchesSearch = pinMatchesSidebarSearch(p, layerName);
+          const visibleByFilters = matchesSearch && pinMatchesAllFilters(p, true) && p.visible !== false;
           if (visibleByFilters) afterFilters++;
           const inViewport = visibleByFilters && pinIsInViewport(p, currentBounds);
           if (inViewport) inBounds++;
           const markerHasOpenPopup = p.marker && typeof p.marker.isPopupOpen === 'function' && p.marker.isPopupOpen();
-          const visible = layerVisible && layerChecked && (inViewport || markerHasOpenPopup);
+          const visible = layerVisible && layerChecked && (inViewport || (matchesSearch && markerHasOpenPopup));
           if (visible && !p.marker) {
             createLeafletMarkerForPin(p, layerName);
           }
@@ -15344,6 +15368,7 @@ function getTripPointEmoji(p) {
             updatePinViewportLoadingProgress(processedPinsForProgress, totalPinsForProgress);
           }
         });
+        pinsAfterFilters += afterFilters;
         if (toAdd.length || toRemove.length) {
           layerOps.set(w.layer, { toAdd, toRemove });
         }
@@ -15383,7 +15408,7 @@ function getTripPointEmoji(p) {
       const renderedMarkers = getAttachedMarkerCount();
       console.log('[viewport-render:diagnostics]', {
         totalPins: wszystkiePinezki.length,
-        pinsAfterFilters: Object.values(warstwy).reduce((acc, w) => acc + (w?.lista?.filter(p => pinMatchesAllFilters(p, true, false) && p.visible !== false).length || 0), 0),
+        pinsAfterFilters,
         markersPassedToRenderer: totalAdded,
         renderedMarkers,
         visibleClusters,
@@ -15490,7 +15515,7 @@ function getTripPointEmoji(p) {
         const pinListStartTs = performance.now();
         listaP.innerHTML = '';
         const sorted = warstwy[nazwa].lista.slice().filter(p => {
-          return pinMatchesAllFilters(p, true, false);
+          return pinMatchesAllFilters(p, true);
         }).sort((a, b) => {
           const ad = a.dataDodania ? new Date(a.dataDodania).getTime() : 0;
           const bd = b.dataDodania ? new Date(b.dataDodania).getTime() : 0;
