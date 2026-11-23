@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.682';
+    const BUILD_VERSION = '2026-11-23 v.0.683';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1220,24 +1220,32 @@ body, #sidebar, #basemap-switcher {
 }
 #kmlImportPins label {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   padding: 4px;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
+#kmlImportPins label input { flex: 0 0 auto; }
+#kmlImportPins .pin-import-name { min-width: 0; overflow-wrap: anywhere; }
 
 #kmlImportDialog button { border-radius: 3px; }
 #pinImportProgress progress { width: 100%; }
 #pinImportNotice, #pinImportReview p, #pinImportReview h3 { margin: 4px 0; }
 #kmlImportPins li:not([hidden]) {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 4px;
+  gap: 8px;
+  min-width: 0;
   border-bottom: 1px solid var(--ui-border, #444);
 }
-#kmlImportPins small { color: var(--ui-text-muted, #adb4c2); }
+#kmlImportPins small { color: var(--ui-text-muted, #adb4c2); white-space: nowrap; }
+#kmlImportPins li button { white-space: nowrap; }
+@media (max-width: 620px) {
+  #kmlImportPins li:not([hidden]) { grid-template-columns: minmax(0, 1fr) auto; }
+  #kmlImportPins li button:not([hidden]) { grid-column: 1 / -1; justify-self: end; }
+}
 #pinImportReview { margin-top: 8px; }
 #pinImportCandidates { max-width: 100%; width: 100%; margin: 4px 0; }
 #pinImportReviewMap { height: min(260px, 32dvh); overflow: hidden; isolation: isolate; }
@@ -3328,8 +3336,8 @@ body.mobile-layout #saveChanges {
         <input type="text" id="kmlImportLayerName">
         <label for="kmlImportCategory">Kategoria nowej warstwy</label>
         <select id="kmlImportCategory">
-          <option value="URBEX">URBEX</option>
           <option value="TURYSTYCZNE">TURYSTYCZNE</option>
+          <option value="URBEX">URBEX</option>
         </select>
       </div>
       <p id="kmlImportStatus" role="status"></p>
@@ -6494,7 +6502,10 @@ function slugify(str) {
           reviewButton.textContent = 'Sprawdź położenie';
           reviewButton.setAttribute('aria-label', `Sprawdź położenie: ${entry.pin.nazwa}`);
           reviewButton.addEventListener('click', () => openReview(entry));
-          label.append(checkbox, document.createTextNode(entry.pin.nazwa));
+          const name = document.createElement('span');
+          name.className = 'pin-import-name';
+          name.textContent = entry.pin.nazwa;
+          label.append(checkbox, name);
           row.append(label, badge, reviewButton);
           rows.appendChild(row);
           Object.assign(entry, { row, checkbox, badge, reviewButton });
