@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-20 v.0.680';
+    const BUILD_VERSION = '2026-11-23 v.0.681';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1193,8 +1193,8 @@ body, #sidebar, #basemap-switcher {
   background: var(--ui-panel, #1d212c);
   color: var(--ui-text, #f0f0f0);
   border: 1px solid var(--ui-border, #444);
-  border-radius: 10px;
-  padding: 16px;
+  border-radius: 4px;
+  padding: 12px;
 }
 #kmlImportDialog::backdrop { background: rgb(0 0 0 / 65%); }
 #kmlImportDialog form,
@@ -1225,6 +1225,23 @@ body, #sidebar, #basemap-switcher {
   padding: 4px;
   overflow-wrap: anywhere;
 }
+
+#kmlImportDialog button { border-radius: 3px; }
+#pinImportProgress progress { width: 100%; }
+#pinImportNotice, #pinImportReview p, #pinImportReview h3 { margin: 4px 0; }
+#kmlImportPins li:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  border-bottom: 1px solid var(--ui-border, #444);
+}
+#kmlImportPins small { color: var(--ui-text-muted, #adb4c2); }
+#pinImportReview { margin-top: 8px; }
+#pinImportCandidates { max-width: 100%; width: 100%; margin: 4px 0; }
+#pinImportReviewMap { height: min(260px, 32dvh); overflow: hidden; isolation: isolate; }
+#pinImportReview input { width: 105px; }
 
 #duplicatePinsModal {
   position: fixed;
@@ -3301,9 +3318,9 @@ body.mobile-layout #saveChanges {
 </div>
   <dialog id="kmlImportDialog" aria-labelledby="kmlImportTitle">
     <form id="kmlImportForm">
-      <h2 id="kmlImportTitle">Import .kml</h2>
-      <label for="importKmlInput">Plik KML z dysku</label>
-      <input type="file" id="importKmlInput" accept=".kml,application/vnd.google-earth.kml+xml">
+      <h2 id="kmlImportTitle">Import pinezek</h2>
+      <label for="importKmlInput">Plik KML lub CSV z dysku</label>
+      <input type="file" id="importKmlInput" accept=".kml,.csv,application/vnd.google-earth.kml+xml,text/csv">
       <label for="kmlImportLayer">Warstwa docelowa</label>
       <select id="kmlImportLayer"></select>
       <div id="kmlImportNewLayer">
@@ -3316,13 +3333,45 @@ body.mobile-layout #saveChanges {
         </select>
       </div>
       <p id="kmlImportStatus" role="status"></p>
+      <div id="pinImportProgress" hidden>
+        <progress id="pinImportProgressBar" aria-label="Postęp rozpoznawania miejsc"></progress>
+        <button type="button" id="pinImportStop">Przerwij rozpoznawanie</button>
+      </div>
+      <p id="pinImportNotice" hidden></p>
+      <small id="pinImportCredits" hidden>
+        Dane lokalizacji: <a href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer">Wikidata</a>,
+        <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a>,
+        © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>
+      </small>
       <fieldset id="kmlImportSelection" hidden>
         <legend>Pinezki z pliku</legend>
         <div class="kml-import-actions">
           <button type="button" id="kmlImportSelectAll">Zaznacz wszystkie</button>
           <button type="button" id="kmlImportClearAll">Odznacz wszystkie</button>
+          <select id="pinImportFilter" aria-label="Filtr podglądu pinezek">
+            <option value="">Wszystkie wyniki</option>
+            <option value="ready">Rozpoznane</option>
+            <option value="review">Do weryfikacji</option>
+            <option value="unresolved">Nierozpoznane</option>
+            <option value="duplicate">Duplikaty</option>
+          </select>
         </div>
         <ul id="kmlImportPins"></ul>
+        <section id="pinImportReview" aria-labelledby="pinImportReviewTitle" hidden>
+          <h3 id="pinImportReviewTitle"></h3>
+          <a id="pinImportSource" target="_blank" rel="noopener noreferrer" hidden>Otwórz miejsce w Mapach Google</a>
+          <label for="pinImportCandidates">Propozycje lokalizacji</label>
+          <select id="pinImportCandidates"></select>
+          <div id="pinImportReviewMap" aria-label="Mapa weryfikacji lokalizacji"></div>
+          <p>Kliknij mapę, przesuń znacznik lub wpisz współrzędne.</p>
+          <div class="kml-import-actions">
+            <label>Szerokość <input id="pinImportLat" type="text" inputmode="decimal"></label>
+            <label>Długość <input id="pinImportLng" type="text" inputmode="decimal"></label>
+            <button type="button" id="pinImportConfirmPoint">Zatwierdź położenie</button>
+            <button type="button" id="pinImportCloseReview">Zamknij podgląd</button>
+          </div>
+          <p id="pinImportReviewStatus" role="status"></p>
+        </section>
       </fieldset>
       <div class="kml-import-actions">
         <button type="button" id="kmlImportCancel">Anuluj</button>
@@ -3343,7 +3392,7 @@ body.mobile-layout #saveChanges {
           <div id="specialMenuContent" aria-label="Opcje specjalne">
             <button id="mapOptionsBtn" type="button" aria-haspopup="dialog">Opcje mapy</button>
             <button id="emojiToolBtn">Emoji Tool</button>
-            <button id="importKmlBtn" type="button">Import .kml</button>
+            <button id="importKmlBtn" type="button">Import pinezek</button>
             <button id="exportKML">Zapisz do .KML</button>
             <button id="findDuplicatePinsBtn">Znajdź duplikaty pinezek</button>
             <button id="performanceDebugToggleBtn" type="button" aria-pressed="false">Debug wydajności: OFF</button>
@@ -3723,6 +3772,7 @@ body.mobile-layout #saveChanges {
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="leaflet-tilelayer-wmts.js?v=2026-05-26-savefix-1"></script>
+  <script src="pin-import.js" id="pinImportScript" data-geocoder-url=""></script>
 
   <script>
     const APP_BUILD = window.BUILD_VERSION;
@@ -6186,6 +6236,8 @@ function slugify(str) {
       return true;
     };
 
+    const pinImportSourceFields = ['address', 'url', 'placeId', 'tags', 'coordinateSource'];
+
     function parseKmlContent(content) {
       const xml = new DOMParser().parseFromString(content, 'application/xml');
       if (xml.documentElement.localName !== 'kml' || xml.querySelector('parsererror')) {
@@ -6205,11 +6257,17 @@ function slugify(str) {
         const lat = Number(latText);
         if (!latText?.trim() || !lngText.trim() || !Number.isFinite(lat) || !Number.isFinite(lng) ||
           Math.abs(lat) > 90 || Math.abs(lng) > 180) return [];
+        const source = Object.fromEntries(Array.from(placemark.getElementsByTagNameNS('*', 'Data')).flatMap(data => {
+          const field = data.getAttribute('name');
+          const value = child(data, 'value')?.textContent.trim();
+          return pinImportSourceFields.includes(field) && value ? [[field, value]] : [];
+        }));
         return [{
           nazwa: child(placemark, 'name')?.textContent.trim() || `Pinezka ${index + 1}`,
           opis: child(placemark, 'description')?.textContent.trim() || '',
           lat,
-          lng
+          lng,
+          ...(Object.keys(source).length ? { importSource: source } : {})
         }];
       });
       return { layerName, pins };
@@ -6252,7 +6310,7 @@ function slugify(str) {
       })));
       createdPins.forEach(pin => {
         registerPinCountry(pin);
-        if (!isMobileLayout) enqueueCountryFetch(pin);
+        if (!isMobileLayout && !pin.importSource) enqueueCountryFetch(pin);
         layer.lista.push(pin);
         wszystkiePinezki.push(pin);
         nowePinezki.push(pin);
@@ -6263,27 +6321,72 @@ function slugify(str) {
       markDataDirty('pin:add');
     }
 
-    function setupKmlImportDialog() {
-      const openButton = document.getElementById('importKmlBtn');
-      const dialog = document.getElementById('kmlImportDialog');
-      const form = document.getElementById('kmlImportForm');
-      const fileInput = document.getElementById('importKmlInput');
-      const layerSelect = document.getElementById('kmlImportLayer');
-      const newLayerFields = document.getElementById('kmlImportNewLayer');
-      const layerNameInput = document.getElementById('kmlImportLayerName');
-      const categorySelect = document.getElementById('kmlImportCategory');
-      const selection = document.getElementById('kmlImportSelection');
-      const list = document.getElementById('kmlImportPins');
-      const status = document.getElementById('kmlImportStatus');
-      const submit = document.getElementById('kmlImportSubmit');
-      let entries = [];
-      let fileReadVersion = 0;
-      let suggestedLayerName = '';
+    function setupPinImportDialog() {
+      const byId = id => document.getElementById(id);
+      const dialog = byId('kmlImportDialog');
+      const form = byId('kmlImportForm');
+      const fileInput = byId('importKmlInput');
+      const layerSelect = byId('kmlImportLayer');
+      const newLayerFields = byId('kmlImportNewLayer');
+      const layerNameInput = byId('kmlImportLayerName');
+      const categorySelect = byId('kmlImportCategory');
+      const selection = byId('kmlImportSelection');
+      const list = byId('kmlImportPins');
+      const status = byId('kmlImportStatus');
+      const notice = byId('pinImportNotice');
+      const submit = byId('kmlImportSubmit');
+      const progress = byId('pinImportProgress');
+      const progressBar = byId('pinImportProgressBar');
+      const filter = byId('pinImportFilter');
+      const review = byId('pinImportReview');
+      const source = byId('pinImportSource');
+      const candidates = byId('pinImportCandidates');
+      const latInput = byId('pinImportLat');
+      const lngInput = byId('pinImportLng');
+      const reviewStatus = byId('pinImportReviewStatus');
+      const endpoint = byId('pinImportScript').dataset.geocoderUrl.trim();
+      const { geocode, lookup } = pinImport.createGeocoder(endpoint, async () => {
+        const user = auth.currentUser;
+        if (!user) throw Object.assign(new Error('Zaloguj się, aby wyszukiwać miejsca.'), { status: 401 });
+        return user.getIdToken();
+      });
 
-      function updateSelection() {
-        const count = entries.filter(({ checkbox }) => checkbox.checked).length;
-        submit.disabled = count === 0;
-        status.textContent = `Zaznaczone pinezki: ${count} z ${entries.length}.`;
+      const labels = { ready: 'Rozpoznana', review: 'Do weryfikacji', unresolved: 'Nierozpoznana', duplicate: 'Duplikat' };
+      let entries = [];
+      let operation;
+      let suggestedLayerName = '';
+      let reviewedEntry;
+      let reviewMap;
+      let reviewMarker;
+      let reviewCandidate;
+
+      function setNotice(message) {
+        notice.textContent = message;
+        notice.hidden = !message;
+      }
+
+      function closeReview() {
+        review.hidden = true;
+        reviewedEntry = null;
+        reviewMap?.remove();
+        reviewMap = null;
+        reviewMarker = null;
+        reviewCandidate = null;
+      }
+
+      function resetResults() {
+        operation?.abort();
+        operation = null;
+        closeReview();
+        entries = [];
+        list.replaceChildren();
+        selection.hidden = true;
+        progress.hidden = true;
+        filter.value = '';
+        submit.disabled = true;
+        status.textContent = '';
+        setNotice('');
+        byId('pinImportCredits').hidden = true;
       }
 
       function updateDestination() {
@@ -6292,16 +6395,123 @@ function slugify(str) {
         layerNameInput.setCustomValidity('');
       }
 
-      openButton.addEventListener('click', () => {
-        document.getElementById('specialMenuContent').classList.remove('open');
-        document.getElementById('specialMenuToggle').setAttribute('aria-expanded', 'false');
+      function reportResults(processed = entries.length) {
+        const counts = { ready: 0, review: 0, unresolved: 0, duplicate: 0, errors: 0, selected: 0 };
+        entries.forEach(entry => {
+          const state = entry.duplicate ? 'duplicate' : entry.state;
+          if (state !== 'pending') counts[state]++;
+          if (entry.error) counts.errors++;
+          if (state === 'ready' && entry.checkbox?.checked) counts.selected++;
+        });
+        submit.disabled = Boolean(operation) || counts.selected === 0;
+        const prefix = operation ? `Sprawdzono ${processed} z ${entries.length}. ` : '';
+        status.textContent = `${prefix}Miejsca: ${entries.length} · Rozpoznane: ${counts.ready} · Do weryfikacji: ${counts.review} · Nierozpoznane: ${counts.unresolved} · Duplikaty: ${counts.duplicate} · Błędy: ${counts.errors} · Wybrane: ${counts.selected}`;
+      }
+
+      function filterRows() {
+        entries.forEach(entry => {
+          if (entry.row) entry.row.hidden = Boolean(filter.value && filter.value !== (entry.duplicate ? 'duplicate' : entry.state));
+        });
+      }
+
+      function detectDuplicates() {
+        const known = new Set(wszystkiePinezki.flatMap(pinImport.duplicateKeys));
+        entries.forEach(entry => {
+          const keys = pinImport.duplicateKeys(entry.pin);
+          entry.duplicate = keys.some(key => known.has(key));
+          if (!entry.duplicate && entry.state === 'ready') keys.forEach(key => known.add(key));
+        });
+      }
+
+      function updateRow(entry) {
+        const state = entry.duplicate ? 'duplicate' : entry.state;
+        entry.badge.textContent = labels[state];
+        entry.checkbox.disabled = state !== 'ready';
+        if (entry.checkbox.disabled) entry.checkbox.checked = false;
+        entry.reviewButton.hidden = !['review', 'unresolved'].includes(state);
+      }
+
+      function moveReviewMarker(point, recenter) {
+        latInput.value = point.lat.toFixed(7);
+        lngInput.value = point.lng.toFixed(7);
+        if (reviewMarker) reviewMarker.setLatLng(point);
+        else {
+          reviewMarker = L.marker(point, { draggable: true }).addTo(reviewMap);
+          reviewMarker.on('dragend', () => {
+            reviewCandidate = null;
+            moveReviewMarker(reviewMarker.getLatLng(), false);
+          });
+        }
+        if (recenter) reviewMap.setView(point, 16);
+        reviewStatus.textContent = '';
+      }
+
+      function openReview(entry) {
+        closeReview();
+        reviewedEntry = entry;
+        review.hidden = false;
+        byId('pinImportReviewTitle').textContent = entry.pin.nazwa;
+        const url = pinImport.googleMapsUrl(entry.pin.importSource?.url);
+        source.hidden = !url;
+        if (url) source.href = url.href;
+        else source.removeAttribute('href');
+        candidates.replaceChildren(new Option('Wybierz propozycję', ''), ...entry.candidates.map((item, index) =>
+          new Option(item.label || `${item.lat}, ${item.lng}`, String(index))
+        ));
+        candidates.disabled = !entry.candidates.length;
+        latInput.value = '';
+        lngInput.value = '';
+        reviewStatus.textContent = '';
+        reviewMap = L.map('pinImportReviewMap').setView(map.getCenter(), map.getZoom());
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(reviewMap);
+        reviewMap.on('click', event => {
+          reviewCandidate = null;
+          moveReviewMarker(event.latlng, false);
+        });
+        if (entry.candidates.length) {
+          candidates.value = '0';
+          reviewCandidate = entry.candidates[0];
+          moveReviewMarker(reviewCandidate, true);
+        }
+        review.scrollIntoView({ block: 'nearest' });
+      }
+
+      function renderResults() {
+        detectDuplicates();
+        const rows = document.createDocumentFragment();
+        entries.forEach(entry => {
+          const row = document.createElement('li');
+          const label = document.createElement('label');
+          const checkbox = document.createElement('input');
+          const badge = document.createElement('small');
+          const reviewButton = document.createElement('button');
+          checkbox.type = 'checkbox';
+          checkbox.checked = true;
+          reviewButton.type = 'button';
+          reviewButton.textContent = 'Sprawdź położenie';
+          reviewButton.setAttribute('aria-label', `Sprawdź położenie: ${entry.pin.nazwa}`);
+          reviewButton.addEventListener('click', () => openReview(entry));
+          label.append(checkbox, document.createTextNode(entry.pin.nazwa));
+          row.append(label, badge, reviewButton);
+          rows.appendChild(row);
+          Object.assign(entry, { row, checkbox, badge, reviewButton });
+          updateRow(entry);
+        });
+        list.replaceChildren(rows);
+        selection.hidden = !entries.length;
+        filterRows();
+        reportResults();
+      }
+
+      byId('importKmlBtn').addEventListener('click', () => {
+        byId('specialMenuContent').classList.remove('open');
+        byId('specialMenuToggle').setAttribute('aria-expanded', 'false');
         form.reset();
+        resetResults();
         suggestedLayerName = '';
-        entries = [];
-        list.replaceChildren();
-        selection.hidden = true;
-        submit.disabled = true;
-        status.textContent = '';
         const layers = Object.keys(warstwy).filter(key => !warstwy[key].temporary);
         layers.sort((a, b) => getLayerDisplayName(a).localeCompare(getLayerDisplayName(b), 'pl'));
         layerSelect.replaceChildren(new Option('Nowa warstwa', ''), ...layers.map(key =>
@@ -6310,72 +6520,166 @@ function slugify(str) {
         updateDestination();
         dialog.showModal();
       });
+      dialog.addEventListener('cancel', () => operation?.abort());
       dialog.addEventListener('close', () => {
-        fileReadVersion++;
-        document.getElementById('specialMenuToggle').focus();
+        resetResults();
+        byId('specialMenuToggle').focus();
       });
-      document.getElementById('kmlImportCancel').addEventListener('click', () => dialog.close());
+      byId('kmlImportCancel').addEventListener('click', () => {
+        operation?.abort();
+        dialog.close();
+      });
+      byId('pinImportStop').addEventListener('click', () => operation?.abort());
       layerSelect.addEventListener('change', updateDestination);
       layerNameInput.addEventListener('input', () => layerNameInput.setCustomValidity(''));
       categorySelect.addEventListener('change', () => layerNameInput.setCustomValidity(''));
 
       fileInput.addEventListener('change', async () => {
-        const version = ++fileReadVersion;
-        entries = [];
-        list.replaceChildren();
-        selection.hidden = true;
-        submit.disabled = true;
-        status.textContent = '';
+        resetResults();
         const file = fileInput.files[0];
         if (!file) return;
+        const controller = new AbortController();
+        operation = controller;
+        const { signal } = controller;
         status.textContent = 'Wczytywanie pliku…';
         try {
-          const { layerName, pins } = parseKmlContent(await file.text());
-          if (version !== fileReadVersion || !dialog.open) return;
+          const content = await file.text();
+          if (operation !== controller || signal.aborted || !dialog.open) return;
+          const csv = /\.csv$/i.test(file.name);
+          const parsed = csv ? {
+            layerName: file.name.replace(/\.csv$/i, ''),
+            entries: pinImport.parseCsvContent(content)
+          } : /\.kml$/i.test(file.name) ? (() => {
+            const { layerName, pins } = parseKmlContent(content);
+            return { layerName, entries: pins.map(pin => ({ pin, state: 'ready' })) };
+          })() : null;
+          if (!parsed) throw new Error('Wybierz plik .kml lub .csv.');
+          const { layerName } = parsed;
           if (!layerNameInput.value.trim() || layerNameInput.value === suggestedLayerName) {
             layerNameInput.value = layerName;
             layerNameInput.setCustomValidity('');
           }
           suggestedLayerName = layerName;
-          if (!pins.length) {
-            status.textContent = 'Plik KML nie zawiera pinezek z poprawnymi współrzędnymi.';
+          entries = parsed.entries;
+          if (!entries.length) {
+            status.textContent = 'Plik nie zawiera pinezek do importu.';
             return;
           }
-          const rows = document.createDocumentFragment();
-          entries = pins.map(pin => {
-            const row = document.createElement('li');
-            const label = document.createElement('label');
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = true;
-            label.append(checkbox, document.createTextNode(pin.nazwa));
-            row.appendChild(label);
-            rows.appendChild(row);
-            return { pin, checkbox };
-          });
-          list.appendChild(rows);
-          selection.hidden = false;
-          updateSelection();
+
+          if (entries.some(entry => entry.state === 'pending')) {
+            detectDuplicates();
+            if (endpoint) {
+              byId('pinImportCredits').hidden = false;
+              progress.hidden = false;
+              progressBar.max = entries.length;
+              progressBar.value = 0;
+              reportResults(0);
+              try {
+                await pinImport.resolveCustomerIds(entries, lookup, signal);
+              } catch (error) {
+                if (!signal.aborted && ![401, 403].includes(error.status)) {
+                  setNotice('Wyszukiwanie CID jest chwilowo niedostępne. Kontynuuję wyszukiwanie po nazwie i adresie.');
+                }
+              }
+              if (operation !== controller || !dialog.open) return;
+              detectDuplicates();
+            } else {
+              setNotice('Usługa geokodowania nie jest skonfigurowana. Położenia możesz uzupełnić na mapie.');
+            }
+
+            for (const [index, entry] of entries.entries()) {
+              if (signal.aborted) break;
+              if (entry.state === 'pending' && !entry.duplicate && endpoint) {
+                const failure = await pinImport.resolveEntry(entry, geocode, signal).catch(error => {
+                  if (!signal.aborted) throw error;
+                });
+                if (operation !== controller || signal.aborted || !dialog.open) break;
+                if (failure) {
+                  setNotice(failure === 429
+                    ? 'Osiągnięto limit geokodowania. Pozostałe położenia możesz uzupełnić na mapie.'
+                    : 'Usługa geokodowania odmówiła dostępu. Sprawdź konfigurację lub uzupełnij pozostałe położenia na mapie.');
+                  break;
+                }
+              }
+              if (endpoint) progressBar.value = index + 1;
+              if (index % 10 === 0 && endpoint) reportResults(index + 1);
+            }
+
+            if (operation !== controller || !dialog.open) return;
+            if (signal.aborted) setNotice('Przerwano rozpoznawanie. Dotychczasowe wyniki są dostępne w podglądzie.');
+            entries.forEach(entry => {
+              if (entry.state === 'pending') entry.state = entry.candidates.length ? 'review' : 'unresolved';
+            });
+          }
+          operation = null;
+          renderResults();
         } catch (error) {
-          if (version !== fileReadVersion || !dialog.open) return;
-          console.error('Błąd odczytu KML', error);
-          status.textContent = 'Nie udało się odczytać pliku KML.';
+          if (operation !== controller || !dialog.open) return;
+          console.error('Błąd odczytu pliku pinezek', error);
+          status.textContent = error.message || 'Nie udało się odczytać pliku.';
+        } finally {
+          if (!operation || operation === controller) {
+            operation = null;
+            progress.hidden = true;
+          }
         }
       });
 
-      list.addEventListener('change', updateSelection);
-      document.getElementById('kmlImportSelectAll').addEventListener('click', () => {
-        entries.forEach(({ checkbox }) => { checkbox.checked = true; });
-        updateSelection();
+      filter.addEventListener('change', filterRows);
+      list.addEventListener('change', () => reportResults());
+      byId('kmlImportSelectAll').addEventListener('click', () => {
+        entries.forEach(({ checkbox }) => { if (!checkbox.disabled) checkbox.checked = true; });
+        reportResults();
       });
-      document.getElementById('kmlImportClearAll').addEventListener('click', () => {
+      byId('kmlImportClearAll').addEventListener('click', () => {
         entries.forEach(({ checkbox }) => { checkbox.checked = false; });
-        updateSelection();
+        reportResults();
       });
+      candidates.addEventListener('change', () => {
+        if (!candidates.value) return;
+        reviewCandidate = reviewedEntry.candidates[Number(candidates.value)];
+        moveReviewMarker(reviewCandidate, true);
+      });
+      [latInput, lngInput].forEach(input => {
+        input.addEventListener('input', () => { reviewCandidate = null; });
+        input.addEventListener('keydown', event => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          byId('pinImportConfirmPoint').click();
+        });
+      });
+      byId('pinImportCloseReview').addEventListener('click', closeReview);
+      byId('pinImportConfirmPoint').addEventListener('click', () => {
+        const point = pinImport.coordinates(latInput.value, lngInput.value);
+        if (!point) {
+          reviewStatus.textContent = 'Wybierz położenie na mapie lub wpisz poprawne współrzędne.';
+          return;
+        }
+        const entry = reviewedEntry;
+        Object.assign(entry.pin, point);
+        entry.pin.importSource.coordinateSource = reviewCandidate?.provider || 'Weryfikacja ręczna';
+        if (reviewCandidate?.country) entry.pin.kraj = reviewCandidate.country;
+        entry.state = 'ready';
+        detectDuplicates();
+        entries.forEach(updateRow);
+        entry.checkbox.checked = !entry.duplicate;
+        filterRows();
+        reportResults();
+        closeReview();
+      });
+
       form.addEventListener('submit', event => {
         event.preventDefault();
-        const pins = entries.filter(({ checkbox }) => checkbox.checked).map(({ pin }) => pin);
-        if (!pins.length) return;
+        if (operation) return;
+        detectDuplicates();
+        const pins = entries.filter(entry => entry.state === 'ready' && !entry.duplicate && entry.checkbox.checked)
+          .map(({ pin }) => pin);
+        if (!pins.length) {
+          entries.forEach(updateRow);
+          filterRows();
+          reportResults();
+          return;
+        }
         try {
           let layerKey = layerSelect.value;
           if (!layerKey) {
@@ -6389,20 +6693,20 @@ function slugify(str) {
             layerKey = addLayer(name, false, mainCategory);
           }
           if (!warstwy[layerKey] || warstwy[layerKey].temporary) {
-            status.textContent = 'Wybrana warstwa jest niedostępna.';
+            setNotice('Wybrana warstwa jest niedostępna.');
             return;
           }
           addImportedPinsToMap(pins, layerKey);
           dialog.close();
           showToast(`Zaimportowano ${pins.length} pinezek.`);
         } catch (error) {
-          console.error('Błąd importu KML', error);
-          status.textContent = 'Nie udało się zaimportować pinezek.';
+          console.error('Błąd importu pinezek', error);
+          setNotice('Nie udało się zaimportować pinezek.');
         }
       });
     }
 
-    setupKmlImportDialog();
+    setupPinImportDialog();
     if (collapseAllBtn) {
       collapseAllBtn.addEventListener('click', () => {
         const layers = Object.values(warstwy);
@@ -7758,6 +8062,15 @@ function emojiHtml(str, hue = 0) {
           <div class="popup-description${shouldScroll ? ' scrollable' : ''}">${linkify(p.opis)}</div>
         </section>`;
       })() : '';
+      const importSource = p.importSource;
+      const importUrl = pinImport.googleMapsUrl(importSource?.url);
+      const importDetails = importSource ? [
+        importSource.address && `<div>${escapeHtml(importSource.address)}</div>`,
+        importSource.tags && `<div>Tagi · ${escapeHtml(importSource.tags)}</div>`,
+        importSource.coordinateSource === 'Geoapify' && '<div>Współrzędne: <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Geoapify</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a></div>',
+        importSource.coordinateSource === 'Wikidata' && '<div>Współrzędne: <a href="https://www.wikidata.org/" target="_blank" rel="noopener noreferrer">Wikidata</a></div>',
+        importUrl && `<a href="${escapeHtml(importUrl.href)}" target="_blank" rel="noopener noreferrer">Źródło w Mapach Google</a>`
+      ].filter(Boolean).join('') : '';
       const popupIcon = (path) => `<span class="popup-action-svg" style="--popup-icon-url: url('${path}')" aria-hidden="true"></span>`;
       const trudHtml = p.trudnosc !== undefined ?
         `<span class="trudnosc-text" id="trudnoscLabel-${p.id}">Poziom trudności: ${trudnoscText(p.trudnosc)}</span>` : '';
@@ -7783,7 +8096,7 @@ function emojiHtml(str, hue = 0) {
           </div>
         </div>
         ${popupStatusLineHtml}
-        <div class="popup-soft-separator"></div>${descriptionHtml}
+        <div class="popup-soft-separator"></div>${descriptionHtml}${importDetails ? `<section class="popup-description-section">${importDetails}</section>` : ''}
         <a class="popup-google-card" href="https://maps.google.com/?q=${p.lat},${p.lng}" target="_blank" rel="noopener noreferrer">
           <span class="popup-action-icon">📍</span>
           <span>Google Maps</span>
@@ -10556,7 +10869,7 @@ function zaladujPinezkiZFirestore() {
       }
       registerPinCategory(p);
       registerPinCountry(p);
-      if (!isMobileLayout) enqueueCountryFetch(p);
+      if (!isMobileLayout && !p.importSource) enqueueCountryFetch(p);
       const pinMainCategory = getPinMainCategory(p);
       const layerInfo = resolveLayerInfo(p.warstwa, p.warstwaId, pinMainCategory);
       p.warstwaId = layerInfo.warstwaId || null;
@@ -16302,10 +16615,15 @@ function getTripPointEmoji(p) {
     }
 
     function buildKml(pins) {
-      const placemarks = pins.map(p => {
-        const name = escapeXml(p.nazwa);
-        const desc = escapeXml(p.opis);
-        return `<Placemark><name>${name}</name><description>${desc}</description><Point><coordinates>${p.lng},${p.lat},0</coordinates></Point></Placemark>`;
+      const safeXml = value => escapeXml(String(value ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, ''));
+      const placemarks = pins.flatMap(p => {
+        const point = pinImport.coordinates(p.lat, p.lng);
+        if (!point) return [];
+        const fields = pinImportSourceFields.filter(key => p.importSource?.[key]);
+        const data = fields.map(key =>
+          `<Data name="${key}"><value>${safeXml(p.importSource[key])}</value></Data>`
+        ).join('');
+        return [`<Placemark><name>${safeXml(p.nazwa)}</name><description>${safeXml(p.opis)}</description>${data ? `<ExtendedData>${data}</ExtendedData>` : ''}<Point><coordinates>${point.lng},${point.lat},0</coordinates></Point></Placemark>`];
       }).join('');
       return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document>${placemarks}</Document></kml>`;
     }
@@ -17085,6 +17403,7 @@ function confirmLayerDelete() {
       plany: []
     };
     if (p.trudnosc !== undefined) payload.trudnosc = p.trudnosc;
+    if (p.importSource) payload.importSource = p.importSource;
     return payload;
   }
 

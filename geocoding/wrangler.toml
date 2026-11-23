@@ -1,0 +1,12 @@
+name = "explomapa-pin-geocoding"
+main = "worker.mjs"
+compatibility_date = "2026-11-23"
+
+[vars]
+APP_ORIGIN = "https://exploride.github.io"
+WIKIDATA_USER_AGENT = "ExploMapa/1.0 (https://github.com/ExploRide/ExploMapa)"
+
+[[ratelimits]]
+name = "IMPORT_RATE_LIMIT"
+namespace_id = "1001"
+simple = { limit = 60, period = 60 }
