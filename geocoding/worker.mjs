@@ -41,7 +41,7 @@ async function googlePlaceFromUrl(sourceUrl, apiKey) {
   const details = await fetch('https://places.googleapis.com/v1/places/' + encodeURIComponent(placeId), {
     headers: {
       'X-Goog-Api-Key': apiKey,
-      'X-Goog-FieldMask': 'id,location,displayName,formattedAddress'
+      'X-Goog-FieldMask': 'id,location'
     },
     signal: AbortSignal.timeout(10000)
   });
@@ -50,8 +50,9 @@ async function googlePlaceFromUrl(sourceUrl, apiKey) {
   const lat = item.location?.latitude, lng = item.location?.longitude;
   if (typeof lat !== 'number' || typeof lng !== 'number' ||
       Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
-  return { lat, lng, name: item.displayName?.text || '',
-    label: item.formattedAddress || item.displayName?.text || '', placeId };
+  // Place Details Essentials: no Pro fields (displayName, formattedAddress).
+  // resolveMapsUrls already identifies the exact resource behind the Maps URL.
+  return { lat, lng, placeId };
 }
 
 export default {
