@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.697';
+    const BUILD_VERSION = '2026-11-23 v.0.698';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -2903,21 +2903,30 @@ img.emoji {
       }
     }
 
+    body.mobile-layout .sidebar-header {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: calc(env(safe-area-inset-top, 0px) + 2px);
+      padding-left: calc(var(--mobile-layers-button-width, 90px) + 9px);
+      min-height: var(--mobile-layers-button-height, 32px);
+    }
+
+    body.mobile-layout #specialMenu {
+      margin: 0;
+    }
+
+    body.mobile-layout #specialMenuContent {
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    body.mobile-layout #logoNaglowek {
+      flex: 0 0 auto;
+      margin-bottom: 0;
+    }
+
     @media (max-width: 700px) {
-      .sidebar-header {
-        align-items: center;
-      }
-
-      #specialMenu {
-        order: 2;
-        margin-bottom: 0;
-        margin-left: auto;
-      }
-
-      #logoNaglowek {
-        order: 1;
-      }
-
       #mobileControlsToggle { margin-bottom: 6px; }
 
       #sidebarTopControls {
@@ -6203,6 +6212,13 @@ function slugify(str) {
       toggleLayersBtn.addEventListener("click", () => {
         sidebarEl.classList.toggle("show");
       });
+      const syncMobileSidebarHeader = ([entry]) => {
+        const { width, height } = entry.target.getBoundingClientRect();
+        if (!width || !height) return;
+        sidebarEl.style.setProperty("--mobile-layers-button-width", `${width}px`);
+        sidebarEl.style.setProperty("--mobile-layers-button-height", `${height}px`);
+      };
+      new ResizeObserver(syncMobileSidebarHeader).observe(toggleLayersBtn);
     }
     const closeMobileSidebarOnOutsideClick = event => {
       if (!document.body.classList.contains("mobile-layout")) return;
