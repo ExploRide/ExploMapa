@@ -289,17 +289,44 @@ window.pinImport = (() => {
     return { geocode, lookup };
   }
 
+  // Geoapify's confidence measures geocoding certainty, not whether the
+  // suggested POI is the place requested by the user.
+  const genericWords = new Set(['z', 'ze', 'w', 'we', 'na', 'i', 'oraz', 'do', 'od', 'im', 'imienia', 'the', 'of']);
+  function placeMatchScore(requested, candidate) {
+    const tokens = value => normalize(value).split(' ')
+      .filter(word => word.length > 2 && !genericWords.has(word));
+    const query = [...new Set(tokens(requested))];
+    const found = [...new Set(tokens(candidate))];
+    if (!query.length || !found.length) return 0;
+    const common = query.filter(word => found.includes(word)).length;
+    const coverage = common / query.length;
+    const precision = common / found.length;
+    return coverage >= 0.5 && precision >= 0.5
+      ? 2 * coverage * precision / (coverage + precision) : 0;
+  }
+
+  function rankCandidates(queryName, candidates) {
+    const ranked = candidates.map(candidate => {
+      const names = [candidate.name, (candidate.label || '').split(',')[0]].filter(Boolean);
+      const match = Math.max(0, ...names.map(name => placeMatchScore(queryName, name)));
+      return { ...candidate, nameMatch: match };
+    }).sort((a, b) => b.nameMatch - a.nameMatch || (b.confidence || 0) - (a.confidence || 0));
+    // A generic word such as "zabytkowa" does NOT identify a place.
+    return ranked.filter(candidate => candidate.nameMatch >= 0.65);
+  }
+
   async function resolveEntry(entry, geocode, signal) {
     const { pin, queryName } = entry;
     const address = pin.importSource.address;
     try {
       const results = await geocode(queryName, address, signal);
       signal.throwIfAborted();
+      const ranked = rankCandidates(queryName || address, results);
       const expected = normalize(queryName);
       const expectedAddress = normalize(address);
       // For Takeout exports the address is often missing. A strong, exact
       // place-name match can still be accepted, but only when unambiguous.
-      const exact = results.filter(item => {
+      const exact = ranked.filter(item => {
         if (item.confidence < 0.95 || !expected) return false;
         // Without an address, generic one-word names are unsafe to auto-place.
         if (!expectedAddress && expected.split(' ').filter(Boolean).length < 2) return false;
@@ -310,11 +337,11 @@ window.pinImport = (() => {
         const nameMatches = candidateName === expected || labelName === expected;
         return nameMatches && (!expectedAddress || normalize(item.label).includes(expectedAddress));
       });
-      const competing = results.some(item => !exact.includes(item) &&
+      const competing = ranked.some(item => !exact.includes(item) &&
         item.confidence >= 0.9 &&
         (normalize(item.name) === expected || normalize((item.label || '').split(',')[0]) === expected));
       const hasWikidataCandidates = entry.candidates.some(item => item.provider === 'Wikidata');
-      entry.candidates = [...results, ...entry.candidates];
+      entry.candidates = [...ranked, ...entry.candidates];
       if (exact.length === 1 && !competing && !hasWikidataCandidates) {
         Object.assign(pin, coordinates(exact[0].lat, exact[0].lng));
         pin.importSource.coordinateSource = 'Geoapify';
@@ -332,5 +359,5 @@ window.pinImport = (() => {
     return 0;
   }
 
-  return { parseCsvContent, createGeocoder, resolveEntry, resolveCustomerIds, coordinates, duplicateKeys, googleMapsUrl };
+  return { parseCsvContent, createGeocoder, resolveEntry, resolveCustomerIds, rankCandidates, coordinates, duplicateKeys, googleMapsUrl };
 })();
