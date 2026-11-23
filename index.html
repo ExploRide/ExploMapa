@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.696';
+    const BUILD_VERSION = '2026-11-23 v.0.697';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -3632,7 +3632,7 @@ body.mobile-layout #saveChanges {
         <button type="button" data-mode="off" aria-pressed="false">Wył.</button>
       </div>
       <div id="map-date-controls"><span id="map-date-badge"></span><select id="map-year-select" style="display:none;"></select></div>
-      <details>
+      <details data-map-section="bases">
         <summary><strong>Bazy</strong></summary>
         <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
         <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
@@ -3649,7 +3649,7 @@ body.mobile-layout #saveChanges {
         <label><input type="radio" name="basemap" value="otm-trails"> OpenTopoMap + Szlaki (Waymarked)</label><br>
       </details>
       <div class="layer-separator"></div>
-      <details>
+      <details data-map-section="overlays">
         <summary><strong>Nakładki</strong></summary>
         <div class="overlay-item">
           <label><input type="checkbox" id="overlay-arch-std"> Orto Archiwalne – Standard (WMS)
@@ -3685,7 +3685,7 @@ body.mobile-layout #saveChanges {
       </details>
 
 
-      <details id="archive-imagery-section">
+      <details id="archive-imagery-section" data-map-section="archive">
         <summary><strong>Zdjęcia archiwalne</strong></summary>
         <div class="archive-imagery-controls">
           <label for="archiveYearSelect">Rok / data</label>
@@ -3710,14 +3710,14 @@ body.mobile-layout #saveChanges {
         </div>
       </details>
 
-      <details>
+      <details data-map-section="streets">
         <summary><strong>Widok ulic</strong></summary>
         <label><input type="radio" name="streets" value="full" checked> Wszystkie ulice</label><br>
         <label><input type="radio" name="streets" value="main"> Tylko główne trasy</label><br>
         <label><input type="radio" name="streets" value="none"> Brak ulic</label><br>
       </details>
 
-      <details>
+      <details data-map-section="routing">
         <summary><strong>Wyznacz trasę</strong></summary>
         <div id="route-controls">
         <div class="route-input-group">
@@ -3737,7 +3737,7 @@ body.mobile-layout #saveChanges {
         </div>
         </div>
       </details>
-      <details>
+      <details data-map-section="history">
         <summary><strong>Historia edycji</strong></summary>
         <div id="history-log"></div>
       </details>
@@ -4862,7 +4862,7 @@ function slugify(str) {
     const UI_SCALE_STEP = 2;
 
     function getStoredUiScale() {
-      const raw = Number(localStorage.getItem(UI_SCALE_STORAGE_KEY));
+      const raw = Number(localStorage.getItem(UI_SCALE_STORAGE_KEY) || 100);
       if (!Number.isFinite(raw)) return 100;
       const clamped = Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, raw));
       return Math.round(clamped / UI_SCALE_STEP) * UI_SCALE_STEP;
@@ -5031,7 +5031,22 @@ function slugify(str) {
     const LAYER_ORDER_STORAGE_KEY = 'warstwaOrder';
     const LAYER_COLLAPSE_STORAGE_KEY = 'warstwaCollapsed';
     const LAYER_VISIBILITY_STORAGE_KEY = 'warstwaVisibility';
-    const LAYER_STATE_PRESERVE_FLAG_KEY = 'warstwaPreserveStateOnce';
+    function readMapPreference(name, fallback) {
+      try {
+        return JSON.parse(localStorage.getItem(`exploMapa.preference.${name}`)) ?? fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    function saveMapPreference(name, value) {
+      try {
+        localStorage.setItem(`exploMapa.preference.${name}`, JSON.stringify(value));
+      } catch {
+        // The current map still works when browser storage is unavailable.
+      }
+    }
+
     const MAP_VIEW_PRESERVE_KEY = 'mapViewPreserveOnce';
     const PINTEREST_LAYER_NAME = 'pinterest_diane_g';
     const PINTEREST_PINS_COLLECTION = 'pinterest_diane_g';
@@ -5125,17 +5140,6 @@ function slugify(str) {
         `Visible layer count: ${performanceDebugCounters.visibleLayerCount}`,
         `Rendered markers after final visibility update: ${performanceDebugCounters.renderedMarkersAfterVisibility}`
       ].join('\n');
-    }
-
-    const shouldRestoreLayerState = localStorage.getItem(LAYER_STATE_PRESERVE_FLAG_KEY) === '1';
-    // When the page is opened normally we want layer visibility/collapse to reset.
-    // We only restore the stored state immediately after a save-triggered reload.
-    let shouldIgnoreStoredLayerState = !shouldRestoreLayerState;
-    if (shouldRestoreLayerState) {
-      localStorage.removeItem(LAYER_STATE_PRESERVE_FLAG_KEY);
-    } else {
-      localStorage.removeItem(LAYER_COLLAPSE_STORAGE_KEY);
-      localStorage.removeItem(LAYER_VISIBILITY_STORAGE_KEY);
     }
 
     const warstwy = {};
@@ -6084,9 +6088,6 @@ function slugify(str) {
       if (window.innerWidth > 700 || fullPinsLoaded) return;
       shouldApplyDefaultLayerState = true;
       initialLayerVisibilitySet = true;
-      shouldIgnoreStoredLayerState = true;
-      localStorage.removeItem(LAYER_COLLAPSE_STORAGE_KEY);
-      localStorage.removeItem(LAYER_VISIBILITY_STORAGE_KEY);
       zaladujPinezkiZFirestore();
       fullPinsLoaded = true;
       const loadBtn = document.getElementById('loadPinsBtn');
@@ -6241,13 +6242,26 @@ function slugify(str) {
       });
     }
     if (basemapCollapseToggleBtn && basemapSwitcherEl) {
+      basemapSwitcherEl.classList.toggle("basemap-collapsed", readMapPreference('panelCollapsed', false));
       basemapCollapseToggleBtn.addEventListener("click", () => {
         if (document.body.classList.contains("mobile-layout")) return;
         basemapSwitcherEl.classList.toggle("basemap-collapsed");
+        saveMapPreference('panelCollapsed', basemapSwitcherEl.classList.contains("basemap-collapsed"));
         updateDesktopPanelToggleLabels();
       });
     }
     updateDesktopPanelToggleLabels();
+
+    basemapSwitcherEl?.querySelectorAll('[data-map-section]').forEach(section => {
+      const key = `section.${section.dataset.mapSection}`;
+      section.open = readMapPreference(key, section.open);
+      section.addEventListener('toggle', () => saveMapPreference(key, section.open));
+    });
+    const savedRouteMode = readMapPreference('routeMode', 'driving');
+    document.querySelectorAll('#route-controls input[name="routeMode"]').forEach(radio => {
+      if (radio.value === savedRouteMode) radio.checked = true;
+      radio.addEventListener('change', () => saveMapPreference('routeMode', radio.value));
+    });
 
     const mobileControlsToggleBtn = document.getElementById("mobileControlsToggle");
     const sidebarTopControlsEl = document.getElementById("sidebarTopControls");
@@ -10024,7 +10038,7 @@ function emojiHtml(str, hue = 0) {
         populateArchiveSourcesForYear(archiveYearSelect.value || years[0]);
       }
 
-      function populateArchiveSourcesForYear(year, options = {}) {
+      function populateArchiveSourcesForYear(year) {
         if (!archiveSourceSelect) return;
         const items = ARCHIVE_IMAGERY_ITEMS.filter(item => item.year === year);
         archiveSourceSelect.innerHTML = '';
@@ -10041,7 +10055,6 @@ function emojiHtml(str, hue = 0) {
         if (archiveEnableBtn) archiveEnableBtn.disabled = false;
         const message = archiveImagerySourceState.warning ? ARCHIVE_FALLBACK_WARNING : `Dostępne źródła: ${items.length}`;
         setArchiveStatus(message, archiveImagerySourceState.warning ? 'empty' : 'info');
-        if (options.autoEnable) enableArchiveImagery(archiveSourceSelect.value);
       }
 
       function getArchiveLayerOpacity() {
@@ -10243,13 +10256,43 @@ function emojiHtml(str, hue = 0) {
         archiveImageryStatusEl = document.getElementById('archiveImageryStatus');
         if (!archiveYearSelect || !archiveSourceSelect || !archiveEnableBtn || !archiveDisableBtn) return;
 
-        archiveYearSelect.addEventListener('change', () => populateArchiveSourcesForYear(archiveYearSelect.value, { autoEnable: true }));
-        archiveSourceSelect.addEventListener('change', () => enableArchiveImagery(archiveSourceSelect.value));
-        archiveEnableBtn.addEventListener('click', () => enableArchiveImagery(archiveSourceSelect.value));
-        archiveDisableBtn.addEventListener('click', disableArchiveImagery);
+        const saveArchiveSelection = (enabled) => {
+          saveMapPreference('archiveSelection', {
+            year: archiveYearSelect.value,
+            source: archiveSourceSelect.value,
+            enabled
+          });
+        };
+        const enableArchiveSelection = () => {
+          saveArchiveSelection(true);
+          enableArchiveImagery(archiveSourceSelect.value);
+        };
+        const restoreArchiveSelection = () => {
+          populateArchiveYears();
+          const saved = readMapPreference('archiveSelection', null);
+          if (!saved || ![...archiveYearSelect.options].some(option => option.value === saved.year)) return;
+          archiveYearSelect.value = saved.year;
+          populateArchiveSourcesForYear(saved.year);
+          if (![...archiveSourceSelect.options].some(option => option.value && option.value === saved.source)) return;
+          archiveSourceSelect.value = saved.source;
+          if (saved.enabled) enableArchiveImagery(saved.source);
+        };
+        archiveYearSelect.addEventListener('change', () => {
+          populateArchiveSourcesForYear(archiveYearSelect.value);
+          enableArchiveSelection();
+        });
+        archiveSourceSelect.addEventListener('change', enableArchiveSelection);
+        archiveEnableBtn.addEventListener('click', enableArchiveSelection);
+        archiveDisableBtn.addEventListener('click', () => {
+          disableArchiveImagery();
+          saveArchiveSelection(false);
+        });
         if (archiveOpacitySlider) {
+          archiveOpacitySlider.value = readMapPreference('archiveOpacity', archiveOpacitySlider.value);
+          if (archiveOpacityValue) archiveOpacityValue.textContent = `${archiveOpacitySlider.value}%`;
           archiveOpacitySlider.addEventListener('input', () => {
             const opacity = Number(archiveOpacitySlider.value) / 100;
+            saveMapPreference('archiveOpacity', archiveOpacitySlider.value);
             if (archiveOpacityValue) archiveOpacityValue.textContent = `${archiveOpacitySlider.value}%`;
             if (activeArchiveImageryLayer && typeof activeArchiveImageryLayer.setOpacity === 'function') activeArchiveImageryLayer.setOpacity(opacity);
           });
@@ -10261,7 +10304,7 @@ function emojiHtml(str, hue = 0) {
         setArchiveStatus(navigator.onLine ? 'Ładowanie źródeł archiwalnych…' : 'Zdjęcia archiwalne wymagają internetu', navigator.onLine ? 'loading' : 'error');
         loadArchiveSources()
           .then(() => {
-            populateArchiveYears();
+            restoreArchiveSelection();
             if (!navigator.onLine) setArchiveStatus('Zdjęcia archiwalne wymagają internetu', 'error');
           })
           .catch(error => {
@@ -10269,8 +10312,8 @@ function emojiHtml(str, hue = 0) {
             archiveImagerySourceState.warning = true;
             addManualGugikArchiveItems();
             addManualEsriWaybackItems();
-            populateArchiveYears();
             setArchiveStatus(ARCHIVE_FALLBACK_WARNING, 'empty');
+            restoreArchiveSelection();
           });
       }
 
@@ -10753,14 +10796,34 @@ function emojiHtml(str, hue = 0) {
         updateMapDateUI(key);
       }
 
-      roadsLayer = roadsFull;
-      switchBaseLayer('sat');
+      const streetLayers = { full: roadsFull, main: roadsSimple, none: null };
+      const streetRadios = document.querySelectorAll('input[name="streets"]');
+      const savedStreets = readMapPreference('streets', 'full');
+      const streetMode = [...streetRadios].some(radio => radio.value === savedStreets) ? savedStreets : 'full';
+      roadsLayer = streetLayers[streetMode];
+      streetRadios.forEach(radio => {
+        radio.checked = radio.value === streetMode;
+        radio.addEventListener('change', () => {
+          if (roadsLayer) map.removeLayer(roadsLayer);
+          roadsLayer = streetLayers[radio.value];
+          if (currentBase !== 'osm' && roadsLayer) roadsLayer.addTo(map);
+          saveMapPreference('streets', radio.value);
+        });
+      });
+
+      const baseRadios = document.querySelectorAll('input[name="basemap"]');
+      const savedBase = readMapPreference('basemap', 'sat');
+      const baseKey = [...baseRadios].some(radio => radio.value === savedBase) ? savedBase : 'sat';
+      baseRadios.forEach(radio => {
+        radio.checked = radio.value === baseKey;
+        radio.addEventListener('change', () => {
+          saveMapPreference('basemap', radio.value);
+          switchBaseLayer(radio.value);
+        });
+      });
+      switchBaseLayer(baseKey);
       console.log('🆕 Dodano opcjonalną nakładkę OSM/Overpass wyświetlającą wybrane miejsca z OpenStreetMap bez zapisywania ich do Firestore i bez dodawania do listy pinezek.');
 
-
-      document.querySelectorAll('input[name="basemap"]').forEach(radio => {
-        radio.addEventListener('change', () => switchBaseLayer(radio.value));
-      });
 
       const overlayCheckboxIds = { archStd: 'overlay-arch-std', archHi: 'overlay-arch-hi', shade: 'overlay-shade' };
       const pinPlansOverlayCheckbox = document.getElementById('overlay-pin-plans');
@@ -10779,39 +10842,52 @@ function emojiHtml(str, hue = 0) {
         debouncedLoadOsmOverlay();
       }
       if (pinPlansOverlayCheckbox) {
-        pinPlansOverlayCheckbox.addEventListener('change', (e) => setPinPlansOverlayVisible(!!e.target.checked));
+        pinPlansOverlayCheckbox.addEventListener('change', () => {
+          const enabled = pinPlansOverlayCheckbox.checked;
+          saveMapPreference('pinPlans', enabled);
+          setPinPlansOverlayVisible(enabled);
+        });
       }
-      setPinPlansOverlayVisible(true);
+      setPinPlansOverlayVisible(readMapPreference('pinPlans', true));
       if (osmOverlayCheckbox) {
-        osmOverlayCheckbox.addEventListener('change', (e) => setOsmOverlayState(!!e.target.checked));
+        osmOverlayCheckbox.addEventListener('change', () => {
+          const enabled = osmOverlayCheckbox.checked;
+          saveMapPreference('osmPlaces', enabled);
+          setOsmOverlayState(enabled);
+        });
       }
       osmOverlayStatusEl = document.getElementById('osmOverlayStatus');
-      setOsmOverlayState(true);
+      setOsmOverlayState(readMapPreference('osmPlaces', true));
       initArchiveImageryControls();
       map.on('moveend zoomend', () => { if (osmOverlayEnabled) debouncedLoadOsmOverlay(); });
 
-      ['archStd','archHi','shade'].forEach(key => {
-        const checkbox = document.getElementById(overlayCheckboxIds[key]);
-        if (checkbox) {
-          checkbox.addEventListener('change', e => {
-            const slider = document.getElementById(`opacity-${key}`);
-            if (e.target.checked) {
-              overlays[key].addTo(map);
-              if (key === 'shade' && slider) slider.classList.remove('ukryta');
-              bringActiveMapOverlaysToFront();
-            } else {
-              map.removeLayer(overlays[key]);
-              if (key === 'shade' && slider) slider.classList.add('ukryta');
-            }
-          });
-        }
-
+      Object.entries(overlayCheckboxIds).forEach(([key, id]) => {
+        const checkbox = document.getElementById(id);
         const btn = document.querySelector(`.opacity-btn[data-target="${key}"]`);
         const slider = document.getElementById(`opacity-${key}`);
         if (slider) {
+          slider.value = readMapPreference(`${key}.opacity`, slider.value);
           overlays[key].setOpacity(slider.value / 100);
-          slider.addEventListener('input', ev => {
-            overlays[key].setOpacity(ev.target.value / 100);
+          slider.addEventListener('input', () => {
+            overlays[key].setOpacity(slider.value / 100);
+            saveMapPreference(`${key}.opacity`, slider.value);
+          });
+        }
+        if (checkbox) {
+          const applyVisibility = () => {
+            if (checkbox.checked) {
+              overlays[key].addTo(map);
+              bringActiveMapOverlaysToFront();
+            } else {
+              map.removeLayer(overlays[key]);
+            }
+            if (key === 'shade' && slider) slider.classList.toggle('ukryta', !checkbox.checked);
+          };
+          checkbox.checked = readMapPreference(`${key}.visible`, checkbox.defaultChecked);
+          applyVisibility();
+          checkbox.addEventListener('change', () => {
+            applyVisibility();
+            saveMapPreference(`${key}.visible`, checkbox.checked);
           });
         }
         if (btn && slider) {
@@ -10836,14 +10912,6 @@ function emojiHtml(str, hue = 0) {
       window.addEventListener("resize", applyResponsiveLayoutClass);
       window.addEventListener("orientationchange", applyResponsiveLayoutClass);
 
-      document.querySelectorAll('input[name="streets"]').forEach(radio => {
-        radio.addEventListener('change', () => {
-          if (roadsLayer) map.removeLayer(roadsLayer);
-          roadsLayer = (radio.value === 'main') ? roadsSimple :
-                       (radio.value === 'full') ? roadsFull : null;
-          if (currentBase !== 'osm' && roadsLayer) roadsLayer.addTo(map);
-        });
-      });
     map.on("click", e => {
       const popup = map && map._popup;
       const popupEl = popup && typeof popup.getElement === 'function' ? popup.getElement() : null;
@@ -12450,7 +12518,7 @@ function zaladujPinezkiZFirestore() {
     }
 
     function persistAllLayerCollapseStates() {
-      const states = {};
+      const states = loadLayerCollapseStates();
       Object.keys(warstwy).forEach(name => {
         states[name] = !!warstwy[name].collapsed;
       });
@@ -12488,7 +12556,7 @@ function zaladujPinezkiZFirestore() {
     }
 
     function persistAllLayerVisibilityStates() {
-      const states = {};
+      const states = loadLayerVisibilityStates();
       Object.keys(warstwy).forEach(name => {
         if (!warstwy[name].temporary) {
           states[name] = !!warstwy[name].visible;
@@ -16215,8 +16283,8 @@ function getTripPointEmoji(p) {
       const pinTotalCounter = document.getElementById("pinTotalCounter");
       lista.innerHTML = "";
       const saved = loadLayerOrder();
-      const collapseStates = collapseStatesOverride || (shouldIgnoreStoredLayerState ? {} : loadLayerCollapseStates());
-      const visibilityStates = shouldIgnoreStoredLayerState ? {} : loadLayerVisibilityStates();
+      const collapseStates = collapseStatesOverride || loadLayerCollapseStates();
+      const visibilityStates = loadLayerVisibilityStates();
       const nazwy = [...saved.filter(n => warstwy[n]), ...Object.keys(warstwy).filter(n => !saved.includes(n))];
       const tempLayers = nazwy.filter(n => warstwy[n].temporary);
       const regularLayers = nazwy.filter(n => {
@@ -16356,11 +16424,7 @@ function getTripPointEmoji(p) {
         if (collapseStates.hasOwnProperty(nazwa)) {
           warstwy[nazwa].collapsed = collapseStates[nazwa];
         } else if (!warstwy[nazwa].temporary) {
-          if (shouldIgnoreStoredLayerState) {
-            warstwy[nazwa].collapsed = true;
-          } else if (shouldApplyDefaultLayerState) {
-            warstwy[nazwa].collapsed = !getLayerDefaultVisible(nazwa);
-          }
+          warstwy[nazwa].collapsed = true;
         }
         const toggleBtn = document.createElement("button");
         toggleBtn.type = "button";
@@ -16554,8 +16618,6 @@ function getTripPointEmoji(p) {
       if (toggleVisibilityBtn) {
         toggleVisibilityBtn.textContent = allLayersVisible ? 'Ukryj warstwy' : 'Pokaż warstwy';
       }
-      persistAllLayerVisibilityStates();
-      shouldIgnoreStoredLayerState = false;
       if (!deferMarkerVisibilityUpdate) {
         updateMarkerVisibility();
       }
