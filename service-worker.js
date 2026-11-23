@@ -8,6 +8,7 @@ const APP_SHELL = [
   '/ExploMapa/index.html',
   '/ExploMapa/style.css',
   '/ExploMapa/offline-uploads.js',
+  '/ExploMapa/pin-import.js',
   '/ExploMapa/firestore-setup.js',
   '/ExploMapa/leaflet-tilelayer-wmts.js',
   '/ExploMapa/manifest.json',
