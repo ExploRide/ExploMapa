@@ -274,8 +274,11 @@ window.pinImport = (() => {
         await wait(Math.max(1500 * 2 ** attempt, delay || 0), signal);
       }
     };
+    // Keep only a short-lived in-memory cache (not persistent Places storage).
+    const googleCache = new Map();
     const google = async (mapsUrl, signal) => {
       if (!endpoint || !mapsUrl) return null;
+      if (googleCache.has(mapsUrl)) return googleCache.get(mapsUrl);
       const token = await getToken();
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -284,7 +287,10 @@ window.pinImport = (() => {
         signal: AbortSignal.any([signal, AbortSignal.timeout(25000)])
       });
       if (!response.ok) return null;
-      return (await response.json()).place || null;
+      const place = (await response.json()).place || null;
+      if (googleCache.size >= 500) googleCache.delete(googleCache.keys().next().value);
+      googleCache.set(mapsUrl, place);
+      return place;
     };
     const lookup = async (cids, signal) => {
       const token = await getToken();
@@ -334,21 +340,13 @@ window.pinImport = (() => {
       if (!item) return false;
       const point = coordinates(item.lat, item.lng);
       if (!point) return false;
-      const candidate = {
-        ...point, name: item.name, label: item.label, placeId: item.placeId,
-        provider: 'Google Places', confidence: 1,
-        nameMatch: placeMatchScore(entry.queryName || entry.pin.nazwa, item.name)
-      };
-      // A resolved Google Maps URL identifies a specific place, even if its
-      // localized name differs. Keep moderate matches for explicit review.
-      if (candidate.nameMatch >= 0.9) {
-        Object.assign(entry.pin, point);
-        entry.pin.importSource.coordinateSource = 'Google Places';
-        entry.state = 'ready';
-      } else {
-        entry.candidates.unshift(candidate);
-        entry.state = 'review';
-      }
+      // Place identity is sourced from this item's actual Google Maps URL,
+      // not a name search. We only request location (Essentials SKU).
+      // The original CSV name and URL are preserved.
+      if (!/^[-\\w]{5,}$/.test(item.placeId || '')) return false;
+      Object.assign(entry.pin, point);
+      entry.pin.importSource.coordinateSource = 'Google Places (Maps URL)';
+      entry.state = 'ready';
       return true;
     } catch (error) {
       if (signal.aborted) throw error;
