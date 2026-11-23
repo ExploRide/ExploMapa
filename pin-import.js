@@ -343,7 +343,7 @@ window.pinImport = (() => {
       // Place identity is sourced from this item's actual Google Maps URL,
       // not a name search. We only request location (Essentials SKU).
       // The original CSV name and URL are preserved.
-      if (!/^[-\\w]{5,}$/.test(item.placeId || '')) return false;
+      if (!/^[A-Za-z0-9_-]{5,}$/.test(item.placeId || '')) return false;
       Object.assign(entry.pin, point);
       entry.pin.importSource.coordinateSource = 'Google Places (Maps URL)';
       entry.state = 'ready';
