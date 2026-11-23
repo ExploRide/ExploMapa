@@ -3036,45 +3036,54 @@ html body #basemap-switcher { width: calc(264px * var(--ui-scale)); }
   }
 }
 
-/* Map markers must not be affected by UI scale */
+/* Map markers use their own scale preferences. */
 html body .leaflet-marker-icon.emoji-marker {
   width: 24px !important;
   height: 24px !important;
   overflow: visible !important;
   background: transparent !important;
   border: 0 !important;
-  font-size: 19px !important;
-  line-height: 24px !important;
+  font-size: var(--map-pin-font-size, 19px) !important;
+  line-height: var(--map-pin-size, 24px) !important;
 }
 
 html body .emoji-marker-inner {
-  width: 24px !important;
-  height: 24px !important;
+  width: var(--map-pin-size, 24px) !important;
+  height: var(--map-pin-size, 24px) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  position: relative !important;
+  position: absolute !important;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: var(--map-pin-background, transparent);
   overflow: visible !important;
 }
 
 html body .emoji-marker span:not(.status-icon):not(.sztosy-gwiazda),
 html body .emoji-marker .emoji-sztosy {
-  font-size: 19px !important;
-  line-height: 24px !important;
+  font-size: var(--map-pin-font-size, 19px) !important;
+  line-height: var(--map-pin-size, 24px) !important;
 }
 
 html body .emoji-marker-img,
 html body .emoji-marker img.emoji-marker-img,
 html body .emoji-marker img.emoji-obrys,
 html body .emoji-marker img.emoji-obrys-sztosy {
-  width: 24px !important;
-  height: 24px !important;
-  max-width: 24px !important;
-  max-height: 24px !important;
+  width: var(--map-pin-size, 24px) !important;
+  height: var(--map-pin-size, 24px) !important;
+  max-width: var(--map-pin-size, 24px) !important;
+  max-height: var(--map-pin-size, 24px) !important;
   min-width: 0 !important;
   min-height: 0 !important;
   object-fit: contain !important;
   display: block !important;
+}
+
+.emoji-marker-img.emoji-marker-dot {
+  filter: none;
 }
 
 html body .emoji-marker img.emoji-obrys,
@@ -3087,21 +3096,48 @@ html body .emoji-marker .status-icon {
   top: -4px !important;
   right: -5px !important;
   bottom: auto !important;
-  font-size: 12px !important;
+  font-size: var(--map-status-size, 12px) !important;
   line-height: 1 !important;
 }
 
 html body .emoji-marker img.status-icon.checkmark-obrys {
-  width: 12px !important;
-  height: 12px !important;
+  width: var(--map-status-size, 12px) !important;
+  height: var(--map-status-size, 12px) !important;
 }
 
 html body .emoji-marker .sztosy-gwiazda {
   top: auto !important;
   right: -5px !important;
   bottom: -3px !important;
-  font-size: 13px !important;
+  font-size: var(--map-highlight-size, 13px) !important;
   line-height: 1 !important;
+}
+
+#map-options-dialog {
+  box-sizing: border-box;
+  width: min(360px, calc(100% - 24px));
+  padding: 20px;
+  border: 1px solid #3a3f4a;
+  border-radius: 10px;
+  background: #1d2028;
+  color: #fff;
+}
+#map-options-dialog::backdrop {
+  background: rgba(0, 0, 0, .28);
+}
+#map-options-dialog form {
+  display: grid;
+  gap: 12px;
+}
+#map-options-dialog h2 {
+  margin: 0;
+}
+#map-options-dialog input[type="range"] {
+  width: 100%;
+  margin: 0;
+}
+#map-options-dialog button {
+  justify-self: end;
 }
 
 /* Trip special point modal: bez podwójnego skalowania */
@@ -3267,6 +3303,7 @@ body.mobile-layout #saveChanges {
         <div id="specialMenu">
           <button id="specialMenuToggle" type="button" aria-label="Menu specjalne" aria-expanded="false">☰</button>
           <div id="specialMenuContent" aria-label="Opcje specjalne">
+            <button id="mapOptionsBtn" type="button" aria-haspopup="dialog">Opcje mapy</button>
             <button id="emojiToolBtn">Emoji Tool</button>
             <button id="exportKML">Zapisz do .KML</button>
             <button id="findDuplicatePinsBtn">Znajdź duplikaty pinezek</button>
@@ -3599,6 +3636,17 @@ body.mobile-layout #saveChanges {
       <button id="uiScaleReset" type="button">Reset</button>
     </div>
   </div>
+  <dialog id="map-options-dialog" aria-labelledby="map-options-title">
+    <form method="dialog">
+      <h2 id="map-options-title">Opcje mapy</h2>
+      <label for="map-pin-scale">Skala pinezek <output id="map-pin-scale-value" for="map-pin-scale">100%</output></label>
+      <input id="map-pin-scale" type="range" min="50" max="200" step="5" value="100" autofocus>
+      <label><input id="map-pin-background" type="checkbox"> Tło pinezek</label>
+      <label for="map-status-scale">Skala ikon statusów <output id="map-status-scale-value" for="map-status-scale">100%</output></label>
+      <input id="map-status-scale" type="range" min="50" max="200" step="5" value="100">
+      <button type="submit">Zamknij</button>
+    </form>
+  </dialog>
   <div id="layer-editor">
     <h3>Edycja warstwy</h3>
     <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
@@ -4572,9 +4620,60 @@ function slugify(str) {
       }
     });
 
+    const mapOptionsDialog = document.getElementById('map-options-dialog');
+    const mapPinScale = document.getElementById('map-pin-scale');
+    const mapPinBackground = document.getElementById('map-pin-background');
+    const mapStatusScale = document.getElementById('map-status-scale');
+    let mapOptionsStorageKey = null;
+
+    function applyMapOptions() {
+      const pinScale = mapPinScale.valueAsNumber / 100;
+      const statusScale = mapStatusScale.valueAsNumber / 100;
+      const style = document.documentElement.style;
+      style.setProperty('--map-pin-size', `${24 * pinScale}px`);
+      style.setProperty('--map-pin-font-size', `${19 * pinScale}px`);
+      style.setProperty('--map-status-size', `${12 * statusScale}px`);
+      style.setProperty('--map-highlight-size', `${13 * statusScale}px`);
+      style.setProperty('--map-pin-background', mapPinBackground.checked ? 'rgba(255, 255, 255, .55)' : 'transparent');
+      document.getElementById('map-pin-scale-value').value = `${mapPinScale.value}%`;
+      document.getElementById('map-status-scale-value').value = `${mapStatusScale.value}%`;
+    }
+
+    function loadMapOptions(uid) {
+      const storageKey = uid ? `exploMapaMapOptions:${uid}` : null;
+      if (storageKey === mapOptionsStorageKey) return;
+      mapOptionsStorageKey = storageKey;
+      let saved;
+      try {
+        if (storageKey) saved = JSON.parse(localStorage.getItem(storageKey));
+      } catch (error) {
+        console.warn('Nie udało się odczytać opcji mapy', error);
+      }
+      mapPinScale.value = Number.isFinite(saved?.pinScale) ? saved.pinScale : 100;
+      mapPinBackground.checked = saved?.pinBackground === true;
+      mapStatusScale.value = Number.isFinite(saved?.statusScale) ? saved.statusScale : 100;
+      applyMapOptions();
+      if (!uid) mapOptionsDialog.close();
+    }
+
+    mapOptionsDialog.addEventListener('input', () => {
+      applyMapOptions();
+      if (!mapOptionsStorageKey) return;
+      try {
+        localStorage.setItem(mapOptionsStorageKey, JSON.stringify({
+          pinScale: mapPinScale.valueAsNumber,
+          pinBackground: mapPinBackground.checked,
+          statusScale: mapStatusScale.valueAsNumber
+        }));
+      } catch (error) {
+        console.warn('Nie udało się zapisać opcji mapy', error);
+      }
+    });
+
     firebase.auth().onIdTokenChanged(async user => {
       const loginBtn = document.getElementById("loginBtn");
       if (!user) {
+        loadMapOptions(null);
         localStorage.removeItem(AUTH_REMEMBER_KEY);
         loginBtn.textContent = "Zaloguj się przez Google";
         loginBtn.disabled = false;
@@ -4594,6 +4693,7 @@ function slugify(str) {
       localStorage.setItem(AUTH_REMEMBER_KEY, "1");
       loginBtn.textContent = "Zaloguj się przez Google";
       loginBtn.disabled = false;
+      loadMapOptions(user.uid);
       showAuthenticatedApp();
     });
 
@@ -6577,57 +6677,27 @@ if (pinBtn) pinBtn.addEventListener("click", () => selectTool("pin"));
     function createEmojiIcon(emojiOrUrl, warstwaId, size = 24, status = {}) {
       emojiOrUrl = normalizePinEmojiValue(emojiOrUrl);
       const markerSize = 24;
-      const scaledSize = markerSize;
-      const overlaySize = 12;
-      const isSztosy = warstwaId && warstwaId === sztosyId;
-      const isHighlighted = isSztosy || status.wyroznione;
-      if (warstwaId && warstwaId === orangeLayerId) {
-        return L.icon({
-          iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png',
-          iconSize: [scaledSize, scaledSize],
-          iconAnchor: [scaledSize / 2, scaledSize]
-        });
-      }
-      if (warstwaId && warstwaId === movingLayerId) {
-        return L.icon({
-          iconUrl: 'https://maps.gstatic.com/mapfiles/ms2/micons/blue-dot.png',
-          iconSize: [scaledSize, scaledSize],
-          iconAnchor: [scaledSize / 2, scaledSize]
-        });
-      }
-
-      const resolvedEmoji = resolveEmoji(emojiOrUrl);
-      const isUrl = resolvedEmoji && resolvedEmoji.startsWith("http");
-      const overlay = pinStatusOverlayHtml(status, warstwaId, { className: 'status-icon', checkSize: overlaySize, includeHighlight: true });
-      const hueAttr = emojiHueStyle(getPinEmojiHue(status));
-
-      if (isUrl) {
-        const cls = isHighlighted ? "emoji-obrys-sztosy" : "emoji-obrys";
-        return L.divIcon({
-          className: 'emoji-marker',
-          html: `
-            <div class="emoji-marker-inner">
-              <img src="${resolvedEmoji}" class="emoji-marker-img emoji-hue-filter ${cls}"${hueAttr}>
-              ${overlay}
-            </div>`,
-          iconSize: [markerSize, markerSize],
-          iconAnchor: [markerSize / 2, markerSize],
-          popupAnchor: [0, -24]
-        });
-      }
-
-      const cls = isHighlighted ? "emoji-sztosy" : "";
+      const isHighlighted = (warstwaId && warstwaId === sztosyId) || status.wyroznione;
+      const dotColor = warstwaId && warstwaId === orangeLayerId ? 'orange'
+        : warstwaId && warstwaId === movingLayerId ? 'blue' : '';
+      const resolvedEmoji = dotColor
+        ? `https://maps.gstatic.com/mapfiles/ms2/micons/${dotColor}-dot.png`
+        : resolveEmoji(emojiOrUrl);
+      const isUrl = resolvedEmoji && resolvedEmoji.startsWith('http');
+      const overlay = dotColor ? '' : pinStatusOverlayHtml(status, warstwaId, { checkSize: 12 });
+      const hueAttr = dotColor ? '' : emojiHueStyle(getPinEmojiHue(status));
+      const outlineClass = isHighlighted ? 'emoji-obrys-sztosy' : 'emoji-obrys';
+      const imageClass = dotColor ? 'emoji-marker-dot' : `emoji-hue-filter ${outlineClass}`;
+      const iconHtml = isUrl
+        ? `<img src="${resolvedEmoji}" class="emoji-marker-img ${imageClass}"${hueAttr}>`
+        : `<span class="${isHighlighted ? 'emoji-sztosy' : ''} emoji-hue-filter"${hueAttr}>${resolvedEmoji}</span>`;
 
       return L.divIcon({
         className: 'emoji-marker',
-        html: `
-          <div class="emoji-marker-inner">
-            <span class="${cls} emoji-hue-filter"${hueAttr}>${resolvedEmoji}</span>
-            ${overlay}
-          </div>`,
+        html: `<div class="emoji-marker-inner">${iconHtml}${overlay}</div>`,
         iconSize: [markerSize, markerSize],
         iconAnchor: [markerSize / 2, markerSize],
-        popupAnchor: [0, -24]
+        popupAnchor: [0, dotColor ? 0 : -markerSize]
       });
     }
 
@@ -16316,6 +16386,12 @@ function getTripPointEmoji(p) {
     const specialMenu = document.getElementById('specialMenu');
     const specialMenuToggle = document.getElementById('specialMenuToggle');
     const specialMenuContent = document.getElementById('specialMenuContent');
+    document.getElementById('mapOptionsBtn').addEventListener('click', () => {
+      specialMenuContent.classList.remove('open');
+      specialMenuToggle.setAttribute('aria-expanded', 'false');
+      mapOptionsDialog.showModal();
+    });
+    mapOptionsDialog.addEventListener('close', () => specialMenuToggle.focus());
     if (specialMenu && specialMenuToggle && specialMenuContent) {
       specialMenuToggle.addEventListener('click', (e) => {
         e.stopPropagation();
