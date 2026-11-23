@@ -94,6 +94,33 @@ test('retries rate limits, caches results, requires review for name-only and han
   assert.equal(missing.state, 'unresolved');
 });
 
+test('accepts only unambiguous high-confidence name matches without a CSV address', async () => {
+  const signal = new AbortController().signal;
+  const [safe, low, ambiguous, different] = importer.parseCsvContent(
+    'Name\\nMuzeum Józefa Czechowicza\\nPałac\\nMuzeum\\nMuzeum Zabawek'
+  );
+  await importer.resolveEntry(safe, async () => [{
+    name: 'Muzeum Józefa Czechowicza', label: 'Muzeum Józefa Czechowicza, Lublin, Polska',
+    confidence: 0.99, lat: 51.25, lng: 22.57
+  }], signal);
+  assert.equal(safe.state, 'ready');
+  assert.deepEqual(points([safe]), [[51.25, 22.57]]);
+  await importer.resolveEntry(low, async () => [{
+    name: 'Pałac', label: 'Pałac, Polska', confidence: 0.87, lat: 51, lng: 22
+  }], signal);
+  assert.equal(low.state, 'review');
+  await importer.resolveEntry(ambiguous, async () => [
+    { name: 'Muzeum', label: 'Muzeum, Lublin', confidence: 0.99, lat: 51, lng: 22 },
+    { name: 'Muzeum', label: 'Muzeum, Warszawa', confidence: 0.92, lat: 52, lng: 21 }
+  ], signal);
+  assert.equal(ambiguous.state, 'review');
+  await importer.resolveEntry(different, async () => [{
+    name: 'Muzeum Narodowe', label: 'Muzeum Narodowe, Warszawa',
+    confidence: 0.99, lat: 52, lng: 21
+  }], signal);
+  assert.equal(different.state, 'review');
+});
+
 test('reports exhausted quota and aborts an active request', async () => {
   let requests = 0;
   const api = loadImporter(async () => {
