@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.694';
+    const BUILD_VERSION = '2026-11-23 v.0.695';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1236,6 +1236,7 @@ body, #sidebar, #basemap-switcher {
 #pinImportProgress progress { width: 100%; }
 #pinImportApproveAll { font-weight: 600; }
 #pinImportNotice, #pinImportReview p, #pinImportReview h3 { margin: 4px 0; }
+#pinImportNotice[data-level="error"] { color: #ff6b73; font-weight: 600; }
 #kmlImportPins li:not([hidden]) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -6353,7 +6354,7 @@ function slugify(str) {
       };
       createdPins.forEach(pin => {
         optionalRefresh(() => registerPinCountry(pin), 'country');
-        if (!isMobileLayout && !pin.importSource) optionalRefresh(() => enqueueCountryFetch(pin), 'country queue');
+        if (window.innerWidth > 700 && !pin.importSource) optionalRefresh(() => enqueueCountryFetch(pin), 'country queue');
       });
       optionalRefresh(refreshCategoryCollectionsFromPins, 'categories');
       optionalRefresh(updateCategoryFilter, 'filter');
@@ -6410,9 +6411,10 @@ function slugify(str) {
       let reviewMarker;
       let reviewCandidate;
 
-      function setNotice(message) {
+      function setNotice(message, level = 'info') {
         notice.textContent = message;
         notice.hidden = !message;
+        notice.dataset.level = level;
       }
 
       function closeReview() {
@@ -6704,6 +6706,7 @@ function slugify(str) {
           if (operation !== controller || !dialog.open) return;
           console.error('Błąd odczytu pliku pinezek', error);
           status.textContent = error.message || 'Nie udało się odczytać pliku.';
+          setNotice(status.textContent, 'error');
         } finally {
           if (!operation || operation === controller) {
             operation = null;
@@ -6863,7 +6866,7 @@ function slugify(str) {
           // The error must be visible for diagnosis; generic failure can hide
           // the fact that a new layer was already created.
           setNotice('Błąd importu: ' + (error?.message || String(error)) +
-            '. Sprawdź, czy warstwa lub pinezki nie zostały już dodane.');
+            '. Sprawdź, czy warstwa lub pinezki nie zostały już dodane.', 'error');
         }
       });
     }
