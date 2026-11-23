@@ -2311,7 +2311,7 @@ img.emoji {
   width: auto;
 }
 
-    #toast {
+    #toast, #mapSaveToast {
       position: fixed;
       top: 10px;
       left: 302px;
@@ -2834,7 +2834,8 @@ img.emoji {
     }
 
     #banner,
-    #toast {
+    #toast,
+    #mapSaveToast {
       border: 1px solid var(--ui-border);
       box-shadow: var(--ui-shadow);
       border-radius: 8px !important;
@@ -3056,7 +3057,7 @@ html body .trip-point-name, html body .trip-day-visible-toggle, html body .popup
 html body .popup-description, html body .popup-route-btn, html body .popup-direct-route-btn,
 html body .popup-chatgpt-btn,
 html body .route-time-tooltip, html body .plan-option-panel, html body .plan-editor-panel,
-html body [class*="duplicate-"], html body #history-log, html body #toast, html body #banner,
+html body [class*="duplicate-"], html body #history-log, html body #toast, html body #mapSaveToast, html body #banner,
 html body #performance-debug-overlay, html body #osmOverlayStatus, html body .osm-popup,
 html body .osm-overlay-label, html body details, html body summary, html body label,
 html body button, html body input, html body select, html body textarea {
@@ -3261,23 +3262,42 @@ html body .trip-special-point-modal label {
 }
 
 
+#mapSaveControls {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483600;
+  pointer-events: none;
+}
+
+#mapSaveToast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  box-sizing: border-box;
+  text-align: center;
+}
+
 #saveChanges {
-  display: none;
-  position: fixed !important;
-  bottom: 12px !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  z-index: 2147483600 !important;
+  display: block;
+  position: static;
+  visibility: hidden;
   width: auto !important;
   min-width: 180px !important;
   pointer-events: auto !important;
 }
 
+body.mobile-layout #mapSaveControls {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
+  z-index: 2147483646;
+}
+
 body.mobile-layout #saveChanges {
-  top: auto !important;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px) !important;
   min-width: 170px !important;
-  z-index: 2147483646 !important;
 }
 
 /* Compact inline fields in pin add/edit forms */
@@ -3595,7 +3615,10 @@ body.mobile-layout #saveChanges {
   <div id="planOptions" class="plan-option-panel" style="display:none;"></div>
   <button id="toggleLayers">☰ Warstwy</button>
   <button id="toggleBasemaps">☰ Mapy</button>
-  <button id="saveChanges">Zapisz edycję mapy</button>
+  <div id="mapSaveControls">
+    <div id="mapSaveToast" role="status"></div>
+    <button id="saveChanges">Zapisz edycję mapy</button>
+  </div>
   <div id="basemap-switcher">
     <div id="basemap-content">
       <div class="basemap-header">
@@ -4998,8 +5021,8 @@ function slugify(str) {
         baseLayerLoadingCount = 0;
       }
     }
-    function showToast(msg, duration = 3000) {
-      const el = document.getElementById('toast');
+    function showToast(msg, duration = 3000, toastId = 'toast') {
+      const el = document.getElementById(toastId);
       if (!el) return;
       el.textContent = msg;
       el.style.display = 'block';
@@ -6955,11 +6978,11 @@ function slugify(str) {
       const pending = hasUnsavedChanges();
       const btn = document.getElementById('saveChanges');
       if (!btn) return;
-      btn.style.display = pending ? 'block' : 'none';
+      btn.style.visibility = pending ? 'visible' : 'hidden';
       btn.classList.toggle('unsaved', pending);
       console.log('SAVE BUTTON STATE', {
         pending,
-        display: btn.style.display,
+        visibility: btn.style.visibility,
         nowePinezkiLength: nowePinezki.length,
         pinsToDeleteLength: pinsToDelete.length
       });
@@ -16742,7 +16765,7 @@ function getTripPointEmoji(p) {
         resetDirtyState();
         persistAllLayerCollapseStates();
         persistAllLayerVisibilityStates();
-        showToast('Zapisano zmiany mapy.', 5000);
+        showToast('Zapisano zmiany mapy.', 5000, 'mapSaveToast');
       } catch (err) {
         console.error(err);
         showToast('Nie udało się zapisać zmian. Spróbuj ponownie.', 5000);
