@@ -214,6 +214,104 @@ window.pinImport = (() => {
     return keys;
   }
 
+
+  // Browser-local import preview cache. Google Places coordinates expire within
+  // 30 calendar days per Google Maps Platform terms; all other entries expire
+  // sooner. Never persist errors or the Google Places full response.
+  const CACHE_KEY = 'exploPinImportLookupCache.v1';
+  const CACHE_TTL = 29 * 24 * 60 * 60 * 1000;
+  const REVIEW_TTL = 7 * 24 * 60 * 60 * 1000;
+  const CACHE_MAX = 600;
+  const cacheKey = pin => {
+    const source = pin.importSource || {};
+    const url = googleMapsUrl(source.url);
+    if (url) return 'url:' + url.href;
+    const placeId = normalizePlaceId(source.placeId);
+    if (placeId) return 'place:' + placeId;
+    const name = normalize(pin.nazwa);
+    const address = normalize(source.address);
+    // Do not equate two unrelated places solely by a generic name.
+    return name && address ? 'name-address:' + name + '|' + address : '';
+  };
+  function readImportCache() {
+    try {
+      const data = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+      const now = Date.now();
+      let changed = false;
+      for (const [key, record] of Object.entries(data)) {
+        if (!record || !Number.isFinite(record.expires) || record.expires <= now || record.expires > now + CACHE_TTL) {
+          delete data[key];
+          changed = true;
+        }
+      }
+      if (changed) localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      return data;
+    } catch { return {}; }
+  }
+  function saveImportCache(entry) {
+    const key = cacheKey(entry.pin);
+    if (!key || entry.error || entry.duplicate || entry.imported || entry.state === 'pending') return false;
+    const state = entry.state;
+    if (!['ready', 'review', 'unresolved'].includes(state)) return false;
+    const point = coordinates(entry.pin.lat, entry.pin.lng);
+    if (state === 'ready' && !point) return false;
+    const data = readImportCache();
+    // Save only the minimum data needed to reproduce the same import preview.
+    const candidates = state === 'review' ? (entry.candidates || []).slice(0, 8).flatMap(candidate => {
+      const loc = coordinates(candidate.lat, candidate.lng);
+      return loc ? [{ ...loc, label: candidate.label || '', name: candidate.name || '',
+        provider: candidate.provider || '', confidence: candidate.confidence || 0,
+        country: candidate.country || '', nameMatch: candidate.nameMatch || 0 }] : [];
+    }) : [];
+    const ttl = state === 'ready' ? CACHE_TTL : state === 'review' ? REVIEW_TTL : 24 * 60 * 60 * 1000;
+    data[key] = {
+      state, point: point || null, candidates,
+      coordinateSource: entry.pin.importSource?.coordinateSource || '',
+      country: entry.pin.kraj || '',
+      expires: Date.now() + ttl
+    };
+    const keys = Object.keys(data);
+    if (keys.length > CACHE_MAX) {
+      keys.sort((a, b) => data[a].expires - data[b].expires);
+      for (const old of keys.slice(0, keys.length - CACHE_MAX)) delete data[old];
+    }
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); return true; }
+    catch { return false; }
+  }
+  function restoreImportCache(entries) {
+    const data = readImportCache();
+    let hits = 0;
+    for (const entry of entries) {
+      if (entry.state !== 'pending' || entry.imported) continue;
+      const record = data[cacheKey(entry.pin)];
+      if (!record) continue;
+      const point = record.point && coordinates(record.point.lat, record.point.lng);
+      if (record.state === 'ready' && point) {
+        Object.assign(entry.pin, point);
+        entry.pin.importSource.coordinateSource = record.coordinateSource || 'Pamięć importu';
+        if (record.country) entry.pin.kraj = record.country;
+        entry.state = 'ready';
+      } else if (record.state === 'review') {
+        entry.candidates = Array.isArray(record.candidates) ? record.candidates.flatMap(item => {
+          const loc = coordinates(item.lat, item.lng);
+          return loc ? [{ ...item, ...loc }] : [];
+        }) : [];
+        entry.state = entry.candidates.length ? 'review' : 'unresolved';
+      } else if (record.state === 'unresolved') {
+        entry.state = 'unresolved';
+      } else continue;
+      entry.cached = true;
+      hits++;
+    }
+    return hits;
+  }
+  function clearImportCache() {
+    try { localStorage.removeItem(CACHE_KEY); return true; }
+    catch { return false; }
+  }
+  function importCacheCount() { return Object.keys(readImportCache()).length; }
+
   function wait(delay, signal) {
     return new Promise((resolve, reject) => {
       signal.throwIfAborted();
@@ -398,5 +496,5 @@ window.pinImport = (() => {
     return 0;
   }
 
-  return { parseCsvContent, createGeocoder, resolveEntry, resolveGoogleEntry, resolveCustomerIds, rankCandidates, coordinates, duplicateKeys, googleMapsUrl };
+  return { parseCsvContent, createGeocoder, resolveEntry, resolveGoogleEntry, resolveCustomerIds, rankCandidates, coordinates, duplicateKeys, googleMapsUrl, restoreImportCache, saveImportCache, clearImportCache, importCacheCount };
 })();
