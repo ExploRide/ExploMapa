@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.690';
+    const BUILD_VERSION = '2026-11-23 v.0.691';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1260,7 +1260,8 @@ body, #sidebar, #basemap-switcher {
 #pinImportReview { margin-top: 8px; }
 #pinImportCandidates { max-width: 100%; width: 100%; margin: 4px 0; }
 #pinImportReviewMap { height: min(260px, 32dvh); overflow: hidden; isolation: isolate; }
-#pinImportReview input { width: 105px; }
+#pinImportReview input { box-sizing: border-box; }
+#pinImportCoordinates { width: 100%; min-width: 0; }
 
 #duplicatePinsModal {
   position: fixed;
@@ -3389,10 +3390,12 @@ body.mobile-layout #saveChanges {
           <label for="pinImportCandidates">Propozycje lokalizacji</label>
           <select id="pinImportCandidates"></select>
           <div id="pinImportReviewMap" aria-label="Mapa weryfikacji lokalizacji"></div>
-          <p>Kliknij mapę, przesuń znacznik lub wpisz współrzędne.</p>
+          <p>Kliknij mapę, przesuń znacznik lub wpisz współrzędne w formacie „szerokość, długość”.</p>
+          <label for="pinImportCoordinates">Współrzędne GPS</label>
+          <input id="pinImportCoordinates" type="text" inputmode="text" autocomplete="off"
+            placeholder="52.13993553695314, 21.242356280655233"
+            aria-describedby="pinImportReviewStatus">
           <div class="kml-import-actions">
-            <label>Szerokość <input id="pinImportLat" type="text" inputmode="decimal"></label>
-            <label>Długość <input id="pinImportLng" type="text" inputmode="decimal"></label>
             <button type="button" id="pinImportConfirmPoint">Zatwierdź położenie</button>
             <button type="button" id="pinImportCloseReview">Zamknij podgląd</button>
           </div>
@@ -6371,8 +6374,11 @@ function slugify(str) {
       const review = byId('pinImportReview');
       const source = byId('pinImportSource');
       const candidates = byId('pinImportCandidates');
-      const latInput = byId('pinImportLat');
-      const lngInput = byId('pinImportLng');
+      const coordinatesInput = byId('pinImportCoordinates');
+      const parseCoordinatePair = value => {
+        const match = /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*,\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*$/.exec(value);
+        return match ? pinImport.coordinates(match[1], match[2]) : null;
+      };
       const reviewStatus = byId('pinImportReviewStatus');
       const endpoint = byId('pinImportScript').dataset.geocoderUrl.trim();
       const { geocode, lookup, google } = pinImport.createGeocoder(endpoint, async () => {
@@ -6476,8 +6482,7 @@ function slugify(str) {
       }
 
       function moveReviewMarker(point, recenter) {
-        latInput.value = point.lat.toFixed(7);
-        lngInput.value = point.lng.toFixed(7);
+        coordinatesInput.value = `${point.lat}, ${point.lng}`;
         if (reviewMarker) reviewMarker.setLatLng(point);
         else {
           reviewMarker = L.marker(point, { draggable: true }).addTo(reviewMap);
@@ -6503,8 +6508,7 @@ function slugify(str) {
           new Option(item.label || `${item.lat}, ${item.lng}`, String(index))
         ));
         candidates.disabled = !entry.candidates.length;
-        latInput.value = '';
-        lngInput.value = '';
+        coordinatesInput.value = '';
         reviewStatus.textContent = '';
         reviewMap = L.map('pinImportReviewMap').setView(map.getCenter(), map.getZoom());
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -6732,17 +6736,24 @@ function slugify(str) {
         reviewCandidate = reviewedEntry.candidates[Number(candidates.value)];
         moveReviewMarker(reviewCandidate, true);
       });
-      [latInput, lngInput].forEach(input => {
-        input.addEventListener('input', () => { reviewCandidate = null; });
-        input.addEventListener('keydown', event => {
-          if (event.key !== 'Enter') return;
-          event.preventDefault();
-          byId('pinImportConfirmPoint').click();
-        });
+      coordinatesInput.addEventListener('input', () => {
+        reviewCandidate = null;
+        const value = coordinatesInput.value.trim();
+        const point = parseCoordinatePair(value);
+        if (!point) {
+          reviewStatus.textContent = value ? 'Podaj współrzędne w formacie: 52.1399355, 21.2423563' : '';
+          return;
+        }
+        moveReviewMarker(point, true);
+      });
+      coordinatesInput.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        byId('pinImportConfirmPoint').click();
       });
       byId('pinImportCloseReview').addEventListener('click', closeReview);
       byId('pinImportConfirmPoint').addEventListener('click', () => {
-        const point = pinImport.coordinates(latInput.value, lngInput.value);
+        const point = parseCoordinatePair(coordinatesInput.value);
         if (!point) {
           reviewStatus.textContent = 'Wybierz położenie na mapie lub wpisz poprawne współrzędne.';
           return;
