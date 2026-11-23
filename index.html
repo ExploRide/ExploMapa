@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.683';
+    const BUILD_VERSION = '2026-11-23 v.0.684';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1231,6 +1231,7 @@ body, #sidebar, #basemap-switcher {
 
 #kmlImportDialog button { border-radius: 3px; }
 #pinImportProgress progress { width: 100%; }
+#pinImportApproveAll { font-weight: 600; }
 #pinImportNotice, #pinImportReview p, #pinImportReview h3 { margin: 4px 0; }
 #kmlImportPins li:not([hidden]) {
   display: grid;
@@ -3356,6 +3357,7 @@ body.mobile-layout #saveChanges {
         <div class="kml-import-actions">
           <button type="button" id="kmlImportSelectAll">Zaznacz wszystkie</button>
           <button type="button" id="kmlImportClearAll">Odznacz wszystkie</button>
+          <button type="button" id="pinImportApproveAll" title="Zatwierdź pierwszą propozycję lokalizacji dla wszystkich miejsc do weryfikacji">Zatwierdź wszystkie</button>
           <select id="pinImportFilter" aria-label="Filtr podglądu pinezek">
             <option value="">Wszystkie wyniki</option>
             <option value="ready">Rozpoznane</option>
@@ -6645,6 +6647,37 @@ function slugify(str) {
       byId('kmlImportClearAll').addEventListener('click', () => {
         entries.forEach(({ checkbox }) => { checkbox.checked = false; });
         reportResults();
+      });
+      byId('pinImportApproveAll').addEventListener('click', () => {
+        if (operation) return;
+        const pending = entries.filter(entry => !entry.duplicate && entry.state === 'review' &&
+          entry.candidates.some(candidate => candidate.provider === 'Geoapify' &&
+            pinImport.coordinates(candidate.lat, candidate.lng)));
+        if (!pending.length) {
+          setNotice('Brak propozycji Geoapify do zbiorczego zatwierdzenia.');
+          return;
+        }
+        if (!confirm('Zatwierdzić pierwszą propozycję Geoapify dla ' + pending.length +
+            ' miejsc? Uwaga: niektóre propozycje mogą wskazywać nieprawidłowe lokalizacje. ' +
+            'Sprawdź pinezki na mapie przed ostatecznym importem.')) return;
+        closeReview();
+        for (const entry of pending) {
+          const candidate = entry.candidates.find(item => item.provider === 'Geoapify' &&
+            pinImport.coordinates(item.lat, item.lng));
+          Object.assign(entry.pin, pinImport.coordinates(candidate.lat, candidate.lng));
+          entry.pin.importSource.coordinateSource = 'Geoapify (zatwierdzenie zbiorcze)';
+          if (candidate.country) entry.pin.kraj = candidate.country;
+          entry.state = 'ready';
+        }
+        detectDuplicates();
+        entries.forEach(entry => {
+          updateRow(entry);
+          if (pending.includes(entry)) entry.checkbox.checked = !entry.duplicate;
+        });
+        filterRows();
+        reportResults();
+        setNotice('Zatwierdzono zbiorczo ' + pending.filter(entry => !entry.duplicate).length +
+          ' propozycji. Nierozpoznane miejsca pozostają bez współrzędnych.');
       });
       candidates.addEventListener('change', () => {
         if (!candidates.value) return;
