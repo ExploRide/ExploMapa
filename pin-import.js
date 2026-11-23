@@ -297,11 +297,21 @@ window.pinImport = (() => {
       signal.throwIfAborted();
       const expected = normalize(queryName);
       const expectedAddress = normalize(address);
-      const exact = results.filter(item => item.confidence >= 0.95 &&
-        (!expected || normalize(item.name) === expected) && expectedAddress &&
-        normalize(item.label).includes(expectedAddress));
+      // For Takeout exports the address is often missing. A strong, exact
+      // place-name match can still be accepted, but only when unambiguous.
+      const exact = results.filter(item => {
+        if (item.confidence < 0.95 || !expected) return false;
+        const candidateName = normalize(item.name);
+        const labelName = normalize((item.label || '').split(',')[0]);
+        const nameMatches = candidateName === expected || (!candidateName && labelName === expected);
+        return nameMatches && (!expectedAddress || normalize(item.label).includes(expectedAddress));
+      });
+      const competing = results.some(item => !exact.includes(item) &&
+        item.confidence >= 0.9 &&
+        (normalize(item.name) === expected || normalize((item.label || '').split(',')[0]) === expected));
+      const hasWikidataCandidates = entry.candidates.some(item => item.provider === 'Wikidata');
       entry.candidates = [...results, ...entry.candidates];
-      if (exact.length === 1 && results.length === 1 && !entry.candidates.some(item => item.provider === 'Wikidata')) {
+      if (exact.length === 1 && !competing && !hasWikidataCandidates) {
         Object.assign(pin, coordinates(exact[0].lat, exact[0].lng));
         pin.importSource.coordinateSource = 'Geoapify';
         pin.kraj = exact[0].country || '';
