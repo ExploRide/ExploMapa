@@ -32,3 +32,12 @@ Uruchom `node --test tests/pin-import.test.mjs` z katalogu głównego. Aby włą
 ## Opcjonalne dokładne rozpoznawanie linków Google Maps
 
 Jeśli chcesz skorzystać z Google zamiast wyszukiwania nazwą, włącz w projekcie Google Cloud **Maps Experience agent tools API** oraz **Places API (New)**, włącz rozliczenia i skonfiguruj limity kosztów. Dodaj do Workera sekret `GOOGLE_MAPS_API_KEY` (klucz serwerowy z dostępem tylko do tych API) poleceniem `npx wrangler secret put GOOGLE_MAPS_API_KEY --name explomapa-geocoding`. Wdróż nową wersję Workera poleceniem `npx wrangler deploy --name explomapa-geocoding` w katalogu `geocoding`. Bez klucza importer nadal działa z Geoapify. Google Resolution API zwraca Place ID, a Places API (New) udostępnia współrzędne. Wynik pochodzący z linku Google Maps jest automatycznie przyjmowany tylko wtedy, gdy także nazwa miejsca jest mocno zgodna; inne wyniki wymagają ręcznej weryfikacji. API może naliczać opłaty i nie wszystkie linki będą obsługiwane.
+
+
+## Minimalizacja kosztów Google Places
+
+Worker żąda od Places API (New) tylko `id,location`. To **Place Details Essentials**, nie Pro. Zapytania do `resolveMapsUrls` pozostają bezpłatne. Rozpoznany, jednoznaczny link miejsca identyfikuje konkretny Place ID; nazwa pinezki jest zachowywana z oryginalnego CSV. Gdy Google nie rozpoznaje linku, działa wcześniejszy fallback Geoapify i ręczna weryfikacja.
+
+Dla dodatkowej ochrony ustaw w Google Cloud Console → APIs & Services → Enabled APIs & services → Places API (New) → Quotas **dzienny limit zapytań** na poziomie np. 100–200 żądań/dzień, jeśli dostępny jest odpowiedni limit. Osobno ustaw alert budżetowy (alert nie zatrzymuje rozliczeń). Konta rozliczeniowe współdzielą limit darmowego użycia; poziom darmowy nie jest gwarancją zerowego rachunku. Nie ustawiaj restrykcji HTTP referrer dla klucza przechowywanego po stronie Workera.
+
+Aby zaktualizować kod wdrożonego Workera, pobierz aktualne repozytorium i w katalogu `geocoding` uruchom `npx wrangler deploy --name explomapa-geocoding`. Sekrety Cloudflare powinny pozostać zachowane; sprawdzisz je przez `npx wrangler secret list --name explomapa-geocoding`.
