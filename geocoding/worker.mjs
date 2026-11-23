@@ -25,7 +25,7 @@ async function lookupCustomerIds(cids, contact) {
 // Optional Google Maps URL -> Place ID -> coordinates lookup.
 async function googlePlaceFromUrl(sourceUrl, apiKey) {
   const parsed = new URL(sourceUrl);
-  if (parsed.protocol !== 'https:' || !(/(^|\\.)google\\.[a-z.]+$/.test(parsed.hostname) ||
+  if (parsed.protocol !== 'https:' || !(/(^|\.)google\.[a-z.]+$/.test(parsed.hostname) ||
     ['maps.app.goo.gl', 'maps.goo.gl'].includes(parsed.hostname))) return null;
   const resolve = await fetch('https://mapstools.googleapis.com/v1:resolveMapsUrls', {
     method: 'POST',
@@ -36,7 +36,7 @@ async function googlePlaceFromUrl(sourceUrl, apiKey) {
   if (!resolve.ok) return null;
   const data = await resolve.json();
   const place = data.entities?.[0]?.place;
-  const placeId = /^places\\/([A-Za-z0-9_-]+)$/.exec(place || '')?.[1];
+  const placeId = /^places\/([A-Za-z0-9_-]+)$/.exec(place || '')?.[1];
   if (!placeId) return null;
   const details = await fetch('https://places.googleapis.com/v1/places/' + encodeURIComponent(placeId), {
     headers: {
