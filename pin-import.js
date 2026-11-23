@@ -301,6 +301,8 @@ window.pinImport = (() => {
       // place-name match can still be accepted, but only when unambiguous.
       const exact = results.filter(item => {
         if (item.confidence < 0.95 || !expected) return false;
+        // Without an address, generic one-word names are unsafe to auto-place.
+        if (!expectedAddress && expected.split(' ').filter(Boolean).length < 2) return false;
         const candidateName = normalize(item.name);
         const labelName = normalize((item.label || '').split(',')[0]);
         const nameMatches = candidateName === expected || (!candidateName && labelName === expected);
