@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.689';
+    const BUILD_VERSION = '2026-11-23 v.0.690';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1249,6 +1249,9 @@ body, #sidebar, #basemap-switcher {
 #kmlImportPins li[data-state="review"] small { color: #f0c34e; }
 #kmlImportPins li[data-state="unresolved"] small { color: #f07575; }
 #kmlImportPins li[data-state="duplicate"] small { color: var(--ui-text-muted, #adb4c2); }
+#kmlImportPins li[data-state="imported"] { opacity: 0.48; background: rgba(128,128,128,0.08); }
+#kmlImportPins li[data-state="imported"] small { color: var(--ui-text-muted, #adb4c2); }
+#kmlImportPins li[data-state="imported"] .pin-import-name { text-decoration: none; }
 #kmlImportPins li button { white-space: nowrap; }
 @media (max-width: 620px) {
   #kmlImportPins li:not([hidden]) { grid-template-columns: minmax(0, 1fr) auto; }
@@ -3376,6 +3379,7 @@ body.mobile-layout #saveChanges {
             <option value="review">Do weryfikacji</option>
             <option value="unresolved">Nierozpoznane</option>
             <option value="duplicate">Duplikaty</option>
+            <option value="imported">Zaimportowane</option>
           </select>
         </div>
         <ul id="kmlImportPins"></ul>
@@ -6377,7 +6381,7 @@ function slugify(str) {
         return user.getIdToken();
       });
 
-      const labels = { ready: 'Rozpoznana', review: 'Do weryfikacji', unresolved: 'Nierozpoznana', duplicate: 'Duplikat' };
+      const labels = { ready: 'Rozpoznana', review: 'Do weryfikacji', unresolved: 'Nierozpoznana', duplicate: 'Duplikat', imported: 'Zaimportowano' };
       let entries = [];
       let operation;
       let suggestedLayerName = '';
@@ -6424,23 +6428,23 @@ function slugify(str) {
       }
 
       function reportResults(processed = entries.length) {
-        const counts = { ready: 0, review: 0, unresolved: 0, duplicate: 0, errors: 0, selected: 0 };
+        const counts = { ready: 0, review: 0, unresolved: 0, duplicate: 0, imported: 0, errors: 0, selected: 0 };
         entries.forEach(entry => {
-          const state = entry.duplicate ? 'duplicate' : entry.state;
+          const state = entry.imported ? 'imported' : entry.duplicate ? 'duplicate' : entry.state;
           if (state !== 'pending') counts[state]++;
           if (entry.error) counts.errors++;
           if (state === 'ready' && entry.checkbox?.checked) counts.selected++;
         });
         submit.disabled = Boolean(operation) || counts.selected === 0;
         const prefix = operation ? `Sprawdzono ${processed} z ${entries.length}. ` : '';
-        status.textContent = `${prefix}Miejsca: ${entries.length} · Rozpoznane: ${counts.ready} · Do weryfikacji: ${counts.review} · Nierozpoznane: ${counts.unresolved} · Duplikaty: ${counts.duplicate} · Błędy: ${counts.errors} · Wybrane: ${counts.selected}`;
+        status.textContent = `${prefix}Miejsca: ${entries.length} · Rozpoznane: ${counts.ready} · Do weryfikacji: ${counts.review} · Nierozpoznane: ${counts.unresolved} · Zaimportowane: ${counts.imported} · Duplikaty: ${counts.duplicate} · Błędy: ${counts.errors} · Wybrane: ${counts.selected}`;
       }
 
       function filterRows() {
         const query = normalizePinSearch(search.value);
         let visible = 0;
         entries.forEach(entry => {
-          const matchesStatus = !filter.value || filter.value === (entry.duplicate ? 'duplicate' : entry.state);
+          const matchesStatus = !filter.value || filter.value === (entry.imported ? 'imported' : entry.duplicate ? 'duplicate' : entry.state);
           const matchesName = !query || normalizePinSearch(entry.pin.nazwa).includes(query);
           const show = matchesStatus && matchesName;
           if (entry.row) entry.row.hidden = !show;
@@ -6453,13 +6457,17 @@ function slugify(str) {
         const known = new Set(wszystkiePinezki.flatMap(pinImport.duplicateKeys));
         entries.forEach(entry => {
           const keys = pinImport.duplicateKeys(entry.pin);
+          if (entry.imported) {
+            entry.duplicate = false;
+            return;
+          }
           entry.duplicate = keys.some(key => known.has(key));
           if (!entry.duplicate && entry.state === 'ready') keys.forEach(key => known.add(key));
         });
       }
 
       function updateRow(entry) {
-        const state = entry.duplicate ? 'duplicate' : entry.state;
+        const state = entry.imported ? 'imported' : entry.duplicate ? 'duplicate' : entry.state;
         entry.badge.textContent = labels[state];
         entry.row.dataset.state = state;
         entry.checkbox.disabled = state !== 'ready';
@@ -6527,7 +6535,9 @@ function slugify(str) {
           const badge = document.createElement('small');
           const reviewButton = document.createElement('button');
           checkbox.type = 'checkbox';
-          checkbox.checked = true;
+          // Explicit selection only: importing filtered results must not also
+          // import hidden, initially checked rows from the same source file.
+          checkbox.checked = false;
           reviewButton.type = 'button';
           reviewButton.textContent = 'Sprawdź położenie';
           reviewButton.setAttribute('aria-label', `Sprawdź położenie: ${entry.pin.nazwa}`);
@@ -6686,7 +6696,7 @@ function slugify(str) {
       });
       byId('pinImportApproveAll').addEventListener('click', () => {
         if (operation) return;
-        const pending = entries.filter(entry => !entry.duplicate && entry.state === 'review' &&
+        const pending = entries.filter(entry => !entry.imported && !entry.duplicate && entry.state === 'review' &&
           entry.candidates.some(candidate => candidate.provider === 'Geoapify' &&
             candidate.nameMatch >= 0.9 && candidate.confidence >= 0.9 &&
             pinImport.coordinates(candidate.lat, candidate.lng)));
@@ -6754,8 +6764,9 @@ function slugify(str) {
         event.preventDefault();
         if (operation) return;
         detectDuplicates();
-        const pins = entries.filter(entry => entry.state === 'ready' && !entry.duplicate && entry.checkbox.checked)
-          .map(({ pin }) => pin);
+        const selectedEntries = entries.filter(entry => !entry.imported && entry.state === 'ready' &&
+          !entry.duplicate && entry.checkbox.checked);
+        const pins = selectedEntries.map(({ pin }) => pin);
         if (!pins.length) {
           entries.forEach(updateRow);
           filterRows();
@@ -6779,7 +6790,26 @@ function slugify(str) {
             return;
           }
           addImportedPinsToMap(pins, layerKey);
-          dialog.close();
+          // Keep the original file and all remaining rows loaded: one CSV/KML
+          // can be imported in several batches to different destination layers.
+          selectedEntries.forEach(entry => {
+            entry.imported = true;
+            entry.importedLayer = layerKey;
+            entry.checkbox.checked = false;
+          });
+          closeReview();
+          detectDuplicates();
+          entries.forEach(updateRow);
+          filterRows();
+          reportResults();
+          // Include the newly created layer in the dropdown without reloading
+          // the file or losing the current search/selection state.
+          if (![...layerSelect.options].some(option => option.value === layerKey)) {
+            layerSelect.add(new Option(`${getLayerDisplayName(layerKey)} (${getLayerMainCategory(layerKey)})`, layerKey));
+          }
+          layerSelect.value = layerKey;
+          updateDestination();
+          setNotice(`Zaimportowano ${pins.length} pinezek do warstwy „${getLayerDisplayName(layerKey)}”. Możesz wybrać kolejne pinezki i inną warstwę.`);
           showToast(`Zaimportowano ${pins.length} pinezek.`);
         } catch (error) {
           console.error('Błąd importu pinezek', error);
