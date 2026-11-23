@@ -6654,9 +6654,10 @@ function slugify(str) {
         if (operation) return;
         const pending = entries.filter(entry => !entry.duplicate && entry.state === 'review' &&
           entry.candidates.some(candidate => candidate.provider === 'Geoapify' &&
+            candidate.nameMatch >= 0.9 && candidate.confidence >= 0.9 &&
             pinImport.coordinates(candidate.lat, candidate.lng)));
         if (!pending.length) {
-          setNotice('Brak propozycji Geoapify z wystarczającą zgodnością nazwy. Pozostałe miejsca wskaż ręcznie.');
+          setNotice('Brak bardzo pewnych propozycji Geoapify do zbiorczego zatwierdzenia. Pozostałe miejsca sprawdź ręcznie.');
           return;
         }
         if (!confirm('Zatwierdzić pierwszą propozycję Geoapify dla ' + pending.length +
@@ -6665,6 +6666,7 @@ function slugify(str) {
         closeReview();
         for (const entry of pending) {
           const candidate = entry.candidates.find(item => item.provider === 'Geoapify' &&
+            item.nameMatch >= 0.9 && item.confidence >= 0.9 &&
             pinImport.coordinates(item.lat, item.lng));
           Object.assign(entry.pin, pinImport.coordinates(candidate.lat, candidate.lng));
           entry.pin.importSource.coordinateSource = 'Geoapify (zatwierdzenie zbiorcze)';
