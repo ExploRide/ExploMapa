@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.684';
+    const BUILD_VERSION = '2026-11-23 v.0.685';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -6485,6 +6485,8 @@ function slugify(str) {
           candidates.value = '0';
           reviewCandidate = entry.candidates[0];
           moveReviewMarker(reviewCandidate, true);
+        } else {
+          reviewStatus.textContent = 'Nie znaleziono propozycji zgodnej z nazwą. Wskaż lokalizację ręcznie na mapie.';
         }
         review.scrollIntoView({ block: 'nearest' });
       }
@@ -6654,7 +6656,7 @@ function slugify(str) {
           entry.candidates.some(candidate => candidate.provider === 'Geoapify' &&
             pinImport.coordinates(candidate.lat, candidate.lng)));
         if (!pending.length) {
-          setNotice('Brak propozycji Geoapify do zbiorczego zatwierdzenia.');
+          setNotice('Brak propozycji Geoapify z wystarczającą zgodnością nazwy. Pozostałe miejsca wskaż ręcznie.');
           return;
         }
         if (!confirm('Zatwierdzić pierwszą propozycję Geoapify dla ' + pending.length +
