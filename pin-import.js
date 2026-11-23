@@ -305,7 +305,9 @@ window.pinImport = (() => {
         if (!expectedAddress && expected.split(' ').filter(Boolean).length < 2) return false;
         const candidateName = normalize(item.name);
         const labelName = normalize((item.label || '').split(',')[0]);
-        const nameMatches = candidateName === expected || (!candidateName && labelName === expected);
+        // Some Geoapify POIs use a shorter localized name or leave name empty.
+        // Compare the complete first label segment, never a loose substring.
+        const nameMatches = candidateName === expected || labelName === expected;
         return nameMatches && (!expectedAddress || normalize(item.label).includes(expectedAddress));
       });
       const competing = results.some(item => !exact.includes(item) &&
