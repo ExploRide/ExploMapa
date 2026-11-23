@@ -374,21 +374,37 @@ window.pinImport = (() => {
     };
     // Keep only a short-lived in-memory cache (not persistent Places storage).
     const googleCache = new Map();
-    const google = async (mapsUrl, signal) => {
-      if (!endpoint || !mapsUrl) return null;
-      if (googleCache.has(mapsUrl)) return googleCache.get(mapsUrl);
-      const token = await getToken();
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ mapsUrl }),
-        signal: AbortSignal.any([signal, AbortSignal.timeout(25000)])
+    // 1250 ms = at most 48 Google lookups in any rolling minute, safely below
+    // the configured 60/min quota. Cache hits do not consume a request slot.
+    const googleInterval = 1250;
+    let nextGoogleRequest = 0;
+    let googleQueue = Promise.resolve();
+    const google = (mapsUrl, signal) => {
+      if (!endpoint || !mapsUrl) return Promise.resolve(null);
+      if (googleCache.has(mapsUrl)) return Promise.resolve(googleCache.get(mapsUrl));
+      // Serialize lookups so concurrent import operations cannot burst the API.
+      const request = googleQueue.then(async () => {
+        signal.throwIfAborted();
+        if (googleCache.has(mapsUrl)) return googleCache.get(mapsUrl);
+        await wait(Math.max(0, nextGoogleRequest - Date.now()), signal);
+        signal.throwIfAborted();
+        const token = await getToken();
+        signal.throwIfAborted();
+        nextGoogleRequest = Date.now() + googleInterval;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({ mapsUrl }),
+          signal: AbortSignal.any([signal, AbortSignal.timeout(25000)])
+        });
+        if (!response.ok) return null;
+        const place = (await response.json()).place || null;
+        if (googleCache.size >= 500) googleCache.delete(googleCache.keys().next().value);
+        googleCache.set(mapsUrl, place);
+        return place;
       });
-      if (!response.ok) return null;
-      const place = (await response.json()).place || null;
-      if (googleCache.size >= 500) googleCache.delete(googleCache.keys().next().value);
-      googleCache.set(mapsUrl, place);
-      return place;
+      googleQueue = request.catch(() => {});
+      return request;
     };
     const lookup = async (cids, signal) => {
       const token = await getToken();
