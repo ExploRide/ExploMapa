@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.691';
+    const BUILD_VERSION = '2026-11-23 v.0.692';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -3369,6 +3369,10 @@ body.mobile-layout #saveChanges {
           <label for="pinImportSearch">Szukaj po nazwie</label>
           <input type="search" id="pinImportSearch" placeholder="Np. pałac" autocomplete="off">
           <small id="pinImportVisibleCount" role="status" aria-live="polite"></small>
+          <div class="kml-import-actions">
+            <small id="pinImportCacheCount"></small>
+            <button type="button" id="pinImportClearCache" title="Usuń zapisane wyniki wyszukiwania miejsc w tej przeglądarce">Wyczyść pamięć wyszukiwania</button>
+          </div>
         </div>
         <div class="kml-import-actions">
           <button type="button" id="kmlImportSelectAll">Zaznacz wszystkie</button>
@@ -3801,7 +3805,7 @@ body.mobile-layout #saveChanges {
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="leaflet-tilelayer-wmts.js?v=2026-05-26-savefix-1"></script>
-<script src="pin-import.js?v=2026-11-23-0688" id="pinImportScript" data-geocoder-url="https://explomapa-geocoding.eksplorajder.workers.dev"></script>
+<script src="pin-import.js?v=2026-11-23-0692" id="pinImportScript" data-geocoder-url="https://explomapa-geocoding.eksplorajder.workers.dev"></script>
 
   <script>
     const APP_BUILD = window.BUILD_VERSION;
@@ -6369,6 +6373,8 @@ function slugify(str) {
       const filter = byId('pinImportFilter');
       const search = byId('pinImportSearch');
       const visibleCount = byId('pinImportVisibleCount');
+      const cacheCount = byId('pinImportCacheCount');
+      const refreshCacheCount = () => { cacheCount.textContent = `Pamięć wyszukiwania: ${pinImport.importCacheCount()} miejsc`; };
       const normalizePinSearch = value => String(value || '').normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '').replace(/ł/gi, 'l').toLocaleLowerCase('pl').trim();
       const review = byId('pinImportReview');
@@ -6573,6 +6579,7 @@ function slugify(str) {
           new Option(`${getLayerDisplayName(key)} (${getLayerMainCategory(key)})`, key)
         ));
         updateDestination();
+        refreshCacheCount();
         dialog.showModal();
       });
       dialog.addEventListener('cancel', () => operation?.abort());
@@ -6588,6 +6595,13 @@ function slugify(str) {
       layerSelect.addEventListener('change', updateDestination);
       layerNameInput.addEventListener('input', () => layerNameInput.setCustomValidity(''));
       categorySelect.addEventListener('change', () => layerNameInput.setCustomValidity(''));
+
+      byId('pinImportClearCache').addEventListener('click', () => {
+        if (!confirm('Wyczyścić zapamiętane wyniki wyszukiwania miejsc? Następne wczytanie pliku może ponownie użyć API.')) return;
+        pinImport.clearImportCache();
+        refreshCacheCount();
+        setNotice('Wyczyszczono pamięć wyszukiwania. Aktualnie otwarte wyniki pozostają bez zmian.');
+      });
 
       fileInput.addEventListener('change', async () => {
         resetResults();
@@ -6616,6 +6630,9 @@ function slugify(str) {
           }
           suggestedLayerName = layerName;
           entries = parsed.entries;
+          const cacheHits = pinImport.restoreImportCache(entries);
+          refreshCacheCount();
+          if (cacheHits) setNotice(`Wczytano ${cacheHits} miejsc z pamięci przeglądarki — bez zapytań do API.`);
           if (!entries.length) {
             status.textContent = 'Plik nie zawiera pinezek do importu.';
             return;
@@ -6652,6 +6669,7 @@ function slugify(str) {
                   if (!signal.aborted) throw error;
                 });
                 if (operation !== controller || signal.aborted || !dialog.open) break;
+                pinImport.saveImportCache(entry);
                 if (failure) {
                   setNotice(failure === 429
                     ? 'Osiągnięto limit geokodowania. Pozostałe położenia możesz uzupełnić na mapie.'
@@ -6667,9 +6685,12 @@ function slugify(str) {
             if (signal.aborted) setNotice('Przerwano rozpoznawanie. Dotychczasowe wyniki są dostępne w podglądzie.');
             entries.forEach(entry => {
               if (entry.state === 'pending') entry.state = entry.candidates.length ? 'review' : 'unresolved';
+              // A missing result is cached briefly; a broken API/auth is not.
+              if (!entry.error && !signal.aborted) pinImport.saveImportCache(entry);
             });
           }
           operation = null;
+          refreshCacheCount();
           renderResults();
         } catch (error) {
           if (operation !== controller || !dialog.open) return;
@@ -6720,6 +6741,7 @@ function slugify(str) {
           entry.pin.importSource.coordinateSource = 'Geoapify (zatwierdzenie zbiorcze)';
           if (candidate.country) entry.pin.kraj = candidate.country;
           entry.state = 'ready';
+          pinImport.saveImportCache(entry);
         }
         detectDuplicates();
         entries.forEach(entry => {
@@ -6763,6 +6785,7 @@ function slugify(str) {
         entry.pin.importSource.coordinateSource = reviewCandidate?.provider || 'Weryfikacja ręczna';
         if (reviewCandidate?.country) entry.pin.kraj = reviewCandidate.country;
         entry.state = 'ready';
+        pinImport.saveImportCache(entry);
         detectDuplicates();
         entries.forEach(updateRow);
         entry.checkbox.checked = !entry.duplicate;
