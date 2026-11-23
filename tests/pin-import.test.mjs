@@ -143,6 +143,19 @@ test('keeps matching location and rejects a wrong competing result', async () =>
   assert.deepEqual(points([entry]), [[51.25, 22.57]]);
 });
 
+test('resolves an exact Google Maps place without Pro-priced name fields', async () => {
+  const [entry] = importer.parseCsvContent(
+    'Name,URL\nZabytkowa lokomotywownia z halą wachlarzową,https://www.google.com/maps/place/Test'
+  );
+  const resolved = await importer.resolveGoogleEntry(entry, async () => ({
+    lat: 51.2293462, lng: 22.5657447, placeId: 'ChIJj61dQgK6j4AR4GeTYWZsKWw'
+  }), new AbortController().signal);
+  assert.equal(resolved, true);
+  assert.equal(entry.state, 'ready');
+  assert.equal(entry.pin.importSource.coordinateSource, 'Google Places (Maps URL)');
+  assert.deepEqual(points([entry]), [[51.2293462, 22.5657447]]);
+});
+
 test('reports exhausted quota and aborts an active request', async () => {
   let requests = 0;
   const api = loadImporter(async () => {
