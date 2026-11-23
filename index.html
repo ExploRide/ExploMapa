@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.688';
+    const BUILD_VERSION = '2026-11-23 v.0.689';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1218,6 +1218,9 @@ body, #sidebar, #basemap-switcher {
   margin: 8px 0 0;
   padding: 0;
 }
+#pinImportSearch { box-sizing: border-box; width: 100%; min-width: 0; }
+.pin-import-search { display: grid; gap: 3px; margin: 5px 0 8px; }
+#pinImportVisibleCount { color: var(--ui-text-muted, #adb4c2); }
 #kmlImportPins label {
   display: flex;
   align-items: center;
@@ -3358,6 +3361,11 @@ body.mobile-layout #saveChanges {
       </small>
       <fieldset id="kmlImportSelection" hidden>
         <legend>Pinezki z pliku</legend>
+        <div class="pin-import-search">
+          <label for="pinImportSearch">Szukaj po nazwie</label>
+          <input type="search" id="pinImportSearch" placeholder="Np. pałac" autocomplete="off">
+          <small id="pinImportVisibleCount" role="status" aria-live="polite"></small>
+        </div>
         <div class="kml-import-actions">
           <button type="button" id="kmlImportSelectAll">Zaznacz wszystkie</button>
           <button type="button" id="kmlImportClearAll">Odznacz wszystkie</button>
@@ -6352,6 +6360,10 @@ function slugify(str) {
       const progress = byId('pinImportProgress');
       const progressBar = byId('pinImportProgressBar');
       const filter = byId('pinImportFilter');
+      const search = byId('pinImportSearch');
+      const visibleCount = byId('pinImportVisibleCount');
+      const normalizePinSearch = value => String(value || '').normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '').replace(/ł/gi, 'l').toLocaleLowerCase('pl').trim();
       const review = byId('pinImportReview');
       const source = byId('pinImportSource');
       const candidates = byId('pinImportCandidates');
@@ -6397,6 +6409,8 @@ function slugify(str) {
         selection.hidden = true;
         progress.hidden = true;
         filter.value = '';
+        search.value = '';
+        visibleCount.textContent = '';
         submit.disabled = true;
         status.textContent = '';
         setNotice('');
@@ -6423,9 +6437,16 @@ function slugify(str) {
       }
 
       function filterRows() {
+        const query = normalizePinSearch(search.value);
+        let visible = 0;
         entries.forEach(entry => {
-          if (entry.row) entry.row.hidden = Boolean(filter.value && filter.value !== (entry.duplicate ? 'duplicate' : entry.state));
+          const matchesStatus = !filter.value || filter.value === (entry.duplicate ? 'duplicate' : entry.state);
+          const matchesName = !query || normalizePinSearch(entry.pin.nazwa).includes(query);
+          const show = matchesStatus && matchesName;
+          if (entry.row) entry.row.hidden = !show;
+          if (show) visible++;
         });
+        visibleCount.textContent = `Wyświetlane: ${visible} z ${entries.length}`;
       }
 
       function detectDuplicates() {
@@ -6649,13 +6670,18 @@ function slugify(str) {
       });
 
       filter.addEventListener('change', filterRows);
+      search.addEventListener('input', filterRows);
       list.addEventListener('change', () => reportResults());
       byId('kmlImportSelectAll').addEventListener('click', () => {
-        entries.forEach(({ checkbox }) => { if (!checkbox.disabled) checkbox.checked = true; });
+        entries.forEach(({ row, checkbox }) => {
+          if (row && !row.hidden && !checkbox.disabled) checkbox.checked = true;
+        });
         reportResults();
       });
       byId('kmlImportClearAll').addEventListener('click', () => {
-        entries.forEach(({ checkbox }) => { checkbox.checked = false; });
+        entries.forEach(({ row, checkbox }) => {
+          if (row && !row.hidden && !checkbox.disabled) checkbox.checked = false;
+        });
         reportResults();
       });
       byId('pinImportApproveAll').addEventListener('click', () => {
