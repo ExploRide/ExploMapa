@@ -22,6 +22,38 @@ async function lookupCustomerIds(cids, contact) {
   return matches;
 }
 
+// Optional Google Maps URL -> Place ID -> coordinates lookup.
+async function googlePlaceFromUrl(sourceUrl, apiKey) {
+  const parsed = new URL(sourceUrl);
+  if (parsed.protocol !== 'https:' || !(/(^|\\.)google\\.[a-z.]+$/.test(parsed.hostname) ||
+    ['maps.app.goo.gl', 'maps.goo.gl'].includes(parsed.hostname))) return null;
+  const resolve = await fetch('https://mapstools.googleapis.com/v1:resolveMapsUrls', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey },
+    body: JSON.stringify({ urls: [sourceUrl] }),
+    signal: AbortSignal.timeout(10000)
+  });
+  if (!resolve.ok) return null;
+  const data = await resolve.json();
+  const place = data.entities?.[0]?.place;
+  const placeId = /^places\\/([A-Za-z0-9_-]+)$/.exec(place || '')?.[1];
+  if (!placeId) return null;
+  const details = await fetch('https://places.googleapis.com/v1/places/' + encodeURIComponent(placeId), {
+    headers: {
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask': 'id,location,displayName,formattedAddress'
+    },
+    signal: AbortSignal.timeout(10000)
+  });
+  if (!details.ok) return null;
+  const item = await details.json();
+  const lat = item.location?.latitude, lng = item.location?.longitude;
+  if (typeof lat !== 'number' || typeof lng !== 'number' ||
+      Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng, name: item.displayName?.text || '',
+    label: item.formattedAddress || item.displayName?.text || '', placeId };
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin');
@@ -67,7 +99,15 @@ export default {
         return respond(400, {});
       }
       if (!payload || typeof payload !== 'object') return respond(400, {});
-      const { cids, name, address } = payload;
+      const { cids, name, address, mapsUrl } = payload;
+      if (mapsUrl !== undefined) {
+        if (typeof mapsUrl !== 'string' || mapsUrl.length > 2048) return respond(400, {});
+        if (!env.GOOGLE_MAPS_API_KEY) return respond(200, { configured: false });
+        const { success } = await env.IMPORT_RATE_LIMIT.limit({ key: 'google-maps' });
+        if (!success) return respond(429, {}, '60');
+        const place = await googlePlaceFromUrl(mapsUrl, env.GOOGLE_MAPS_API_KEY);
+        return respond(200, { configured: true, place });
+      }
       if (cids !== undefined) {
         if (!Array.isArray(cids) || !cids.length || cids.length > 50 ||
             !cids.every(cid => typeof cid === 'string' && /^\d{1,20}$/.test(cid))) return respond(400, {});
