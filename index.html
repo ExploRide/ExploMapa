@@ -941,17 +941,23 @@
           drop-shadow(0 0 1px black);
 }
     .custom-cluster-icon {
-      background: rgba(128, 128, 128, 0.5);
-      border: 2px solid #ff2d2d;
-      border-radius: 50%;
       color: #fff;
       font-weight: 700;
       display: flex;
       align-items: center;
       justify-content: center;
-     /* box-shadow: 0 0 10px rgba(0, 0, 0, 0.35);*/
+    }
+    .custom-cluster-icon::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      background: rgba(128, 128, 128, 0.5);
+      border: 2px solid #ff2d2d;
+      border-radius: 50%;
+      transform: scale(var(--map-cluster-background-scale, 1));
     }
     .custom-cluster-icon span {
+      position: relative;
       color: #fff;
       line-height: 1;
     }
@@ -3057,9 +3063,19 @@ html body .emoji-marker-inner {
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
+  isolation: isolate;
+  overflow: visible !important;
+}
+
+html body .emoji-marker-inner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   border-radius: 50%;
   background: var(--map-pin-background, transparent);
-  overflow: visible !important;
+  transform: scale(var(--map-pin-background-scale, 1));
+  pointer-events: none;
 }
 
 html body .emoji-marker span:not(.status-icon):not(.sztosy-gwiazda),
@@ -3642,6 +3658,10 @@ body.mobile-layout #saveChanges {
       <label for="map-pin-scale">Skala pinezek <output id="map-pin-scale-value" for="map-pin-scale">100%</output></label>
       <input id="map-pin-scale" type="range" min="50" max="200" step="5" value="100" autofocus>
       <label><input id="map-pin-background" type="checkbox"> Tło pinezek</label>
+      <label for="map-pin-background-scale">Skala tła pinezek <output id="map-pin-background-scale-value" for="map-pin-background-scale">100%</output></label>
+      <input id="map-pin-background-scale" type="range" min="50" max="200" step="5" value="100">
+      <label for="map-cluster-background-scale">Skala tła klastrów <output id="map-cluster-background-scale-value" for="map-cluster-background-scale">100%</output></label>
+      <input id="map-cluster-background-scale" type="range" min="50" max="200" step="5" value="100">
       <label for="map-status-scale">Skala ikon statusów <output id="map-status-scale-value" for="map-status-scale">100%</output></label>
       <input id="map-status-scale" type="range" min="50" max="200" step="5" value="100">
       <button type="submit">Zamknij</button>
@@ -4623,6 +4643,8 @@ function slugify(str) {
     const mapOptionsDialog = document.getElementById('map-options-dialog');
     const mapPinScale = document.getElementById('map-pin-scale');
     const mapPinBackground = document.getElementById('map-pin-background');
+    const mapPinBackgroundScale = document.getElementById('map-pin-background-scale');
+    const mapClusterBackgroundScale = document.getElementById('map-cluster-background-scale');
     const mapStatusScale = document.getElementById('map-status-scale');
     let mapOptionsStorageKey = null;
 
@@ -4635,6 +4657,10 @@ function slugify(str) {
       style.setProperty('--map-status-size', `${12 * statusScale}px`);
       style.setProperty('--map-highlight-size', `${13 * statusScale}px`);
       style.setProperty('--map-pin-background', mapPinBackground.checked ? 'rgba(255, 255, 255, .55)' : 'transparent');
+      style.setProperty('--map-pin-background-scale', mapPinBackgroundScale.valueAsNumber / 100);
+      style.setProperty('--map-cluster-background-scale', mapClusterBackgroundScale.valueAsNumber / 100);
+      document.getElementById('map-pin-background-scale-value').value = `${mapPinBackgroundScale.value}%`;
+      document.getElementById('map-cluster-background-scale-value').value = `${mapClusterBackgroundScale.value}%`;
       document.getElementById('map-pin-scale-value').value = `${mapPinScale.value}%`;
       document.getElementById('map-status-scale-value').value = `${mapStatusScale.value}%`;
     }
@@ -4651,6 +4677,8 @@ function slugify(str) {
       }
       mapPinScale.value = Number.isFinite(saved?.pinScale) ? saved.pinScale : 100;
       mapPinBackground.checked = saved?.pinBackground === true;
+      mapPinBackgroundScale.value = Number.isFinite(saved?.pinBackgroundScale) ? saved.pinBackgroundScale : 100;
+      mapClusterBackgroundScale.value = Number.isFinite(saved?.clusterBackgroundScale) ? saved.clusterBackgroundScale : 100;
       mapStatusScale.value = Number.isFinite(saved?.statusScale) ? saved.statusScale : 100;
       applyMapOptions();
       if (!uid) mapOptionsDialog.close();
@@ -4663,6 +4691,8 @@ function slugify(str) {
         localStorage.setItem(mapOptionsStorageKey, JSON.stringify({
           pinScale: mapPinScale.valueAsNumber,
           pinBackground: mapPinBackground.checked,
+          pinBackgroundScale: mapPinBackgroundScale.valueAsNumber,
+          clusterBackgroundScale: mapClusterBackgroundScale.valueAsNumber,
           statusScale: mapStatusScale.valueAsNumber
         }));
       } catch (error) {
