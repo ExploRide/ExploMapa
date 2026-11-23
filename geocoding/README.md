@@ -28,3 +28,7 @@ Worker weryfikuje token zalogowanego użytkownika przez Firebase. Dostęp wymaga
 ## Testy
 
 Uruchom `node --test tests/pin-import.test.mjs` z katalogu głównego. Aby włączyć test pliku z zadania, ustaw `PIN_IMPORT_TEST_CSV` na ścieżkę do załączonego eksportu Google Takeout. Testy klienta i Workera używają kontrolowanych odpowiedzi dostawców.
+
+## Opcjonalne dokładne rozpoznawanie linków Google Maps
+
+Jeśli chcesz skorzystać z Google zamiast wyszukiwania nazwą, włącz w projekcie Google Cloud **Maps Experience agent tools API** oraz **Places API (New)**, włącz rozliczenia i skonfiguruj limity kosztów. Dodaj do Workera sekret `GOOGLE_MAPS_API_KEY` (klucz serwerowy z dostępem tylko do tych API) poleceniem `npx wrangler secret put GOOGLE_MAPS_API_KEY --name explomapa-geocoding`. Wdróż nową wersję Workera poleceniem `npx wrangler deploy --name explomapa-geocoding` w katalogu `geocoding`. Bez klucza importer nadal działa z Geoapify. Google Resolution API zwraca Place ID, a Places API (New) udostępnia współrzędne. Wynik pochodzący z linku Google Maps jest automatycznie przyjmowany tylko wtedy, gdy także nazwa miejsca jest mocno zgodna; inne wyniki wymagają ręcznej weryfikacji. API może naliczać opłaty i nie wszystkie linki będą obsługiwane.
