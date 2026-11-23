@@ -97,7 +97,7 @@ test('retries rate limits, caches results, requires review for name-only and han
 test('accepts only unambiguous high-confidence name matches without a CSV address', async () => {
   const signal = new AbortController().signal;
   const [safe, low, ambiguous, different] = importer.parseCsvContent(
-    'Name\\nMuzeum Józefa Czechowicza\\nPałac\\nMuzeum\\nMuzeum Zabawek'
+    'Name\nMuzeum Józefa Czechowicza\nPałac\nMuzeum\nMuzeum Zabawek'
   );
   await importer.resolveEntry(safe, async () => [{
     name: 'Muzeum Józefa Czechowicza', label: 'Muzeum Józefa Czechowicza, Lublin, Polska',
