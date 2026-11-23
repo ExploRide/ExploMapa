@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.698';
+    const BUILD_VERSION = '2026-11-23 v.0.699';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -186,6 +186,13 @@
       left: 282px;
       width: 188px;
       height: 100%;
+      max-width: none;
+      max-height: none;
+      right: auto;
+      bottom: auto;
+      margin: 0;
+      border: 0;
+      box-sizing: content-box;
       background-color: #2b2b2b;
       border-color: #444;
       color: #f0f0f0;
@@ -2449,6 +2456,49 @@ img.emoji {
     #route-editor { width: calc(188px * var(--ui-scale)); left: calc(282px * var(--ui-scale)); }
     #bulk-pin-panel { width: calc(220px * var(--ui-scale)); left: calc(282px * var(--ui-scale)); }
 
+    #layer-editor[open] { display: block; }
+    #layerEditVisibilityError { color: #ff9a9a; }
+
+    #layer-editor:modal {
+      position: fixed;
+      inset: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+             max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+      width: auto;
+      height: fit-content;
+      max-width: 32rem;
+      max-height: calc(100% - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)));
+      margin: auto;
+      padding: 16px;
+      box-sizing: border-box;
+      border: 1px solid var(--ui-border);
+      border-radius: var(--ui-radius);
+      background: var(--ui-bg-elev);
+      overflow-wrap: anywhere;
+      overscroll-behavior: contain;
+    }
+    #layer-editor::backdrop { background: rgba(0, 0, 0, 0.6); }
+    #layer-editor:modal h3 { margin: 0 0 12px; }
+    #layer-editor:modal input:not([type="radio"]),
+    #layer-editor:modal select {
+      max-width: 100%;
+      min-height: 36px;
+      margin-bottom: 8px;
+    }
+    #layer-editor:modal #layerEditName { width: 100%; }
+    #layer-editor:modal .layer-edit-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    #layer-editor:modal .layer-edit-actions button { min-height: 36px; }
+    #layer-editor:modal .emoji-dropdown {
+      position: static;
+      max-width: 100%;
+      max-height: min(12rem, 35dvh);
+      overflow-y: auto;
+    }
+
     input, select, textarea, button, summary {
       font-size: calc(12px * var(--ui-scale));
       min-height: calc(15px * var(--ui-scale));
@@ -3793,8 +3843,8 @@ body.mobile-layout #saveChanges {
       <button type="submit">Zamknij</button>
     </form>
   </dialog>
-  <div id="layer-editor">
-    <h3>Edycja warstwy</h3>
+  <dialog id="layer-editor" aria-labelledby="layerEditTitle">
+    <h3 id="layerEditTitle" tabindex="-1" autofocus>Edycja warstwy</h3>
     <input type="text" id="layerEditName" placeholder="Nazwa warstwy"><br>
     <input type="number" id="layerEditOrder" min="1" style="width:70px;"><br>
     <input id="layerEditEmoji" placeholder="Emoji warstwy" style="width:100%"><br>
@@ -3809,11 +3859,14 @@ body.mobile-layout #saveChanges {
       <label><input type="radio" name="layerDefaultVisibility" id="layerDefaultVisible" value="visible"> Domyślnie pokazana</label><br>
       <label><input type="radio" name="layerDefaultVisibility" id="layerDefaultHidden" value="hidden"> Domyślnie ukryta</label>
     </div>
-    <button id="layerEditDelete">Usuń warstwę</button>
-    <button id="layerEditExportKml">Eksportuj warstwę do .KML</button>
-    <button id="layerEditSave" onclick="applyLayerEdits()">Zastosuj</button>
-    <button id="layerEditClose" onclick="closeLayerEditor()">Zamknij</button>
-  </div>
+    <p id="layerEditVisibilityError" role="alert" hidden>Wybierz domyślną widoczność warstwy.</p>
+    <div class="layer-edit-actions">
+      <button id="layerEditDelete">Usuń warstwę</button>
+      <button id="layerEditExportKml">Eksportuj warstwę do .KML</button>
+      <button id="layerEditSave">Zastosuj</button>
+      <button id="layerEditClose">Zamknij</button>
+    </div>
+  </dialog>
   <div id="route-editor">
     <h3>Edycja trasy</h3>
     <input type="text" id="routeEditName" placeholder="Nazwa trasy"><br>
@@ -8682,9 +8735,14 @@ function emojiHtml(str, hue = 0) {
       subscribeEmojiList(renderList);
 
       function show() {
-        const r = input.getBoundingClientRect();
-        list.style.left = r.left + window.scrollX + 'px';
-        list.style.top = r.bottom + window.scrollY + 'px';
+        if (input.closest('dialog:modal')) {
+          preview.after(list);
+        } else {
+          document.body.appendChild(list);
+          const r = input.getBoundingClientRect();
+          list.style.left = r.left + window.scrollX + 'px';
+          list.style.top = r.bottom + window.scrollY + 'px';
+        }
         list.style.display = 'flex';
       }
 
@@ -13441,12 +13499,16 @@ function zaladujPinezkiZFirestore() {
         defaultVisibleInput.checked = defaultVisible;
         defaultHiddenInput.checked = !defaultVisible;
       }
-      panel.style.display = 'block';
+      document.getElementById('layerEditVisibilityError').hidden = true;
+      if (!panel.open) {
+        if (document.body.classList.contains('mobile-layout')) panel.showModal();
+        else panel.show();
+      }
+      panel.scrollTop = 0;
     }
 
     function closeLayerEditor() {
-      const panel = document.getElementById('layer-editor');
-      if (panel) panel.style.display = 'none';
+      document.getElementById('layer-editor')?.close();
     }
 
     function applyLayerEdits() {
@@ -13464,7 +13526,7 @@ function zaladujPinezkiZFirestore() {
       const defaultVisibleInput = document.getElementById('layerDefaultVisible');
       const defaultHiddenInput = document.getElementById('layerDefaultHidden');
       if (!defaultVisibleInput || !defaultHiddenInput || (!defaultVisibleInput.checked && !defaultHiddenInput.checked)) {
-        showToast('Wybierz domyślną widoczność warstwy.');
+        document.getElementById('layerEditVisibilityError').hidden = false;
         return;
       }
       const newDefaultVisible = defaultVisibleInput.checked;
@@ -13703,7 +13765,7 @@ function zaladujPinezkiZFirestore() {
       delBtn.addEventListener('click', e => {
         e.preventDefault();
         e.stopPropagation();
-        panel.style.display = 'none';
+        closeLayerEditor();
         confirmDeleteLayer(editedLayer);
       });
     }
