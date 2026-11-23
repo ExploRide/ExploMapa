@@ -3660,6 +3660,8 @@ body.mobile-layout #saveChanges {
       <label><input id="map-pin-background" type="checkbox"> Tło pinezek</label>
       <label for="map-pin-background-scale">Skala tła pinezek <output id="map-pin-background-scale-value" for="map-pin-background-scale">100%</output></label>
       <input id="map-pin-background-scale" type="range" min="50" max="200" step="5" value="100">
+      <label for="map-pin-background-opacity">Krycie tła pinezek <output id="map-pin-background-opacity-value" for="map-pin-background-opacity">55%</output></label>
+      <input id="map-pin-background-opacity" type="range" min="0" max="100" step="1" value="55">
       <label for="map-cluster-background-scale">Skala tła klastrów <output id="map-cluster-background-scale-value" for="map-cluster-background-scale">100%</output></label>
       <input id="map-cluster-background-scale" type="range" min="50" max="200" step="5" value="100">
       <label for="map-status-scale">Skala ikon statusów <output id="map-status-scale-value" for="map-status-scale">100%</output></label>
@@ -4644,6 +4646,7 @@ function slugify(str) {
     const mapPinScale = document.getElementById('map-pin-scale');
     const mapPinBackground = document.getElementById('map-pin-background');
     const mapPinBackgroundScale = document.getElementById('map-pin-background-scale');
+    const mapPinBackgroundOpacity = document.getElementById('map-pin-background-opacity');
     const mapClusterBackgroundScale = document.getElementById('map-cluster-background-scale');
     const mapStatusScale = document.getElementById('map-status-scale');
     let mapOptionsStorageKey = null;
@@ -4656,7 +4659,9 @@ function slugify(str) {
       style.setProperty('--map-pin-font-size', `${19 * pinScale}px`);
       style.setProperty('--map-status-size', `${12 * statusScale}px`);
       style.setProperty('--map-highlight-size', `${13 * statusScale}px`);
-      style.setProperty('--map-pin-background', mapPinBackground.checked ? 'rgba(255, 255, 255, .55)' : 'transparent');
+      const backgroundOpacity = mapPinBackgroundOpacity.valueAsNumber / 100;
+      style.setProperty('--map-pin-background', mapPinBackground.checked ? `rgba(255, 255, 255, ${backgroundOpacity})` : 'transparent');
+      document.getElementById('map-pin-background-opacity-value').value = `${mapPinBackgroundOpacity.value}%`;
       style.setProperty('--map-pin-background-scale', mapPinBackgroundScale.valueAsNumber / 100);
       style.setProperty('--map-cluster-background-scale', mapClusterBackgroundScale.valueAsNumber / 100);
       document.getElementById('map-pin-background-scale-value').value = `${mapPinBackgroundScale.value}%`;
@@ -4677,6 +4682,8 @@ function slugify(str) {
       }
       mapPinScale.value = Number.isFinite(saved?.pinScale) ? saved.pinScale : 100;
       mapPinBackground.checked = saved?.pinBackground === true;
+      const previousOpacity = Number.isFinite(saved?.pinBackgroundTransparency) ? 100 - saved.pinBackgroundTransparency : 55;
+      mapPinBackgroundOpacity.value = Number.isFinite(saved?.pinBackgroundOpacity) ? saved.pinBackgroundOpacity : previousOpacity;
       mapPinBackgroundScale.value = Number.isFinite(saved?.pinBackgroundScale) ? saved.pinBackgroundScale : 100;
       mapClusterBackgroundScale.value = Number.isFinite(saved?.clusterBackgroundScale) ? saved.clusterBackgroundScale : 100;
       mapStatusScale.value = Number.isFinite(saved?.statusScale) ? saved.statusScale : 100;
@@ -4691,6 +4698,7 @@ function slugify(str) {
         localStorage.setItem(mapOptionsStorageKey, JSON.stringify({
           pinScale: mapPinScale.valueAsNumber,
           pinBackground: mapPinBackground.checked,
+          pinBackgroundOpacity: mapPinBackgroundOpacity.valueAsNumber,
           pinBackgroundScale: mapPinBackgroundScale.valueAsNumber,
           clusterBackgroundScale: mapClusterBackgroundScale.valueAsNumber,
           statusScale: mapStatusScale.valueAsNumber
