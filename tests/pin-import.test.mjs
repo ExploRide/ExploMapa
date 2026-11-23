@@ -121,6 +121,28 @@ test('accepts only unambiguous high-confidence name matches without a CSV addres
   assert.equal(different.state, 'review');
 });
 
+test('rejects unrelated Geoapify place despite high geocoder confidence', async () => {
+  const [entry] = importer.parseCsvContent('Name\\nZabytkowa lokomotywownia z halą wachlarzową');
+  await importer.resolveEntry(entry, async () => [{
+    name: 'Zabytkowa dzwonnica z 1871r.', label: 'Zabytkowa dzwonnica z 1871r., Cyców, Polska',
+    confidence: 0.99, lat: 51.3031481, lng: 23.1357546
+  }], new AbortController().signal);
+  assert.equal(entry.state, 'unresolved');
+  assert.equal(entry.candidates.length, 0);
+  assert.equal(entry.pin.lat, undefined);
+});
+
+test('keeps matching location and rejects a wrong competing result', async () => {
+  const [entry] = importer.parseCsvContent('Name\\nMuzeum Józefa Czechowicza');
+  await importer.resolveEntry(entry, async () => [
+    { name: 'Zabytkowa dzwonnica', label: 'Zabytkowa dzwonnica, Cyców', confidence: 1, lat: 51.3, lng: 23.1 },
+    { name: 'Muzeum Józefa Czechowicza', label: 'Muzeum Józefa Czechowicza, Lublin',
+      confidence: 0.99, lat: 51.25, lng: 22.57 }
+  ], new AbortController().signal);
+  assert.equal(entry.state, 'ready');
+  assert.deepEqual(points([entry]), [[51.25, 22.57]]);
+});
+
 test('reports exhausted quota and aborts an active request', async () => {
   let requests = 0;
   const api = loadImporter(async () => {
