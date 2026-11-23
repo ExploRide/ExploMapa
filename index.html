@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.693';
+    const BUILD_VERSION = '2026-11-23 v.0.694';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -6341,17 +6341,25 @@ function slugify(str) {
         const { marker, ...data } = pin;
         return data;
       })));
+      // Commit map data first. Rendering/filter refresh failures must never
+      // leave imported pins on the map while the CSV dialog says "not imported".
       createdPins.forEach(pin => {
-        registerPinCountry(pin);
-        if (!isMobileLayout && !pin.importSource) enqueueCountryFetch(pin);
         layer.lista.push(pin);
         wszystkiePinezki.push(pin);
         nowePinezki.push(pin);
       });
-      refreshCategoryCollectionsFromPins();
-      updateCategoryFilter();
-      generujListeWarstw();
-      markDataDirty('pin:add');
+      const optionalRefresh = (step, label) => {
+        try { step(); } catch (error) { console.error('Odświeżanie po imporcie: ' + label, error); }
+      };
+      createdPins.forEach(pin => {
+        optionalRefresh(() => registerPinCountry(pin), 'country');
+        if (!isMobileLayout && !pin.importSource) optionalRefresh(() => enqueueCountryFetch(pin), 'country queue');
+      });
+      optionalRefresh(refreshCategoryCollectionsFromPins, 'categories');
+      optionalRefresh(updateCategoryFilter, 'filter');
+      optionalRefresh(generujListeWarstw, 'layers');
+      optionalRefresh(() => markDataDirty('pin:add'), 'dirty flag');
+      return createdPins;
     }
 
     function setupPinImportDialog() {
@@ -6823,31 +6831,39 @@ function slugify(str) {
             setNotice('Wybrana warstwa jest niedostępna.');
             return;
           }
-          addImportedPinsToMap(pins, layerKey);
-          // Keep the original file and all remaining rows loaded: one CSV/KML
-          // can be imported in several batches to different destination layers.
+          const added = addImportedPinsToMap(pins, layerKey);
+          // The commit succeeded. Mark rows immediately, before any optional UI
+          // refresh, so a later exception can never re-enable these checkboxes.
           selectedEntries.forEach(entry => {
             entry.imported = true;
             entry.importedLayer = layerKey;
             entry.checkbox.checked = false;
+            updateRow(entry);
           });
-          closeReview();
-          detectDuplicates();
-          entries.forEach(updateRow);
-          filterRows();
-          reportResults();
-          // Include the newly created layer in the dropdown without reloading
-          // the file or losing the current search/selection state.
-          if (![...layerSelect.options].some(option => option.value === layerKey)) {
-            layerSelect.add(new Option(`${getLayerDisplayName(layerKey)} (${getLayerMainCategory(layerKey)})`, layerKey));
-          }
-          layerSelect.value = layerKey;
-          updateDestination();
-          setNotice(`Zaimportowano ${pins.length} pinezek do warstwy „${getLayerDisplayName(layerKey)}”. Możesz wybrać kolejne pinezki i inną warstwę.`);
-          showToast(`Zaimportowano ${pins.length} pinezek.`);
+          const refreshImportUi = (step, label) => {
+            try { step(); } catch (error) { console.error('Interfejs importu: ' + label, error); }
+          };
+          refreshImportUi(closeReview, 'close review');
+          refreshImportUi(detectDuplicates, 'duplicates');
+          refreshImportUi(() => entries.forEach(updateRow), 'rows');
+          refreshImportUi(filterRows, 'filter');
+          refreshImportUi(reportResults, 'counts');
+          // Newly created layer becomes available for the next batch.
+          refreshImportUi(() => {
+            if (![...layerSelect.options].some(option => option.value === layerKey)) {
+              layerSelect.add(new Option(`${getLayerDisplayName(layerKey)} (${getLayerMainCategory(layerKey)})`, layerKey));
+            }
+            layerSelect.value = layerKey;
+            updateDestination();
+          }, 'destination');
+          setNotice(`Zaimportowano ${added.length} pinezek do warstwy „${getLayerDisplayName(layerKey)}”. Możesz wybrać kolejne pinezki i inną warstwę.`);
+          refreshImportUi(() => showToast(`Zaimportowano ${added.length} pinezek.`), 'toast');
         } catch (error) {
           console.error('Błąd importu pinezek', error);
-          setNotice('Nie udało się zaimportować pinezek.');
+          // The error must be visible for diagnosis; generic failure can hide
+          // the fact that a new layer was already created.
+          setNotice('Błąd importu: ' + (error?.message || String(error)) +
+            '. Sprawdź, czy warstwa lub pinezki nie zostały już dodane.');
         }
       });
     }
