@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.695';
+    const BUILD_VERSION = '2026-11-23 v.0.696';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -6856,7 +6856,11 @@ function slugify(str) {
             if (![...layerSelect.options].some(option => option.value === layerKey)) {
               layerSelect.add(new Option(`${getLayerDisplayName(layerKey)} (${getLayerMainCategory(layerKey)})`, layerKey));
             }
-            layerSelect.value = layerKey;
+            // Default to creating a fresh destination after each batch,
+            // while retaining access to the just-created layer in the dropdown.
+            layerSelect.value = '';
+            layerNameInput.value = '';
+            layerNameInput.setCustomValidity('');
             updateDestination();
           }, 'destination');
           setNotice(`Zaimportowano ${added.length} pinezek do warstwy „${getLayerDisplayName(layerKey)}”. Możesz wybrać kolejne pinezki i inną warstwę.`);
