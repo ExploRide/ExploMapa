@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.685';
+    const BUILD_VERSION = '2026-11-23 v.0.686';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1242,6 +1242,10 @@ body, #sidebar, #basemap-switcher {
   border-bottom: 1px solid var(--ui-border, #444);
 }
 #kmlImportPins small { color: var(--ui-text-muted, #adb4c2); white-space: nowrap; }
+#kmlImportPins li[data-state="ready"] small { color: #55cc82; }
+#kmlImportPins li[data-state="review"] small { color: #f0c34e; }
+#kmlImportPins li[data-state="unresolved"] small { color: #f07575; }
+#kmlImportPins li[data-state="duplicate"] small { color: var(--ui-text-muted, #adb4c2); }
 #kmlImportPins li button { white-space: nowrap; }
 @media (max-width: 620px) {
   #kmlImportPins li:not([hidden]) { grid-template-columns: minmax(0, 1fr) auto; }
@@ -6355,7 +6359,7 @@ function slugify(str) {
       const lngInput = byId('pinImportLng');
       const reviewStatus = byId('pinImportReviewStatus');
       const endpoint = byId('pinImportScript').dataset.geocoderUrl.trim();
-      const { geocode, lookup } = pinImport.createGeocoder(endpoint, async () => {
+      const { geocode, lookup, google } = pinImport.createGeocoder(endpoint, async () => {
         const user = auth.currentUser;
         if (!user) throw Object.assign(new Error('Zaloguj się, aby wyszukiwać miejsca.'), { status: 401 });
         return user.getIdToken();
@@ -6436,6 +6440,7 @@ function slugify(str) {
       function updateRow(entry) {
         const state = entry.duplicate ? 'duplicate' : entry.state;
         entry.badge.textContent = labels[state];
+        entry.row.dataset.state = state;
         entry.checkbox.disabled = state !== 'ready';
         if (entry.checkbox.disabled) entry.checkbox.checked = false;
         entry.reviewButton.hidden = !['review', 'unresolved'].includes(state);
@@ -6605,7 +6610,10 @@ function slugify(str) {
             for (const [index, entry] of entries.entries()) {
               if (signal.aborted) break;
               if (entry.state === 'pending' && !entry.duplicate && endpoint) {
-                const failure = await pinImport.resolveEntry(entry, geocode, signal).catch(error => {
+                // Prefer the exact object addressed by the Google Maps URL.
+                // If Google's optional API is not configured, use Geoapify.
+                const googleResolved = await pinImport.resolveGoogleEntry(entry, google, signal);
+                const failure = googleResolved ? 0 : await pinImport.resolveEntry(entry, geocode, signal).catch(error => {
                   if (!signal.aborted) throw error;
                 });
                 if (operation !== controller || signal.aborted || !dialog.open) break;
