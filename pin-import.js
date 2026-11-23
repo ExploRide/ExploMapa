@@ -274,6 +274,18 @@ window.pinImport = (() => {
         await wait(Math.max(1500 * 2 ** attempt, delay || 0), signal);
       }
     };
+    const google = async (mapsUrl, signal) => {
+      if (!endpoint || !mapsUrl) return null;
+      const token = await getToken();
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ mapsUrl }),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(25000)])
+      });
+      if (!response.ok) return null;
+      return (await response.json()).place || null;
+    };
     const lookup = async (cids, signal) => {
       const token = await getToken();
       signal.throwIfAborted();
@@ -286,7 +298,7 @@ window.pinImport = (() => {
       if (!response.ok) throw Object.assign(new Error('Wyszukiwanie CID niedostępne'), { status: response.status });
       return (await response.json()).matches;
     };
-    return { geocode, lookup };
+    return { geocode, lookup, google };
   }
 
   // Geoapify's confidence measures geocoding certainty, not whether the
@@ -313,6 +325,35 @@ window.pinImport = (() => {
     }).sort((a, b) => b.nameMatch - a.nameMatch || (b.confidence || 0) - (a.confidence || 0));
     // A generic word such as "zabytkowa" does NOT identify a place.
     return ranked.filter(candidate => candidate.nameMatch >= 0.65);
+  }
+
+  async function resolveGoogleEntry(entry, google, signal) {
+    if (entry.state !== 'pending' || !entry.pin.importSource?.url) return false;
+    try {
+      const item = await google(entry.pin.importSource.url, signal);
+      if (!item) return false;
+      const point = coordinates(item.lat, item.lng);
+      if (!point) return false;
+      const candidate = {
+        ...point, name: item.name, label: item.label, placeId: item.placeId,
+        provider: 'Google Places', confidence: 1,
+        nameMatch: placeMatchScore(entry.queryName || entry.pin.nazwa, item.name)
+      };
+      // A resolved Google Maps URL identifies a specific place, even if its
+      // localized name differs. Keep moderate matches for explicit review.
+      if (candidate.nameMatch >= 0.9) {
+        Object.assign(entry.pin, point);
+        entry.pin.importSource.coordinateSource = 'Google Places';
+        entry.state = 'ready';
+      } else {
+        entry.candidates.unshift(candidate);
+        entry.state = 'review';
+      }
+      return true;
+    } catch (error) {
+      if (signal.aborted) throw error;
+      return false;
+    }
   }
 
   async function resolveEntry(entry, geocode, signal) {
@@ -359,5 +400,5 @@ window.pinImport = (() => {
     return 0;
   }
 
-  return { parseCsvContent, createGeocoder, resolveEntry, resolveCustomerIds, rankCandidates, coordinates, duplicateKeys, googleMapsUrl };
+  return { parseCsvContent, createGeocoder, resolveEntry, resolveGoogleEntry, resolveCustomerIds, rankCandidates, coordinates, duplicateKeys, googleMapsUrl };
 })();
