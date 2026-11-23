@@ -122,7 +122,7 @@ test('accepts only unambiguous high-confidence name matches without a CSV addres
 });
 
 test('rejects unrelated Geoapify place despite high geocoder confidence', async () => {
-  const [entry] = importer.parseCsvContent('Name\\nZabytkowa lokomotywownia z halą wachlarzową');
+  const [entry] = importer.parseCsvContent('Name\nZabytkowa lokomotywownia z halą wachlarzową');
   await importer.resolveEntry(entry, async () => [{
     name: 'Zabytkowa dzwonnica z 1871r.', label: 'Zabytkowa dzwonnica z 1871r., Cyców, Polska',
     confidence: 0.99, lat: 51.3031481, lng: 23.1357546
@@ -133,7 +133,7 @@ test('rejects unrelated Geoapify place despite high geocoder confidence', async 
 });
 
 test('keeps matching location and rejects a wrong competing result', async () => {
-  const [entry] = importer.parseCsvContent('Name\\nMuzeum Józefa Czechowicza');
+  const [entry] = importer.parseCsvContent('Name\nMuzeum Józefa Czechowicza');
   await importer.resolveEntry(entry, async () => [
     { name: 'Zabytkowa dzwonnica', label: 'Zabytkowa dzwonnica, Cyców', confidence: 1, lat: 51.3, lng: 23.1 },
     { name: 'Muzeum Józefa Czechowicza', label: 'Muzeum Józefa Czechowicza, Lublin',
