@@ -1,4 +1,4 @@
-name = "explomapa-pin-geocoding"
+name = "explomapa-geocoding"
 main = "worker.mjs"
 compatibility_date = "2026-11-23"
 
