@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.720';
+    const BUILD_VERSION = '2026-11-24 v.0.721';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -2501,10 +2501,24 @@ img.emoji {
       line-height: 1.35;
       padding: 8px 10px;
       border-radius: 6px;
-      pointer-events: none;
+      pointer-events: auto;
       z-index: 2147483647;
-      white-space: pre-line;
-      min-width: 220px;
+      width: min(440px, calc(100vw - 20px));
+      max-height: 55vh;
+      overflow: auto;
+      box-sizing: border-box;
+      overscroll-behavior: contain;
+    }
+    .performance-debug-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .performance-debug-output {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: inherit;
+      margin: 6px 0 0;
     }
 
 
@@ -4069,6 +4083,52 @@ body.mobile-layout #mapSaveToast {
 
   <script>
     const APP_BUILD = window.BUILD_VERSION;
+    const MAP_DEBUG_STORAGE_KEY = 'exploMapaTileDebug:v1';
+    const MAP_DEBUG_LIMIT = 180;
+    let mapDebugEvents = [];
+    let mapDebugWorkerStats = null;
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(MAP_DEBUG_STORAGE_KEY));
+      if (Array.isArray(stored)) mapDebugEvents = stored.slice(-MAP_DEBUG_LIMIT);
+    } catch {}
+    const activeTileDebugBatches = new Map();
+
+    function recordMapTileDebug(event, details = {}) {
+      mapDebugEvents.push({ time: new Date().toISOString(), event, ...details });
+      if (mapDebugEvents.length > MAP_DEBUG_LIMIT) mapDebugEvents.shift();
+    }
+
+    function persistMapTileDebug() {
+      try {
+        sessionStorage.setItem(MAP_DEBUG_STORAGE_KEY, JSON.stringify(mapDebugEvents));
+      } catch {}
+    }
+
+    function activeTileDebugSummary() {
+      return [...activeTileDebugBatches.values()].map(({ started, pending, ...batch }) => ({
+        ...batch,
+        pending: pending.size,
+        elapsedMs: Math.round(performance.now() - started)
+      }));
+    }
+
+    recordMapTileDebug('Uruchomienie strony', {
+      build: APP_BUILD,
+      navigation: performance.getEntriesByType('navigation')[0]?.type || 'unknown',
+      discarded: document.wasDiscarded === true,
+      online: navigator.onLine
+    });
+    document.addEventListener('visibilitychange', () => {
+      recordMapTileDebug('Widoczność karty', { state: document.visibilityState, layers: activeTileDebugSummary() });
+      persistMapTileDebug();
+    });
+    window.addEventListener('pageshow', event => recordMapTileDebug('Powrót do strony', { persisted: event.persisted }));
+    window.addEventListener('pagehide', event => {
+      recordMapTileDebug('Opuszczenie strony', { persisted: event.persisted, layers: activeTileDebugSummary() });
+      persistMapTileDebug();
+    });
+    for (const state of ['online', 'offline']) window.addEventListener(state, () => recordMapTileDebug('Sieć', { state }));
+    for (const state of ['freeze', 'resume']) document.addEventListener(state, () => recordMapTileDebug('Cykl życia karty', { state }));
     window.rawTripDebug = function(msg) {
       // Debug wyłączony. Funkcja musi istnieć, bo używają jej inline handlery #modeTripBtn.
     };
@@ -4430,10 +4490,23 @@ body.mobile-layout #mapSaveToast {
 
     if ('serviceWorker' in navigator) {
       let refreshing = false;
+      let hadController = Boolean(navigator.serviceWorker.controller);
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
+        if (refreshing || !navigator.serviceWorker.controller) return;
+        recordMapTileDebug('Zmiana service workera', { reload: hadController, visibility: document.visibilityState });
+        persistMapTileDebug();
+        mapDebugWorkerStats = null;
+        if (!hadController) {
+          hadController = true;
+          return;
+        }
         refreshing = true;
         window.location.reload();
+      });
+      navigator.serviceWorker.addEventListener('message', event => {
+        if (event.source === navigator.serviceWorker.controller && event.data?.type === 'MAP_TILE_DEBUG_STATS') {
+          mapDebugWorkerStats = { ...event.data.stats, receivedAt: new Date().toISOString() };
+        }
       });
 
       window.addEventListener('load', () => {
@@ -5411,6 +5484,9 @@ function slugify(str) {
       renderedMarkersAfterVisibility: 0
     };
     let performanceDebugOverlay = null;
+    let performanceDebugOutput;
+    let performanceDebugFeedback;
+    let performanceDebugRefreshTimer;
     const mapLoadStartTs = performance.now();
 
     function ensurePerformanceDebugOverlay() {
@@ -5418,6 +5494,31 @@ function slugify(str) {
       performanceDebugOverlay = document.createElement('div');
       performanceDebugOverlay.id = 'performance-debug-overlay';
       performanceDebugOverlay.style.display = 'none';
+      performanceDebugOverlay.innerHTML = `
+        <div class="performance-debug-actions">
+          <button type="button" data-debug-copy>Kopiuj log</button>
+          <button type="button" data-debug-download>Zapisz log do pliku</button>
+          <span role="status"></span>
+        </div>
+        <pre class="performance-debug-output"></pre>`;
+      performanceDebugOutput = performanceDebugOverlay.querySelector('pre');
+      performanceDebugFeedback = performanceDebugOverlay.querySelector('[role="status"]');
+      performanceDebugOverlay.querySelector('[data-debug-copy]').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(buildPerformanceDebugLog());
+          performanceDebugFeedback.textContent = 'Skopiowano log.';
+        } catch {
+          performanceDebugFeedback.textContent = 'Schowek niedostępny. Zapisz log do pliku.';
+        }
+      });
+      performanceDebugOverlay.querySelector('[data-debug-download]').addEventListener('click', () => {
+        const url = URL.createObjectURL(new Blob([buildPerformanceDebugLog()], { type: 'text/plain;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `explomapa-debug-${Date.now()}.txt`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
       document.body.appendChild(performanceDebugOverlay);
     }
 
@@ -5427,18 +5528,42 @@ function slugify(str) {
       ensurePerformanceDebugOverlay();
       if (!performanceDebugOverlay) return;
       performanceDebugOverlay.style.display = performanceDebugEnabled ? 'block' : 'none';
-      if (performanceDebugEnabled) renderPerformanceDebugOverlay();
+      clearInterval(performanceDebugRefreshTimer);
+      if (performanceDebugEnabled) {
+        refreshPerformanceDebugOverlay();
+        performanceDebugRefreshTimer = setInterval(refreshPerformanceDebugOverlay, 4000);
+      }
+    }
+
+    function refreshPerformanceDebugOverlay() {
+      navigator.serviceWorker?.controller?.postMessage({ type: 'GET_MAP_TILE_DEBUG_STATS' });
+      renderPerformanceDebugOverlay();
+    }
+
+    function buildPerformanceDebugLog() {
+      const report = {
+        version: APP_BUILD,
+        online: navigator.onLine,
+        networkType: navigator.connection?.effectiveType || null,
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        activeTileDownloads: activeTileDebugSummary(),
+        cache: mapDebugWorkerStats,
+        performance: performanceDebugStats,
+        pins: performanceDebugCounters,
+        events: mapDebugEvents
+      };
+      return JSON.stringify(report, null, 2);
     }
 
     function updatePerformanceDebug(label, time) {
-      if (!ENABLE_PERFORMANCE_DEBUG || !performanceDebugEnabled || !Number.isFinite(time)) return;
+      if (!ENABLE_PERFORMANCE_DEBUG || !Number.isFinite(time)) return;
       if (!performanceDebugStats[label]) performanceDebugStats[label] = { last: 0, sum: 0, count: 0, avg: 0 };
       const stat = performanceDebugStats[label];
       stat.last = time;
       stat.sum += time;
       stat.count += 1;
       stat.avg = stat.sum / stat.count;
-      renderPerformanceDebugOverlay();
+      if (performanceDebugEnabled) renderPerformanceDebugOverlay();
     }
 
     function updatePerformanceCounters(nextCounters = {}) {
@@ -5466,8 +5591,10 @@ function slugify(str) {
         if (!s) return `${title}: -`;
         return `${title}: ${s.last.toFixed(1)}ms (avg ${s.avg.toFixed(1)}ms)`;
       });
-      performanceDebugOverlay.textContent = [
+      performanceDebugOutput.textContent = [
         'PERF DEBUG',
+        `Wersja: ${APP_BUILD}`,
+        ...activeTileDebugSummary().map(batch => `${batch.layer}: ${batch.pending} w toku, ${batch.elapsedMs} ms`),
         ...statLines,
         `Pins loaded from Firestore: ${performanceDebugCounters.totalPins}`,
         `Leaflet markers actually created: ${performanceDebugCounters.createdMarkers}`,
@@ -5476,7 +5603,9 @@ function slugify(str) {
         `Markers added in last update: ${performanceDebugCounters.markersAddedToLayer}`,
         `Markers removed by updateMarkerVisibility: ${performanceDebugCounters.markersRemovedByVisibility}`,
         `Visible layer count: ${performanceDebugCounters.visibleLayerCount}`,
-        `Rendered markers after final visibility update: ${performanceDebugCounters.renderedMarkersAfterVisibility}`
+        `Rendered markers after final visibility update: ${performanceDebugCounters.renderedMarkersAfterVisibility}`,
+        '',
+        ...mapDebugEvents.slice(-6).map(event => `${event.time.slice(11, 19)} ${event.event}${event.layer ? ': ' + event.layer : ''}`)
       ].join('\n');
     }
 
@@ -9748,6 +9877,7 @@ function emojiHtml(str, hue = 0) {
 
       function setOsmOverlayStatus(message, type = '') {
         if (!osmOverlayStatusEl) return;
+        if (osmOverlayStatusEl.textContent !== message) recordMapTileDebug('Miejsca OSM', { state: type, message });
         osmOverlayStatusEl.textContent = message;
         osmOverlayStatusEl.className = '';
         osmOverlayStatusEl.id = 'osmOverlayStatus';
@@ -10563,6 +10693,7 @@ function emojiHtml(str, hue = 0) {
         disableArchiveImagery();
         try {
           const layer = createArchiveLayer(item);
+          watchTileDiagnostics(layer, 'Zdjęcia archiwalne');
           let checkedForBlank = false;
           let fallbackTriggered = false;
           const tryFallback = (reason) => {
@@ -11075,6 +11206,64 @@ function emojiHtml(str, hue = 0) {
         }
       }
 
+      const diagnosedTileLayers = new WeakSet();
+      function watchTileDiagnostics(layer, label) {
+        if (diagnosedTileLayers.has(layer)) return;
+        diagnosedTileLayers.add(layer);
+
+        function finishBatch(reason) {
+          const batch = activeTileDebugBatches.get(layer);
+          if (!batch) return;
+          const { started, pending, ...details } = batch;
+          recordMapTileDebug('Koniec partii kafli', {
+            ...details, reason, pending: pending.size, elapsedMs: Math.round(performance.now() - started)
+          });
+          activeTileDebugBatches.delete(layer);
+        }
+
+        function recordTileResult(tile, result) {
+          const batch = activeTileDebugBatches.get(layer);
+          if (!batch?.pending.delete(tile)) return;
+          batch[result]++;
+          if (result === 'loaded' && batch.firstTileMs === null) {
+            batch.firstTileMs = Math.round(performance.now() - batch.started);
+          }
+        }
+
+        layer.on({
+          tileloadstart({ tile, coords }) {
+            let batch = activeTileDebugBatches.get(layer);
+            if (!batch) {
+              batch = {
+                layer: label, zoom: map.getZoom(), tileZoom: coords.z,
+                started: performance.now(), pending: new Set(),
+                requested: 0, loaded: 0, failed: 0, cancelled: 0, firstTileMs: null
+              };
+              activeTileDebugBatches.set(layer, batch);
+              recordMapTileDebug('Początek partii kafli', { layer: label, zoom: batch.zoom, tileZoom: batch.tileZoom });
+            }
+            batch.requested++;
+            batch.pending.add(tile);
+          },
+          tileload({ tile }) { recordTileResult(tile, 'loaded'); },
+          tileerror({ tile }) { recordTileResult(tile, 'failed'); },
+          tileabort({ tile }) { recordTileResult(tile, 'cancelled'); },
+          tileunload({ tile }) { recordTileResult(tile, 'cancelled'); },
+          load() { finishBatch('zakończono'); },
+          remove() { finishBatch('zdjęto warstwę'); }
+        });
+      }
+
+      [
+        [labels, 'Etykiety Esri'],
+        [roadsFull, 'Ulice Esri'],
+        [roadsSimple, 'Główne trasy Esri'],
+        [baseOpenTopoPlusTrails.overlay, 'Szlaki Waymarked'],
+        [overlays.shade, 'Nakładka cieniowania Geoportal'],
+        [overlays.archStd, 'Nakładka ortofoto archiwalnego'],
+        [overlays.archHi, 'Nakładka ortofoto archiwalnego HighRes']
+      ].forEach(([layer, name]) => watchTileDiagnostics(layer, name));
+
       let cancelPendingBase = null;
       let stopActiveBaseStatus = null;
       let zoomTileTimer;
@@ -11130,16 +11319,22 @@ function emojiHtml(str, hue = 0) {
 
       map.on('layeradd', ({ layer }) => deferTilesDuringZoom(layer));
       map.on('layerremove', ({ layer }) => deferredTileLayers.delete(layer));
+      map.on('moveend', () => {
+        const { x, y } = map.getSize();
+        recordMapTileDebug('Zmiana widoku', { zoom: map.getZoom(), width: x, height: y });
+      });
       map.on('zoomstart', () => {
         clearTimeout(zoomTileTimer);
         zoomTilesPaused = true;
       });
       map.on('zoomend', () => {
+        recordMapTileDebug('Zoom zakończony', { zoom: map.getZoom(), delayMs: 2000 });
         clearTimeout(zoomTileTimer);
         zoomTileTimer = setTimeout(() => {
           zoomTilesPaused = false;
           const center = map.getCenter();
           const zoom = map.getZoom();
+          recordMapTileDebug('Wznowienie pobierania po zoomie', { zoom, layers: deferredTileLayers.size });
           for (const layer of deferredTileLayers) {
             if (map.hasLayer(layer)) layer._setView(center, zoom);
           }
@@ -11218,6 +11413,9 @@ function emojiHtml(str, hue = 0) {
 
       function setTileLoadStatus(id, state, message = '') {
         const status = document.getElementById(id);
+        if (status.textContent !== message) {
+          recordMapTileDebug('Stan ładowania', { layer: id, state: state || 'idle', message });
+        }
         status.classList.toggle('is-loading', state === 'loading');
         status.classList.toggle('is-error', state === 'error');
         status.textContent = message;
@@ -11230,6 +11428,7 @@ function emojiHtml(str, hue = 0) {
       }
 
       function switchBaseLayer(key, isFallback = false) {
+        recordMapTileDebug('Wybór bazy', { layer: getBasemapName(key), fallback: isFallback, zoom: map.getZoom() });
         cancelPendingBase?.();
         if (baseLayer && key === currentBase && map.hasLayer(baseLayer)) {
           selectDisplayedBase();
@@ -11261,6 +11460,7 @@ function emojiHtml(str, hue = 0) {
         let candidate;
         try {
           candidate = def.create();
+          watchTileDiagnostics(candidate, `Baza: ${name}`);
           deferTilesDuringZoom(candidate, true);
         } catch (error) {
           onFailure();
