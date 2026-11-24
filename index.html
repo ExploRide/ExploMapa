@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.711';
+    const BUILD_VERSION = '2026-11-24 v.0.712';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -9947,6 +9947,13 @@ function emojiHtml(str, hue = 0) {
         maxZoom: MAX_MAP_ZOOM
       });
       const hill = wmsShadedReliefLayer();
+      const hillEsri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
+        attribution: '<a href="https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer">Esri i dostawcy danych</a>',
+        maxNativeZoom: 19,
+        maxZoom: MAX_MAP_ZOOM,
+        updateWhenIdle: true,
+        updateWhenZooming: false
+      });
       const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
         maxNativeZoom: NATIVE_TILE_ZOOM,
@@ -9974,7 +9981,8 @@ function emojiHtml(str, hue = 0) {
         sat: { create: () => sat },
         'mapbox-satellite': { create: () => mapboxSatelliteLayer },
         copernicus: { create: () => copernicusLayer },
-        hill: { create: () => hill },
+        hill: { create: () => hill, fallback: 'hill-esri' },
+        'hill-esri': { create: () => hillEsri },
         'otm-trails': { create: () => baseOpenTopoPlusTrails.base },
         osm: { create: () => osm },
         'orto-wmts-std': { create: () => wmtsLayer(WMTS_STD_URL), fallback: 'orto-wms-std' },
@@ -11020,7 +11028,8 @@ function emojiHtml(str, hue = 0) {
       }
 
       function selectDisplayedBase() {
-        baseRadios.forEach(radio => { radio.checked = radio.value === currentBase; });
+        const selectedKey = currentBase === 'hill-esri' ? 'hill' : currentBase;
+        baseRadios.forEach(radio => { radio.checked = radio.value === selectedKey; });
       }
 
       function switchBaseLayer(key, isFallback = false) {
@@ -11032,7 +11041,9 @@ function emojiHtml(str, hue = 0) {
         const def = baseLayerDefs[key];
         const onFailure = () => {
           if (def.fallback && !isFallback) {
-            showToast('Próbuję wczytać tę bazę z usługi WMS.');
+            showToast(key === 'hill'
+              ? 'Geoportal nie zwrócił kafli. Wczytuję cieniowanie Esri.'
+              : 'Próbuję wczytać tę bazę z usługi WMS.');
             switchBaseLayer(def.fallback, true);
           } else {
             selectDisplayedBase();
