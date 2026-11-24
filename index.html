@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.709';
+    const BUILD_VERSION = '2026-11-24 v.0.710';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -452,9 +452,8 @@
     .layer-category-add-btn {
       width: 22px;
       height: 22px;
-      border: 1px solid #666;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.08);
+      border: 0;
+      background: transparent;
       color: #f0f0f0;
       cursor: pointer;
       font-size: 16px;
@@ -462,7 +461,7 @@
       line-height: 18px;
       padding: 0;
     }
-    .layer-category-add-btn:hover { background: rgba(255, 255, 255, 0.16); }
+    .layer-category-add-btn:hover { background: transparent; }
     .new-layer-inline-row {
       display: flex;
       align-items: center;
