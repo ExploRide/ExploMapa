@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.701';
+    const BUILD_VERSION = '2026-11-24 v.0.702';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -2057,7 +2057,7 @@ body.mobile-layout #geosearch-suggestions {
 }
 body.mobile-layout #gpsFollowBtn {
   position: fixed;
-  bottom: 20px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 34px);
   right: 15px;
   z-index: 1000;
   background: #2b2b2b;
@@ -2072,10 +2072,34 @@ body.mobile-layout #syncBtn { display: block; }
 body.mobile-layout #sidebarCollapseToggle,
 body.mobile-layout #basemapCollapseToggle { display: none !important; }
 body.mobile-layout #sidebarResizeHandle { display: none !important; }
-body.mobile-layout #osmOverlayStatus { z-index: 250; }
+body.mobile-layout #osmOverlayStatus {
+  right: 10px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 176px);
+  max-width: min(78vw, 300px);
+  z-index: 250;
+}
 body.mobile-layout #toast { left: 10px; top: calc(env(safe-area-inset-top, 0px) + 92px); }
 body.mobile-layout .leaflet-popup { z-index: 2147483600 !important; }
-body.mobile-layout .leaflet-control-zoom { left: 10px; }
+body.mobile-layout .leaflet-control-zoom {
+  left: 10px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+}
+body.mobile-layout .leaflet-control-zoom .zoom-percent-indicator {
+  top: auto;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 36px;
+  padding: 4px 6px;
+}
+body.mobile-layout #savePinBtn {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 102px);
+}
+body.mobile-layout .copernicus-time-control {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 252px);
+  left: 10px;
+}
 body.mobile-layout #toggleLayers {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 10px);
@@ -3351,13 +3375,27 @@ html body .trip-special-point-modal label {
   pointer-events: auto !important;
 }
 
+#app-build-badge { bottom: 8px; }
+
+body.mobile-layout #app-build-badge {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+}
+
 body.mobile-layout #mapSaveControls {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 76px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 44px);
+  width: min(220px, calc(100% - 160px));
   z-index: 2147483646;
 }
 
 body.mobile-layout #saveChanges {
-  min-width: 170px !important;
+  box-sizing: border-box;
+  width: 100% !important;
+  min-width: 0 !important;
+  transform: none;
+}
+
+body.mobile-layout #mapSaveToast {
+  max-width: 100%;
 }
 
 /* Compact inline fields in pin add/edit forms */
@@ -4244,7 +4282,6 @@ body.mobile-layout #saveChanges {
     Object.assign(buildBadge.style, {
       position: 'fixed',
       right: '8px',
-      bottom: '8px',
       zIndex: '99999',
       background: 'rgba(0, 0, 0, 0.7)',
       color: '#7CFF7C',
