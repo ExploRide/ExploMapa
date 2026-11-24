@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.706';
+    const BUILD_VERSION = '2026-11-24 v.0.707';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -3197,11 +3197,14 @@ html body .emoji-marker-inner {
 html body .emoji-marker-inner::before {
   content: "";
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
   z-index: -1;
   border-radius: 50%;
   background: var(--map-pin-background, transparent);
-  transform: scale(var(--map-pin-background-scale, 1));
+  transform: translate(-50%, -50%) scale(var(--map-pin-background-scale, 1));
   pointer-events: none;
 }
 
@@ -3280,8 +3283,10 @@ html body .emoji-marker .sztosy-gwiazda {
   width: 100%;
   margin: 0;
 }
-#map-options-dialog button {
-  justify-self: end;
+#map-options-dialog .map-options-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* Trip special point modal: bez podwójnego skalowania */
@@ -3742,12 +3747,6 @@ body.mobile-layout #mapSaveToast {
         <button id="basemapCollapseToggle" class="panel-toggle-btn" type="button" aria-label="Schowaj panel map" title="Schowaj panel map">▶</button>
         <h3>Rodzaj mapy</h3>
       </div>
-      <div id="pinClusteringMode" class="pin-clustering-control" role="group" aria-labelledby="pinClusteringLabel">
-        <span id="pinClusteringLabel">Klastrowanie</span>
-        <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
-        <button type="button" data-mode="on" aria-pressed="false">Wł.</button>
-        <button type="button" data-mode="off" aria-pressed="false">Wył.</button>
-      </div>
       <div id="map-date-controls"><span id="map-date-badge"></span><select id="map-year-select" style="display:none;"></select></div>
       <details data-map-section="bases">
         <summary><strong>Bazy</strong></summary>
@@ -3858,6 +3857,12 @@ body.mobile-layout #mapSaveToast {
         <summary><strong>Historia edycji</strong></summary>
         <div id="history-log"></div>
       </details>
+      <div id="pinClusteringMode" class="pin-clustering-control" role="group" aria-labelledby="pinClusteringLabel">
+        <span id="pinClusteringLabel">Klastrowanie</span>
+        <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+        <button type="button" data-mode="on" aria-pressed="false">Wł.</button>
+        <button type="button" data-mode="off" aria-pressed="false">Wył.</button>
+      </div>
     </div>
     <div id="rightStatusPanelWrap">
       <div id="connectionStatusPanel" class="connection-status-panel">
@@ -3899,7 +3904,10 @@ body.mobile-layout #mapSaveToast {
       <label for="map-status-scale">Skala ikon statusów <output id="map-status-scale-value" for="map-status-scale">100%</output></label>
       <input id="map-status-scale" type="range" min="50" max="200" step="5" value="100">
       <p id="map-options-sync-status" role="status" hidden></p>
-      <button type="submit">Zamknij</button>
+      <div class="map-options-actions">
+        <button id="map-options-save" type="button">Zapisz</button>
+        <button type="submit">Zamknij</button>
+      </div>
     </form>
   </dialog>
   <dialog id="layer-editor" aria-labelledby="layerEditTitle">
@@ -4909,6 +4917,7 @@ function slugify(str) {
       statusScale: mapStatusScale
     };
     const mapOptionsSyncStatus = document.getElementById('map-options-sync-status');
+    const mapOptionsSaveButton = document.getElementById('map-options-save');
     let mapOptionsSession = null;
 
     function applyMapOptions() {
@@ -4972,6 +4981,7 @@ function slugify(str) {
       if (uid === (mapOptionsSession?.uid ?? null)) return;
       mapOptionsSession?.unsubscribe?.();
       mapOptionsSession = null;
+      mapOptionsSaveButton.disabled = false;
       setMapOptionsSyncStatus(null);
       if (!uid) {
         restoreMapOptionsControls();
@@ -4985,7 +4995,8 @@ function slugify(str) {
         storageKey: `exploMapaMapOptions:${uid}`,
         document: firestore.collection('mapOptions').doc(uid),
         editing: new Set(),
-        attemptedMigration: false
+        attemptedMigration: false,
+        explicitSave: false
       };
       mapOptionsSession = session;
       let saved;
@@ -5002,7 +5013,7 @@ function slugify(str) {
         if (snapshot.exists) {
           restoreMapOptionsControls(snapshot.data(), session.editing);
           cacheMapOptions(session);
-          if (!snapshot.metadata.hasPendingWrites) setMapOptionsSyncStatus(session);
+          if (!snapshot.metadata.hasPendingWrites && !session.explicitSave) setMapOptionsSyncStatus(session);
         } else if (legacyOptions && !session.attemptedMigration) {
           session.attemptedMigration = true;
           firestore.runTransaction(async transaction => {
@@ -5020,6 +5031,7 @@ function slugify(str) {
         applyMapOptions();
         const session = mapOptionsSession;
         if (session) {
+          session.explicitSave = false;
           session.editing.add(key);
           cacheMapOptions(session);
         }
@@ -5030,13 +5042,34 @@ function slugify(str) {
         applyMapOptions();
         cacheMapOptions(session);
         session.editing.delete(key);
-        setMapOptionsSyncStatus(session, 'Synchronizowanie opcji z kontem…');
+        if (!session.explicitSave) setMapOptionsSyncStatus(session, 'Synchronizowanie opcji z kontem…');
         const value = control.type === 'checkbox' ? control.checked : control.valueAsNumber;
         session.document.set({ [key]: value }, { merge: true }).then(() => {
-          setMapOptionsSyncStatus(session);
-        }).catch(error => reportMapOptionsSyncError(session, error));
+          if (!session.explicitSave) setMapOptionsSyncStatus(session);
+        }).catch(error => {
+          if (!session.explicitSave) reportMapOptionsSyncError(session, error);
+        });
       });
     }
+
+    mapOptionsSaveButton.addEventListener('click', async () => {
+      const session = mapOptionsSession;
+      if (!session || mapOptionsSaveButton.disabled) return;
+      session.explicitSave = true;
+      mapOptionsSaveButton.disabled = true;
+      cacheMapOptions(session);
+      setMapOptionsSyncStatus(session, navigator.onLine
+        ? 'Zapisywanie opcji na koncie…'
+        : 'Opcje zapisano lokalnie. Czekam na połączenie z Firestore…');
+      try {
+        await session.document.set(readMapOptionsControls(), { merge: true });
+        if (session.explicitSave) setMapOptionsSyncStatus(session, 'Opcje zapisane na koncie.');
+      } catch (error) {
+        reportMapOptionsSyncError(session, error);
+      } finally {
+        if (session === mapOptionsSession) mapOptionsSaveButton.disabled = false;
+      }
+    });
 
     firebase.auth().onIdTokenChanged(async user => {
       const loginBtn = document.getElementById("loginBtn");
