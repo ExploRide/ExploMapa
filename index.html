@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.705';
+    const BUILD_VERSION = '2026-11-24 v.0.706';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -2906,6 +2906,13 @@ img.emoji {
       box-shadow: var(--ui-shadow);
     }
 
+    body.mobile-layout #sidebar.show #toggleLayers,
+    body.mobile-layout #basemap-switcher.show #toggleBasemaps {
+      background: var(--ui-text) !important;
+      border-color: var(--ui-text) !important;
+      color: #16191f !important;
+    }
+
     .leaflet-control-zoom a {
       background: #1b1f27 !important;
       color: var(--ui-text) !important;
@@ -2993,17 +3000,19 @@ img.emoji {
     }
 
     body.mobile-layout .sidebar-header {
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: minmax(32px, 1fr) auto minmax(32px, 1fr);
       gap: 6px;
       margin-top: calc(env(safe-area-inset-top, 0px) + 2px);
     }
 
     body.mobile-layout #specialMenu {
+      justify-self: start;
       margin: 0;
     }
 
     body.mobile-layout #logoNaglowek {
-      flex: 0 0 auto;
+      grid-column: 2;
       margin-bottom: 0;
     }
 
