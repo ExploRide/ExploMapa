@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.704';
+    const BUILD_VERSION = '2026-11-24 v.0.705';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -2038,6 +2038,7 @@ body.mobile-layout #basemap-switcher {
   transition: transform 0.3s ease;
   height: 100%;
   z-index: 300;
+  overflow: visible;
 }
 body.mobile-layout #basemap-switcher.show { transform: translateX(0); }
 body.mobile-layout #narzedzia { left: 10px; top: 104px; z-index: 200; }
@@ -2107,27 +2108,35 @@ body.mobile-layout .copernicus-time-control {
   bottom: calc(env(safe-area-inset-bottom, 0px) + 252px);
   left: 10px;
 }
-body.mobile-layout #toggleLayers {
-  position: fixed;
+body.mobile-layout .mobile-panel-arrow {
+  position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 10px);
-  left: 10px;
-  z-index: 400;
-  background: #2b2b2b;
-  color: #f0f0f0;
-  border: 1px solid #444;
-  padding: 5px 10px;
-  display: block !important;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 36px;
+  height: 38px;
+  padding: 0;
 }
-body.mobile-layout #toggleBasemaps {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 10px);
-  right: 10px;
-  z-index: 400;
-  background: #2b2b2b;
-  color: #f0f0f0;
-  border: 1px solid #444;
-  padding: 5px 10px;
-  display: block !important;
+body.mobile-layout #toggleLayers { left: calc(100% + 7px); }
+body.mobile-layout #toggleBasemaps { right: calc(100% + 7px); }
+.mobile-panel-arrow::before {
+  content: '';
+  width: 11px;
+  height: 14px;
+  background: currentColor;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  transform: scaleX(var(--arrow-direction, 1));
+  transition: transform 0.3s ease;
+}
+#sidebar.show #toggleLayers,
+#basemap-switcher:not(.show) #toggleBasemaps {
+  --arrow-direction: -1;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.mobile-layout #sidebar,
+  body.mobile-layout #basemap-switcher,
+  .mobile-panel-arrow::before { transition: none; }
 }
 @media (max-width: 700px) {
   #connectionStatusPanel { display: block; }
@@ -2168,8 +2177,6 @@ body.mobile-layout #toggleBasemaps {
   #syncBtn { display: block; }
   .leaflet-popup { z-index: 2147483600 !important; }
   .leaflet-control-zoom { left: 10px; }
-  #toggleLayers { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 10px; z-index: 400; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block !important; }
-  #toggleBasemaps { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 10px); right: 10px; z-index: 400; background: #2b2b2b; color: #f0f0f0; border: 1px solid #444; padding: 5px 10px; display: block !important; }
 }
 
 @media (max-width: 1200px) {
@@ -2985,21 +2992,13 @@ img.emoji {
     }
 
     body.mobile-layout .sidebar-header {
-      justify-content: flex-start;
-      flex-wrap: wrap;
+      justify-content: space-between;
       gap: 6px;
       margin-top: calc(env(safe-area-inset-top, 0px) + 2px);
-      padding-left: calc(var(--mobile-layers-button-width, 90px) + 9px);
-      min-height: var(--mobile-layers-button-height, 32px);
     }
 
     body.mobile-layout #specialMenu {
       margin: 0;
-    }
-
-    body.mobile-layout #specialMenuContent {
-      left: 50%;
-      transform: translateX(-50%);
     }
 
     body.mobile-layout #logoNaglowek {
@@ -3155,11 +3154,9 @@ html body button, html body input, html body select, html body textarea {
 }
 html body #sidebar { width: var(--sidebar-width, calc(264px * var(--ui-scale))); }
 html body #basemap-switcher { width: calc(264px * var(--ui-scale)); }
-@media (max-width: 700px) {
-  html body.mobile-layout #sidebar,
-  html body.mobile-layout #basemap-switcher {
-    width: min(calc(260px * var(--ui-scale)), calc(100vw - 40px)) !important;
-  }
+html body.mobile-layout #sidebar,
+html body.mobile-layout #basemap-switcher {
+  width: min(calc(260px * var(--ui-scale)), calc(100vw - 52px));
 }
 
 /* Map markers use their own scale preferences. */
@@ -3549,6 +3546,7 @@ body.mobile-layout #mapSaveToast {
   <div id="loading" aria-live="polite"><div class="loader"></div><div id="loadingPercent" class="loading-percent" aria-label="Postęp wczytywania">0%</div></div>
   <div id="pinViewportLoading" aria-live="polite"><div class="pin-loader"></div><div id="pinViewportLoadingPercent">0%</div></div>
   <div id="sidebar">
+    <button id="toggleLayers" class="mobile-panel-arrow" type="button" aria-label="Panel warstw i planu tripu" aria-controls="sidebar-inner" aria-expanded="false"></button>
     <div id="sidebar-inner">
       <div class="sidebar-header">
         <div id="specialMenu">
@@ -3723,13 +3721,12 @@ body.mobile-layout #mapSaveToast {
     </div>
   </div>
   <div id="planOptions" class="plan-option-panel" style="display:none;"></div>
-  <button id="toggleLayers">☰ Warstwy</button>
-  <button id="toggleBasemaps">☰ Mapy</button>
   <div id="mapSaveControls">
     <div id="mapSaveToast" role="status"></div>
     <button id="saveChanges">Zapisz edycję mapy</button>
   </div>
   <div id="basemap-switcher">
+    <button id="toggleBasemaps" class="mobile-panel-arrow" type="button" aria-label="Panel map" aria-controls="basemap-switcher" aria-expanded="false"></button>
     <div id="basemap-content">
       <div class="basemap-header">
         <button id="basemapCollapseToggle" class="panel-toggle-btn" type="button" aria-label="Schowaj panel map" title="Schowaj panel map">▶</button>
@@ -6412,35 +6409,27 @@ function slugify(str) {
 
     const toggleLayersBtn = document.getElementById("toggleLayers");
     const sidebarEl = document.getElementById("sidebar");
-    if (toggleLayersBtn && sidebarEl) {
-      toggleLayersBtn.addEventListener("click", () => {
-        sidebarEl.classList.toggle("show");
-      });
-      const syncMobileSidebarHeader = ([entry]) => {
-        const { width, height } = entry.target.getBoundingClientRect();
-        if (!width || !height) return;
-        sidebarEl.style.setProperty("--mobile-layers-button-width", `${width}px`);
-        sidebarEl.style.setProperty("--mobile-layers-button-height", `${height}px`);
-      };
-      if (typeof ResizeObserver === 'function') {
-        new ResizeObserver(syncMobileSidebarHeader).observe(toggleLayersBtn);
-      }
-    }
-    const closeMobileSidebarOnOutsideClick = event => {
-      if (!document.body.classList.contains("mobile-layout")) return;
-      if (!sidebarEl || !sidebarEl.classList.contains("show")) return;
-      const target = event.target;
-      if (target && target.closest && (target.closest("#sidebar") || target.closest("#toggleLayers"))) return;
-      sidebarEl.classList.remove("show");
-    };
-    document.addEventListener("click", closeMobileSidebarOnOutsideClick);
     const toggleBasemapsBtn = document.getElementById("toggleBasemaps");
     const basemapSwitcherEl = document.getElementById("basemap-switcher");
-    if (toggleBasemapsBtn && basemapSwitcherEl) {
-      toggleBasemapsBtn.addEventListener("click", () => {
-        basemapSwitcherEl.classList.toggle("show");
+
+    for (const [button, panel, otherPanel] of [
+      [toggleLayersBtn, sidebarEl, basemapSwitcherEl],
+      [toggleBasemapsBtn, basemapSwitcherEl, sidebarEl]
+    ]) {
+      button.addEventListener('click', () => {
+        if (panel.classList.toggle('show')) otherPanel.classList.remove('show');
       });
+      const syncExpanded = () => button.setAttribute('aria-expanded', String(panel.classList.contains('show')));
+      new MutationObserver(syncExpanded).observe(panel, { attributes: true, attributeFilter: ['class'] });
+      syncExpanded();
     }
+
+    document.addEventListener('click', event => {
+      if (!document.body.classList.contains('mobile-layout')) return;
+      if (sidebarEl.classList.contains('show') && !sidebarEl.contains(event.target)) {
+        sidebarEl.classList.remove('show');
+      }
+    });
 
     const sidebarCollapseToggleBtn = document.getElementById("sidebarCollapseToggle");
     const basemapCollapseToggleBtn = document.getElementById("basemapCollapseToggle");
@@ -19047,7 +19036,6 @@ function confirmLayerDelete() {
       if (mode === 'trip' && document.body.classList.contains('mobile-layout') && sidebar) {
         sidebar.classList.add('show');
       }
-      document.getElementById('toggleLayers').textContent = mode === 'trip' ? '☰ Plan tripu' : '☰ Warstwy';
       renderTripMapLayers();
       applyTripPlannerPinVisibility();
       if (tripPlannerMode === 'trip') { const trip = getActiveTrip(); if (trip) fitMapToTripPoints(getAllActiveTripPoints(trip), { maxZoom: 15, pad: 0.2 }); }
