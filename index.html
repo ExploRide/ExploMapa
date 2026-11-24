@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.714';
+    const BUILD_VERSION = '2026-11-24 v.0.715';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -9983,7 +9983,8 @@ function emojiHtml(str, hue = 0) {
         maxNativeZoom: NATIVE_TILE_ZOOM,
         maxZoom: MAX_MAP_ZOOM
       });
-      const hill = wmsShadedReliefLayer();
+      // Reuse the same WMS tiles during deep zoom instead of requesting smaller extents.
+      const hill = wmsShadedReliefLayer({ maxNativeZoom: 16 });
       const hillEsri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}', {
         attribution: '<a href="https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer">Esri i dostawcy danych</a>',
         maxNativeZoom: 19,
