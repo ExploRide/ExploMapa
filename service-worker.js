@@ -2,6 +2,9 @@ const BUILD_VERSION = new URL(self.location.href).searchParams.get('v') || Date.
 const CACHE_NAME = `exploride-${BUILD_VERSION}`;
 const TILE_CACHE = `explomapa-tiles-${BUILD_VERSION}`;
 const RUNTIME_CACHE = `explomapa-runtime-${BUILD_VERSION}`;
+const GEOPORTAL_TILE_CACHE = 'explomapa-geoportal-tiles-v1';
+const GEOPORTAL_TILE_LIMIT = 160;
+let geoportalCacheWrites = Promise.resolve();
 
 const APP_SHELL = [
   '/ExploMapa/',
@@ -46,7 +49,7 @@ self.addEventListener('activate', event => {
     const keys = await caches.keys();
     await Promise.all(
       keys
-        .filter(k => ![CACHE_NAME, TILE_CACHE, RUNTIME_CACHE].includes(k))
+        .filter(k => ![CACHE_NAME, TILE_CACHE, RUNTIME_CACHE, GEOPORTAL_TILE_CACHE].includes(k))
         .map(k => caches.delete(k))
     );
     await clients.claim();
@@ -55,6 +58,16 @@ self.addEventListener('activate', event => {
 
 function isTileRequest(url) {
   return url.hostname.includes('tile') || url.pathname.includes('/tile/') || url.pathname.includes('/tiles/');
+}
+
+function isGeoportalTile(request, url) {
+  if (request.destination !== 'image' || url.hostname !== 'mapy.geoportal.gov.pl' ||
+      !url.pathname.startsWith('/wss/service/PZGIK/')) return false;
+  const query = new URLSearchParams(url.search.toLowerCase());
+  const service = query.get('service');
+  const operation = query.get('request');
+  return (service === 'wms' && operation === 'getmap') ||
+    (service === 'wmts' && operation === 'gettile');
 }
 
 function isArchiveImageryRequest(url) {
@@ -123,6 +136,42 @@ async function cacheFirst(request, cacheName) {
   return fresh;
 }
 
+async function loadGeoportalTile(request) {
+  let cache;
+  try {
+    cache = await caches.open(GEOPORTAL_TILE_CACHE);
+    const cached = await cache.match(request);
+    if (cached) return { response: cached };
+  } catch (error) {
+    console.warn('[SW] Geoportal cache unavailable', error);
+  }
+
+  let response;
+  try {
+    // A readable response lets us reject errors and XML replies before caching.
+    response = await fetch(request, { mode: 'cors', credentials: 'omit' });
+  } catch (error) {
+    if (request.signal.aborted) throw error;
+    return { response: await fetch(request) };
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  const cacheControl = response.headers.get('cache-control') || '';
+  if (!cache || !response.ok || !contentType.startsWith('image/') ||
+      /\b(no-store|no-cache|private)\b/i.test(cacheControl)) return { response };
+
+  const copy = response.clone();
+  geoportalCacheWrites = geoportalCacheWrites.then(async () => {
+    await cache.put(request, copy);
+    const keys = await cache.keys();
+    for (const key of keys.slice(0, Math.max(0, keys.length - GEOPORTAL_TILE_LIMIT))) {
+      await cache.delete(key);
+    }
+  }).catch(error => console.warn('[SW] Geoportal tile cache write failed', error));
+
+  return { response, stored: geoportalCacheWrites };
+}
+
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(RUNTIME_CACHE);
   const cached = await cache.match(request);
@@ -156,6 +205,13 @@ self.addEventListener('fetch', event => {
 
   if (isNavigationRequest(request) || isIndexRequest(url)) {
     event.respondWith(networkFirstForNavigation(request));
+    return;
+  }
+
+  if (isGeoportalTile(request, url)) {
+    const result = loadGeoportalTile(request);
+    event.respondWith(result.then(({ response }) => response));
+    event.waitUntil(result.then(({ stored }) => stored).catch(() => {}));
     return;
   }
 

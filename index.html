@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.713';
+    const BUILD_VERSION = '2026-11-24 v.0.714';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -4015,7 +4015,7 @@ body.mobile-layout #mapSaveToast {
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="leaflet-tilelayer-wmts.js?v=2026-05-26-savefix-1"></script>
+  <script src="leaflet-tilelayer-wmts.js?v=2026-11-24"></script>
 <script src="pin-import.js?v=2026-11-23-0693" id="pinImportScript" data-geocoder-url="https://explomapa-geocoding.eksplorajder.workers.dev"></script>
 
   <script>
@@ -11111,7 +11111,17 @@ function emojiHtml(str, hue = 0) {
         }
 
         let hasTiles = false;
-        const onTileLoad = () => { hasTiles = true; };
+        const onTileLoad = ({ tile }) => {
+          hasTiles = true;
+          const view = map.getContainer().getBoundingClientRect();
+          const bounds = tile.getBoundingClientRect();
+          const centerX = (view.left + view.right) / 2;
+          const centerY = (view.top + view.bottom) / 2;
+          if (bounds.left <= centerX && centerX < bounds.right &&
+              bounds.top <= centerY && centerY < bounds.bottom) {
+            setBasemapLoadStatus('');
+          }
+        };
         const detach = () => {
           candidate.off('tileload', onTileLoad);
           candidate.off('load', finish);
