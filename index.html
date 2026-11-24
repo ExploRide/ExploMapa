@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.700';
+    const BUILD_VERSION = '2026-11-24 v.0.701';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -3224,7 +3224,8 @@ html body .emoji-marker .sztosy-gwiazda {
   padding: 20px;
   border: 1px solid #3a3f4a;
   border-radius: 10px;
-  background: #1d2028;
+  background: rgba(29, 32, 40, .86);
+  backdrop-filter: blur(2px);
   color: #fff;
 }
 #map-options-dialog::backdrop {
@@ -17212,9 +17213,15 @@ function getTripPointEmoji(p) {
     document.getElementById('mapOptionsBtn').addEventListener('click', () => {
       specialMenuContent.classList.remove('open');
       specialMenuToggle.setAttribute('aria-expanded', 'false');
+      if (document.body.classList.contains('mobile-layout')) {
+        sidebarEl.classList.remove('show');
+      }
       mapOptionsDialog.showModal();
     });
-    mapOptionsDialog.addEventListener('close', () => specialMenuToggle.focus());
+    mapOptionsDialog.addEventListener('close', () => {
+      const mobile = document.body.classList.contains('mobile-layout');
+      (mobile ? toggleLayersBtn : specialMenuToggle).focus();
+    });
     if (specialMenu && specialMenuToggle && specialMenuContent) {
       specialMenuToggle.addEventListener('click', (e) => {
         e.stopPropagation();
