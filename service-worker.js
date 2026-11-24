@@ -5,6 +5,12 @@ const RUNTIME_CACHE = `explomapa-runtime-${BUILD_VERSION}`;
 const GEOPORTAL_TILE_CACHE = 'explomapa-geoportal-tiles-v1';
 const GEOPORTAL_TILE_LIMIT = 160;
 let geoportalCacheWrites = Promise.resolve();
+const tileCacheStats = {
+  startedAt: new Date().toISOString(),
+  build: BUILD_VERSION,
+  xyz: { hits: 0, network: 0, errors: 0 },
+  geoportal: { hits: 0, network: 0, errors: 0, uncachedFallbacks: 0, writes: 0, evictions: 0 }
+};
 
 const APP_SHELL = [
   '/ExploMapa/',
@@ -129,11 +135,22 @@ async function networkFirstForNavigation(request) {
 async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
-  if (cached) return cached;
+  const stats = cacheName === TILE_CACHE ? tileCacheStats.xyz : null;
+  if (cached) {
+    if (stats) stats.hits++;
+    return cached;
+  }
 
-  const fresh = await fetch(request);
-  cache.put(request, fresh.clone());
-  return fresh;
+  if (stats) stats.network++;
+  try {
+    const fresh = await fetch(request);
+    if (stats && !fresh.ok && fresh.type !== 'opaque') stats.errors++;
+    cache.put(request, fresh.clone());
+    return fresh;
+  } catch (error) {
+    if (stats) stats.errors++;
+    throw error;
+  }
 }
 
 async function loadGeoportalTile(request) {
@@ -141,31 +158,43 @@ async function loadGeoportalTile(request) {
   try {
     cache = await caches.open(GEOPORTAL_TILE_CACHE);
     const cached = await cache.match(request);
-    if (cached) return { response: cached };
+    if (cached) {
+      tileCacheStats.geoportal.hits++;
+      return { response: cached };
+    }
   } catch (error) {
     console.warn('[SW] Geoportal cache unavailable', error);
   }
 
   let response;
+  tileCacheStats.geoportal.network++;
   try {
     // A readable response lets us reject errors and XML replies before caching.
     response = await fetch(request, { mode: 'cors', credentials: 'omit' });
   } catch (error) {
     if (request.signal.aborted) throw error;
-    return { response: await fetch(request) };
+    tileCacheStats.geoportal.uncachedFallbacks++;
+    try {
+      return { response: await fetch(request) };
+    } catch (fallbackError) {
+      if (!request.signal.aborted) tileCacheStats.geoportal.errors++;
+      throw fallbackError;
+    }
   }
 
   const contentType = response.headers.get('content-type') || '';
   const cacheControl = response.headers.get('cache-control') || '';
+  if (!response.ok || !contentType.startsWith('image/')) tileCacheStats.geoportal.errors++;
   if (!cache || !response.ok || !contentType.startsWith('image/') ||
       /\b(no-store|no-cache|private)\b/i.test(cacheControl)) return { response };
 
   const copy = response.clone();
   geoportalCacheWrites = geoportalCacheWrites.then(async () => {
     await cache.put(request, copy);
+    tileCacheStats.geoportal.writes++;
     const keys = await cache.keys();
     for (const key of keys.slice(0, Math.max(0, keys.length - GEOPORTAL_TILE_LIMIT))) {
-      await cache.delete(key);
+      if (await cache.delete(key)) tileCacheStats.geoportal.evictions++;
     }
   }).catch(error => console.warn('[SW] Geoportal tile cache write failed', error));
 
@@ -187,8 +216,11 @@ async function staleWhileRevalidate(request) {
 }
 
 self.addEventListener('message', event => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+  if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  if (event.data?.type === 'GET_MAP_TILE_DEBUG_STATS') {
+    event.source?.postMessage({ type: 'MAP_TILE_DEBUG_STATS', stats: tileCacheStats });
   }
 });
 
