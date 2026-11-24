@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.725';
+    const BUILD_VERSION = '2026-11-24 v.0.726';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -12990,11 +12990,10 @@ function zaladujPinezkiZFirestore() {
         p._pinEditCommitted = true;
         const oldSlug = p.slug;
         applyPinData(p, nowa);
-        await syncTripPointSnapshotsForPin(p);
         refreshCategoryCollectionsFromPins();
         updateCategoryFilter();
         getPinMainCategory(p);
-      p.slug = slugify(p.nazwa);
+        p.slug = slugify(p.nazwa);
         if (oldSlug !== p.slug) {
           const photos = getStoredPhotos(oldSlug);
           delete photosMap[oldSlug];
@@ -13005,10 +13004,19 @@ function zaladujPinezkiZFirestore() {
         clearPinEditSession(p);
         p.unsaved = true;
         const newSlug = p.slug;
+        const applyHistoryEdit = (data, slug) => {
+          applyPinData(p, data);
+          p.slug = slug;
+          if (nowePinezki.includes(p)) syncNowePinezkiStorage();
+          generujListeWarstw();
+          updateSaveButton();
+        };
+        if (nowePinezki.includes(p)) syncNowePinezkiStorage();
         pushAction({
-          undo: () => { applyPinData(p, oldData); p.slug = oldData.slug; generujListeWarstw(); updateSaveButton(); },
-          redo: () => { applyPinData(p, nowa); p.slug = newSlug; generujListeWarstw(); updateSaveButton(); }
+          undo: () => applyHistoryEdit(oldData, oldData.slug),
+          redo: () => applyHistoryEdit(nowa, newSlug)
         }, 'Edytowano pinezkę');
+        await syncTripPointSnapshotsForPin(p);
       }
       generujListeWarstw();
       markDataDirty('pin:edit');
@@ -13085,12 +13093,6 @@ function zaladujPinezkiZFirestore() {
       const defaultEmoji = DEFAULT_EMOJI_ID;
       const marker = L.marker(latlng, {icon: createEmojiIcon(defaultEmoji, null, 24)}).addTo(map);
       let addedPin = null;
-      const syncNowePinezkiStorage = () => {
-        localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
-          const {marker, ...rest} = p;
-          return rest;
-        })));
-      };
       const removeAddedPin = () => {
         if (!addedPin) {
           if (map.hasLayer(marker)) map.removeLayer(marker);
@@ -13546,7 +13548,19 @@ function zaladujPinezkiZFirestore() {
       });
     }
 
+    function syncNowePinezkiStorage() {
+      const drafts = nowePinezki.map(pin => {
+        const { marker, el, trasy, plany, ...draft } = pin;
+        if (trasy) draft.trasy = trasy.map(serializeRoute);
+        if (plany) draft.plany = serializePlans(pin);
+        return draft;
+      });
+      if (drafts.length) localStorage.setItem('nowePinezki', JSON.stringify(drafts));
+      else localStorage.removeItem('nowePinezki');
+    }
+
     function loadNewPinsFromLocal() {
+      if (localPinsLoaded) return;
       try {
         const localPinsRaw = JSON.parse(localStorage.getItem('nowePinezki')) || [];
         const invalidPins = [];
@@ -13639,10 +13653,7 @@ function zaladujPinezkiZFirestore() {
         warstwy[warstwaN].lista.push(p);
         wszystkiePinezki.push(p);
       });
-      if (changed) localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
-        const {marker, ...rest} = p;
-        return rest;
-      })));
+      if (changed) syncNowePinezkiStorage();
       updateSaveButton();
       updateMainCategoryFilterUI();
       refreshCategoryCollectionsFromPins();
@@ -18395,7 +18406,10 @@ function getTripPointEmoji(p) {
       pinsToDelete.push({ id: p.id, firebaseId: p.firebaseId, sourceCollection: p.sourceCollection || 'pinezki2' });
     }
     const idxN = nowePinezki.indexOf(p);
-    if (idxN > -1) nowePinezki.splice(idxN, 1);
+    if (idxN > -1) {
+      nowePinezki.splice(idxN, 1);
+      syncNowePinezkiStorage();
+    }
     delete zmianyDoZapisania[p.id];
     if (p.marker) {
       if (layer && layer.layer && typeof layer.layer.removeLayer === 'function') {
@@ -18422,6 +18436,7 @@ function getTripPointEmoji(p) {
           if (backup.pin.plany) backup.pin.plany.forEach(pl => ensurePlanOverlay(backup.pin, pl));
           pinsToDelete = backup.prevPinsToDelete;
           nowePinezki = backup.prevNowe;
+          if (idxN > -1) syncNowePinezkiStorage();
           zmianyDoZapisania = Object.assign({}, backup.prevZmiany);
           refreshCategoryCollectionsFromPins();
           updateCategoryFilter();
@@ -18761,10 +18776,7 @@ function confirmLayerDelete() {
     attachPopupHandlers(marker, data);
     data.unsaved = true;
     nowePinezki.push(data);
-    localStorage.setItem('nowePinezki', JSON.stringify(nowePinezki.map(p => {
-      const {marker, ...rest} = p;
-      return rest;
-    })));
+    syncNowePinezkiStorage();
     warstwy[warstwaN].lista.push(data);
     wszystkiePinezki.push(data);
     refreshCategoryCollectionsFromPins();
