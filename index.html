@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-23 v.0.699';
+    const BUILD_VERSION = '2026-11-24 v.0.700';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -3840,6 +3840,7 @@ body.mobile-layout #saveChanges {
       <input id="map-cluster-background-scale" type="range" min="50" max="200" step="5" value="100">
       <label for="map-status-scale">Skala ikon statusów <output id="map-status-scale-value" for="map-status-scale">100%</output></label>
       <input id="map-status-scale" type="range" min="50" max="200" step="5" value="100">
+      <p id="map-options-sync-status" role="status" hidden></p>
       <button type="submit">Zamknij</button>
     </form>
   </dialog>
@@ -4827,7 +4828,16 @@ function slugify(str) {
     const mapPinBackgroundOpacity = document.getElementById('map-pin-background-opacity');
     const mapClusterBackgroundScale = document.getElementById('map-cluster-background-scale');
     const mapStatusScale = document.getElementById('map-status-scale');
-    let mapOptionsStorageKey = null;
+    const mapOptionsFields = {
+      pinScale: mapPinScale,
+      pinBackground: mapPinBackground,
+      pinBackgroundScale: mapPinBackgroundScale,
+      pinBackgroundOpacity: mapPinBackgroundOpacity,
+      clusterBackgroundScale: mapClusterBackgroundScale,
+      statusScale: mapStatusScale
+    };
+    const mapOptionsSyncStatus = document.getElementById('map-options-sync-status');
+    let mapOptionsSession = null;
 
     function applyMapOptions() {
       const pinScale = mapPinScale.valueAsNumber / 100;
@@ -4848,43 +4858,113 @@ function slugify(str) {
       document.getElementById('map-status-scale-value').value = `${mapStatusScale.value}%`;
     }
 
+    function readMapOptionsControls() {
+      return Object.fromEntries(Object.entries(mapOptionsFields).map(([key, control]) =>
+        [key, control.type === 'checkbox' ? control.checked : control.valueAsNumber]));
+    }
+
+    function restoreMapOptionsControls(saved, editing = new Set()) {
+      for (const [key, control] of Object.entries(mapOptionsFields)) {
+        if (editing.has(key)) continue;
+        if (control.type === 'checkbox') {
+          control.checked = saved?.[key] === true;
+        } else {
+          const legacyOpacity = key === 'pinBackgroundOpacity' && Number.isFinite(saved?.pinBackgroundTransparency);
+          control.value = Number.isFinite(saved?.[key]) ? saved[key]
+            : legacyOpacity ? 100 - saved.pinBackgroundTransparency : control.defaultValue;
+        }
+      }
+      applyMapOptions();
+    }
+
+    function cacheMapOptions(session) {
+      try {
+        localStorage.setItem(session.storageKey, JSON.stringify(readMapOptionsControls()));
+      } catch (error) {
+        console.warn('Nie udało się zapisać opcji mapy lokalnie', error);
+      }
+    }
+
+    function setMapOptionsSyncStatus(session, message = '') {
+      if (session !== mapOptionsSession) return;
+      mapOptionsSyncStatus.textContent = message;
+      mapOptionsSyncStatus.hidden = !message;
+    }
+
+    function reportMapOptionsSyncError(session, error) {
+      console.warn('Nie udało się zsynchronizować opcji mapy', error);
+      setMapOptionsSyncStatus(session, 'Opcje zapisano na tym urządzeniu. Synchronizacja z kontem jest niedostępna.');
+    }
+
     function loadMapOptions(uid) {
-      const storageKey = uid ? `exploMapaMapOptions:${uid}` : null;
-      if (storageKey === mapOptionsStorageKey) return;
-      mapOptionsStorageKey = storageKey;
+      if (uid === (mapOptionsSession?.uid ?? null)) return;
+      mapOptionsSession?.unsubscribe?.();
+      mapOptionsSession = null;
+      setMapOptionsSyncStatus(null);
+      if (!uid) {
+        restoreMapOptionsControls();
+        mapOptionsDialog.close();
+        return;
+      }
+
+      const firestore = firebase.firestore();
+      const session = {
+        uid,
+        storageKey: `exploMapaMapOptions:${uid}`,
+        document: firestore.collection('mapOptions').doc(uid),
+        editing: new Set(),
+        attemptedMigration: false
+      };
+      mapOptionsSession = session;
       let saved;
       try {
-        if (storageKey) saved = JSON.parse(localStorage.getItem(storageKey));
+        saved = JSON.parse(localStorage.getItem(session.storageKey));
       } catch (error) {
         console.warn('Nie udało się odczytać opcji mapy', error);
       }
-      mapPinScale.value = Number.isFinite(saved?.pinScale) ? saved.pinScale : 100;
-      mapPinBackground.checked = saved?.pinBackground === true;
-      const previousOpacity = Number.isFinite(saved?.pinBackgroundTransparency) ? 100 - saved.pinBackgroundTransparency : 55;
-      mapPinBackgroundOpacity.value = Number.isFinite(saved?.pinBackgroundOpacity) ? saved.pinBackgroundOpacity : previousOpacity;
-      mapPinBackgroundScale.value = Number.isFinite(saved?.pinBackgroundScale) ? saved.pinBackgroundScale : 100;
-      mapClusterBackgroundScale.value = Number.isFinite(saved?.clusterBackgroundScale) ? saved.clusterBackgroundScale : 100;
-      mapStatusScale.value = Number.isFinite(saved?.statusScale) ? saved.statusScale : 100;
-      applyMapOptions();
-      if (!uid) mapOptionsDialog.close();
+      restoreMapOptionsControls(saved);
+      const legacyOptions = saved ? readMapOptionsControls() : null;
+
+      session.unsubscribe = session.document.onSnapshot({ includeMetadataChanges: true }, snapshot => {
+        if (session !== mapOptionsSession || snapshot.metadata.fromCache) return;
+        if (snapshot.exists) {
+          restoreMapOptionsControls(snapshot.data(), session.editing);
+          cacheMapOptions(session);
+          if (!snapshot.metadata.hasPendingWrites) setMapOptionsSyncStatus(session);
+        } else if (legacyOptions && !session.attemptedMigration) {
+          session.attemptedMigration = true;
+          firestore.runTransaction(async transaction => {
+            const existing = await transaction.get(session.document);
+            if (session === mapOptionsSession && !existing.exists) {
+              transaction.set(session.document, legacyOptions);
+            }
+          }).catch(error => reportMapOptionsSyncError(session, error));
+        }
+      }, error => reportMapOptionsSyncError(session, error));
     }
 
-    mapOptionsDialog.addEventListener('input', () => {
-      applyMapOptions();
-      if (!mapOptionsStorageKey) return;
-      try {
-        localStorage.setItem(mapOptionsStorageKey, JSON.stringify({
-          pinScale: mapPinScale.valueAsNumber,
-          pinBackground: mapPinBackground.checked,
-          pinBackgroundOpacity: mapPinBackgroundOpacity.valueAsNumber,
-          pinBackgroundScale: mapPinBackgroundScale.valueAsNumber,
-          clusterBackgroundScale: mapClusterBackgroundScale.valueAsNumber,
-          statusScale: mapStatusScale.valueAsNumber
-        }));
-      } catch (error) {
-        console.warn('Nie udało się zapisać opcji mapy', error);
-      }
-    });
+    for (const [key, control] of Object.entries(mapOptionsFields)) {
+      control.addEventListener('input', () => {
+        applyMapOptions();
+        const session = mapOptionsSession;
+        if (session) {
+          session.editing.add(key);
+          cacheMapOptions(session);
+        }
+      });
+      control.addEventListener('change', () => {
+        const session = mapOptionsSession;
+        if (!session) return;
+        applyMapOptions();
+        cacheMapOptions(session);
+        session.editing.delete(key);
+        setMapOptionsSyncStatus(session, 'Synchronizowanie opcji z kontem…');
+        const value = control.type === 'checkbox' ? control.checked : control.valueAsNumber;
+        session.document.set({ [key]: value }, { merge: true }).then(() => {
+          setMapOptionsSyncStatus(session);
+        }).catch(error => reportMapOptionsSyncError(session, error));
+      });
+    }
 
     firebase.auth().onIdTokenChanged(async user => {
       const loginBtn = document.getElementById("loginBtn");
