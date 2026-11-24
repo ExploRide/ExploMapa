@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.721';
+    const BUILD_VERSION = '2026-11-24 v.0.722';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -116,8 +116,10 @@
       overflow: hidden;
     }
     #basemap-content {
-      flex: 1;
-      overflow-y: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden auto;
+      overscroll-behavior-y: contain;
       padding-right: 4px;
       padding-bottom: 6px;
     }
@@ -2509,6 +2511,21 @@ img.emoji {
       box-sizing: border-box;
       overscroll-behavior: contain;
     }
+    .performance-debug-header {
+      position: sticky;
+      top: 0;
+      display: flex;
+      gap: 6px;
+      z-index: 1;
+      background: #17191f;
+    }
+    .performance-debug-handle {
+      flex: 1;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+    .performance-debug-handle:active { cursor: grabbing; }
     .performance-debug-actions {
       display: flex;
       flex-wrap: wrap;
@@ -3842,11 +3859,11 @@ body.mobile-layout #mapSaveToast {
   </div>
   <div id="basemap-switcher">
     <button id="toggleBasemaps" class="mobile-panel-arrow" type="button" aria-label="Panel map" aria-controls="basemap-switcher" aria-expanded="false"></button>
+    <div class="basemap-header">
+      <button id="basemapCollapseToggle" class="panel-toggle-btn" type="button" aria-label="Schowaj panel map" title="Schowaj panel map">▶</button>
+      <h3>Rodzaj mapy</h3>
+    </div>
     <div id="basemap-content">
-      <div class="basemap-header">
-        <button id="basemapCollapseToggle" class="panel-toggle-btn" type="button" aria-label="Schowaj panel map" title="Schowaj panel map">▶</button>
-        <h3>Rodzaj mapy</h3>
-      </div>
       <div id="map-date-controls"><span id="map-date-badge"></span><select id="map-year-select" style="display:none;"></select></div>
       <details data-map-section="bases">
         <summary><strong>Bazy</strong></summary>
@@ -3969,30 +3986,30 @@ body.mobile-layout #mapSaveToast {
         <button type="button" data-mode="on" aria-pressed="false">Wł.</button>
         <button type="button" data-mode="off" aria-pressed="false">Wył.</button>
       </div>
-    </div>
-    <div id="rightStatusPanelWrap">
-      <div id="connectionStatusPanel" class="connection-status-panel">
-        <div><strong>Połączenie:</strong> <span id="connectionState">online</span></div>
-        <div><strong>Lokalne zmiany:</strong> <span id="syncCount">0</span></div>
-        <div><strong>Status:</strong> <span id="syncStatusText">zsynchronizowano</span></div>
-      </div>
-      <div id="offlinePinsPanel" class="offline-pins-panel">
-        <h4>Niezsynchronizowane pinezki</h4>
-        <ul id="offlinePinsList"></ul>
-      </div>
-    </div>
-    <button id="syncBtn">Synchronizuj (<span id="syncCountBtn">0</span>)</button>
-    <div id="uiScaleControls" aria-label="Skalowanie interfejsu">
-      <div class="ui-scale-title">Skala UI</div>
-      <div class="ui-scale-row">
-        <div class="ui-scale-buttons">
-          <button id="uiScaleMinus" type="button" aria-label="Zmniejsz skalę UI">−</button>
-          <button id="uiScalePlus" type="button" aria-label="Zwiększ skalę UI">+</button>
+      <div id="rightStatusPanelWrap">
+        <div id="connectionStatusPanel" class="connection-status-panel">
+          <div><strong>Połączenie:</strong> <span id="connectionState">online</span></div>
+          <div><strong>Lokalne zmiany:</strong> <span id="syncCount">0</span></div>
+          <div><strong>Status:</strong> <span id="syncStatusText">zsynchronizowano</span></div>
         </div>
-        <input id="uiScaleSlider" type="range" min="70" max="130" step="2" value="100" aria-label="Skala UI">
-        <span id="uiScaleLabel">100%</span>
+        <div id="offlinePinsPanel" class="offline-pins-panel">
+          <h4>Niezsynchronizowane pinezki</h4>
+          <ul id="offlinePinsList"></ul>
+        </div>
       </div>
-      <button id="uiScaleReset" type="button">Reset</button>
+      <button id="syncBtn">Synchronizuj (<span id="syncCountBtn">0</span>)</button>
+      <div id="uiScaleControls" aria-label="Skalowanie interfejsu">
+        <div class="ui-scale-title">Skala UI</div>
+        <div class="ui-scale-row">
+          <div class="ui-scale-buttons">
+            <button id="uiScaleMinus" type="button" aria-label="Zmniejsz skalę UI">−</button>
+            <button id="uiScalePlus" type="button" aria-label="Zwiększ skalę UI">+</button>
+          </div>
+          <input id="uiScaleSlider" type="range" min="70" max="130" step="2" value="100" aria-label="Skala UI">
+          <span id="uiScaleLabel">100%</span>
+        </div>
+        <button id="uiScaleReset" type="button">Reset</button>
+      </div>
     </div>
   </div>
   <dialog id="map-options-dialog" aria-labelledby="map-options-title">
@@ -4493,13 +4510,13 @@ body.mobile-layout #mapSaveToast {
       let hadController = Boolean(navigator.serviceWorker.controller);
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (refreshing || !navigator.serviceWorker.controller) return;
-        recordMapTileDebug('Zmiana service workera', { reload: hadController, visibility: document.visibilityState });
+        const workerBuild = new URL(navigator.serviceWorker.controller.scriptURL).searchParams.get('v');
+        const reload = hadController && workerBuild !== APP_BUILD;
+        recordMapTileDebug('Zmiana service workera', { reload, workerBuild, visibility: document.visibilityState });
         persistMapTileDebug();
         mapDebugWorkerStats = null;
-        if (!hadController) {
-          hadController = true;
-          return;
-        }
+        hadController = true;
+        if (!reload) return;
         refreshing = true;
         window.location.reload();
       });
@@ -5000,7 +5017,7 @@ function slugify(str) {
       applyResponsiveLayoutClass();
       document.getElementById("map").style.display = "block";
       document.getElementById("sidebar").style.display = "block";
-      document.getElementById("basemap-switcher").style.display = "block";
+      document.getElementById("basemap-switcher").style.display = "flex";
       if (appInitialized) return;
       appInitialized = true;
       initMap();
@@ -5495,6 +5512,10 @@ function slugify(str) {
       performanceDebugOverlay.id = 'performance-debug-overlay';
       performanceDebugOverlay.style.display = 'none';
       performanceDebugOverlay.innerHTML = `
+        <div class="performance-debug-header">
+          <button type="button" class="performance-debug-handle" aria-label="Przesuń okno debugowania, także klawiszami strzałek">⠿ Debug wydajności</button>
+          <button type="button" data-debug-close aria-label="Zamknij okno debugowania">×</button>
+        </div>
         <div class="performance-debug-actions">
           <button type="button" data-debug-copy>Kopiuj log</button>
           <button type="button" data-debug-download>Zapisz log do pliku</button>
@@ -5520,11 +5541,51 @@ function slugify(str) {
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       });
       document.body.appendChild(performanceDebugOverlay);
+      const handle = performanceDebugOverlay.querySelector('.performance-debug-handle');
+      performanceDebugOverlay.querySelector('[data-debug-close]').addEventListener('click', () => {
+        setPerformanceDebugOverlayEnabled(false);
+      });
+      let drag;
+      handle.addEventListener('pointerdown', event => {
+        if (!event.isPrimary || event.button !== 0) return;
+        const bounds = performanceDebugOverlay.getBoundingClientRect();
+        drag = { pointerId: event.pointerId, x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+        handle.setPointerCapture(event.pointerId);
+      });
+      handle.addEventListener('pointermove', event => {
+        if (drag?.pointerId === event.pointerId) {
+          positionPerformanceDebugOverlay(event.clientX - drag.x, event.clientY - drag.y);
+        }
+      });
+      handle.addEventListener('lostpointercapture', () => { drag = null; });
+      handle.addEventListener('keydown', event => {
+        const steps = { ArrowLeft: [-16, 0], ArrowRight: [16, 0], ArrowUp: [0, -16], ArrowDown: [0, 16] };
+        if (!Object.hasOwn(steps, event.key)) return;
+        event.preventDefault();
+        const { left, top } = performanceDebugOverlay.getBoundingClientRect();
+        const [x, y] = steps[event.key];
+        positionPerformanceDebugOverlay(left + x, top + y);
+      });
+      window.addEventListener('resize', () => {
+        if (performanceDebugEnabled && performanceDebugOverlay.style.left) {
+          const { left, top } = performanceDebugOverlay.getBoundingClientRect();
+          positionPerformanceDebugOverlay(left, top);
+        }
+      });
+    }
+
+    function positionPerformanceDebugOverlay(left, top) {
+      const { width, height } = performanceDebugOverlay.getBoundingClientRect();
+      performanceDebugOverlay.style.left = `${Math.max(0, Math.min(left, window.innerWidth - width))}px`;
+      performanceDebugOverlay.style.top = `${Math.max(0, Math.min(top, window.innerHeight - height))}px`;
+      performanceDebugOverlay.style.right = 'auto';
+      performanceDebugOverlay.style.bottom = 'auto';
     }
 
     function setPerformanceDebugOverlayEnabled(nextEnabled) {
       if (!ENABLE_PERFORMANCE_DEBUG) return;
       performanceDebugEnabled = Boolean(nextEnabled);
+      syncPerformanceDebugToggleUi();
       ensurePerformanceDebugOverlay();
       if (!performanceDebugOverlay) return;
       performanceDebugOverlay.style.display = performanceDebugEnabled ? 'block' : 'none';
@@ -17894,18 +17955,15 @@ function getTripPointEmoji(p) {
       });
     }
 
-    const performanceDebugToggleBtn = document.getElementById('performanceDebugToggleBtn');
-    if (performanceDebugToggleBtn) {
-      const syncPerformanceDebugToggleUi = () => {
-        performanceDebugToggleBtn.textContent = `Debug wydajności: ${performanceDebugEnabled ? 'ON' : 'OFF'}`;
-        performanceDebugToggleBtn.setAttribute('aria-pressed', String(performanceDebugEnabled));
-      };
-      syncPerformanceDebugToggleUi();
-      performanceDebugToggleBtn.addEventListener('click', () => {
-        setPerformanceDebugOverlayEnabled(!performanceDebugEnabled);
-        syncPerformanceDebugToggleUi();
-      });
+    function syncPerformanceDebugToggleUi() {
+      const button = document.getElementById('performanceDebugToggleBtn');
+      if (!button) return;
+      button.textContent = `Debug wydajności: ${performanceDebugEnabled ? 'ON' : 'OFF'}`;
+      button.setAttribute('aria-pressed', String(performanceDebugEnabled));
     }
+    document.getElementById('performanceDebugToggleBtn')?.addEventListener('click', () => {
+      setPerformanceDebugOverlayEnabled(!performanceDebugEnabled);
+    });
 
     const duplicateModal = document.getElementById('duplicatePinsModal');
       const findDuplicatePinsBtn = document.getElementById('findDuplicatePinsBtn');
