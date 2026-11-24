@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.722';
+    const BUILD_VERSION = '2026-11-24 v.0.723';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1941,16 +1941,55 @@ body.mobile-layout .popup-description.scrollable {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 38px;
-  height: 38px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 40px;
+  height: 40px;
   padding: 0;
+  border: 1px solid rgb(255 255 255 / 45%);
   border-radius: 50%;
+  background: #202531;
+  color: #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 45%);
   transform: translate(-50%, -50%);
   cursor: ew-resize;
   touch-action: none;
   pointer-events: auto;
 }
-.shade-divider button:active { transform: translate(-50%, -50%); }
+.shade-divider button::before,
+.shade-divider button::after {
+  content: "";
+  box-sizing: border-box;
+  width: 9px;
+  height: 9px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  pointer-events: none;
+}
+.shade-divider button::before { transform: rotate(135deg); }
+.shade-divider button::after { transform: rotate(-45deg); }
+.shade-divider button:active {
+  background: #364254;
+  transform: translate(-50%, -50%);
+}
+.shade-divider button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .shade-divider button {
+    width: 44px;
+    height: 44px;
+  }
+  .shade-divider button::before,
+  .shade-divider button::after {
+    width: 10px;
+    height: 10px;
+  }
+}
 
 #map-tile-status {
   position: fixed;
@@ -11703,7 +11742,6 @@ function emojiHtml(str, hue = 0) {
       const shadeDivider = L.DomUtil.create('div', 'shade-divider', mapContainer);
       const shadeHandle = L.DomUtil.create('button', '', shadeDivider);
       shadeHandle.type = 'button';
-      shadeHandle.textContent = '↔';
       for (const [key, value] of Object.entries({
         role: 'slider', 'aria-label': 'Granica nakładki cieniowania',
         'aria-valuemin': '0', 'aria-valuemax': '100'
