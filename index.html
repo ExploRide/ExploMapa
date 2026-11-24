@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.702';
+    const BUILD_VERSION = '2026-11-24 v.0.703';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -2057,8 +2057,11 @@ body.mobile-layout #geosearch-suggestions {
 }
 body.mobile-layout #gpsFollowBtn {
   position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 34px);
+  bottom: var(--mobile-map-action-bottom);
   right: 15px;
+  box-sizing: border-box;
+  width: 60px;
+  min-height: 44px;
   z-index: 1000;
   background: #2b2b2b;
   color: #f0f0f0;
@@ -2074,7 +2077,7 @@ body.mobile-layout #basemapCollapseToggle { display: none !important; }
 body.mobile-layout #sidebarResizeHandle { display: none !important; }
 body.mobile-layout #osmOverlayStatus {
   right: 10px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 176px);
+  bottom: calc(var(--mobile-pin-action-bottom) + (74px + var(--mobile-pin-action-height, 44px)) / 2);
   max-width: min(78vw, 300px);
   z-index: 250;
 }
@@ -2092,8 +2095,12 @@ body.mobile-layout .leaflet-control-zoom .zoom-percent-indicator {
   min-width: 36px;
   padding: 4px 6px;
 }
+body.mobile-layout {
+  --mobile-map-action-bottom: calc(env(safe-area-inset-bottom, 0px) + 44px);
+  --mobile-pin-action-bottom: calc(env(safe-area-inset-bottom, 0px) + 99px);
+}
 body.mobile-layout #savePinBtn {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 102px);
+  bottom: var(--mobile-pin-action-bottom);
 }
 body.mobile-layout .copernicus-time-control {
   position: fixed;
@@ -3382,7 +3389,7 @@ body.mobile-layout #app-build-badge {
 }
 
 body.mobile-layout #mapSaveControls {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 44px);
+  bottom: var(--mobile-map-action-bottom);
   width: min(220px, calc(100% - 160px));
   z-index: 2147483646;
 }
@@ -3391,10 +3398,15 @@ body.mobile-layout #saveChanges {
   box-sizing: border-box;
   width: 100% !important;
   min-width: 0 !important;
+  min-height: 44px;
+  padding-inline: 4px;
   transform: none;
 }
 
 body.mobile-layout #mapSaveToast {
+  top: auto;
+  bottom: 0;
+  transform: translateX(-50%);
   max-width: 100%;
 }
 
@@ -18083,6 +18095,13 @@ function confirmLayerDelete() {
         btn.style.display = shouldShow ? 'block' : 'none';
         btn.textContent = pinToolActive ? 'ZAPISZ PINEZKĘ' : 'ZAPISZ POZYCJĘ';
       }
+      new ResizeObserver(() => {
+        const height = btn.getBoundingClientRect().height;
+        if (height > 0) {
+          document.body.style.setProperty('--mobile-pin-action-height', `${height}px`);
+        }
+      }).observe(btn);
+
       window.updateMobileSavePinButton = updateMobileSavePinButton;
       window.addEventListener('resize', updateMobileSavePinButton);
       updateMobileSavePinButton();
