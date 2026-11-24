@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.718';
+    const BUILD_VERSION = '2026-11-24 v.0.719';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1915,6 +1915,38 @@ body.mobile-layout .popup-description.scrollable {
       font-size: 13px;
       line-height: 1;
     }
+#shade-overlay-controls:not([hidden]) {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0;
+}
+#shade-contrast { width: 100%; }
+.shade-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  z-index: 650;
+  transform: translateX(-50%);
+  background: #fff;
+  box-shadow: 0 0 3px #121821;
+  pointer-events: none;
+}
+.shade-divider button {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  cursor: ew-resize;
+  touch-action: none;
+  pointer-events: auto;
+}
+.shade-divider button:active { transform: translate(-50%, -50%); }
+
 #basemap-load-status {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 152px);
@@ -3830,6 +3862,11 @@ body.mobile-layout #mapSaveToast {
             <button type="button" class="info-btn" data-info="Cieniowanie terenu z Geoportalu">i</button>
           </label><br>
           <input type="range" min="0" max="100" value="50" class="opacity-slider ukryta" id="opacity-shade">
+          <div id="shade-overlay-controls" hidden>
+            <label for="shade-contrast">Kontrast <output id="shade-contrast-value" for="shade-contrast">100%</output></label>
+            <input id="shade-contrast" type="range" min="100" max="300" step="5" value="100">
+            <label><input type="checkbox" id="shade-comparison"> Porównanie z suwakiem</label>
+          </div>
         </div>
         <div class="overlay-item">
           <label><input type="checkbox" id="overlay-pin-plans" checked> Rzuty pinezek
@@ -10033,10 +10070,13 @@ function emojiHtml(str, hue = 0) {
         'true-orto': { create: () => wmsLayer(WMS_TRUE_URL) }
       };
 
+      const shadePane = map.createPane('shadeComparisonPane');
+      shadePane.style.zIndex = '250';
+      shadePane.style.pointerEvents = 'none';
       const overlays = {
         archStd: wmsLayer(WMS_ARCH_STD_URL),
         archHi: wmsLayer(WMS_ARCH_HI_URL),
-        shade: wmsShadedReliefLayer({ opacity: DEFAULT_SHADE_OVERLAY_OPACITY })
+        shade: wmsShadedReliefLayer({ opacity: DEFAULT_SHADE_OVERLAY_OPACITY, pane: 'shadeComparisonPane' })
       };
       overlays.archStd.on('tileerror', () => showToast('Sprawdź parametry warstwy (layers/CRS/format).'));
       overlays.archHi.on('tileerror', () => showToast('Sprawdź parametry warstwy (layers/CRS/format).'));
@@ -11024,6 +11064,49 @@ function emojiHtml(str, hue = 0) {
       }
 
       let cancelPendingBase = null;
+      let stopActiveBaseStatus = null;
+      let zoomTileTimer;
+      let zoomTilesPaused = false;
+      const deferredTileLayers = new Set();
+      const zoomManagedTileLayers = new WeakSet();
+
+      function deferTilesDuringZoom(layer) {
+        if (!(layer instanceof L.GridLayer) || zoomManagedTileLayers.has(layer)) return;
+        zoomManagedTileLayers.add(layer);
+
+        // Leaflet 1.9.4 has no gesture-wide delay for GridLayer requests.
+        // Keep its zoom transforms, but defer view and move-driven tile updates.
+        const setView = layer._setView;
+        const update = layer._update;
+        layer._setView = function (center, zoom, ...args) {
+          if (!zoomTilesPaused) return setView.call(this, center, zoom, ...args);
+          deferredTileLayers.add(this);
+          this._setZoomTransforms(center, zoom);
+        };
+        layer._update = function (...args) {
+          if (!zoomTilesPaused) return update.apply(this, args);
+          deferredTileLayers.add(this);
+        };
+      }
+
+      map.on('layeradd', ({ layer }) => deferTilesDuringZoom(layer));
+      map.on('layerremove', ({ layer }) => deferredTileLayers.delete(layer));
+      map.on('zoomstart', () => {
+        clearTimeout(zoomTileTimer);
+        zoomTilesPaused = true;
+      });
+      map.on('zoomend', () => {
+        clearTimeout(zoomTileTimer);
+        zoomTileTimer = setTimeout(() => {
+          zoomTilesPaused = false;
+          const center = map.getCenter();
+          const zoom = map.getZoom();
+          for (const layer of deferredTileLayers) {
+            if (map.hasLayer(layer)) layer._setView(center, zoom);
+          }
+          deferredTileLayers.clear();
+        }, 2000);
+      });
 
       function syncBaseOverlayOrder() {
         for (const overlay of [labels, roadsLayer, baseOpenTopoPlusTrails.overlay]) {
@@ -11040,9 +11123,28 @@ function emojiHtml(str, hue = 0) {
           map.removeLayer(trails);
           map.attributionControl.removeAttribution(OTM_ATTR);
         }
+        stopActiveBaseStatus?.();
         if (baseLayer && baseLayer !== candidate) map.removeLayer(baseLayer);
         baseLayer = candidate;
         currentBase = key;
+        const name = getBasemapName(key);
+        let failedTiles = false;
+        const onLoading = () => {
+          failedTiles = false;
+          if (!cancelPendingBase) setBasemapLoadStatus('loading', `Wczytuję bazę „${name}”…`);
+        };
+        const onTileError = () => { failedTiles = true; };
+        const onLoad = () => {
+          if (cancelPendingBase) return;
+          if (failedTiles) {
+            setBasemapLoadStatus('error', `Nie udało się wczytać wszystkich kafli bazy „${name}”.`);
+          } else {
+            setBasemapLoadStatus('');
+          }
+        };
+        const events = { loading: onLoading, tileerror: onTileError, load: onLoad };
+        candidate.on(events);
+        stopActiveBaseStatus = () => candidate.off(events);
         if (key === 'otm-trails') {
           baseOpenTopoPlusTrails.overlay.addTo(map);
           waymarkedErrorHandler = () => {
@@ -11076,19 +11178,27 @@ function emojiHtml(str, hue = 0) {
         status.hidden = !message;
       }
 
+      function getBasemapName(key) {
+        const radio = [...baseRadios].find(input => input.value === key);
+        return radio?.parentElement.textContent.trim() || key;
+      }
+
       function switchBaseLayer(key, isFallback = false) {
         cancelPendingBase?.();
         if (baseLayer && key === currentBase && map.hasLayer(baseLayer)) {
           selectDisplayedBase();
-          setBasemapLoadStatus('');
+          if (baseLayer.isLoading()) {
+            setBasemapLoadStatus('loading', `Wczytuję bazę „${getBasemapName(key)}”…`);
+          } else {
+            setBasemapLoadStatus('');
+          }
           return;
         }
         // Removing an in-flight Leaflet tile layer discards its pending tile requests.
         if (baseLayer?.isLoading() && key !== currentBase) map.removeLayer(baseLayer);
 
         const def = baseLayerDefs[key];
-        const radio = [...baseRadios].find(input => input.value === key);
-        const name = radio?.parentElement.textContent.trim() || key;
+        const name = getBasemapName(key);
         const onFailure = () => {
           if (def.fallback && !isFallback) {
             switchBaseLayer(def.fallback, true);
@@ -11105,25 +11215,19 @@ function emojiHtml(str, hue = 0) {
         let candidate;
         try {
           candidate = def.create();
+          deferTilesDuringZoom(candidate);
         } catch (error) {
           onFailure();
           return;
         }
 
         let hasTiles = false;
-        const onTileLoad = ({ tile }) => {
-          hasTiles = true;
-          const view = map.getContainer().getBoundingClientRect();
-          const bounds = tile.getBoundingClientRect();
-          const centerX = (view.left + view.right) / 2;
-          const centerY = (view.top + view.bottom) / 2;
-          if (bounds.left <= centerX && centerX < bounds.right &&
-              bounds.top <= centerY && centerY < bounds.bottom) {
-            setBasemapLoadStatus('');
-          }
-        };
+        let failedTiles = false;
+        const onTileLoad = () => { hasTiles = true; };
+        const onTileError = () => { failedTiles = true; };
         const detach = () => {
           candidate.off('tileload', onTileLoad);
+          candidate.off('tileerror', onTileError);
           candidate.off('load', finish);
           cancelPendingBase = null;
         };
@@ -11132,7 +11236,11 @@ function emojiHtml(str, hue = 0) {
           if (hasTiles) {
             activateBaseLayer(key, candidate);
             selectDisplayedBase();
-            setBasemapLoadStatus('');
+            if (failedTiles) {
+              setBasemapLoadStatus('error', `Nie udało się wczytać wszystkich kafli bazy „${name}”.`);
+            } else {
+              setBasemapLoadStatus('');
+            }
           } else {
             map.removeLayer(candidate);
             onFailure();
@@ -11144,6 +11252,7 @@ function emojiHtml(str, hue = 0) {
         };
         setBasemapLoadStatus('loading', `Wczytuję bazę „${name}”…`);
         candidate.on('tileload', onTileLoad);
+        candidate.on('tileerror', onTileError);
         candidate.on('load', finish);
         candidate.addTo(map);
         if (map.hasLayer(candidate)) {
@@ -11256,6 +11365,83 @@ function emojiHtml(str, hue = 0) {
           });
         }
       });
+
+      const shadeContrast = document.getElementById('shade-contrast');
+      const shadeContrastValue = document.getElementById('shade-contrast-value');
+      const shadeControls = document.getElementById('shade-overlay-controls');
+      const shadeComparison = document.getElementById('shade-comparison');
+      const mapContainer = map.getContainer();
+      const shadeDivider = L.DomUtil.create('div', 'shade-divider', mapContainer);
+      const shadeHandle = L.DomUtil.create('button', '', shadeDivider);
+      shadeHandle.type = 'button';
+      shadeHandle.textContent = '↔';
+      for (const [key, value] of Object.entries({
+        role: 'slider', 'aria-label': 'Granica nakładki cieniowania',
+        'aria-valuemin': '0', 'aria-valuemax': '100'
+      })) shadeHandle.setAttribute(key, value);
+      L.DomEvent.disableClickPropagation(shadeHandle);
+
+      const savedShadePosition = Number(readMapPreference('shade.position', 50));
+      let shadePosition = Number.isFinite(savedShadePosition) ? Math.max(0, Math.min(100, savedShadePosition)) : 50;
+      shadeContrast.value = readMapPreference('shade.contrast', shadeContrast.defaultValue);
+      shadeComparison.checked = readMapPreference('shade.comparison', false) === true;
+
+      function applyShadeContrast() {
+        const contrast = shadeContrast.valueAsNumber;
+        shadePane.style.filter = contrast === 100 ? '' : `contrast(${contrast}%)`;
+        shadeContrastValue.value = `${contrast}%`;
+      }
+
+      function updateShadeComparison() {
+        const visible = map.hasLayer(overlays.shade);
+        shadeControls.hidden = !visible;
+        shadeDivider.hidden = !visible || !shadeComparison.checked;
+        if (shadeDivider.hidden) {
+          shadePane.style.clipPath = '';
+          return;
+        }
+        const size = map.getSize();
+        const origin = map.containerPointToLayerPoint([0, 0]);
+        const x = origin.x + size.x * shadePosition / 100;
+        const bottom = origin.y + size.y;
+        shadeDivider.style.left = `${shadePosition}%`;
+        shadeHandle.setAttribute('aria-valuenow', String(Math.round(shadePosition)));
+        shadePane.style.clipPath = `polygon(${origin.x}px ${origin.y}px, ${x}px ${origin.y}px, ${x}px ${bottom}px, ${origin.x}px ${bottom}px)`;
+      }
+
+      shadeContrast.addEventListener('input', () => {
+        applyShadeContrast();
+        saveMapPreference('shade.contrast', shadeContrast.valueAsNumber);
+      });
+      shadeComparison.addEventListener('change', () => {
+        saveMapPreference('shade.comparison', shadeComparison.checked);
+        updateShadeComparison();
+      });
+
+      shadeHandle.addEventListener('pointerdown', event => {
+        if (!event.isPrimary || event.button !== 0) return;
+        shadeHandle.setPointerCapture(event.pointerId);
+      });
+      shadeHandle.addEventListener('pointermove', event => {
+        if (!shadeHandle.hasPointerCapture(event.pointerId)) return;
+        const bounds = mapContainer.getBoundingClientRect();
+        shadePosition = Math.max(0, Math.min(100, 100 * (event.clientX - bounds.left) / bounds.width));
+        updateShadeComparison();
+      });
+      shadeHandle.addEventListener('lostpointercapture', () => saveMapPreference('shade.position', shadePosition));
+      shadeHandle.addEventListener('keydown', event => {
+        const positions = { ArrowLeft: shadePosition - 5, ArrowRight: shadePosition + 5, Home: 0, End: 100 };
+        if (!Object.hasOwn(positions, event.key)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        shadePosition = Math.max(0, Math.min(100, positions[event.key]));
+        saveMapPreference('shade.position', shadePosition);
+        updateShadeComparison();
+      });
+      overlays.shade.on('add remove', updateShadeComparison);
+      map.on('move zoom resize', updateShadeComparison);
+      applyShadeContrast();
+      updateShadeComparison();
 
       document.querySelectorAll('.info-btn').forEach(btn => {
         btn.addEventListener('click', ev => {
