@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.724';
+    const BUILD_VERSION = '2026-11-24 v.0.725';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -9006,7 +9006,7 @@ function emojiHtml(str, hue = 0) {
       return copied;
     }
 
-    function attachPopupHandlers(marker, p) {
+    function attachPopupHandlers(marker, p, popupOverride = null) {
     /*  console.log('Wywołano attachPopupHandlers dla pinezki:', p); // <-- dodane */
       const bindPopupAction = (element, action) => {
         if (!element || element.dataset.popupActionBound === '1') return;
@@ -9039,8 +9039,8 @@ function emojiHtml(str, hue = 0) {
       const bindCurrentPopupButtons = () => {
         const markerPopup = marker?.getPopup?.() || null;
         const markerPopupElement = markerPopup?.getElement?.() || null;
-        const currentPopup = markerPopupElement ? markerPopup : (map?._popup || markerPopup || null);
-        const container = markerPopupElement || currentPopup?.getElement?.();
+        const currentPopup = popupOverride || (markerPopupElement ? markerPopup : (map?._popup || markerPopup || null));
+        const container = currentPopup?.getElement?.();
         if (!container) return;
         // Zapobiega przechwyceniu pierwszego kliknięcia przez mapę (zwłaszcza na mobile),
         // przez co przyciski w popupie reagują od razu po otwarciu.
@@ -9086,15 +9086,18 @@ function emojiHtml(str, hue = 0) {
           });
         }
 
-        const btn = container.querySelector('.popup-edit-pin-btn');
-        bindPopupAction(btn, () => {
-          edytuj(p.id, p.lat, p.lng);
-        });
-
-        const deleteBtn = container.querySelector('.popup-delete-btn');
-        bindPopupAction(deleteBtn, () => {
-          openDeleteModal(p.id);
-        });
+        const bindPinButton = (selector, action) => {
+          const button = container.querySelector(selector);
+          if (!button || button.dataset.popupActionBound === '1') return;
+          button.dataset.popupActionBound = '1';
+          button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            action();
+          });
+        };
+        bindPinButton('.popup-edit-pin-btn', () => edytuj(p.id, p.lat, p.lng));
+        bindPinButton('.popup-delete-btn', () => openDeleteModal(p.id, currentPopup));
 
         const rbtn = container.querySelector('.popup-route-add-btn');
         bindPopupAction(rbtn, () => {
@@ -12627,9 +12630,13 @@ function zaladujPinezkiZFirestore() {
       return cleanup;
     }
 
+    function findPinById(id) {
+      if (id == null || id === '') return undefined;
+      return wszystkiePinezki.find(pin => pin.id != null && String(pin.id) === String(id));
+    }
+
     function edytuj(id, lat, lng) {
-     /* console.log('Wywołano edytuj dla id:', id, 'lat:', lat, 'lng:', lng); // <-- dodane */
-      const p = wszystkiePinezki.find(pp => pp.id === id);
+      const p = findPinById(id);
       if (!p) return;
       const layerLabel = resolveLayerInfo(p.warstwa, p.warstwaId, getPinMainCategory(p)).displayName || '';
       if (!p._editOriginalState) delete p.noweEmoji;
@@ -12644,7 +12651,7 @@ function zaladujPinezkiZFirestore() {
         <div class="photo-gallery" data-slug="${p.slug}"></div>
         <div class="popup-media-row">
           <button class="popup-add-photo" data-slug="${p.slug}">📷</button>
-          <div id="emojiPicker-${id}" class="emoji-picker"></div>
+          <div class="emoji-picker"></div>
         </div>
         <div class="edit-form-field">
           <input id="enazwa" value="${p.nazwa}" placeholder="Nazwa">
@@ -12707,7 +12714,7 @@ function zaladujPinezkiZFirestore() {
         eOpisInput.value = (p.opis || '').replace(/<br\s*\/?>/gi, '\n');
       }
       applyEditDraft(p, container);
-      setupEmojiPicker(container.querySelector(`#emojiPicker-${id}`), p, {
+      setupEmojiPicker(container.querySelector('.emoji-picker'), p, {
         onChange: (emojiVal) => {
           const targetMarker = p.marker || findMarkerByLatLng(lat, lng);
           if (!targetMarker || !targetMarker.setIcon) return;
@@ -12754,14 +12761,14 @@ function zaladujPinezkiZFirestore() {
       setupTrudnoscInput(container.querySelector('#etrudnosc'), container.querySelector('#etrudnoscLabel'));
       // Status wybrany w formularzu edycji jest tylko szkicem; zapiszLokalnie() odczyta
       // go z pola #estatus dopiero po kliknięciu "Zapisz" w popupie.
-      const delBtn = container.querySelector('#deleteBtn-' + id);
+      const delBtn = container.querySelector('.edit-popup-delete-btn');
       if (delBtn) {
         delBtn.addEventListener('click', e => {
           e.stopPropagation();
-          openDeleteModal(id);
+          openDeleteModal(id, map._popup, container.closest('#mobilePinModal') ? closeMobileFormModalIfNeeded : null);
         });
       }
-      const moveBtn = container.querySelector('#movePinBtn-' + id);
+      const moveBtn = container.querySelector('.edit-popup-move-btn');
       if (moveBtn) {
         moveBtn.addEventListener('click', e => {
           e.preventDefault();
@@ -12769,7 +12776,7 @@ function zaladujPinezkiZFirestore() {
           startPinReposition(p, container);
         });
       }
-      const editPlanBtn = container.querySelector('#editPinPlanBtn-' + id);
+      const editPlanBtn = container.querySelector('.edit-popup-plan-btn');
       if (editPlanBtn) {
         editPlanBtn.addEventListener('click', e => {
           e.preventDefault();
@@ -12927,7 +12934,7 @@ function zaladujPinezkiZFirestore() {
       const catVal = resolvedCategory.category;
       const layerKey = getLayerKeyFromInput(layerVal, mainCatVal);
       if (layerVal && !warstwy[layerKey]) addLayer(layerVal, true, mainCatVal);
-      const p = wszystkiePinezki.find(pp => pp.id === id);
+      const p = findPinById(id);
       const editMarker = p ? p.marker : null;
       if (p && p._editDraft) delete p._editDraft;
       const editOriginal = p && p._editOriginalState ? p._editOriginalState.data : null;
@@ -13780,7 +13787,7 @@ function zaladujPinezkiZFirestore() {
         const popupDiv = document.createElement('div');
         popupDiv.className = 'popup-container';
         popupDiv.innerHTML = createPopupHtml(p);
-        L.popup({
+        const popup = L.popup({
           maxWidth: 380,
           minWidth: window.innerWidth <= 700 ? Math.min(300, Math.max(0, window.innerWidth - 56)) : 300,
           autoPan: false,
@@ -13790,7 +13797,7 @@ function zaladujPinezkiZFirestore() {
           .setLatLng(pinLatLng)
           .setContent(popupDiv)
           .openOn(map);
-        attachPopupHandlers(p.marker || null, p);
+        attachPopupHandlers(null, p, popup);
       };
 
       const openMarkerPopup = () => {
@@ -18138,12 +18145,15 @@ function getTripPointEmoji(p) {
     const deleteNoBtn = document.getElementById('deleteConfirmNo');
     if (delModal && deleteYesBtn && deleteNoBtn) {
       deleteYesBtn.addEventListener('click', () => {
-        const targetId = delModal.dataset.pinId;
-        if (targetId) {
-          deletePinLocal(targetId);
-        } else {
-          closeDeleteModal();
+        const pending = pendingPinDeletion;
+        closeDeleteModal();
+        if (!pending) return;
+        if (!deletePinLocal(pending.id)) {
+          showToast('Nie udało się znaleźć pinezki do usunięcia.');
+          return;
         }
+        if (pending.popup) map.closePopup(pending.popup);
+        pending.closeForm?.();
       });
       deleteNoBtn.addEventListener('click', closeDeleteModal);
       delModal.addEventListener('click', e => {
@@ -18328,23 +18338,26 @@ function getTripPointEmoji(p) {
     return finalPhotos;
   }
 
-  function openDeleteModal(id) {
+  let pendingPinDeletion = null;
+
+  function openDeleteModal(id, popup = null, closeForm = null) {
     const modal = document.getElementById('deleteModal');
-    if (modal) {
-      modal.dataset.pinId = id;
-      const txt = modal.querySelector('#deleteModalContent div');
-      const p = wszystkiePinezki.find(pp => pp.id === id);
-      if (txt && p) txt.textContent = `Czy na pewno chcesz usunąć pinezkę ${p.nazwa}?`;
-      modal.style.display = 'flex';
+    if (!modal) return;
+    const pin = findPinById(id);
+    if (!pin) {
+      showToast('Nie udało się znaleźć pinezki do usunięcia.');
+      return;
     }
+    pendingPinDeletion = { id: pin.id, popup, closeForm };
+    modal.querySelector('#deleteModalContent div').textContent =
+      `Czy na pewno chcesz usunąć pinezkę ${pin.nazwa}?`;
+    modal.style.display = 'flex';
   }
 
   function closeDeleteModal() {
+    pendingPinDeletion = null;
     const modal = document.getElementById('deleteModal');
-    if (modal) {
-      delete modal.dataset.pinId;
-      modal.style.display = 'none';
-    }
+    if (modal) modal.style.display = 'none';
   }
 
   function finalizePinsBulkMutation() {
@@ -18362,11 +18375,11 @@ function getTripPointEmoji(p) {
 
   function deletePinLocal(id, record = true, options = {}) {
     const { batch = false, skipCloseModal = false } = options;
-    const p = wszystkiePinezki.find(pp => String(pp.id) === String(id));
+    const p = findPinById(id);
     if (!p) {
       if (!skipCloseModal) closeDeleteModal();
       updateSaveButton();
-      return;
+      return false;
     }
     const layerName = p.warstwa || 'Inne';
     const layer = warstwy[layerName];
@@ -18420,6 +18433,7 @@ function getTripPointEmoji(p) {
     }
     updateSaveButton();
     if (!skipCloseModal) closeDeleteModal();
+    return true;
   }
 
 let layerDeleteName = null;
