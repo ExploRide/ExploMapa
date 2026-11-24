@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.723';
+    const BUILD_VERSION = '2026-11-24 v.0.724';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1928,10 +1928,9 @@ body.mobile-layout .popup-description.scrollable {
 }
 .shade-divider {
   position: absolute;
-  top: 0;
-  bottom: 0;
   width: 2px;
-  z-index: 650;
+  /* Above the shade tiles (250), below Leaflet overlays (400) and popups (700). */
+  z-index: 399;
   transform: translateX(-50%);
   background: #fff;
   box-shadow: 0 0 3px #121821;
@@ -11739,7 +11738,7 @@ function emojiHtml(str, hue = 0) {
       const shadeControls = document.getElementById('shade-overlay-controls');
       const shadeComparison = document.getElementById('shade-comparison');
       const mapContainer = map.getContainer();
-      const shadeDivider = L.DomUtil.create('div', 'shade-divider', mapContainer);
+      const shadeDivider = L.DomUtil.create('div', 'shade-divider', map.getPane('mapPane'));
       const shadeHandle = L.DomUtil.create('button', '', shadeDivider);
       shadeHandle.type = 'button';
       for (const [key, value] of Object.entries({
@@ -11771,7 +11770,9 @@ function emojiHtml(str, hue = 0) {
         const origin = map.containerPointToLayerPoint([0, 0]);
         const x = origin.x + size.x * shadePosition / 100;
         const bottom = origin.y + size.y;
-        shadeDivider.style.left = `${shadePosition}%`;
+        shadeDivider.style.left = `${x}px`;
+        shadeDivider.style.top = `${origin.y}px`;
+        shadeDivider.style.height = `${size.y}px`;
         shadeHandle.setAttribute('aria-valuenow', String(Math.round(shadePosition)));
         shadePane.style.clipPath = `polygon(${origin.x}px ${origin.y}px, ${x}px ${origin.y}px, ${x}px ${bottom}px, ${origin.x}px ${bottom}px)`;
       }
