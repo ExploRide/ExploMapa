@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.716';
+    const BUILD_VERSION = '2026-11-24 v.0.717';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -11024,6 +11024,48 @@ function emojiHtml(str, hue = 0) {
       }
 
       let cancelPendingBase = null;
+      let zoomTileTimer;
+      let zoomTilesPaused = false;
+      const deferredTileLayers = new Set();
+      const zoomManagedTileLayers = new WeakSet();
+
+      function deferTilesDuringZoom(layer) {
+        if (!(layer instanceof L.GridLayer) || zoomManagedTileLayers.has(layer)) return;
+        zoomManagedTileLayers.add(layer);
+
+        // Leaflet 1.9.4 has no gesture-wide delay for GridLayer requests.
+        // Keep its zoom transforms, but defer view and move-driven tile updates.
+        const setView = layer._setView;
+        const update = layer._update;
+        layer._setView = function (center, zoom, ...args) {
+          if (!zoomTilesPaused) return setView.call(this, center, zoom, ...args);
+          deferredTileLayers.add(this);
+          this._setZoomTransforms(center, zoom);
+        };
+        layer._update = function (...args) {
+          if (!zoomTilesPaused) return update.apply(this, args);
+          deferredTileLayers.add(this);
+        };
+      }
+
+      map.on('layeradd', ({ layer }) => deferTilesDuringZoom(layer));
+      map.on('layerremove', ({ layer }) => deferredTileLayers.delete(layer));
+      map.on('zoomstart', () => {
+        clearTimeout(zoomTileTimer);
+        zoomTilesPaused = true;
+      });
+      map.on('zoomend', () => {
+        clearTimeout(zoomTileTimer);
+        zoomTileTimer = setTimeout(() => {
+          zoomTilesPaused = false;
+          const center = map.getCenter();
+          const zoom = map.getZoom();
+          for (const layer of deferredTileLayers) {
+            if (map.hasLayer(layer)) layer._setView(center, zoom);
+          }
+          deferredTileLayers.clear();
+        }, 2000);
+      });
 
       function syncBaseOverlayOrder() {
         for (const overlay of [labels, roadsLayer, baseOpenTopoPlusTrails.overlay]) {
@@ -11105,6 +11147,7 @@ function emojiHtml(str, hue = 0) {
         let candidate;
         try {
           candidate = def.create();
+          deferTilesDuringZoom(candidate);
         } catch (error) {
           onFailure();
           return;
