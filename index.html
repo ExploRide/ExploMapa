@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.708';
+    const BUILD_VERSION = '2026-11-24 v.0.709';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -3284,6 +3284,12 @@ html body .emoji-marker .sztosy-gwiazda {
   width: 100%;
   margin: 0;
 }
+#map-options-dialog .map-option-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 #map-options-dialog .map-options-actions {
   display: flex;
   justify-content: flex-end;
@@ -3893,16 +3899,31 @@ body.mobile-layout #mapSaveToast {
   <dialog id="map-options-dialog" aria-labelledby="map-options-title">
     <form method="dialog">
       <h2 id="map-options-title">Opcje mapy</h2>
-      <label for="map-pin-scale">Skala pinezek <output id="map-pin-scale-value" for="map-pin-scale">100%</output></label>
+      <div class="map-option-label">
+        <label for="map-pin-scale">Skala pinezek <output id="map-pin-scale-value" for="map-pin-scale">100%</output></label>
+        <button type="button" data-reset-option="map-pin-scale" aria-label="Resetuj skalę pinezek do wartości domyślnej">Reset</button>
+      </div>
       <input id="map-pin-scale" type="range" min="50" max="200" step="5" value="100" autofocus>
       <label><input id="map-pin-background" type="checkbox"> Tło pinezek</label>
-      <label for="map-pin-background-scale">Skala tła pinezek <output id="map-pin-background-scale-value" for="map-pin-background-scale">100%</output></label>
+      <div class="map-option-label">
+        <label for="map-pin-background-scale">Skala tła pinezek <output id="map-pin-background-scale-value" for="map-pin-background-scale">100%</output></label>
+        <button type="button" data-reset-option="map-pin-background-scale" aria-label="Resetuj skalę tła pinezek do wartości domyślnej">Reset</button>
+      </div>
       <input id="map-pin-background-scale" type="range" min="50" max="200" step="5" value="100">
-      <label for="map-pin-background-opacity">Krycie tła pinezek <output id="map-pin-background-opacity-value" for="map-pin-background-opacity">55%</output></label>
+      <div class="map-option-label">
+        <label for="map-pin-background-opacity">Krycie tła pinezek <output id="map-pin-background-opacity-value" for="map-pin-background-opacity">55%</output></label>
+        <button type="button" data-reset-option="map-pin-background-opacity" aria-label="Resetuj krycie tła pinezek do wartości domyślnej">Reset</button>
+      </div>
       <input id="map-pin-background-opacity" type="range" min="0" max="100" step="1" value="55">
-      <label for="map-cluster-background-scale">Skala tła klastrów <output id="map-cluster-background-scale-value" for="map-cluster-background-scale">100%</output></label>
+      <div class="map-option-label">
+        <label for="map-cluster-background-scale">Skala tła klastrów <output id="map-cluster-background-scale-value" for="map-cluster-background-scale">100%</output></label>
+        <button type="button" data-reset-option="map-cluster-background-scale" aria-label="Resetuj skalę tła klastrów do wartości domyślnej">Reset</button>
+      </div>
       <input id="map-cluster-background-scale" type="range" min="50" max="200" step="5" value="100">
-      <label for="map-status-scale">Skala ikon statusów <output id="map-status-scale-value" for="map-status-scale">100%</output></label>
+      <div class="map-option-label">
+        <label for="map-status-scale">Skala ikon statusów <output id="map-status-scale-value" for="map-status-scale">100%</output></label>
+        <button type="button" data-reset-option="map-status-scale" aria-label="Resetuj skalę ikon statusów do wartości domyślnej">Reset</button>
+      </div>
       <input id="map-status-scale" type="range" min="50" max="200" step="5" value="100">
       <p id="map-options-sync-status" role="status" hidden></p>
       <div class="map-options-actions">
@@ -4945,9 +4966,8 @@ function slugify(str) {
         [key, control.type === 'checkbox' ? control.checked : control.valueAsNumber]));
     }
 
-    function restoreMapOptionsControls(saved, editing = new Set()) {
+    function restoreMapOptionsControls(saved) {
       for (const [key, control] of Object.entries(mapOptionsFields)) {
-        if (editing.has(key)) continue;
         if (control.type === 'checkbox') {
           control.checked = saved?.[key] === true;
         } else {
@@ -4961,7 +4981,7 @@ function slugify(str) {
 
     function cacheMapOptions(session) {
       try {
-        localStorage.setItem(session.storageKey, JSON.stringify(readMapOptionsControls()));
+        localStorage.setItem(session.storageKey, JSON.stringify(session.saved));
       } catch (error) {
         console.warn('Nie udało się zapisać opcji mapy lokalnie', error);
       }
@@ -4973,20 +4993,15 @@ function slugify(str) {
       mapOptionsSyncStatus.hidden = !message;
     }
 
-    function reportMapOptionsSyncError(session, error) {
-      console.warn('Nie udało się zsynchronizować opcji mapy', error);
-      setMapOptionsSyncStatus(session, 'Opcje zapisano na tym urządzeniu. Synchronizacja z kontem jest niedostępna.');
-    }
-
     function loadMapOptions(uid) {
       if (uid === (mapOptionsSession?.uid ?? null)) return;
       mapOptionsSession?.unsubscribe?.();
       mapOptionsSession = null;
       mapOptionsSaveButton.disabled = false;
       setMapOptionsSyncStatus(null);
+      if (mapOptionsDialog.open) mapOptionsDialog.close();
       if (!uid) {
         restoreMapOptionsControls();
-        mapOptionsDialog.close();
         return;
       }
 
@@ -4995,79 +5010,79 @@ function slugify(str) {
         uid,
         storageKey: `exploMapaMapOptions:${uid}`,
         document: firestore.collection('mapOptions').doc(uid),
-        editing: new Set(),
-        attemptedMigration: false,
-        explicitSave: false
+        saved: null,
+        dirty: false,
+        saving: false
       };
       mapOptionsSession = session;
-      let saved;
       try {
-        saved = JSON.parse(localStorage.getItem(session.storageKey));
+        session.saved = JSON.parse(localStorage.getItem(session.storageKey));
       } catch (error) {
         console.warn('Nie udało się odczytać opcji mapy', error);
       }
-      restoreMapOptionsControls(saved);
-      const legacyOptions = saved ? readMapOptionsControls() : null;
+      restoreMapOptionsControls(session.saved);
 
       session.unsubscribe = session.document.onSnapshot({ includeMetadataChanges: true }, snapshot => {
-        if (session !== mapOptionsSession || snapshot.metadata.fromCache) return;
-        if (snapshot.exists) {
-          restoreMapOptionsControls(snapshot.data(), session.editing);
-          cacheMapOptions(session);
-          if (!snapshot.metadata.hasPendingWrites && !session.explicitSave) setMapOptionsSyncStatus(session);
-        } else if (legacyOptions && !session.attemptedMigration) {
-          session.attemptedMigration = true;
-          firestore.runTransaction(async transaction => {
-            const existing = await transaction.get(session.document);
-            if (session === mapOptionsSession && !existing.exists) {
-              transaction.set(session.document, legacyOptions);
-            }
-          }).catch(error => reportMapOptionsSyncError(session, error));
-        }
-      }, error => reportMapOptionsSyncError(session, error));
+        if (session !== mapOptionsSession || snapshot.metadata.fromCache ||
+            snapshot.metadata.hasPendingWrites || !snapshot.exists) return;
+        session.saved = snapshot.data();
+        cacheMapOptions(session);
+        if (!session.dirty && !session.saving) restoreMapOptionsControls(session.saved);
+      }, error => {
+        console.warn('Nie udało się pobrać opcji mapy z konta', error);
+        if (!session.saving) setMapOptionsSyncStatus(session, 'Nie udało się pobrać opcji z konta.');
+      });
     }
 
-    for (const [key, control] of Object.entries(mapOptionsFields)) {
-      control.addEventListener('input', () => {
-        applyMapOptions();
-        const session = mapOptionsSession;
-        if (session) {
-          session.explicitSave = false;
-          session.editing.add(key);
-          cacheMapOptions(session);
-        }
+    mapOptionsDialog.addEventListener('input', () => {
+      applyMapOptions();
+      const session = mapOptionsSession;
+      if (!session) return;
+      session.dirty = true;
+      if (!session.saving) setMapOptionsSyncStatus(session);
+    });
+
+    mapOptionsDialog.querySelectorAll('[data-reset-option]').forEach(button => {
+      button.addEventListener('click', () => {
+        const slider = document.getElementById(button.dataset.resetOption);
+        slider.value = slider.defaultValue;
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
       });
-      control.addEventListener('change', () => {
-        const session = mapOptionsSession;
-        if (!session) return;
-        applyMapOptions();
-        cacheMapOptions(session);
-        session.editing.delete(key);
-        if (!session.explicitSave) setMapOptionsSyncStatus(session, 'Synchronizowanie opcji z kontem…');
-        const value = control.type === 'checkbox' ? control.checked : control.valueAsNumber;
-        session.document.set({ [key]: value }, { merge: true }).then(() => {
-          if (!session.explicitSave) setMapOptionsSyncStatus(session);
-        }).catch(error => {
-          if (!session.explicitSave) reportMapOptionsSyncError(session, error);
-        });
-      });
-    }
+    });
+
+    mapOptionsDialog.addEventListener('close', () => {
+      const session = mapOptionsSession;
+      if (!session) return;
+      session.dirty = false;
+      restoreMapOptionsControls(session.saved);
+      if (!session.saving) setMapOptionsSyncStatus(session);
+    });
 
     mapOptionsSaveButton.addEventListener('click', async () => {
       const session = mapOptionsSession;
-      if (!session || mapOptionsSaveButton.disabled) return;
-      session.explicitSave = true;
+      if (!session || session.saving) return;
+      const options = readMapOptionsControls();
+      session.dirty = false;
+      session.saving = true;
       mapOptionsSaveButton.disabled = true;
-      cacheMapOptions(session);
       setMapOptionsSyncStatus(session, navigator.onLine
         ? 'Zapisywanie opcji na koncie…'
-        : 'Opcje zapisano lokalnie. Czekam na połączenie z Firestore…');
+        : 'Czekam na połączenie z Firestore…');
       try {
-        await session.document.set(readMapOptionsControls(), { merge: true });
-        if (session.explicitSave) setMapOptionsSyncStatus(session, 'Opcje zapisane na koncie.');
+        await session.document.set(options, { merge: true });
+        if (session !== mapOptionsSession) return;
+        session.saved = options;
+        cacheMapOptions(session);
+        if (!session.dirty) restoreMapOptionsControls(session.saved);
+        setMapOptionsSyncStatus(session, session.dirty
+          ? 'Zapisano poprzednie ustawienia. Nowe zmiany czekają na zapis.'
+          : 'Opcje zapisane na koncie.');
       } catch (error) {
-        reportMapOptionsSyncError(session, error);
+        console.warn('Nie udało się zapisać opcji mapy', error);
+        if (session === mapOptionsSession && mapOptionsDialog.open) session.dirty = true;
+        setMapOptionsSyncStatus(session, 'Nie udało się zapisać opcji na koncie. Spróbuj ponownie.');
       } finally {
+        session.saving = false;
         if (session === mapOptionsSession) mapOptionsSaveButton.disabled = false;
       }
     });
