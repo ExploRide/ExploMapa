@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.712';
+    const BUILD_VERSION = '2026-11-24 v.0.713';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -1915,6 +1915,41 @@ body.mobile-layout .popup-description.scrollable {
       font-size: 13px;
       line-height: 1;
     }
+#basemap-load-status {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 152px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  max-width: calc(100vw - 24px);
+  width: max-content;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(17, 22, 31, .94);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+}
+#basemap-load-status[hidden] { display: none; }
+#basemap-load-status.is-loading::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, .3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .9s linear infinite;
+}
+#basemap-load-status.is-error {
+  color: #ffb4b4;
+  border: 1px solid #e35d68;
+}
+
 #loading {
   position: fixed;
   top: 50%;
@@ -3564,6 +3599,7 @@ body.mobile-layout #mapSaveToast {
   <div id="offlineBar" style="display:none;position:fixed;top:0;left:200px;right:200px;background:#cc0000;color:#fff;text-align:center;padding:4px;z-index:2000;">Offline</div>
   <div id="toast"></div>
   <div id="ekran-logowania"><button id="loginBtn">Zaloguj się przez Google</button></div>
+  <div id="basemap-load-status" role="status" hidden></div>
   <div id="loading" aria-live="polite"><div class="loader"></div><div id="loadingPercent" class="loading-percent" aria-label="Postęp wczytywania">0%</div></div>
   <div id="pinViewportLoading" aria-live="polite"><div class="pin-loader"></div><div id="pinViewportLoadingPercent">0%</div></div>
   <div id="sidebar">
@@ -3759,7 +3795,8 @@ body.mobile-layout #mapSaveToast {
         <label><input type="radio" name="basemap" value="osm"> Mapa podstawowa</label><br>
         <label><input type="radio" name="basemap" value="sat" checked> Esri World Imagery</label><br>
         <label><input type="radio" name="basemap" value="mapbox-satellite"> Mapbox Satellite</label><br>
-        <label><input type="radio" name="basemap" value="hill"> Cieniowanie</label><br>
+        <label><input type="radio" name="basemap" value="hill"> Cieniowanie (Geoportal)</label><br>
+        <label><input type="radio" name="basemap" value="hill-esri"> Cieniowanie (Esri)</label><br>
         <label><input type="radio" name="basemap" value="orto-wmts-std"> Orto (WMTS – Standard)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
         <label><input type="radio" name="basemap" value="orto-wmts-hi"> Orto HighRes (WMTS – HighResolution)<button type="button" class="info-btn" data-info="WMTS szybkie kafle">i</button></label><br>
         <label><input type="radio" name="basemap" value="orto-wms-std"> Orto (WMS – Standard)<button type="button" class="info-btn" data-info="WMS pełny render">i</button></label><br>
@@ -9981,7 +10018,7 @@ function emojiHtml(str, hue = 0) {
         sat: { create: () => sat },
         'mapbox-satellite': { create: () => mapboxSatelliteLayer },
         copernicus: { create: () => copernicusLayer },
-        hill: { create: () => hill, fallback: 'hill-esri' },
+        hill: { create: () => hill },
         'hill-esri': { create: () => hillEsri },
         'otm-trails': { create: () => baseOpenTopoPlusTrails.base },
         osm: { create: () => osm },
@@ -11028,28 +11065,43 @@ function emojiHtml(str, hue = 0) {
       }
 
       function selectDisplayedBase() {
-        const selectedKey = currentBase === 'hill-esri' ? 'hill' : currentBase;
-        baseRadios.forEach(radio => { radio.checked = radio.value === selectedKey; });
+        baseRadios.forEach(radio => { radio.checked = !!baseLayer && radio.value === currentBase; });
+      }
+
+      function setBasemapLoadStatus(state, message = '') {
+        const status = document.getElementById('basemap-load-status');
+        status.classList.toggle('is-loading', state === 'loading');
+        status.classList.toggle('is-error', state === 'error');
+        status.textContent = message;
+        status.hidden = !message;
       }
 
       function switchBaseLayer(key, isFallback = false) {
         cancelPendingBase?.();
-        if (key === currentBase) {
+        if (baseLayer && key === currentBase && map.hasLayer(baseLayer)) {
           selectDisplayedBase();
+          setBasemapLoadStatus('');
           return;
         }
+        // Removing an in-flight Leaflet tile layer discards its pending tile requests.
+        if (baseLayer?.isLoading() && key !== currentBase) map.removeLayer(baseLayer);
+
         const def = baseLayerDefs[key];
+        const radio = [...baseRadios].find(input => input.value === key);
+        const name = radio?.parentElement.textContent.trim() || key;
         const onFailure = () => {
           if (def.fallback && !isFallback) {
-            showToast(key === 'hill'
-              ? 'Geoportal nie zwrócił kafli. Wczytuję cieniowanie Esri.'
-              : 'Próbuję wczytać tę bazę z usługi WMS.');
             switchBaseLayer(def.fallback, true);
-          } else {
-            selectDisplayedBase();
-            showToast('Nie udało się wczytać nowej bazy. Pozostawiono poprzednią mapę.');
+            return;
           }
+          if (baseLayer && !map.hasLayer(baseLayer)) {
+            baseLayer.addTo(map);
+            syncBaseOverlayOrder();
+          }
+          selectDisplayedBase();
+          setBasemapLoadStatus('error', `Nie udało się wczytać bazy „${name}”.`);
         };
+
         let candidate;
         try {
           candidate = def.create();
@@ -11061,7 +11113,6 @@ function emojiHtml(str, hue = 0) {
         let hasTiles = false;
         const onTileLoad = () => { hasTiles = true; };
         const detach = () => {
-          clearTimeout(timeout);
           candidate.off('tileload', onTileLoad);
           candidate.off('load', finish);
           cancelPendingBase = null;
@@ -11071,16 +11122,17 @@ function emojiHtml(str, hue = 0) {
           if (hasTiles) {
             activateBaseLayer(key, candidate);
             selectDisplayedBase();
+            setBasemapLoadStatus('');
           } else {
             map.removeLayer(candidate);
             onFailure();
           }
         };
-        const timeout = setTimeout(finish, 8000);
         cancelPendingBase = () => {
           detach();
           map.removeLayer(candidate);
         };
+        setBasemapLoadStatus('loading', `Wczytuję bazę „${name}”…`);
         candidate.on('tileload', onTileLoad);
         candidate.on('load', finish);
         candidate.addTo(map);
@@ -11115,8 +11167,7 @@ function emojiHtml(str, hue = 0) {
           switchBaseLayer(radio.value);
         });
       });
-      activateBaseLayer('sat', sat.addTo(map));
-      if (baseKey !== 'sat') switchBaseLayer(baseKey);
+      switchBaseLayer(baseKey);
       console.log('🆕 Dodano opcjonalną nakładkę OSM/Overpass wyświetlającą wybrane miejsca z OpenStreetMap bez zapisywania ich do Firestore i bez dodawania do listy pinezek.');
 
 
