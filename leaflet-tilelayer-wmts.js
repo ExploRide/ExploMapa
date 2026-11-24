@@ -28,7 +28,7 @@
       const pickedOptions = {};
 
       for (const opt in options) {
-        if (!Object.prototype.hasOwnProperty.call(this.options, opt)) {
+        if (!(opt in this.options)) {
           wmtsParams[opt] = options[opt];
         } else {
           pickedOptions[opt] = options[opt];
