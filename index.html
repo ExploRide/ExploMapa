@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.710';
+    const BUILD_VERSION = '2026-11-24 v.0.711';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -5113,7 +5113,7 @@ function slugify(str) {
       showAuthenticatedApp();
     });
 
-    let map, baseLayer, routingLayer, roadsLayer, baseTileErrorHandler, waymarkedErrorHandler;
+    let map, baseLayer, routingLayer, roadsLayer, waymarkedErrorHandler;
     let pinRepositionState = null;
     const UI_SCALE_STORAGE_KEY = 'exploMapaUiScale';
     const SIDEBAR_WIDTH_STORAGE_KEY = 'exploMapaSidebarWidth';
@@ -5243,10 +5243,6 @@ function slugify(str) {
 
     let currentBase = 'sat';
     let loadingCount = 0;
-    let baseLayerLoadToken = 0;
-    let baseLayerLoadingCount = 0;
-    let baseLayerLoadingHandler = null;
-    let baseLayerLoadedHandler = null;
     function isPinViewportLoadingVisible() {
       const el = document.getElementById('pinViewportLoading');
       return !!el && window.getComputedStyle(el).display !== 'none';
@@ -5276,12 +5272,6 @@ function slugify(str) {
       if (loadingCount > 0) loadingCount--;
       if (loadingCount === 0) setMainLoadingProgress(null);
       syncMainLoadingVisibility();
-    }
-    function resetBaseLayerLoading() {
-      if (baseLayerLoadingCount > 0) {
-        for (let i = 0; i < baseLayerLoadingCount; i++) hideLoading();
-        baseLayerLoadingCount = 0;
-      }
     }
     function showToast(msg, duration = 3000, toastId = 'toast') {
       const el = document.getElementById(toastId);
@@ -9512,6 +9502,8 @@ function emojiHtml(str, hue = 0) {
         return wmsLayer(WMS_SHADED_RELIEF_URL, 'Raster', {
           format: 'image/png',
           attribution: SHADED_RELIEF_ATTR,
+          updateWhenIdle: true,
+          updateWhenZooming: false,
           ...options
         });
       }
@@ -10696,6 +10688,7 @@ function emojiHtml(str, hue = 0) {
       }
 
       async function initGeoportalTime(layerKey, url) {
+        const layer = baseLayer;
         try {
           let years = timeLayerYears[url];
           if (!years) {
@@ -10709,6 +10702,7 @@ function emojiHtml(str, hue = 0) {
             years = dim.textContent.split(',').map(s => s.trim()).filter(Boolean).sort((a, b) => b.localeCompare(a));
             timeLayerYears[url] = years;
           }
+          if (layer !== baseLayer) return;
           const saved = localStorage.getItem(`ortoTimeYear:${layerKey}`);
           const year = (saved && years.includes(saved)) ? saved : years[0];
           years.forEach(y => {
@@ -10720,29 +10714,31 @@ function emojiHtml(str, hue = 0) {
           mapYearSelect.value = year;
           mapYearSelect.style.display = 'inline-block';
           setBadge(`Orto: ${year}`);
-          baseLayer.setParams({ time: year });
+          layer.setParams({ time: year });
           mapYearSelect.onchange = () => {
             const newYear = mapYearSelect.value;
-            const prevYear = baseLayer.options.time;
+            const prevYear = layer.options.time;
             setBadge(`Orto: ${newYear}`);
             const onError = () => {
+              if (layer !== baseLayer) return;
               showToast('Błąd WMS (Time). Sprawdź parametry warstwy.');
-              baseLayer.setParams({ time: prevYear });
+              layer.setParams({ time: prevYear });
               mapYearSelect.value = prevYear;
               setBadge(`Orto: ${prevYear}`);
-              baseLayer.off('tileerror', onError);
-              baseLayer.off('load', onLoad);
+              layer.off('tileerror', onError);
+              layer.off('load', onLoad);
             };
             const onLoad = () => {
-              baseLayer.off('tileerror', onError);
-              baseLayer.off('load', onLoad);
+              layer.off('tileerror', onError);
+              layer.off('load', onLoad);
               localStorage.setItem(`ortoTimeYear:${layerKey}`, newYear);
             };
-            baseLayer.on('tileerror', onError);
-            baseLayer.on('load', onLoad);
-            baseLayer.setParams({ time: newYear });
+            layer.on('tileerror', onError);
+            layer.on('load', onLoad);
+            layer.setParams({ time: newYear });
           };
         } catch (e) {
+          if (layer !== baseLayer) return;
           if (e.message === 'service') {
             showToast('Błąd WMS (Time). Sprawdź parametry warstwy.');
           } else {
@@ -10982,71 +10978,26 @@ function emojiHtml(str, hue = 0) {
         }
       }
 
-      function switchBaseLayer(key, isFallback = false) {
-        baseLayerLoadToken++;
-        const loadToken = baseLayerLoadToken;
-        resetBaseLayerLoading();
-        const def = baseLayerDefs[key] || baseLayerDefs['osm'];
-        if (currentBase === 'otm-trails') {
-          if (waymarkedErrorHandler) {
-            baseOpenTopoPlusTrails.overlay.off('tileerror', waymarkedErrorHandler);
-            waymarkedErrorHandler = null;
-          }
-          if (map.hasLayer(baseOpenTopoPlusTrails.overlay)) {
-            map.removeLayer(baseOpenTopoPlusTrails.overlay);
-          }
+      let cancelPendingBase = null;
+
+      function syncBaseOverlayOrder() {
+        for (const overlay of [labels, roadsLayer, baseOpenTopoPlusTrails.overlay]) {
+          if (overlay && map.hasLayer(overlay)) overlay.bringToFront();
+        }
+        bringActiveMapOverlaysToFront();
+      }
+
+      function activateBaseLayer(key, candidate) {
+        if (currentBase === 'otm-trails' && key !== currentBase) {
+          const trails = baseOpenTopoPlusTrails.overlay;
+          if (waymarkedErrorHandler) trails.off('tileerror', waymarkedErrorHandler);
+          waymarkedErrorHandler = null;
+          map.removeLayer(trails);
           map.attributionControl.removeAttribution(OTM_ATTR);
         }
-        if (baseLayer) {
-          if (baseLayerLoadingHandler) baseLayer.off('loading', baseLayerLoadingHandler);
-          if (baseLayerLoadedHandler) baseLayer.off('load', baseLayerLoadedHandler);
-          if (baseTileErrorHandler) baseLayer.off('tileerror', baseTileErrorHandler);
-          if (baseLayer._abortLoading) baseLayer._abortLoading();
-          map.removeLayer(baseLayer);
-        }
-        try {
-          baseLayer = def.create();
-        } catch (e) {
-          if (def.fallback && !isFallback) {
-            showToast('WMTS niedostępny, przełączam na WMS.');
-            switchBaseLayer(def.fallback, true);
-            return;
-          } else {
-            showToast('Nie można wczytać warstwy.');
-            baseLayer = baseLayerDefs['osm'].create();
-            key = 'osm';
-          }
-        }
-        if (key === 'orto-wms-std-time' || key === 'orto-wms-hi-time') {
-          baseTileErrorHandler = () => {
-            showToast('Błąd WMS (Time). Sprawdź parametry warstwy.');
-          };
-        } else {
-          baseTileErrorHandler = () => {
-            if (def.fallback && !isFallback) {
-              showToast('Sprawdź parametry warstwy (layers/CRS/format). Przełączam na WMS/WMTS.');
-              switchBaseLayer(def.fallback, true);
-            } else {
-              showToast('Błąd ładowania warstwy.');
-            }
-          };
-        }
-        baseLayerLoadingHandler = () => {
-          if (loadToken !== baseLayerLoadToken) return;
-          baseLayerLoadingCount++;
-          showLoading();
-        };
-        baseLayerLoadedHandler = () => {
-          if (loadToken !== baseLayerLoadToken) return;
-          if (baseLayerLoadingCount > 0) {
-            baseLayerLoadingCount--;
-            hideLoading();
-          }
-        };
-        baseLayer.on('tileerror', baseTileErrorHandler);
-        baseLayer.on('loading', baseLayerLoadingHandler);
-        baseLayer.on('load', baseLayerLoadedHandler);
-        baseLayer.addTo(map);
+        if (baseLayer && baseLayer !== candidate) map.removeLayer(baseLayer);
+        baseLayer = candidate;
+        currentBase = key;
         if (key === 'otm-trails') {
           baseOpenTopoPlusTrails.overlay.addTo(map);
           waymarkedErrorHandler = () => {
@@ -11059,15 +11010,73 @@ function emojiHtml(str, hue = 0) {
           map.attributionControl.removeAttribution('© waymarkedtrails.org, © OpenStreetMap (CC BY-SA)');
           map.attributionControl.addAttribution(OTM_ATTR);
         }
-        map.removeLayer(labels);
-        if (roadsLayer) map.removeLayer(roadsLayer);
-        if (key !== 'osm') {
-          labels.addTo(map);
-          if (roadsLayer) roadsLayer.addTo(map);
+        for (const overlay of [labels, roadsLayer]) {
+          if (!overlay) continue;
+          if (key === 'osm') map.removeLayer(overlay);
+          else if (!map.hasLayer(overlay)) overlay.addTo(map);
         }
-        bringActiveMapOverlaysToFront();
-        currentBase = key;
+        syncBaseOverlayOrder();
         updateMapDateUI(key);
+      }
+
+      function selectDisplayedBase() {
+        baseRadios.forEach(radio => { radio.checked = radio.value === currentBase; });
+      }
+
+      function switchBaseLayer(key, isFallback = false) {
+        cancelPendingBase?.();
+        if (key === currentBase) {
+          selectDisplayedBase();
+          return;
+        }
+        const def = baseLayerDefs[key];
+        const onFailure = () => {
+          if (def.fallback && !isFallback) {
+            showToast('Próbuję wczytać tę bazę z usługi WMS.');
+            switchBaseLayer(def.fallback, true);
+          } else {
+            selectDisplayedBase();
+            showToast('Nie udało się wczytać nowej bazy. Pozostawiono poprzednią mapę.');
+          }
+        };
+        let candidate;
+        try {
+          candidate = def.create();
+        } catch (error) {
+          onFailure();
+          return;
+        }
+
+        let hasTiles = false;
+        const onTileLoad = () => { hasTiles = true; };
+        const detach = () => {
+          clearTimeout(timeout);
+          candidate.off('tileload', onTileLoad);
+          candidate.off('load', finish);
+          cancelPendingBase = null;
+        };
+        const finish = () => {
+          detach();
+          if (hasTiles) {
+            activateBaseLayer(key, candidate);
+            selectDisplayedBase();
+          } else {
+            map.removeLayer(candidate);
+            onFailure();
+          }
+        };
+        const timeout = setTimeout(finish, 8000);
+        cancelPendingBase = () => {
+          detach();
+          map.removeLayer(candidate);
+        };
+        candidate.on('tileload', onTileLoad);
+        candidate.on('load', finish);
+        candidate.addTo(map);
+        if (map.hasLayer(candidate)) {
+          candidate.bringToFront();
+          syncBaseOverlayOrder();
+        }
       }
 
       const streetLayers = { full: roadsFull, main: roadsSimple, none: null };
@@ -11095,7 +11104,8 @@ function emojiHtml(str, hue = 0) {
           switchBaseLayer(radio.value);
         });
       });
-      switchBaseLayer(baseKey);
+      activateBaseLayer('sat', sat.addTo(map));
+      if (baseKey !== 'sat') switchBaseLayer(baseKey);
       console.log('🆕 Dodano opcjonalną nakładkę OSM/Overpass wyświetlającą wybrane miejsca z OpenStreetMap bez zapisywania ich do Firestore i bez dodawania do listy pinezek.');
 
 
