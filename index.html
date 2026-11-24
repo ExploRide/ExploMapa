@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <script>
-    const BUILD_VERSION = '2026-11-24 v.0.703';
+    const BUILD_VERSION = '2026-11-24 v.0.704';
     window.BUILD_VERSION = BUILD_VERSION;
     window.APP_BUILD = BUILD_VERSION;
   </script>
@@ -4809,15 +4809,30 @@ function slugify(str) {
       if (appInitialized) return;
       appInitialized = true;
       initMap();
-      loadLayersFromFirestore().then(() => {
+      const startMobileControls = () => {
+        if (window.innerWidth <= 800 || document.body.classList.contains('mobile-layout')) {
+          initGeolocation();
+        }
+        setupMobile();
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startMobileControls, { once: true });
+      } else {
+        startMobileControls();
+      }
+      loadLayersFromFirestore().then(layersLoaded => {
         if (window.innerWidth <= 700) {
-          loadNewPinsFromLocal();
+          try {
+            loadNewPinsFromLocal();
+          } catch (error) {
+            console.error('Błąd wczytywania lokalnych pinezek', error);
+          }
           generujListeWarstw();
+          if (!layersLoaded) showToast('Nie udało się wczytać warstw. Użyj „Załaduj pinezki”, aby ponowić.', 5000);
         } else {
           zaladujPinezkiZFirestore();
         }
         initGeoSearch();
-        setupMobile();
         initRouteSearch();
       });
     }
@@ -6272,7 +6287,7 @@ function slugify(str) {
       updateSelectionStyles();
     }
 
-    function handleLoadPinsFromButton(event) {
+    async function handleLoadPinsFromButton(event) {
       if (event) {
         event.preventDefault();
         event.stopPropagation();
@@ -6280,10 +6295,16 @@ function slugify(str) {
       if (window.innerWidth > 700 || fullPinsLoaded) return;
       shouldApplyDefaultLayerState = true;
       initialLayerVisibilitySet = true;
-      zaladujPinezkiZFirestore();
       fullPinsLoaded = true;
       const loadBtn = document.getElementById('loadPinsBtn');
       if (loadBtn) loadBtn.style.display = 'none';
+      if (!Object.keys(layerDocs).length && !await loadLayersFromFirestore()) {
+        fullPinsLoaded = false;
+        if (loadBtn) loadBtn.style.display = '';
+        showToast('Nie udało się wczytać warstw. Spróbuj ponownie.', 5000);
+        return;
+      }
+      zaladujPinezkiZFirestore();
     }
 
     const loadPinsBtn = document.getElementById('loadPinsBtn');
@@ -6401,7 +6422,9 @@ function slugify(str) {
         sidebarEl.style.setProperty("--mobile-layers-button-width", `${width}px`);
         sidebarEl.style.setProperty("--mobile-layers-button-height", `${height}px`);
       };
-      new ResizeObserver(syncMobileSidebarHeader).observe(toggleLayersBtn);
+      if (typeof ResizeObserver === 'function') {
+        new ResizeObserver(syncMobileSidebarHeader).observe(toggleLayersBtn);
+      }
     }
     const closeMobileSidebarOnOutsideClick = event => {
       if (!document.body.classList.contains("mobile-layout")) return;
@@ -11234,8 +11257,10 @@ function emojiHtml(str, hue = 0) {
           initialLayerOrder = [...order];
           layerOrderChanged = false;
         }
+        return true;
       } catch (e) {
         console.error('Błąd wczytywania warstw', e);
+        return false;
       }
     }
 
@@ -17468,11 +17493,6 @@ function getTripPointEmoji(p) {
     const planConfirmBtn = document.getElementById('planConfirm');
     if (planConfirmBtn) planConfirmBtn.addEventListener('click', confirmPlanPlacement);
     initLayerEditor();
-
-    if (document.body.classList.contains('authenticated')) {
-      setupMobile();
-    }
-
   });
 
   let modalSlug = null;
@@ -17755,6 +17775,7 @@ function confirmLayerDelete() {
     iconSize: [24, 24],
     iconAnchor: [12, 12]
   });
+  let gpsWatchId = null;
   let followGps = true;
   window.gpsFollowActive = true;
   window.stopGpsFollow = stopGpsFollow;
@@ -17786,19 +17807,24 @@ function confirmLayerDelete() {
     }
   }
 
-  function initGeolocation() {
-    if (!navigator.geolocation) return;
-    const gpsLoading = document.getElementById('gpsLoadingMessage');
-    if (isMobile && gpsLoading) {
-      gpsLoading.style.display = 'block';
+  function initGeolocation(retry = false) {
+    if (!navigator.geolocation) {
+      showToast('Ta przeglądarka nie udostępnia lokalizacji GPS.', 5000);
+      return;
     }
-    navigator.geolocation.watchPosition(pos => {
+    if (gpsWatchId !== null) {
+      if (!retry) return;
+      navigator.geolocation.clearWatch(gpsWatchId);
+    }
+    const gpsLoading = document.getElementById('gpsLoadingMessage');
+    const gpsBtn = document.getElementById('gpsFollowBtn');
+    if (gpsLoading && !currentLocation) gpsLoading.style.display = 'block';
+    gpsWatchId = navigator.geolocation.watchPosition(pos => {
       currentLocation = [pos.coords.latitude, pos.coords.longitude];
       const heading = pos.coords.heading;
       let markerCreated = false;
       if (!currentMarker) {
         currentMarker = L.marker(currentLocation, {icon: gpsIcon}).addTo(map);
-        map.setView(currentLocation, 16);
         markerCreated = true;
       } else {
         currentMarker.setLatLng(currentLocation);
@@ -17809,19 +17835,22 @@ function confirmLayerDelete() {
         updateGpsHeading(heading);
       }
       if (followGps) {
+        if (gpsBtn) gpsBtn.style.display = 'none';
         suppressGpsFollowViewportLoading();
-        map.setView(currentLocation, map.getZoom());
+        map.setView(currentLocation, markerCreated ? 16 : map.getZoom());
       }
       if (typeof window.updateMobileSavePinButton === 'function') window.updateMobileSavePinButton();
-      if (isMobile && gpsLoading) {
-        gpsLoading.style.display = 'none';
-      }
+      if (gpsLoading) gpsLoading.style.display = 'none';
     }, err => {
       console.error('geo error', err);
-      if (isMobile && gpsLoading) {
-        gpsLoading.style.display = 'none';
+      if (gpsLoading) gpsLoading.style.display = 'none';
+      if (!currentLocation) {
+        if (gpsBtn) gpsBtn.style.display = 'block';
+        showToast(err.code === 1
+          ? 'Zezwól ExploMapie na dostęp do lokalizacji i naciśnij GPS.'
+          : 'Nie udało się ustalić lokalizacji. Naciśnij GPS, aby spróbować ponownie.', 5000);
       }
-    }, { enableHighAccuracy: true });
+    }, { enableHighAccuracy: true, timeout: 15000 });
   }
 
   async function ensureMovingLayer() {
@@ -18088,19 +18117,21 @@ function confirmLayerDelete() {
 
       function updateMobileSavePinButton() {
         if (!btn) return;
-        const isMobileViewport = window.innerWidth <= 800;
+        const isMobileViewport = window.innerWidth <= 800 || document.body.classList.contains('mobile-layout');
         const pinToolActive = currentTool === 'pin';
         const gpsPositionCentered = followGps && Array.isArray(currentLocation);
         const shouldShow = isMobileViewport && (pinToolActive || gpsPositionCentered);
         btn.style.display = shouldShow ? 'block' : 'none';
         btn.textContent = pinToolActive ? 'ZAPISZ PINEZKĘ' : 'ZAPISZ POZYCJĘ';
       }
-      new ResizeObserver(() => {
-        const height = btn.getBoundingClientRect().height;
-        if (height > 0) {
-          document.body.style.setProperty('--mobile-pin-action-height', `${height}px`);
-        }
-      }).observe(btn);
+      if (typeof ResizeObserver === 'function') {
+        new ResizeObserver(() => {
+          const height = btn.getBoundingClientRect().height;
+          if (height > 0) {
+            document.body.style.setProperty('--mobile-pin-action-height', `${height}px`);
+          }
+        }).observe(btn);
+      }
 
       window.updateMobileSavePinButton = updateMobileSavePinButton;
       window.addEventListener('resize', updateMobileSavePinButton);
@@ -18280,20 +18311,6 @@ function confirmLayerDelete() {
         mainCatInput.onchange = () => { catInput.value = ''; if (layerInput) layerInput.value = ''; };
       }
 
-    if (window.innerWidth <= 800) {
-      updateMobileSavePinButton();
-      if (typeof map !== 'undefined' && map) {
-        initGeolocation();
-      } else {
-        const iv = setInterval(() => {
-          if (typeof map !== 'undefined' && map) {
-            initGeolocation();
-            clearInterval(iv);
-          }
-        }, 500);
-      }
-    }
-
     btn.addEventListener('click', async () => {
       if (currentTool === 'pin') {
         await openNewPinPopup(map.getCenter());
@@ -18359,9 +18376,11 @@ function confirmLayerDelete() {
       gpsBtn.addEventListener('click', () => {
         followGps = true;
         window.gpsFollowActive = true;
-        gpsBtn.style.display = 'none';
         if (currentLocation) {
+          gpsBtn.style.display = 'none';
           map.setView(currentLocation, map.getZoom());
+        } else {
+          initGeolocation(true);
         }
         updateMobileSavePinButton();
       });
